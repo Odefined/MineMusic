@@ -149,7 +149,7 @@ async function presentCandidate(
     return materialCandidateRef;
   }
 
-  const committed = ports.candidateCommit.commitCandidate({
+  const committed = await ports.candidateCommit.commitCandidate({
     materialCandidateRef: materialCandidateRef.value,
   });
 
@@ -189,7 +189,7 @@ async function presentMaterial(
   materialRef: Ref,
   ports: CreateMusicExperiencePresentRegistrationInput,
 ): Promise<Result<MusicExperiencePresentOutput>> {
-  const material = ports.materialProjection.projectMusicMaterial({ materialRef });
+  const material = await ports.materialProjection.projectMusicMaterial({ materialRef });
 
   if (material === undefined) {
     return materialNotFound("Music material is not available for presentation.");

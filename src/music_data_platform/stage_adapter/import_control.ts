@@ -35,7 +35,7 @@ import {
 export type LibraryImportControlPort = {
   startImport(input: LibraryImportStartInput): Promise<Result<SourceLibraryImportResult>>;
   continueImport(input: LibraryImportContinueInput): Promise<Result<SourceLibraryImportResult>>;
-  getStatus(input: LibraryImportStatusInput): SourceLibraryImportBatchRecord | undefined;
+  getStatus(input: LibraryImportStatusInput): Promise<SourceLibraryImportBatchRecord | undefined>;
   sourceLibraryScopeForBatch(input: {
     batch: SourceLibraryImportBatchRecord;
   }): LibraryImportSourceLibraryScope | undefined;
@@ -281,7 +281,7 @@ async function handleLibraryImportStatus(
   payload: unknown,
   control: LibraryImportControlPort,
 ): Promise<Result<LibraryImportStatusOutput>> {
-  const batch = control.getStatus(payload as LibraryImportStatusInput);
+  const batch = await control.getStatus(payload as LibraryImportStatusInput);
 
   if (batch === undefined) {
     return fail({

@@ -73,6 +73,7 @@ export const musicDataPlatformRetrievalResultSetSchema: MusicDatabaseSchemaContr
         PRIMARY KEY(result_set_id, row_kind, stable_ref_key),
         FOREIGN KEY(result_set_id, row_kind, stable_ref_key)
           REFERENCES retrieval_result_rows(result_set_id, row_kind, stable_ref_key)
+          DEFERRABLE INITIALLY DEFERRED
       )
     `);
 

@@ -34,7 +34,13 @@ const sourcePriority: Readonly<Record<MaterialTextContributionSource, number>> =
 const maxMaterialTextPrefixQueryTokens = 12;
 
 export function normalizeMaterialTextValue(value: string): string {
-  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 }
 
 export function buildMaterialTextFieldState(
@@ -121,8 +127,8 @@ export function buildMaterialTextPrefixQueryTokens(text: string): readonly strin
 
 export function buildMaterialTextPrefixOrQuery(text: string): string {
   return buildMaterialTextPrefixQueryTokens(text)
-    .map((token) => `${quotedMaterialTextToken(token)}*`)
-    .join(" OR ");
+    .map((token) => `${quotedMaterialTextToken(token)}:*`)
+    .join(" | ");
 }
 
 export function buildMaterialTextMatchQuery(text: string): string {
@@ -132,14 +138,13 @@ export function buildMaterialTextMatchQuery(text: string): string {
     return "";
   }
 
-  return normalized
-    .split(" ")
-    .map((token) => `"${token.replaceAll('"', '""')}"`)
-    .join(" AND ");
+  return tokenizeMaterialTextValue(normalized)
+    .map(quotedMaterialTextToken)
+    .join(" & ");
 }
 
 function quotedMaterialTextToken(token: string): string {
-  return `"${token.replaceAll('"', '""')}"`;
+  return `'${token.replaceAll("'", "''")}'`;
 }
 
 function compareContributions(

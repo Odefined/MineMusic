@@ -6,7 +6,9 @@ import { createNcmPlugin, type NcmPluginConfig } from "../extension/plugins/inde
 
 export type MineMusicRuntimeConfig = {
   database?: {
-    filename?: string;
+    url?: string;
+    schema?: string;
+    maxConnections?: number;
   };
   projectionMaintenance?: {
     enabled?: boolean;
@@ -21,8 +23,19 @@ export type MineMusicRuntimeConfig = {
   };
 };
 
-export function mineMusicDatabaseFilename(config: MineMusicRuntimeConfig = {}): string {
-  return config.database?.filename ?? ":memory:";
+export function mineMusicDatabaseUrl(config: MineMusicRuntimeConfig = {}): string {
+  return nonBlank(config.database?.url)
+    ?? nonBlank(process.env["MINEMUSIC_DATABASE_URL"])
+    ?? "postgres://postgres:postgres@127.0.0.1:5432/minemusic";
+}
+
+export function mineMusicDatabaseSchema(config: MineMusicRuntimeConfig = {}): string | undefined {
+  return nonBlank(config.database?.schema)
+    ?? nonBlank(process.env["MINEMUSIC_DATABASE_SCHEMA"]);
+}
+
+export function mineMusicDatabaseMaxConnections(config: MineMusicRuntimeConfig = {}): number | undefined {
+  return config.database?.maxConnections;
 }
 
 export function createMineMusicExtensionRuntime(
@@ -33,4 +46,13 @@ export function createMineMusicExtensionRuntime(
       createNcmPlugin(config.plugins?.["minemusic.ncm"]),
     ],
   });
+}
+
+function nonBlank(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
 }

@@ -48,7 +48,7 @@ export type DownloadJobStatus = {
 
 export type DownloadCommands = {
   start(request: DownloadRequest): Promise<Result<DownloadJobId>>;
-  status(jobId: DownloadJobId): Result<DownloadJobStatus>;
+  status(jobId: DownloadJobId): Promise<Result<DownloadJobStatus>>;
   /** Wait for every in-flight background download to settle. Call before
    * closing the database so a shutdown cannot race the background writer. */
   drain(): Promise<void>;
@@ -136,7 +136,7 @@ export function createDownloadCommands(
         if (overwrite === "skip") {
           const now = input.clock();
           const jobId = input.generateJobId();
-          jobs.insert({
+          await jobs.insert({
             jobId,
             providerId,
             sourceRef: request.sourceRef,
@@ -173,7 +173,7 @@ export function createDownloadCommands(
 
       const jobId = input.generateJobId();
       const startedAt = input.clock();
-      jobs.insert(recordFor({
+      await jobs.insert(recordFor({
         jobId,
         providerId,
         sourceRef: request.sourceRef,
@@ -194,8 +194,8 @@ export function createDownloadCommands(
       return ok(jobId);
     },
 
-    status(jobId) {
-      const record = jobs.get({ jobId });
+    async status(jobId) {
+      const record = await jobs.get({ jobId });
 
       if (record === undefined) {
         return failDownload(
@@ -233,12 +233,12 @@ async function runDownload(
     const response = await fetchImpl(source.url);
 
     if (!response.ok) {
-      markFailed(jobs, jobId, clock, "music_data.download_http_failed", `Download HTTP ${response.status}.`);
+      await markFailed(jobs, jobId, clock, "music_data.download_http_failed", `Download HTTP ${response.status}.`);
       return;
     }
 
     if (response.body === null) {
-      markFailed(jobs, jobId, clock, "music_data.download_http_failed", "Download response had no body.");
+      await markFailed(jobs, jobId, clock, "music_data.download_http_failed", "Download response had no body.");
       return;
     }
 
@@ -274,7 +274,7 @@ async function runDownload(
     // the partial file is removed so the output path is either correct or absent.
     if (source.sizeBytes !== undefined && bytes !== source.sizeBytes) {
       fileWriter.remove(outputPath);
-      markFailed(jobs, jobId, clock, "music_data.download_size_mismatch", `Expected ${source.sizeBytes} bytes but received ${bytes}.`);
+      await markFailed(jobs, jobId, clock, "music_data.download_size_mismatch", `Expected ${source.sizeBytes} bytes but received ${bytes}.`);
       return;
     }
 
@@ -283,18 +283,18 @@ async function runDownload(
 
       if (actualMd5 !== source.md5) {
         fileWriter.remove(outputPath);
-        markFailed(jobs, jobId, clock, "music_data.download_integrity_failed", `md5 ${actualMd5} does not match provider ${source.md5}.`);
+        await markFailed(jobs, jobId, clock, "music_data.download_integrity_failed", `md5 ${actualMd5} does not match provider ${source.md5}.`);
         return;
       }
     }
 
-    const current = jobs.get({ jobId });
+    const current = await jobs.get({ jobId });
 
     if (current === undefined) {
       return;
     }
 
-    jobs.update({
+    await jobs.update({
       ...current,
       state: "completed",
       bytesDownloaded: bytes,
@@ -313,7 +313,7 @@ async function runDownload(
       // best-effort cleanup of a partial file
     }
 
-    markFailed(
+    await markFailed(
       jobs,
       jobId,
       clock,
@@ -323,25 +323,25 @@ async function runDownload(
   }
 }
 
-function markFailed(
+async function markFailed(
   jobs: DownloadJobRepository,
   jobId: string,
   clock: () => string,
   code: string,
   message: string,
-): void {
+): Promise<void> {
   // Defensive at the shutdown boundary: if the database is already closed the
   // job cannot be updated, and rethrowing here would surface from the
   // background task as an unhandled rejection. Swallow — the job simply stops
   // at whatever state last persisted.
   try {
-    const current = jobs.get({ jobId });
+    const current = await jobs.get({ jobId });
 
     if (current === undefined) {
       return;
     }
 
-    jobs.update({
+    await jobs.update({
       ...current,
       state: "failed",
       errorCode: code,

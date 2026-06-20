@@ -32,13 +32,13 @@ export type LibraryRelationService = {
   getRelationState(input: {
     ownerScope: string;
     materialRef: Ref;
-  }): LibraryRelationServiceState;
+  }): Promise<LibraryRelationServiceState>;
   editRelation(input: {
     ownerScope: string;
     materialRef: Ref;
     edit: LibraryRelationEdit;
     now: string;
-  }): LibraryRelationServiceState;
+  }): Promise<LibraryRelationServiceState>;
 };
 
 export type CreateLibraryRelationServiceInput = {
@@ -54,7 +54,7 @@ export function createLibraryRelationService(
   input: CreateLibraryRelationServiceInput,
 ): LibraryRelationService {
   return {
-    getRelationState(readInput) {
+    async getRelationState(readInput) {
       return readRelationState({
         db: input.database.context(),
         ownerScope: readInput.ownerScope,
@@ -62,9 +62,9 @@ export function createLibraryRelationService(
         requireWritable: false,
       });
     },
-    editRelation(editInput) {
-      return input.database.transaction((db) => {
-        readRelationState({
+    async editRelation(editInput) {
+      return input.database.transaction(async (db) => {
+        await readRelationState({
           db,
           ownerScope: editInput.ownerScope,
           materialRef: editInput.materialRef,
@@ -75,7 +75,7 @@ export function createLibraryRelationService(
           db,
           now: editInput.now,
         }).ownerRelations;
-        const existing = relationSet({
+        const existing = await relationSet({
           db,
           ownerScope: editInput.ownerScope,
           materialRef: editInput.materialRef,
@@ -83,30 +83,30 @@ export function createLibraryRelationService(
 
         switch (editInput.edit) {
           case "save":
-            removeIfActive(commands, existing, editInput, "blocked");
-            record(commands, editInput, "saved");
+            await removeIfActive(commands, existing, editInput, "blocked");
+            await record(commands, editInput, "saved");
             break;
           case "unsave":
-            removeIfActive(commands, existing, editInput, "saved");
+            await removeIfActive(commands, existing, editInput, "saved");
             break;
           case "favorite":
-            removeIfActive(commands, existing, editInput, "blocked");
-            record(commands, editInput, "favorite");
+            await removeIfActive(commands, existing, editInput, "blocked");
+            await record(commands, editInput, "favorite");
             break;
           case "unfavorite":
-            removeIfActive(commands, existing, editInput, "favorite");
+            await removeIfActive(commands, existing, editInput, "favorite");
             break;
           case "block":
-            removeIfActive(commands, existing, editInput, "saved");
-            removeIfActive(commands, existing, editInput, "favorite");
-            record(commands, editInput, "blocked");
+            await removeIfActive(commands, existing, editInput, "saved");
+            await removeIfActive(commands, existing, editInput, "favorite");
+            await record(commands, editInput, "blocked");
             break;
           case "unblock":
-            removeIfActive(commands, existing, editInput, "blocked");
+            await removeIfActive(commands, existing, editInput, "blocked");
             break;
         }
 
-        return relationStateFromKinds(relationSet({
+        return relationStateFromKinds(await relationSet({
           db,
           ownerScope: editInput.ownerScope,
           materialRef: editInput.materialRef,
@@ -116,33 +116,34 @@ export function createLibraryRelationService(
   };
 }
 
-function readRelationState(input: {
+async function readRelationState(input: {
   db: MusicDatabaseContext;
   ownerScope: string;
   materialRef: Ref;
   requireWritable: boolean;
-}): LibraryRelationServiceState {
+}): Promise<LibraryRelationServiceState> {
   assertWorkflowFacingOwnerScope(input.ownerScope);
-  requireMaterial(input.db, input.materialRef, input.requireWritable);
+  await requireMaterial(input.db, input.materialRef, input.requireWritable);
 
-  return relationStateFromKinds(relationSet({
+  return relationStateFromKinds(await relationSet({
     db: input.db,
     ownerScope: input.ownerScope,
     materialRef: input.materialRef,
   }));
 }
 
-function relationSet(input: {
+async function relationSet(input: {
   db: MusicDatabaseContext;
   ownerScope: string;
   materialRef: Ref;
-}): ReadonlySet<OwnerMaterialRelationKind> {
+}): Promise<ReadonlySet<OwnerMaterialRelationKind>> {
   const records = createOwnerMaterialRelationRecords({ db: input.db });
-
-  return new Set(records.listOwnerMaterialRelations({
+  const relationRecords = await records.listOwnerMaterialRelations({
     ownerScope: input.ownerScope,
     materialRef: input.materialRef,
-  }).map((record) => record.relationKind));
+  });
+
+  return new Set(relationRecords.map((record) => record.relationKind));
 }
 
 function relationStateFromKinds(kinds: ReadonlySet<OwnerMaterialRelationKind>): LibraryRelationServiceState {
@@ -153,15 +154,15 @@ function relationStateFromKinds(kinds: ReadonlySet<OwnerMaterialRelationKind>): 
   };
 }
 
-function record(
+async function record(
   commands: ReturnType<typeof createMusicDataPlatformSourceOfTruthWriteCommands>["ownerRelations"],
   input: {
     ownerScope: string;
     materialRef: Ref;
   },
   relationKind: OwnerMaterialRelationKind,
-): void {
-  commands.recordOwnerMaterialRelation({
+): Promise<void> {
+  await commands.recordOwnerMaterialRelation({
     ownerScope: input.ownerScope,
     materialRef: input.materialRef,
     relationKind,
@@ -169,34 +170,34 @@ function record(
   });
 }
 
-function removeIfActive(
+async function removeIfActive(
   commands: ReturnType<typeof createMusicDataPlatformSourceOfTruthWriteCommands>["ownerRelations"],
   existing: ReadonlySet<OwnerMaterialRelationKind>,
   input: {
     ownerScope: string;
-    materialRef: Ref;
+  materialRef: Ref;
   },
   relationKind: OwnerMaterialRelationKind,
-): void {
+): Promise<void> {
   if (!existing.has(relationKind)) {
     return;
   }
 
-  commands.removeOwnerMaterialRelation({
+  await commands.removeOwnerMaterialRelation({
     ownerScope: input.ownerScope,
     materialRef: input.materialRef,
     relationKind,
   });
 }
 
-function requireMaterial(
+async function requireMaterial(
   db: MusicDatabaseContext,
   materialRef: Ref,
   requireWritable: boolean,
-): void {
+): Promise<void> {
   assertMaterialRef(materialRef);
 
-  const row = db.get<MaterialLifecycleRow>(
+  const row = await db.get<MaterialLifecycleRow>(
     `
       SELECT ref_key, lifecycle_status
       FROM material_records

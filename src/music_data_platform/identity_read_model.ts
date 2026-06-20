@@ -10,7 +10,7 @@ export type CreateIdentityReadPortInput = {
 };
 
 export type IdentityReadPort = {
-  findMaterialForSource(input: { sourceRef: Ref }): SourceToMaterialBindingRecord | undefined;
+  findMaterialForSource(input: { sourceRef: Ref }): Promise<SourceToMaterialBindingRecord | undefined>;
 };
 
 export function createIdentityReadPort(
@@ -19,7 +19,7 @@ export function createIdentityReadPort(
   const repositories = createIdentityRepositories({ db: input.db });
 
   return {
-    findMaterialForSource(readInput) {
+    async findMaterialForSource(readInput) {
       return repositories.sourceMaterialBindings.findMaterialForSource(readInput);
     },
   };

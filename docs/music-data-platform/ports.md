@@ -15,7 +15,7 @@ metadata-only source-listing plus import drive/status tools, the Library
 Relation service/runtime module and relation get/edit tools, a material
 ref factory, a top-level source-of-truth write facade, and error types. It
 consumes generic Storage database ports and a
-narrow provider-library read port, but does not know SQLite primitives or
+narrow provider-library read port, but does not know concrete storage primitives or
 provider plugin implementations.
 
 ## Provides
@@ -246,7 +246,7 @@ durable workflow visibility and lets the invariant error throw.
 
 | Forbidden dependency | Reason |
 | --- | --- |
-| Music Data Platform -> `src/storage/sqlite/**` / `node:sqlite` / `DatabaseSync` | Music Data Platform must depend on generic database contexts, not concrete SQLite. |
+| Music Data Platform -> concrete storage adapter internals | Music Data Platform must depend on generic database contexts or narrow ports, not concrete adapter primitives. |
 | Music Data Platform -> Stage Interface | Stage Interface owns public tools/output projection. |
 | Music Data Platform -> Extension/provider implementations | Providers produce source facts; they do not persist identity directly. Library Import consumes a narrow read port, not plugin code. |
 | Music Data Platform -> query/retrieval/presentation roots | Query and presentation are later boundaries. |
@@ -259,7 +259,7 @@ durable workflow visibility and lets the invariant error throw.
 Current guards:
 
 - active-tree test allows only current formal Music Data Platform source files;
-- active-tree test rejects Music Data Platform imports of SQLite primitives and
+- active-tree test rejects Music Data Platform imports of concrete storage primitives and
   unrelated formal roots;
 - active-tree test rejects Music Data Platform public-barrel exposure of
   low-level repository factories, low-level write factories, and

@@ -41,10 +41,10 @@ export type RemoveOwnerMaterialRelationInput = {
 export type OwnerMaterialRelationCommands = {
   recordOwnerMaterialRelation(
     input: RecordOwnerMaterialRelationInput,
-  ): OwnerMaterialRelationRecord;
+  ): Promise<OwnerMaterialRelationRecord>;
   removeOwnerMaterialRelation(
     input: RemoveOwnerMaterialRelationInput,
-  ): OwnerMaterialRelationRecord;
+  ): Promise<OwnerMaterialRelationRecord>;
 };
 
 type MaterialLifecycleRow = {
@@ -59,13 +59,13 @@ export function createOwnerMaterialRelationCommands(
   const records = createOwnerMaterialRelationRecords({ db: input.db });
 
   return {
-    recordOwnerMaterialRelation(commandInput) {
+    async recordOwnerMaterialRelation(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
       assertMaterialRef(commandInput.materialRef);
       assertOwnerMaterialRelationKind(commandInput.relationKind);
       assertOwnerMaterialRelationOrigin(commandInput.origin);
       assertRelationNote(commandInput.note);
-      requireActiveMaterial(input.db, commandInput.materialRef);
+      await requireActiveMaterial(input.db, commandInput.materialRef);
 
       const relationRef = createOwnerMaterialRelationRef({
         ownerScope: commandInput.ownerScope,
@@ -75,7 +75,7 @@ export function createOwnerMaterialRelationCommands(
       const relationRefKey = refKey(relationRef);
       const materialRefKey = refKey(commandInput.materialRef);
 
-      input.db.run(
+      await input.db.run(
         `
           INSERT INTO owner_material_relations (
             relation_ref_key,
@@ -117,14 +117,14 @@ export function createOwnerMaterialRelationCommands(
       );
 
       const record = requireRelationRecord(
-        records.getOwnerMaterialRelation({
+        await records.getOwnerMaterialRelation({
           ownerScope: commandInput.ownerScope,
           materialRef: commandInput.materialRef,
           relationKind: commandInput.relationKind,
         }),
         "Owner material relation upsert did not return a stored record.",
       );
-      input.projectionInvalidationCommands.markProjectionInvalidated({
+      await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [{
           writeKind: "owner_relation_written",
           ownerScope: commandInput.ownerScope,
@@ -134,13 +134,13 @@ export function createOwnerMaterialRelationCommands(
       });
       return record;
     },
-    removeOwnerMaterialRelation(commandInput) {
+    async removeOwnerMaterialRelation(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
       assertMaterialRef(commandInput.materialRef);
       assertOwnerMaterialRelationKind(commandInput.relationKind);
-      requireActiveMaterial(input.db, commandInput.materialRef);
+      await requireActiveMaterial(input.db, commandInput.materialRef);
 
-      const existing = records.getOwnerMaterialRelation({
+      const existing = await records.getOwnerMaterialRelation({
         ownerScope: commandInput.ownerScope,
         materialRef: commandInput.materialRef,
         relationKind: commandInput.relationKind,
@@ -157,7 +157,7 @@ export function createOwnerMaterialRelationCommands(
         return existing;
       }
 
-      input.db.run(
+      await input.db.run(
         `
           UPDATE owner_material_relations
           SET status = 'removed',
@@ -168,14 +168,14 @@ export function createOwnerMaterialRelationCommands(
       );
 
       const record = requireRelationRecord(
-        records.getOwnerMaterialRelation({
+        await records.getOwnerMaterialRelation({
           ownerScope: commandInput.ownerScope,
           materialRef: commandInput.materialRef,
           relationKind: commandInput.relationKind,
         }),
         "Owner material relation remove did not return a stored record.",
       );
-      input.projectionInvalidationCommands.markProjectionInvalidated({
+      await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [{
           writeKind: "owner_relation_written",
           ownerScope: commandInput.ownerScope,
@@ -188,11 +188,11 @@ export function createOwnerMaterialRelationCommands(
   };
 }
 
-function requireActiveMaterial(
+async function requireActiveMaterial(
   db: MusicDatabaseTransactionContext,
   materialRef: Ref,
-): void {
-  const row = db.get<MaterialLifecycleRow>(
+): Promise<void> {
+  const row = await db.get<MaterialLifecycleRow>(
     `
       SELECT ref_key, kind, lifecycle_status
       FROM material_records

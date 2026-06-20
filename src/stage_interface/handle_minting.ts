@@ -25,10 +25,10 @@ export type CandidateHandleCachePort = {
 export type CandidateHandleBackingCachePort = {
   getByRefKey(input: {
     materialCandidateRefKey: string;
-  }): {
+  }): Promise<{
     materialCandidateRefKey: string;
     expiresAt: string;
-  } | undefined;
+  } | undefined>;
 };
 
 export type CreateStageInterfaceHandleMintingPortInput = {
@@ -75,7 +75,7 @@ export function createStageInterfaceCandidateHandleCachePort(
       assertOwnerScope(mintInput.ownerScope);
 
       const anchor = candidateAnchorFromInternalAnchor(mintInput.internalAnchor);
-      const cacheRecord = input.candidateCache.getByRefKey({
+      const cacheRecord = await input.candidateCache.getByRefKey({
         materialCandidateRefKey: anchor.materialCandidateRef,
       });
 
@@ -84,7 +84,7 @@ export function createStageInterfaceCandidateHandleCachePort(
       }
 
       const internalAnchorJson = stableJsonStringify(anchor);
-      const existing = records.bindings.getByOwnerAnchor({
+      const existing = await records.bindings.getByOwnerAnchor({
         ownerScope: mintInput.ownerScope,
         handleKind: "candidate",
         internalAnchorJson,
@@ -97,11 +97,11 @@ export function createStageInterfaceCandidateHandleCachePort(
       for (let attempt = 0; attempt < 5; attempt += 1) {
         const publicId = publicIdFactory();
 
-        if (records.bindings.getByPublicId({ publicId }) !== undefined) {
+        if (await records.bindings.getByPublicId({ publicId }) !== undefined) {
           continue;
         }
 
-        records.bindings.createBinding({
+        await records.bindings.createBinding({
           publicId,
           ownerScope: mintInput.ownerScope,
           handleKind: "candidate",
@@ -117,7 +117,7 @@ export function createStageInterfaceCandidateHandleCachePort(
     async resolve(resolveInput) {
       assertOwnerScope(resolveInput.ownerScope);
 
-      const binding = records.bindings.getByOwnerPublicId({
+      const binding = await records.bindings.getByOwnerPublicId({
         publicId: resolveInput.publicId,
         ownerScope: resolveInput.ownerScope,
         handleKind: "candidate",
@@ -156,7 +156,7 @@ export function createStageInterfaceHandleMintingPortFromRecords(
 
       assertHandleKind(mintInput.handleKind);
       const internalAnchorJson = stableJsonStringify(mintInput.internalAnchor);
-      const existing = records.bindings.getByOwnerAnchor({
+      const existing = await records.bindings.getByOwnerAnchor({
         ownerScope: mintInput.ownerScope,
         handleKind: mintInput.handleKind,
         internalAnchorJson,
@@ -169,11 +169,11 @@ export function createStageInterfaceHandleMintingPortFromRecords(
       for (let attempt = 0; attempt < 5; attempt += 1) {
         const publicId = publicIdFactory();
 
-        if (records.bindings.getByPublicId({ publicId }) !== undefined) {
+        if (await records.bindings.getByPublicId({ publicId }) !== undefined) {
           continue;
         }
 
-        records.bindings.createBinding({
+        await records.bindings.createBinding({
           publicId,
           ownerScope: mintInput.ownerScope,
           handleKind: mintInput.handleKind,
@@ -197,7 +197,7 @@ export function createStageInterfaceHandleMintingPortFromRecords(
       }
 
       assertHandleKind(resolveInput.handleKind);
-      const binding = records.bindings.getByOwnerPublicId({
+      const binding = await records.bindings.getByOwnerPublicId({
         publicId: resolveInput.publicId,
         ownerScope: resolveInput.ownerScope,
         handleKind: resolveInput.handleKind,

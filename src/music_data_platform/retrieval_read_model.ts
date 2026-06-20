@@ -8,7 +8,6 @@ import { MusicDataPlatformError } from "./errors.js";
 import { assertComparableTimestamp } from "./timestamp_validation.js";
 import { assertMaterialRef } from "./material_ref.js";
 import {
-  buildMaterialTextPrefixOrQuery,
   buildMaterialTextPrefixQueryTokens,
   normalizeMaterialTextValue,
 } from "./material_text_normalization.js";
@@ -29,7 +28,9 @@ import {
   retrievalTextFieldConfigs,
   matchedTokenCountSqlExpression,
   bestFieldPrioritySqlExpression,
-  fieldScopedPrefixQuery,
+  ftsRankSortValueSqlExpression,
+  ftsSearchConditionSql,
+  prefixTsQueryForTokens,
 } from "./material_text_ranking.js";
 import {
   requiredFieldPriority,
@@ -116,10 +117,10 @@ export type CreateMusicDataPlatformRetrievalReadPortInput = {
 export type MusicDataPlatformRetrievalReadPort = {
   searchOwnerCatalogMaterials(
     input: MusicDataPlatformRetrievalSearchInput,
-  ): MusicDataPlatformRetrievalSearchPage;
+  ): Promise<MusicDataPlatformRetrievalSearchPage>;
   getRetrievalFreshness(input: {
     ownerScope: string;
-  }): RetrievalFreshness;
+  }): Promise<RetrievalFreshness>;
 };
 
 type SearchCatalogRow = {
@@ -160,7 +161,7 @@ type SourceLibraryRow = {
 };
 
 type CountRow = {
-  count: number;
+  count: number | string;
 };
 
 type MaterialEntityPayload = {
@@ -200,7 +201,7 @@ export function createMusicDataPlatformRetrievalReadPort(
   const { db } = input;
 
   return {
-    searchOwnerCatalogMaterials(readInput) {
+    async searchOwnerCatalogMaterials(readInput) {
       const ownerScope = validatedOwnerScope(readInput.ownerScope);
       const order = validatedOrder(readInput.order);
       const limit = validatedLimit(readInput.limit);
@@ -212,10 +213,10 @@ export function createMusicDataPlatformRetrievalReadPort(
         order,
         effectiveTextQuery !== undefined,
       );
-      validatePoolRefs(db, ownerScope, poolFilter);
+      await validatePoolRefs(db, ownerScope, poolFilter);
 
       const selectedRows = effectiveTextQuery === undefined
-        ? db.all<SearchCatalogRow>(
+        ? await db.all<SearchCatalogRow>(
           searchSqlForOrder(order, poolFilter, materialKind, cursorPosition),
           searchParamsForOrder({
             ownerScope,
@@ -225,7 +226,7 @@ export function createMusicDataPlatformRetrievalReadPort(
             limit: limit + 1,
           }),
         )
-        : db.all<SearchCatalogRow>(
+        : await db.all<SearchCatalogRow>(
           searchSqlForText(order, poolFilter, materialKind, cursorPosition, effectiveTextQuery),
           searchParamsForText({
             ownerScope,
@@ -237,7 +238,7 @@ export function createMusicDataPlatformRetrievalReadPort(
         );
 
       const visibleRows = selectedRows.slice(0, limit);
-      const matchedPoolRefsByMaterial = matchedPoolRefsByMaterialRefKey(
+      const matchedPoolRefsByMaterial = await matchedPoolRefsByMaterialRefKey(
         db,
         ownerScope,
         visibleRows.map((row) => row.material_ref_key),
@@ -245,7 +246,7 @@ export function createMusicDataPlatformRetrievalReadPort(
       );
       const matchedTextEvidenceByMaterial = effectiveTextQuery === undefined
         ? undefined
-        : matchedTextEvidenceByMaterialRefKey(
+        : await matchedTextEvidenceByMaterialRefKey(
           db,
           visibleRows.map((row) => row.material_ref_key),
           effectiveTextQuery.tokens,
@@ -264,10 +265,10 @@ export function createMusicDataPlatformRetrievalReadPort(
           : {}),
       };
     },
-    getRetrievalFreshness(readInput) {
+    async getRetrievalFreshness(readInput) {
       const ownerScope = validatedOwnerScope(readInput.ownerScope);
-      const dirtyTargetCount = countDirtyTargets(db, ownerScope, "dirty");
-      const failedTargetCount = countDirtyTargets(db, ownerScope, "failed");
+      const dirtyTargetCount = await countDirtyTargets(db, ownerScope, "dirty");
+      const failedTargetCount = await countDirtyTargets(db, ownerScope, "failed");
 
       if (dirtyTargetCount === 0 && failedTargetCount === 0) {
         return { status: "current" };
@@ -359,7 +360,7 @@ function normalizeEffectiveTextQuery(
   return {
     normalizedText,
     tokens,
-    matchQuery: buildMaterialTextPrefixOrQuery(normalizedText),
+    matchQuery: prefixTsQueryForTokens(tokens),
   };
 }
 
@@ -495,15 +496,15 @@ function normalizePoolRefs(refs: readonly Ref[] | undefined): readonly Ref[] {
     .map(([, ref]) => ref);
 }
 
-function validatePoolRefs(
+async function validatePoolRefs(
   db: MusicDatabaseContext,
   ownerScope: string,
   poolFilter: NormalizedRetrievalReadPoolFilter,
-): void {
+): Promise<void> {
   for (const ref of [...poolFilter.allOf, ...poolFilter.anyOf, ...poolFilter.noneOf]) {
     switch (ref.namespace) {
       case "source_library":
-        validateSourceLibraryPoolRef(db, ownerScope, ref);
+        await validateSourceLibraryPoolRef(db, ownerScope, ref);
         break;
       case "owner_material_relation_pool":
         validateOwnerRelationPoolRef(ownerScope, ref);
@@ -516,14 +517,14 @@ function validatePoolRefs(
   }
 }
 
-function validateSourceLibraryPoolRef(
+async function validateSourceLibraryPoolRef(
   db: MusicDatabaseContext,
   ownerScope: string,
   libraryRef: Ref,
-): void {
+): Promise<void> {
   assertSourceLibraryRef(libraryRef);
   const storedRefKey = refKey(libraryRef);
-  const row = db.get<SourceLibraryRow>(
+  const row = await db.get<SourceLibraryRow>(
     `
       SELECT
         library_ref_key,
@@ -784,7 +785,7 @@ function searchSqlForText(
         t.alias_text,
         ${matchedTokenCountSql} AS matched_token_count,
         ${bestFieldPrioritySql} AS best_field_priority,
-        ${rankSortValueSqlExpression(order)} AS rank_sort_value
+        ${rankSortValueSqlExpression(order, textQuery)} AS rank_sort_value
       FROM owner_material_catalog_view c
       JOIN material_records m
         ON m.ref_key = c.material_ref_key
@@ -792,7 +793,7 @@ function searchSqlForText(
         ON t.material_ref_key = c.material_ref_key
       JOIN material_text_fts
         ON material_text_fts.material_ref_key = c.material_ref_key
-      WHERE material_text_fts MATCH ${sqlStringLiteral(textQuery.matchQuery)}
+      WHERE ${ftsSearchConditionSql("material_text_fts", textQuery.matchQuery)}
         AND ${whereClauses.map((clause) => `(${clause.trim()})`).join("\n        AND ")}
     )
     SELECT
@@ -815,9 +816,12 @@ function searchSqlForText(
   `;
 }
 
-function rankSortValueSqlExpression(order: RetrievalOrder): string {
+function rankSortValueSqlExpression(
+  order: RetrievalOrder,
+  textQuery: RetrievalEffectiveTextQuery,
+): string {
   return order === "text_relevance"
-    ? "bm25(material_text_fts, 1.0, 1.0, 1.0, 1.0, 1.0)"
+    ? ftsRankSortValueSqlExpression("material_text_fts", textQuery.matchQuery)
     : "NULL";
 }
 
@@ -921,17 +925,17 @@ function textOrderBySql(order: RetrievalOrder): string {
   }
 }
 
-function matchedPoolRefsByMaterialRefKey(
+async function matchedPoolRefsByMaterialRefKey(
   db: MusicDatabaseContext,
   ownerScope: string,
   materialRefKeys: readonly string[],
   poolFilter: NormalizedRetrievalReadPoolFilter,
-): ReadonlyMap<string, readonly Ref[]> {
+): Promise<ReadonlyMap<string, readonly Ref[]>> {
   if (materialRefKeys.length === 0 || poolFilter.positiveRefKeys.length === 0) {
     return new Map();
   }
 
-  const rows = db.all<MatchedPoolEntryRow>(
+  const rows = await db.all<MatchedPoolEntryRow>(
     `
       SELECT
         material_ref_key,
@@ -973,16 +977,16 @@ function matchedPoolRefsByMaterialRefKey(
   return grouped;
 }
 
-function matchedTextEvidenceByMaterialRefKey(
+async function matchedTextEvidenceByMaterialRefKey(
   db: MusicDatabaseContext,
   materialRefKeys: readonly string[],
   queryTokens: readonly string[],
-): ReadonlyMap<string, RetrievalRowTextEvidence> {
+): Promise<ReadonlyMap<string, RetrievalRowTextEvidence>> {
   if (materialRefKeys.length === 0 || queryTokens.length === 0) {
     return new Map();
   }
 
-  const rows = db.all<MatchedTextEvidenceRow>(
+  const rows = await db.all<MatchedTextEvidenceRow>(
     matchedTextEvidenceSql(materialRefKeys.length, queryTokens),
     [...materialRefKeys],
   );
@@ -1016,7 +1020,7 @@ function matchedTextEvidenceByMaterialRefKey(
     const lastFieldEvidence =
       existing.matchedTextTokensByField[existing.matchedTextTokensByField.length - 1];
 
-    if (lastFieldEvidence?.field === row.field) {
+    if (lastFieldEvidence !== undefined && lastFieldEvidence.field === row.field) {
       lastFieldEvidence.tokens.push(row.token);
     } else {
       existing.matchedTextFields.push(row.field);
@@ -1061,7 +1065,12 @@ function matchedTextEvidenceSql(
         FROM material_text_fts
         JOIN target_materials
           ON target_materials.material_ref_key = material_text_fts.material_ref_key
-        WHERE material_text_fts MATCH ${sqlStringLiteral(fieldScopedPrefixQuery(field.column, token))}
+        WHERE ${ftsSearchConditionSql(
+          "material_text_fts",
+          prefixTsQueryForTokens([token]),
+        )}
+          AND to_tsvector('simple', COALESCE(material_text_fts.${field.column}, ''))
+            @@ to_tsquery('simple', ${sqlStringLiteral(prefixTsQueryForTokens([token]))})
       `);
     }
   }
@@ -1201,18 +1210,18 @@ function normalizedFtsRankScore(rankSortValue: number): number {
   return -rankSortValue;
 }
 
-function countDirtyTargets(
+async function countDirtyTargets(
   db: MusicDatabaseContext,
   ownerScope: string,
   status: "dirty" | "failed",
-): number {
+): Promise<number> {
   const ownerCatalogKinds = [
     "owner_catalog_source_library",
     "owner_catalog_source_library_material",
     "owner_catalog_relation_material",
   ];
 
-  const row = db.get<CountRow>(
+  const row = await db.get<CountRow>(
     `
       SELECT COUNT(*) AS count
       FROM projection_maintenance_targets
@@ -1221,7 +1230,7 @@ function countDirtyTargets(
           projection_kind = 'material_text'
           OR (
             projection_kind IN (${sqlPlaceholders(ownerCatalogKinds.length)})
-            AND json_extract(target_payload_json, '$.ownerScope') = ?
+            AND target_payload_json::jsonb ->> 'ownerScope' = ?
           )
         )
     `,
@@ -1232,7 +1241,7 @@ function countDirtyTargets(
     ],
   );
 
-  return row?.count ?? 0;
+  return Number(row?.count ?? 0);
 }
 
 function materialRefFromEntityJson(

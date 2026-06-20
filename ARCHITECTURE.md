@@ -83,7 +83,7 @@ belongs to the area that emits or consumes the event.
 
 Storage infrastructure sits behind area-owned ports. Area semantics own
 persistence meaning. The public database boundary is generic `MusicDatabase`;
-SQLite is a concrete adapter behind that boundary. A replaceable Storage
+Postgres is the current concrete runtime adapter behind that boundary. A replaceable Storage
 Provider is an Extension Capability Slot, not a Storage bounded context.
 
 ## Host, Interface, And Runtime
@@ -394,7 +394,7 @@ permits the action.
   write MineMusic state directly. Persistence and runtime-state mutation go
   through explicit owning command/materializer/projection-maintenance
   boundaries.
-- Concrete database primitives such as `DatabaseSync` stay inside storage
+- Concrete database primitives such as Postgres pools/clients stay inside storage
   adapters. Area services and repositories receive generic database contexts or
   narrower ports.
 - Effect execution goes through Effect Boundary, even when an effect-capable

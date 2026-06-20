@@ -84,32 +84,32 @@ export type RetrievalResultSetRecords = {
   cleanupExpiredRetrievalResultSets(input: {
     now: string;
     limit?: number;
-  }): RetrievalResultSetCleanupResult;
+  }): Promise<RetrievalResultSetCleanupResult>;
   cleanupExpiredMaterialCandidates(input: {
     now: string;
     limit?: number;
-  }): MaterialCandidateCacheCleanupResult;
+  }): Promise<MaterialCandidateCacheCleanupResult>;
 };
 
 export type RetrievalResultSetRepository = {
-  get(input: { resultSetId: string }): RetrievalResultSetRecord | undefined;
-  insert(record: RetrievalResultSetRecord): RetrievalResultSetRecord;
+  get(input: { resultSetId: string }): Promise<RetrievalResultSetRecord | undefined>;
+  insert(record: RetrievalResultSetRecord): Promise<RetrievalResultSetRecord>;
 };
 
 export type RetrievalResultRowRepository = {
-  insertMany(records: readonly RetrievalResultRowRecord[]): void;
-  listForResultSet(input: { resultSetId: string }): readonly RetrievalResultRowRecord[];
+  insertMany(records: readonly RetrievalResultRowRecord[]): Promise<void>;
+  listForResultSet(input: { resultSetId: string }): Promise<readonly RetrievalResultRowRecord[]>;
 };
 
 export type RetrievalResultTextFtsRepository = {
-  insertMany(records: readonly RetrievalResultTextFtsRecord[]): void;
+  insertMany(records: readonly RetrievalResultTextFtsRecord[]): Promise<void>;
 };
 
 export type MaterialCandidateCacheRepository = {
   getByRefKey(input: {
     materialCandidateRefKey: string;
-  }): MaterialCandidateCacheRecord | undefined;
-  upsert(record: MaterialCandidateCacheRecord): MaterialCandidateCacheRecord;
+  }): Promise<MaterialCandidateCacheRecord | undefined>;
+  upsert(record: MaterialCandidateCacheRecord): Promise<MaterialCandidateCacheRecord>;
 };
 
 type RetrievalResultSetRow = {
@@ -159,10 +159,10 @@ export function createRetrievalResultSetRecords(
   const { db } = input;
 
   const resultSets: RetrievalResultSetRepository = {
-    get(readInput) {
+    async get(readInput) {
       assertNonEmptyString(readInput.resultSetId, "resultSetId");
 
-      const row = db.get<RetrievalResultSetRow>(
+      const row = await db.get<RetrievalResultSetRow>(
         `
           SELECT *
           FROM retrieval_result_sets
@@ -173,10 +173,10 @@ export function createRetrievalResultSetRecords(
 
       return row === undefined ? undefined : retrievalResultSetFromRow(row);
     },
-    insert(record) {
+    async insert(record) {
       assertRetrievalResultSetRecord(record);
 
-      db.run(
+      await db.run(
         `
           INSERT INTO retrieval_result_sets (
             result_set_id,
@@ -201,19 +201,19 @@ export function createRetrievalResultSetRecords(
       );
 
       return requireRecord(
-        resultSets.get({ resultSetId: record.resultSetId }),
+        await resultSets.get({ resultSetId: record.resultSetId }),
         "retrieval result set insert did not return a stored record",
       );
     },
   };
 
   const resultRows: RetrievalResultRowRepository = {
-    insertMany(records) {
+    async insertMany(records) {
       for (const record of records) {
         assertRetrievalResultRowRecord(record);
       }
 
-      multiRowInsert({
+      await multiRowInsert({
         db,
         table: "retrieval_result_rows",
         columns: [
@@ -251,10 +251,10 @@ export function createRetrievalResultSetRecords(
         ],
       });
     },
-    listForResultSet(readInput) {
+    async listForResultSet(readInput) {
       assertNonEmptyString(readInput.resultSetId, "resultSetId");
 
-      return db.all<RetrievalResultRow>(
+      return (await db.all<RetrievalResultRow>(
         `
           SELECT *
           FROM retrieval_result_rows
@@ -262,17 +262,17 @@ export function createRetrievalResultSetRecords(
           ORDER BY matched_token_count DESC, best_field_priority ASC, rank_sort_value ASC, row_kind_sort ASC, stable_ref_key ASC
         `,
         [readInput.resultSetId],
-      ).map(retrievalResultRowFromRow);
+      )).map(retrievalResultRowFromRow);
     },
   };
 
   const resultTextFts: RetrievalResultTextFtsRepository = {
-    insertMany(records) {
+    async insertMany(records) {
       for (const record of records) {
         assertRetrievalResultTextFtsRecord(record);
       }
 
-      multiRowInsert({
+      await multiRowInsert({
         db,
         table: "retrieval_result_text_fts",
         columns: [
@@ -297,14 +297,29 @@ export function createRetrievalResultSetRecords(
           record.aliasText,
         ],
       });
+
+      const resultSetIds = unique(records.map((record) => record.resultSetId));
+      for (const resultSetId of resultSetIds) {
+        await db.run(
+          `
+            UPDATE retrieval_result_text_fts
+            SET search_vector = to_tsvector(
+              'simple',
+              concat_ws(' ', title_text, artist_text, album_text, version_text, alias_text)
+            )
+            WHERE result_set_id = ?
+          `,
+          [resultSetId],
+        );
+      }
     },
   };
 
   const materialCandidates: MaterialCandidateCacheRepository = {
-    getByRefKey(readInput) {
+    async getByRefKey(readInput) {
       assertMaterialCandidateRefKey(readInput.materialCandidateRefKey);
 
-      const row = db.get<MaterialCandidateCacheRow>(
+      const row = await db.get<MaterialCandidateCacheRow>(
         `
           SELECT *
           FROM material_candidate_cache
@@ -315,10 +330,10 @@ export function createRetrievalResultSetRecords(
 
       return row === undefined ? undefined : materialCandidateCacheFromRow(row);
     },
-    upsert(record) {
+    async upsert(record) {
       assertMaterialCandidateCacheRecord(record);
 
-      db.run(
+      await db.run(
         `
           INSERT INTO material_candidate_cache (
             material_candidate_ref_key,
@@ -365,7 +380,7 @@ export function createRetrievalResultSetRecords(
       );
 
       return requireRecord(
-        materialCandidates.getByRefKey({
+        await materialCandidates.getByRefKey({
           materialCandidateRefKey: record.materialCandidateRefKey,
         }),
         "material candidate cache upsert did not return a stored record",
@@ -378,14 +393,14 @@ export function createRetrievalResultSetRecords(
     resultRows,
     resultTextFts,
     materialCandidates,
-    cleanupExpiredRetrievalResultSets(cleanupInput) {
+    async cleanupExpiredRetrievalResultSets(cleanupInput) {
       assertComparableTimestamp(
         cleanupInput.now,
         "now",
         "music_data.retrieval_result_set_invalid",
       );
       const limit = validatedCleanupLimit(cleanupInput.limit);
-      const expiredIds = db.all<{ result_set_id: string }>(
+      const expiredIds = (await db.all<{ result_set_id: string }>(
         `
           SELECT result_set_id
           FROM retrieval_result_sets
@@ -394,7 +409,7 @@ export function createRetrievalResultSetRecords(
           LIMIT ?
         `,
         [cleanupInput.now, limit],
-      ).map((row) => row.result_set_id);
+      )).map((row) => row.result_set_id);
 
       if (expiredIds.length === 0) {
         return {
@@ -405,29 +420,29 @@ export function createRetrievalResultSetRecords(
       }
 
       const placeholders = placeholdersFor(expiredIds);
-      const textFtsRowCount = db.get<{ count: number }>(
+      const textFtsRowCount = Number((await db.get<{ count: number | string }>(
         `
           SELECT COUNT(*) AS count
           FROM retrieval_result_text_fts
           WHERE result_set_id IN (${placeholders})
         `,
         expiredIds,
-      )?.count ?? 0;
-      const resultRowCount = db.get<{ count: number }>(
+      ))?.count ?? 0);
+      const resultRowCount = Number((await db.get<{ count: number | string }>(
         `
           SELECT COUNT(*) AS count
           FROM retrieval_result_rows
           WHERE result_set_id IN (${placeholders})
         `,
         expiredIds,
-      )?.count ?? 0;
+      ))?.count ?? 0);
 
       for (const table of [
         "retrieval_result_text_fts",
         "retrieval_result_rows",
         "retrieval_result_sets",
       ] as const) {
-        db.run(
+        await db.run(
           `
             DELETE FROM ${table}
             WHERE result_set_id IN (${placeholders})
@@ -442,14 +457,14 @@ export function createRetrievalResultSetRecords(
         textFtsRowCount,
       };
     },
-    cleanupExpiredMaterialCandidates(cleanupInput) {
+    async cleanupExpiredMaterialCandidates(cleanupInput) {
       assertComparableTimestamp(
         cleanupInput.now,
         "now",
         "music_data.retrieval_result_set_invalid",
       );
       const limit = validatedCleanupLimit(cleanupInput.limit);
-      const expiredKeys = db.all<{ material_candidate_ref_key: string }>(
+      const expiredKeys = (await db.all<{ material_candidate_ref_key: string }>(
         `
           SELECT c.material_candidate_ref_key
           FROM material_candidate_cache c
@@ -466,13 +481,13 @@ export function createRetrievalResultSetRecords(
           LIMIT ?
         `,
         [cleanupInput.now, cleanupInput.now, limit],
-      ).map((row) => row.material_candidate_ref_key);
+      )).map((row) => row.material_candidate_ref_key);
 
       if (expiredKeys.length === 0) {
         return { deletedCount: 0 };
       }
 
-      db.run(
+      await db.run(
         `
           DELETE FROM material_candidate_cache
           WHERE material_candidate_ref_key IN (${placeholdersFor(expiredKeys)})
@@ -765,15 +780,15 @@ function validatedCleanupLimit(limit: number | undefined): number {
   return value;
 }
 
-const SQLITE_MAX_VARIABLE_NUMBER = 32766;
+const POSTGRES_MAX_PARAMETER_NUMBER = 65535;
 
-function multiRowInsert<TRecord>(args: {
+async function multiRowInsert<TRecord>(args: {
   db: MusicDatabaseContext;
   table: string;
   columns: readonly string[];
   records: readonly TRecord[];
   paramsFor: (record: TRecord) => readonly MusicDatabaseParameter[];
-}): void {
+}): Promise<void> {
   const { db, table, columns, records, paramsFor } = args;
 
   if (records.length === 0) {
@@ -782,11 +797,11 @@ function multiRowInsert<TRecord>(args: {
 
   const columnList = columns.join(", ");
   const group = `(${columns.map(() => "?").join(", ")})`;
-  const chunkSize = Math.max(1, Math.floor(SQLITE_MAX_VARIABLE_NUMBER / columns.length));
+  const chunkSize = Math.max(1, Math.floor(POSTGRES_MAX_PARAMETER_NUMBER / columns.length));
 
   for (let offset = 0; offset < records.length; offset += chunkSize) {
     const chunk = records.slice(offset, offset + chunkSize);
-    db.run(
+    await db.run(
       `INSERT INTO ${table} (${columnList}) VALUES ${chunk.map(() => group).join(", ")}`,
       chunk.flatMap(paramsFor),
     );
@@ -799,6 +814,10 @@ function placeholdersFor(values: readonly unknown[]): string {
   }
 
   return values.map(() => "?").join(", ");
+}
+
+function unique(values: readonly string[]): readonly string[] {
+  return [...new Set(values)];
 }
 
 function requireRecord<Record>(record: Record | undefined, message: string): Record {

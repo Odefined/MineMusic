@@ -1,33 +1,25 @@
-import { Pool, type PoolClient, type PoolConfig, type QueryResultRow } from "pg";
+import { Pool, types, type PoolClient, type PoolConfig } from "pg";
 
 import {
+  type MusicDatabase,
+  type MusicDatabaseContext,
   MusicDatabaseError,
   type MusicDatabaseParameter,
+  type MusicDatabaseTransactionContext,
 } from "../database.js";
 import { initializePostgresSchema, type PostgresMusicDatabaseSchemaContribution } from "./schema.js";
+
+types.setTypeParser(20, (value) => Number(value));
 
 export type OpenPostgresMusicDatabaseInput = {
   connectionString: string;
   maxConnections?: number;
+  schema?: string;
 };
 
-export type PostgresMusicDatabaseContext = {
-  run(sql: string, params?: readonly MusicDatabaseParameter[]): Promise<void>;
-  all<Row extends QueryResultRow = QueryResultRow>(
-    sql: string,
-    params?: readonly MusicDatabaseParameter[],
-  ): Promise<readonly Row[]>;
-  get<Row extends QueryResultRow = QueryResultRow>(
-    sql: string,
-    params?: readonly MusicDatabaseParameter[],
-  ): Promise<Row | undefined>;
-};
+export type PostgresMusicDatabaseContext = MusicDatabaseContext;
 
-declare const postgresTransactionContextBrand: unique symbol;
-
-export type PostgresMusicDatabaseTransactionContext = PostgresMusicDatabaseContext & {
-  readonly [postgresTransactionContextBrand]: true;
-};
+export type PostgresMusicDatabaseTransactionContext = MusicDatabaseTransactionContext;
 
 export type InitializePostgresMusicDatabaseInput = {
   schemas?: readonly PostgresMusicDatabaseSchemaContribution[];
@@ -40,7 +32,7 @@ type PostgresDatabaseState =
   | "initialization_failed"
   | "closed";
 
-export class PostgresMusicDatabase {
+export class PostgresMusicDatabase implements MusicDatabase {
   private state: PostgresDatabaseState = "opened";
   private transactionActive = false;
 
@@ -86,6 +78,7 @@ export class PostgresMusicDatabase {
 
     const config: PoolConfig = {
       connectionString: input.connectionString,
+      ...(input.schema === undefined ? {} : { options: `-c search_path=${safeSchemaName(input.schema)},public` }),
       ...(input.maxConnections === undefined ? {} : { max: input.maxConnections }),
     };
     return new PostgresMusicDatabase(new Pool(config));
@@ -267,16 +260,16 @@ async function queryRun(
   await client.query(toPostgresSql(sql), toPostgresParameters(params));
 }
 
-async function queryAll<Row extends QueryResultRow>(
+async function queryAll<Row>(
   client: Pick<Pool | PoolClient, "query">,
   sql: string,
   params?: readonly MusicDatabaseParameter[],
 ): Promise<readonly Row[]> {
-  const result = await client.query<Row>(toPostgresSql(sql), toPostgresParameters(params));
-  return result.rows;
+  const result = await client.query(toPostgresSql(sql), toPostgresParameters(params));
+  return result.rows as Row[];
 }
 
-async function queryGet<Row extends QueryResultRow>(
+async function queryGet<Row>(
   client: Pick<Pool | PoolClient, "query">,
   sql: string,
   params?: readonly MusicDatabaseParameter[],
@@ -331,6 +324,17 @@ function toPostgresParameters(params: readonly MusicDatabaseParameter[] | undefi
     }
     return param;
   });
+}
+
+function safeSchemaName(schema: string): string {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(schema)) {
+    throw new MusicDatabaseError({
+      code: "storage.invalid_database_url",
+      message: "Postgres schema name must be a safe SQL identifier.",
+    });
+  }
+
+  return schema;
 }
 
 function ensureTransactionContextActive(active: boolean): void {

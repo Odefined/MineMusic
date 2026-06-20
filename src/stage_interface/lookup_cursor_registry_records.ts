@@ -21,8 +21,8 @@ export type StageInterfaceLookupCursorBindingRepository = {
   getByOwnerCursor(input: {
     cursorId: string;
     ownerScope: string;
-  }): StageInterfaceLookupCursorBindingRecord | undefined;
-  createBinding(record: StageInterfaceLookupCursorBindingRecord): StageInterfaceLookupCursorBindingRecord;
+  }): Promise<StageInterfaceLookupCursorBindingRecord | undefined>;
+  createBinding(record: StageInterfaceLookupCursorBindingRecord): Promise<StageInterfaceLookupCursorBindingRecord>;
 };
 
 type StageInterfaceLookupCursorBindingRow = {
@@ -40,11 +40,11 @@ export function createStageInterfaceLookupCursorRegistryRecords(
   const { db } = input;
 
   const bindings: StageInterfaceLookupCursorBindingRepository = {
-    getByOwnerCursor(readInput) {
+    async getByOwnerCursor(readInput) {
       assertNonEmptyString(readInput.cursorId, "cursorId");
       assertNonEmptyString(readInput.ownerScope, "ownerScope");
 
-      const row = db.get<StageInterfaceLookupCursorBindingRow>(
+      const row = await db.get<StageInterfaceLookupCursorBindingRow>(
         `
           SELECT *
           FROM stage_interface_lookup_cursor_registry
@@ -56,10 +56,10 @@ export function createStageInterfaceLookupCursorRegistryRecords(
 
       return row === undefined ? undefined : bindingFromRow(row);
     },
-    createBinding(record) {
+    async createBinding(record) {
       assertBindingRecord(record);
 
-      db.run(
+      await db.run(
         `
           INSERT INTO stage_interface_lookup_cursor_registry (
             cursor_id,

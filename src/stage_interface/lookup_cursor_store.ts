@@ -35,16 +35,16 @@ export function createLookupCursorStore(input: CreateLookupCursorStoreInput): Lo
 
 export function createUnavailableLookupCursorStore(): LookupCursorStore {
   return {
-    register() {
+    async register() {
       throw new Error("Lookup cursor store is not available in this Stage Tool Context.");
     },
-    resolve() {
+    async resolve() {
       throw new Error("Lookup cursor store is not available in this Stage Tool Context.");
     },
   };
 }
 
-// Persisted (SQLite) implementation of LookupCursorStore. Replaces the prior
+// Persisted database implementation of LookupCursorStore. Replaces the prior
 // stateless AES-256-GCM cursor codec: the cursor is now a short unguessable id,
 // and the retrieval context lives server-side under ownerScope isolation + TTL.
 // This is transport-agnostic (HTTP/stdio) and keeps the agent-facing nextCursor
@@ -60,7 +60,7 @@ export function createLookupCursorStoreFromRecords(
   const cursorIdFactory = input.cursorIdFactory ?? randomLookupCursorId;
 
   return {
-    register(registerInput) {
+    async register(registerInput) {
       assertOwnerScope(registerInput.ownerScope);
       const now = assertComparableClock(clock());
 
@@ -77,7 +77,7 @@ export function createLookupCursorStoreFromRecords(
 
         // PK collision on a fresh random id is astronomically unlikely; retry.
         if (
-          input.records.bindings.getByOwnerCursor({
+          await input.records.bindings.getByOwnerCursor({
             cursorId,
             ownerScope: registerInput.ownerScope,
           }) !== undefined
@@ -85,7 +85,7 @@ export function createLookupCursorStoreFromRecords(
           continue;
         }
 
-        input.records.bindings.createBinding({
+        await input.records.bindings.createBinding({
           cursorId,
           ownerScope: registerInput.ownerScope,
           internalCursor,
@@ -99,11 +99,11 @@ export function createLookupCursorStoreFromRecords(
 
       throw new Error("Could not mint a unique lookup cursor id.");
     },
-    resolve(resolveInput) {
+    async resolve(resolveInput) {
       assertOwnerScope(resolveInput.ownerScope);
       const now = assertComparableClock(clock());
 
-      const binding = input.records.bindings.getByOwnerCursor({
+      const binding = await input.records.bindings.getByOwnerCursor({
         cursorId: resolveInput.cursorId,
         ownerScope: resolveInput.ownerScope,
       });

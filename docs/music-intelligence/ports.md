@@ -78,7 +78,7 @@ It must not import:
 - Music Data Platform commands, repositories, projection record modules, or
   projection maintenance commands;
 - Stage Interface, Stage Core, Server Host, Extension provider/plugin
-  implementations, Storage, or concrete SQLite adapter modules;
+  implementations, Storage, or concrete storage adapter modules;
 - Music Experience, Memory, Effect Boundary, presentation, provider, or legacy
   query roots.
 

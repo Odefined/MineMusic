@@ -22,35 +22,35 @@ export type IdentityRepositories = {
 };
 
 export type SourceRecordRepository = {
-  upsert(record: SourceRecord): SourceRecord;
-  get(input: { sourceRef: Ref }): SourceRecord | undefined;
+  upsert(record: SourceRecord): Promise<SourceRecord>;
+  get(input: { sourceRef: Ref }): Promise<SourceRecord | undefined>;
   findByProviderIdentity(input: {
     providerId: string;
     providerEntityId: string;
     kind: SourceEntityKind;
-  }): SourceRecord | undefined;
+  }): Promise<SourceRecord | undefined>;
   findByLocalIdentity(input: {
     md5: string;
     kind: SourceEntityKind;
-  }): SourceRecord | undefined;
+  }): Promise<SourceRecord | undefined>;
 };
 
 export type MaterialRecordRepository = {
-  upsert(record: MaterialRecord): MaterialRecord;
-  get(input: { materialRef: Ref }): MaterialRecord | undefined;
-  findActiveByCanonicalRef(input: { canonicalRef: Ref }): MaterialRecord | undefined;
+  upsert(record: MaterialRecord): Promise<MaterialRecord>;
+  get(input: { materialRef: Ref }): Promise<MaterialRecord | undefined>;
+  findActiveByCanonicalRef(input: { canonicalRef: Ref }): Promise<MaterialRecord | undefined>;
 };
 
 export type CanonicalRecordRepository = {
-  upsert(record: CanonicalRecord): CanonicalRecord;
-  get(input: { canonicalRef: Ref }): CanonicalRecord | undefined;
+  upsert(record: CanonicalRecord): Promise<CanonicalRecord>;
+  get(input: { canonicalRef: Ref }): Promise<CanonicalRecord | undefined>;
 };
 
 export type SourceToMaterialBindingRepository = {
-  upsertCurrentBinding(record: SourceToMaterialBindingRecord): SourceToMaterialBindingRecord;
-  findMaterialForSource(input: { sourceRef: Ref }): SourceToMaterialBindingRecord | undefined;
-  listSourcesForMaterial(input: { materialRef: Ref }): readonly SourceToMaterialBindingRecord[];
-  deleteBindingForSource(input: { sourceRef: Ref }): SourceToMaterialBindingRecord | undefined;
+  upsertCurrentBinding(record: SourceToMaterialBindingRecord): Promise<SourceToMaterialBindingRecord>;
+  findMaterialForSource(input: { sourceRef: Ref }): Promise<SourceToMaterialBindingRecord | undefined>;
+  listSourcesForMaterial(input: { materialRef: Ref }): Promise<readonly SourceToMaterialBindingRecord[]>;
+  deleteBindingForSource(input: { sourceRef: Ref }): Promise<SourceToMaterialBindingRecord | undefined>;
 };
 
 type SourceRecordRow = {
@@ -101,8 +101,8 @@ export function createIdentityRepositories(
   const { db } = input;
 
   const sourceRecords: SourceRecordRepository = {
-    upsert(record) {
-      db.run(
+    async upsert(record) {
+      await db.run(
         `
           INSERT INTO source_records (
             ref_key,
@@ -136,20 +136,20 @@ export function createIdentityRepositories(
       );
 
       return requireRecord(
-        sourceRecords.get({ sourceRef: record.entity.sourceRef }),
+        await sourceRecords.get({ sourceRef: record.entity.sourceRef }),
         "source record upsert did not return a stored record",
       );
     },
-    get(input) {
-      const row = db.get<SourceRecordRow>(
+    async get(input) {
+      const row = await db.get<SourceRecordRow>(
         "SELECT * FROM source_records WHERE ref_key = ?",
         [refKey(input.sourceRef)],
       );
 
       return row === undefined ? undefined : sourceRecordFromRow(row);
     },
-    findByProviderIdentity(input) {
-      const row = db.get<SourceRecordRow>(
+    async findByProviderIdentity(input) {
+      const row = await db.get<SourceRecordRow>(
         `
           SELECT * FROM source_records
           WHERE provider_id = ?
@@ -161,8 +161,8 @@ export function createIdentityRepositories(
 
       return row === undefined ? undefined : sourceRecordFromRow(row);
     },
-    findByLocalIdentity(input) {
-      const row = db.get<SourceRecordRow>(
+    async findByLocalIdentity(input) {
+      const row = await db.get<SourceRecordRow>(
         `
           SELECT * FROM source_records
           WHERE origin = 'local_file'
@@ -177,8 +177,8 @@ export function createIdentityRepositories(
   };
 
   const materialRecords: MaterialRecordRepository = {
-    upsert(record) {
-      db.run(
+    async upsert(record) {
+      await db.run(
         `
           INSERT INTO material_records (
             ref_key,
@@ -218,20 +218,20 @@ export function createIdentityRepositories(
       );
 
       return requireRecord(
-        materialRecords.get({ materialRef: record.entity.materialRef }),
+        await materialRecords.get({ materialRef: record.entity.materialRef }),
         "material record upsert did not return a stored record",
       );
     },
-    get(input) {
-      const row = db.get<MaterialRecordRow>(
+    async get(input) {
+      const row = await db.get<MaterialRecordRow>(
         "SELECT * FROM material_records WHERE ref_key = ?",
         [refKey(input.materialRef)],
       );
 
       return row === undefined ? undefined : materialRecordFromRow(row);
     },
-    findActiveByCanonicalRef(input) {
-      const row = db.get<MaterialRecordRow>(
+    async findActiveByCanonicalRef(input) {
+      const row = await db.get<MaterialRecordRow>(
         `
           SELECT * FROM material_records
           WHERE canonical_ref_key = ?
@@ -245,8 +245,8 @@ export function createIdentityRepositories(
   };
 
   const canonicalRecords: CanonicalRecordRepository = {
-    upsert(record) {
-      db.run(
+    async upsert(record) {
+      await db.run(
         `
           INSERT INTO canonical_records (
             ref_key,
@@ -280,12 +280,12 @@ export function createIdentityRepositories(
       );
 
       return requireRecord(
-        canonicalRecords.get({ canonicalRef: record.entity.canonicalRef }),
+        await canonicalRecords.get({ canonicalRef: record.entity.canonicalRef }),
         "canonical record upsert did not return a stored record",
       );
     },
-    get(input) {
-      const row = db.get<CanonicalRecordRow>(
+    async get(input) {
+      const row = await db.get<CanonicalRecordRow>(
         "SELECT * FROM canonical_records WHERE ref_key = ?",
         [refKey(input.canonicalRef)],
       );
@@ -295,8 +295,8 @@ export function createIdentityRepositories(
   };
 
   const sourceMaterialBindings: SourceToMaterialBindingRepository = {
-    upsertCurrentBinding(record) {
-      db.run(
+    async upsertCurrentBinding(record) {
+      await db.run(
         `
           INSERT INTO source_material_bindings (
             source_ref_key,
@@ -318,36 +318,36 @@ export function createIdentityRepositories(
       );
 
       return requireRecord(
-        sourceMaterialBindings.findMaterialForSource({ sourceRef: record.sourceRef }),
+        await sourceMaterialBindings.findMaterialForSource({ sourceRef: record.sourceRef }),
         "source-material binding upsert did not return a stored record",
       );
     },
-    findMaterialForSource(input) {
-      const row = db.get<SourceToMaterialBindingRow>(
+    async findMaterialForSource(input) {
+      const row = await db.get<SourceToMaterialBindingRow>(
         "SELECT * FROM source_material_bindings WHERE source_ref_key = ?",
         [refKey(input.sourceRef)],
       );
 
       return row === undefined ? undefined : sourceMaterialBindingFromRow(row);
     },
-    listSourcesForMaterial(input) {
-      return db.all<SourceToMaterialBindingRow>(
+    async listSourcesForMaterial(input) {
+      return (await db.all<SourceToMaterialBindingRow>(
         `
           SELECT * FROM source_material_bindings
           WHERE material_ref_key = ?
           ORDER BY source_ref_key
         `,
         [refKey(input.materialRef)],
-      ).map(sourceMaterialBindingFromRow);
+      )).map(sourceMaterialBindingFromRow);
     },
-    deleteBindingForSource(input) {
-      const existing = sourceMaterialBindings.findMaterialForSource(input);
+    async deleteBindingForSource(input) {
+      const existing = await sourceMaterialBindings.findMaterialForSource(input);
 
       if (existing === undefined) {
         return undefined;
       }
 
-      db.run(
+      await db.run(
         "DELETE FROM source_material_bindings WHERE source_ref_key = ?",
         [refKey(input.sourceRef)],
       );

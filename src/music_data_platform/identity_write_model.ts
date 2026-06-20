@@ -26,12 +26,12 @@ export type CreateIdentityWriteCommandsInput = {
 };
 
 export type IdentityWriteCommands = {
-  upsertSourceRecord(input: UpsertSourceRecordInput): SourceRecord;
-  upsertMaterialRecord(input: UpsertMaterialRecordInput): MaterialRecord;
-  upsertCanonicalRecord(input: UpsertCanonicalRecordInput): CanonicalRecord;
-  bindSourceToMaterial(input: BindSourceToMaterialInput): BindSourceToMaterialResult;
-  bindMaterialToCanonical(input: BindMaterialToCanonicalInput): MaterialRecord;
-  mergeMaterialRecord(input: MergeMaterialRecordInput): MergeMaterialRecordResult;
+  upsertSourceRecord(input: UpsertSourceRecordInput): Promise<SourceRecord>;
+  upsertMaterialRecord(input: UpsertMaterialRecordInput): Promise<MaterialRecord>;
+  upsertCanonicalRecord(input: UpsertCanonicalRecordInput): Promise<CanonicalRecord>;
+  bindSourceToMaterial(input: BindSourceToMaterialInput): Promise<BindSourceToMaterialResult>;
+  bindMaterialToCanonical(input: BindMaterialToCanonicalInput): Promise<MaterialRecord>;
+  mergeMaterialRecord(input: MergeMaterialRecordInput): Promise<MergeMaterialRecordResult>;
 };
 
 export type UpsertSourceRecordInput = {
@@ -86,9 +86,9 @@ export function createIdentityWriteCommands(
   const repositories = createIdentityRepositories({ db: input.db });
 
   return {
-    upsertSourceRecord(sourceInput) {
-      const record = upsertSourceRecord(repositories, input.now, sourceInput);
-      input.projectionInvalidationCommands.markProjectionInvalidated({
+    async upsertSourceRecord(sourceInput) {
+      const record = await upsertSourceRecord(repositories, input.now, sourceInput);
+      await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [{
           writeKind: "source_record_written",
           sourceRef: record.entity.sourceRef,
@@ -96,9 +96,9 @@ export function createIdentityWriteCommands(
       });
       return record;
     },
-    upsertMaterialRecord(materialInput) {
-      const record = upsertMaterialRecord(repositories, input.now, materialInput);
-      input.projectionInvalidationCommands.markProjectionInvalidated({
+    async upsertMaterialRecord(materialInput) {
+      const record = await upsertMaterialRecord(repositories, input.now, materialInput);
+      await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [{
           writeKind: "material_record_written",
           materialRef: record.entity.materialRef,
@@ -106,9 +106,9 @@ export function createIdentityWriteCommands(
       });
       return record;
     },
-    upsertCanonicalRecord(canonicalInput) {
-      const record = upsertCanonicalRecord(repositories, input.now, canonicalInput);
-      input.projectionInvalidationCommands.markProjectionInvalidated({
+    async upsertCanonicalRecord(canonicalInput) {
+      const record = await upsertCanonicalRecord(repositories, input.now, canonicalInput);
+      await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [{
           writeKind: "canonical_record_written",
           canonicalRef: record.entity.canonicalRef,
@@ -116,9 +116,9 @@ export function createIdentityWriteCommands(
       });
       return record;
     },
-    bindSourceToMaterial(bindingInput) {
-      const result = bindSourceToMaterial(repositories, input.now, bindingInput);
-      input.projectionInvalidationCommands.markProjectionInvalidated({
+    async bindSourceToMaterial(bindingInput) {
+      const result = await bindSourceToMaterial(repositories, input.now, bindingInput);
+      await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [
           {
             writeKind: "source_material_binding_written",
@@ -140,9 +140,9 @@ export function createIdentityWriteCommands(
       });
       return result;
     },
-    bindMaterialToCanonical(bindingInput) {
-      const record = bindMaterialToCanonical(repositories, input.now, bindingInput);
-      input.projectionInvalidationCommands.markProjectionInvalidated({
+    async bindMaterialToCanonical(bindingInput) {
+      const record = await bindMaterialToCanonical(repositories, input.now, bindingInput);
+      await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [{
           writeKind: "material_record_written",
           materialRef: record.entity.materialRef,
@@ -150,9 +150,9 @@ export function createIdentityWriteCommands(
       });
       return record;
     },
-    mergeMaterialRecord(mergeInput) {
-      const result = mergeMaterialRecord(repositories, input.now, mergeInput);
-      input.projectionInvalidationCommands.markProjectionInvalidated({
+    async mergeMaterialRecord(mergeInput) {
+      const result = await mergeMaterialRecord(repositories, input.now, mergeInput);
+      await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [
           {
             writeKind: "material_record_written",
@@ -175,11 +175,11 @@ export function createIdentityWriteCommands(
   };
 }
 
-function upsertSourceRecord(
+async function upsertSourceRecord(
   repositories: IdentityRepositories,
   now: string,
   input: UpsertSourceRecordInput,
-): SourceRecord {
+): Promise<SourceRecord> {
   assertSourceEntityRefShape(input.entity);
   const sourceRefKey = musicDataPlatformRefKey({
     ref: input.entity.sourceRef,
@@ -204,12 +204,12 @@ function upsertSourceRecord(
   // NULL never matches), so it cannot serve local rows.
   const existingByIdentity =
     input.entity.origin === "provider"
-      ? repositories.sourceRecords.findByProviderIdentity({
+      ? await repositories.sourceRecords.findByProviderIdentity({
           providerId: input.entity.providerId,
           providerEntityId: input.entity.providerEntityId,
           kind: input.entity.kind,
         })
-      : repositories.sourceRecords.findByLocalIdentity({
+      : await repositories.sourceRecords.findByLocalIdentity({
           md5: input.entity.providerEntityId,
           kind: input.entity.kind,
         });
@@ -229,7 +229,7 @@ function upsertSourceRecord(
     });
   }
 
-  const existingByRef = repositories.sourceRecords.get({
+  const existingByRef = await repositories.sourceRecords.get({
     sourceRef: input.entity.sourceRef,
   });
   if (
@@ -253,13 +253,13 @@ function upsertSourceRecord(
   return repositories.sourceRecords.upsert(record);
 }
 
-function upsertMaterialRecord(
+async function upsertMaterialRecord(
   repositories: IdentityRepositories,
   now: string,
   input: UpsertMaterialRecordInput,
-): MaterialRecord {
+): Promise<MaterialRecord> {
   assertMaterialRefShape(input.materialRef, input.kind);
-  const existing = repositories.materialRecords.get({
+  const existing = await repositories.materialRecords.get({
     materialRef: input.materialRef,
   });
   if (existing !== undefined) {
@@ -275,7 +275,7 @@ function upsertMaterialRecord(
 
   if (primarySourceRef !== undefined) {
     assertSourceRefCompatibleWithMaterial(primarySourceRef, input.kind);
-    assertPrimarySourceBound(repositories, input.materialRef, primarySourceRef);
+    await assertPrimarySourceBound(repositories, input.materialRef, primarySourceRef);
   }
 
   const entity = buildMaterialEntity({
@@ -299,16 +299,16 @@ function upsertMaterialRecord(
   return repositories.materialRecords.upsert(record);
 }
 
-function upsertCanonicalRecord(
+async function upsertCanonicalRecord(
   repositories: IdentityRepositories,
   now: string,
   input: UpsertCanonicalRecordInput,
-): CanonicalRecord {
+): Promise<CanonicalRecord> {
   assertCanonicalEntityRefShape(input.entity);
-  const existing = repositories.canonicalRecords.get({
+  const existing = await repositories.canonicalRecords.get({
     canonicalRef: input.entity.canonicalRef,
   });
-  assertCanonicalStatusWritable(repositories, input.entity.canonicalRef, input.status);
+  await assertCanonicalStatusWritable(repositories, input.entity.canonicalRef, input.status);
   const factsJson = optionalPatchValue(input.factsJson, existing?.factsJson);
   const record = buildCanonicalRecord({
     entity: input.entity,
@@ -323,14 +323,14 @@ function upsertCanonicalRecord(
   return repositories.canonicalRecords.upsert(record);
 }
 
-function bindSourceToMaterial(
+async function bindSourceToMaterial(
   repositories: IdentityRepositories,
   now: string,
   input: BindSourceToMaterialInput,
-): BindSourceToMaterialResult {
+): Promise<BindSourceToMaterialResult> {
   assertMaterialRef(input.materialRef);
   assertSourceRefShape(input.sourceRef);
-  const sourceRecord = repositories.sourceRecords.get({ sourceRef: input.sourceRef });
+  const sourceRecord = await repositories.sourceRecords.get({ sourceRef: input.sourceRef });
   if (sourceRecord === undefined) {
     throwMusicDataError({
       code: "music_data.source_not_found",
@@ -338,7 +338,7 @@ function bindSourceToMaterial(
     });
   }
 
-  const targetRecord = repositories.materialRecords.get({
+  const targetRecord = await repositories.materialRecords.get({
     materialRef: input.materialRef,
   });
   if (targetRecord === undefined) {
@@ -350,27 +350,27 @@ function bindSourceToMaterial(
   assertMaterialWritable(targetRecord);
   assertSourceCanBindToMaterial(sourceRecord.entity, targetRecord.entity);
 
-  const existingBinding = repositories.sourceMaterialBindings.findMaterialForSource({
+  const existingBinding = await repositories.sourceMaterialBindings.findMaterialForSource({
     sourceRef: input.sourceRef,
   });
   const previousMaterialRecord = existingBinding === undefined ||
     sameRef(existingBinding.materialRef, input.materialRef)
     ? undefined
-    : removeSourceFromPreviousMaterial(
+    : await removeSourceFromPreviousMaterial(
       repositories,
       now,
       existingBinding.materialRef,
       input.sourceRef,
     );
 
-  const binding = repositories.sourceMaterialBindings.upsertCurrentBinding({
+  const binding = await repositories.sourceMaterialBindings.upsertCurrentBinding({
     sourceRef: input.sourceRef,
     materialRef: input.materialRef,
     createdAt: existingBinding?.createdAt ?? now,
     updatedAt: now,
   });
 
-  const freshTargetRecord = repositories.materialRecords.get({
+  const freshTargetRecord = await repositories.materialRecords.get({
     materialRef: input.materialRef,
   });
   if (freshTargetRecord === undefined) {
@@ -392,7 +392,7 @@ function bindSourceToMaterial(
     assertPrimarySourceInRefs(targetPrimarySourceRef, targetSourceRefs);
   }
 
-  const materialRecord = repositories.materialRecords.upsert(buildMaterialRecord({
+  const materialRecord = await repositories.materialRecords.upsert(buildMaterialRecord({
     entity: buildMaterialEntity({
       materialRef: freshTargetRecord.entity.materialRef,
       kind: freshTargetRecord.entity.kind,
@@ -418,14 +418,14 @@ function bindSourceToMaterial(
   };
 }
 
-function bindMaterialToCanonical(
+async function bindMaterialToCanonical(
   repositories: IdentityRepositories,
   now: string,
   input: BindMaterialToCanonicalInput,
-): MaterialRecord {
+): Promise<MaterialRecord> {
   assertMaterialRef(input.materialRef);
   assertCanonicalRefShape(input.canonicalRef);
-  const materialRecord = repositories.materialRecords.get({
+  const materialRecord = await repositories.materialRecords.get({
     materialRef: input.materialRef,
   });
   if (materialRecord === undefined) {
@@ -436,7 +436,7 @@ function bindMaterialToCanonical(
   }
   assertMaterialWritable(materialRecord);
 
-  const canonicalRecord = repositories.canonicalRecords.get({
+  const canonicalRecord = await repositories.canonicalRecords.get({
     canonicalRef: input.canonicalRef,
   });
   if (canonicalRecord === undefined) {
@@ -458,7 +458,7 @@ function bindMaterialToCanonical(
       message: "Material record is already bound to a different canonical ref.",
     });
   }
-  const existingActiveMaterial = repositories.materialRecords.findActiveByCanonicalRef({
+  const existingActiveMaterial = await repositories.materialRecords.findActiveByCanonicalRef({
     canonicalRef: input.canonicalRef,
   });
   if (
@@ -488,11 +488,11 @@ function bindMaterialToCanonical(
   }));
 }
 
-function mergeMaterialRecord(
+async function mergeMaterialRecord(
   repositories: IdentityRepositories,
   now: string,
   input: MergeMaterialRecordInput,
-): MergeMaterialRecordResult {
+): Promise<MergeMaterialRecordResult> {
   assertMaterialRef(input.loserMaterialRef);
   assertMaterialRef(input.winnerMaterialRef);
   if (sameRef(input.loserMaterialRef, input.winnerMaterialRef)) {
@@ -502,7 +502,7 @@ function mergeMaterialRecord(
     });
   }
 
-  const loser = repositories.materialRecords.get({ materialRef: input.loserMaterialRef });
+  const loser = await repositories.materialRecords.get({ materialRef: input.loserMaterialRef });
   if (loser === undefined) {
     throwMusicDataError({
       code: "music_data.material_not_found",
@@ -510,7 +510,7 @@ function mergeMaterialRecord(
     });
   }
 
-  const winner = repositories.materialRecords.get({ materialRef: input.winnerMaterialRef });
+  const winner = await repositories.materialRecords.get({ materialRef: input.winnerMaterialRef });
   if (winner === undefined) {
     throwMusicDataError({
       code: "music_data.material_not_found",
@@ -524,10 +524,10 @@ function mergeMaterialRecord(
 
   const winnerCanonicalRef = canonicalRefAfterMaterialMerge(winner, loser);
   if (winnerCanonicalRef !== undefined) {
-    assertCanonicalRefBindable(repositories, winnerCanonicalRef);
-    assertCanonicalRefOwnedByMergeParticipants(repositories, winnerCanonicalRef, loser, winner);
+    await assertCanonicalRefBindable(repositories, winnerCanonicalRef);
+    await assertCanonicalRefOwnedByMergeParticipants(repositories, winnerCanonicalRef, loser, winner);
   }
-  const loserBindings = repositories.sourceMaterialBindings.listSourcesForMaterial({
+  const loserBindings = await repositories.sourceMaterialBindings.listSourcesForMaterial({
     materialRef: loser.entity.materialRef,
   });
 
@@ -546,14 +546,14 @@ function mergeMaterialRecord(
     assertPrimarySourceInRefs(winnerPrimarySourceRef, winnerSourceRefs);
   }
 
-  const movedBindings = loserBindings.map((binding) => repositories.sourceMaterialBindings.upsertCurrentBinding({
+  const movedBindings = await Promise.all(loserBindings.map((binding) => repositories.sourceMaterialBindings.upsertCurrentBinding({
     sourceRef: binding.sourceRef,
     materialRef: winner.entity.materialRef,
     createdAt: binding.createdAt,
     updatedAt: now,
-  }));
+  })));
 
-  const loserRecord = repositories.materialRecords.upsert(buildMaterialRecord({
+  const loserRecord = await repositories.materialRecords.upsert(buildMaterialRecord({
     entity: buildMaterialEntity({
       materialRef: loser.entity.materialRef,
       kind: loser.entity.kind,
@@ -572,7 +572,7 @@ function mergeMaterialRecord(
     updatedAt: now,
   }));
 
-  const winnerRecord = repositories.materialRecords.upsert(buildMaterialRecord({
+  const winnerRecord = await repositories.materialRecords.upsert(buildMaterialRecord({
     entity: buildMaterialEntity({
       materialRef: winner.entity.materialRef,
       kind: winner.entity.kind,
@@ -595,13 +595,13 @@ function mergeMaterialRecord(
   };
 }
 
-function removeSourceFromPreviousMaterial(
+async function removeSourceFromPreviousMaterial(
   repositories: IdentityRepositories,
   now: string,
   materialRef: Ref,
   sourceRef: Ref,
-): MaterialRecord | undefined {
-  const previous = repositories.materialRecords.get({ materialRef });
+): Promise<MaterialRecord | undefined> {
+  const previous = await repositories.materialRecords.get({ materialRef });
 
   if (previous === undefined) {
     return undefined;
@@ -843,16 +843,16 @@ function assertCanonicalRefShape(
   }
 }
 
-function assertCanonicalStatusWritable(
+async function assertCanonicalStatusWritable(
   repositories: IdentityRepositories,
   canonicalRef: Ref,
   nextStatus: Exclude<CanonicalRecord["status"], "merged">,
-): void {
+): Promise<void> {
   if (nextStatus === "active") {
     return;
   }
 
-  const existingActiveMaterial = repositories.materialRecords.findActiveByCanonicalRef({
+  const existingActiveMaterial = await repositories.materialRecords.findActiveByCanonicalRef({
     canonicalRef,
   });
   if (existingActiveMaterial !== undefined) {
@@ -938,11 +938,11 @@ function assertCanonicalBindable(record: CanonicalRecord): void {
   }
 }
 
-function assertCanonicalRefBindable(
+async function assertCanonicalRefBindable(
   repositories: IdentityRepositories,
   canonicalRef: Ref,
-): void {
-  const canonicalRecord = repositories.canonicalRecords.get({ canonicalRef });
+): Promise<void> {
+  const canonicalRecord = await repositories.canonicalRecords.get({ canonicalRef });
   if (canonicalRecord === undefined) {
     throwMusicDataError({
       code: "music_data.canonical_not_found",
@@ -953,13 +953,13 @@ function assertCanonicalRefBindable(
   assertCanonicalBindable(canonicalRecord);
 }
 
-function assertCanonicalRefOwnedByMergeParticipants(
+async function assertCanonicalRefOwnedByMergeParticipants(
   repositories: IdentityRepositories,
   canonicalRef: Ref,
   loser: MaterialRecord,
   winner: MaterialRecord,
-): void {
-  const existingActiveMaterial = repositories.materialRecords.findActiveByCanonicalRef({
+): Promise<void> {
+  const existingActiveMaterial = await repositories.materialRecords.findActiveByCanonicalRef({
     canonicalRef,
   });
   if (existingActiveMaterial === undefined) {
@@ -990,12 +990,12 @@ function materialKindForSourceKind(sourceKind: string): MaterialEntityKind | und
   }
 }
 
-function assertPrimarySourceBound(
+async function assertPrimarySourceBound(
   repositories: IdentityRepositories,
   materialRef: Ref,
   primarySourceRef: Ref,
-): void {
-  const binding = repositories.sourceMaterialBindings.findMaterialForSource({
+): Promise<void> {
+  const binding = await repositories.sourceMaterialBindings.findMaterialForSource({
     sourceRef: primarySourceRef,
   });
 

@@ -138,11 +138,10 @@ memory, or effects.
 
 Phase 4 implements the generic Music Database foundation:
 
-- public storage boundary uses generic `MusicDatabase`, not
-  `SqliteMusicDatabase`;
-- `SqliteMusicDatabase` is a concrete adapter behind the generic boundary;
-- `DatabaseSync`, `StatementSync`, and `node:sqlite` are confined to the
-  SQLite adapter and storage boundary tests;
+- public storage boundary uses generic `MusicDatabase`;
+- `PostgresMusicDatabase` is the concrete runtime adapter behind the generic
+  boundary;
+- concrete Postgres pool/client primitives are confined to the Postgres adapter;
 - future repositories receive `MusicDatabaseContext`; identity write commands
   that need atomic multi-table writes can require
   `MusicDatabaseTransactionContext`;
@@ -154,16 +153,13 @@ Phase 4 implements the generic Music Database foundation:
   prepared statement objects or statement cache in Phase 4;
 - transactions are root-only and do not support nested transaction/savepoint
   behavior in Phase 4;
-- transaction callbacks are synchronous-only; Promise and thenable callbacks
-  are rejected before commit and rolled back;
+- transaction callbacks may be async and are committed only after the callback
+  resolves;
 - transaction callbacks receive a transaction-scoped context that becomes
   inactive after commit/rollback;
-- schema initialization uses a synchronous contribution runner only;
-- Phase 4 does not wire storage into the default Server Host runtime;
-- SQLite adapter opening requires an explicit filename and does not read
-  env/config or provide a default database path;
-- empty or blank SQLite filenames are rejected to avoid implicit temporary
-  database creation;
+- schema initialization uses ordered idempotent schema contributions;
+- default Server Host Music Data Platform runtime opens Postgres through
+  explicit runtime database config or environment defaults;
 - `open(...)` and `initialize(...)` are separate, and database use requires
   successful initialization first;
 - schema contribution SQL is idempotent, but one database instance accepts only
@@ -190,8 +186,8 @@ Phase 4 implements the generic Music Database foundation:
 - tests cover storage lifecycle, SQL parameter binding for the public
   scalar/blob parameter union, root transaction commit/rollback including
   async-callback and stale-context rejection plus unsupported-continuation
-  absorption, schema contribution ordering/idempotent reopen, raw SQLite
-  boundary guards, and unchanged default Server Host runtime composition;
+  absorption, schema contribution ordering/idempotent reopen, active-tree
+  storage boundary guards, and default Server Host runtime composition;
 - Phase 4 does not introduce source/material/canonical tables, aliases,
   command audit, owner facts, projections, provider adapters, query, or Stage
   Interface tools.

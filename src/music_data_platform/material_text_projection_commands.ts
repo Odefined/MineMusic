@@ -41,10 +41,10 @@ export type RebuildMaterialTextDocumentsSummary = {
 export type MaterialTextProjectionCommands = {
   rebuildMaterialTextDocument(
     input: RebuildMaterialTextDocumentInput,
-  ): RebuildMaterialTextDocumentSummary;
+  ): Promise<RebuildMaterialTextDocumentSummary>;
   rebuildMaterialTextDocuments(
     input: RebuildMaterialTextDocumentsInput,
-  ): RebuildMaterialTextDocumentsSummary;
+  ): Promise<RebuildMaterialTextDocumentsSummary>;
 };
 
 type MaterialTextFieldName =
@@ -73,7 +73,7 @@ export function createMaterialTextProjectionCommands(
   const repositories = createIdentityRepositories({ db: input.db });
 
   return {
-    rebuildMaterialTextDocument(commandInput) {
+    async rebuildMaterialTextDocument(commandInput) {
       return rebuildSingleMaterialTextDocument({
         db: input.db,
         now: input.now,
@@ -81,7 +81,7 @@ export function createMaterialTextProjectionCommands(
         materialRef: commandInput.materialRef,
       });
     },
-    rebuildMaterialTextDocuments(commandInput) {
+    async rebuildMaterialTextDocuments(commandInput) {
       const materialRefsByKey = new Map<string, Ref>();
 
       for (const materialRef of commandInput.materialRefs) {
@@ -93,14 +93,15 @@ export function createMaterialTextProjectionCommands(
         .sort(([left], [right]) => compareStableText(left, right))
         .map(([, materialRef]) => materialRef);
 
-      const outcomes = orderedMaterialRefs.map((materialRef) =>
-        rebuildSingleMaterialTextDocument({
+      const outcomes: RebuildMaterialTextDocumentSummary[] = [];
+      for (const materialRef of orderedMaterialRefs) {
+        outcomes.push(await rebuildSingleMaterialTextDocument({
           db: input.db,
           now: input.now,
           repositories,
           materialRef,
-        })
-      );
+        }));
+      }
 
       return {
         processedMaterialCount: orderedMaterialRefs.length,
@@ -124,29 +125,29 @@ function compareStableText(left: string, right: string): number {
   return 0;
 }
 
-function rebuildSingleMaterialTextDocument(input: {
+async function rebuildSingleMaterialTextDocument(input: {
   db: MusicDatabaseTransactionContext;
   now: string;
   repositories: ReturnType<typeof createIdentityRepositories>;
   materialRef: Ref;
-}): RebuildMaterialTextDocumentSummary {
+}): Promise<RebuildMaterialTextDocumentSummary> {
   assertMaterialRef(input.materialRef);
   const materialRefKey = refKey(input.materialRef);
-  const materialRecord = input.repositories.materialRecords.get({ materialRef: input.materialRef });
+  const materialRecord = await input.repositories.materialRecords.get({ materialRef: input.materialRef });
 
   if (materialRecord === undefined || materialRecord.entity.lifecycleStatus !== "active") {
-    deleteMaterialTextRows(input.db, materialRefKey);
+    await deleteMaterialTextRows(input.db, materialRefKey);
     return {
       materialRefKey,
       outcome: "deleted",
     };
   }
 
-  const sourceRecords = boundSourceRecordsForMaterial({
+  const sourceRecords = await boundSourceRecordsForMaterial({
     materialRecord,
     repositories: input.repositories,
   });
-  const canonicalRecord = confirmedActiveCanonicalRecordForMaterial({
+  const canonicalRecord = await confirmedActiveCanonicalRecordForMaterial({
     materialRecord,
     repositories: input.repositories,
   });
@@ -157,7 +158,7 @@ function rebuildSingleMaterialTextDocument(input: {
     updatedAt: input.now,
   });
 
-  input.db.run(
+  await input.db.run(
     `
       INSERT INTO material_text_documents (
         material_ref_key,
@@ -197,11 +198,11 @@ function rebuildSingleMaterialTextDocument(input: {
     ],
   );
 
-  input.db.run(
+  await input.db.run(
     "DELETE FROM material_text_fts WHERE material_ref_key = ?",
     [materialRefKey],
   );
-  input.db.run(
+  await input.db.run(
     `
       INSERT INTO material_text_fts (
         material_ref_key,
@@ -222,6 +223,17 @@ function rebuildSingleMaterialTextDocument(input: {
       document.aliasText,
     ],
   );
+  await input.db.run(
+    `
+      UPDATE material_text_fts
+      SET search_vector = to_tsvector(
+        'simple',
+        concat_ws(' ', title_text, artist_text, album_text, version_text, alias_text)
+      )
+      WHERE material_ref_key = ?
+    `,
+    [materialRefKey],
+  );
 
   return {
     materialRefKey,
@@ -229,26 +241,29 @@ function rebuildSingleMaterialTextDocument(input: {
   };
 }
 
-function deleteMaterialTextRows(
+async function deleteMaterialTextRows(
   db: MusicDatabaseTransactionContext,
   materialRefKey: string,
-): void {
-  db.run("DELETE FROM material_text_documents WHERE material_ref_key = ?", [materialRefKey]);
-  db.run("DELETE FROM material_text_fts WHERE material_ref_key = ?", [materialRefKey]);
+): Promise<void> {
+  await db.run("DELETE FROM material_text_fts WHERE material_ref_key = ?", [materialRefKey]);
+  await db.run("DELETE FROM material_text_documents WHERE material_ref_key = ?", [materialRefKey]);
 }
 
-function boundSourceRecordsForMaterial(input: {
+async function boundSourceRecordsForMaterial(input: {
   materialRecord: MaterialRecord;
   repositories: ReturnType<typeof createIdentityRepositories>;
-}): readonly { source: SourceEntity; contributionSource: MaterialTextContributionSource }[] {
+}): Promise<readonly { source: SourceEntity; contributionSource: MaterialTextContributionSource }[]> {
   const primaryRefKey = input.materialRecord.entity.primarySourceRef === undefined
     ? undefined
     : refKey(input.materialRecord.entity.primarySourceRef);
 
-  return input.repositories.sourceMaterialBindings.listSourcesForMaterial({
+  const bindings = await input.repositories.sourceMaterialBindings.listSourcesForMaterial({
     materialRef: input.materialRecord.entity.materialRef,
-  }).map((binding) => {
-    const sourceRecord = input.repositories.sourceRecords.get({ sourceRef: binding.sourceRef });
+  });
+
+  const sources: { source: SourceEntity; contributionSource: MaterialTextContributionSource }[] = [];
+  for (const binding of bindings) {
+    const sourceRecord = await input.repositories.sourceRecords.get({ sourceRef: binding.sourceRef });
 
     if (sourceRecord === undefined) {
       throw new MusicDataPlatformError({
@@ -257,22 +272,21 @@ function boundSourceRecordsForMaterial(input: {
       });
     }
 
-    return {
+    sources.push({
       source: sourceRecord.entity,
       contributionSource: primaryRefKey !== undefined && primaryRefKey === refKey(binding.sourceRef)
         ? "primary_source"
         : "bound_source",
-    } satisfies {
-      source: SourceEntity;
-      contributionSource: MaterialTextContributionSource;
-    };
-  });
+    });
+  }
+
+  return sources;
 }
 
-function confirmedActiveCanonicalRecordForMaterial(input: {
+async function confirmedActiveCanonicalRecordForMaterial(input: {
   materialRecord: MaterialRecord;
   repositories: ReturnType<typeof createIdentityRepositories>;
-}): CanonicalRecord | undefined {
+}): Promise<CanonicalRecord | undefined> {
   const canonicalRef = input.materialRecord.entity.canonicalRef;
 
   if (
@@ -282,7 +296,7 @@ function confirmedActiveCanonicalRecordForMaterial(input: {
     return undefined;
   }
 
-  const canonicalRecord = input.repositories.canonicalRecords.get({ canonicalRef });
+  const canonicalRecord = await input.repositories.canonicalRecords.get({ canonicalRef });
 
   if (canonicalRecord === undefined || canonicalRecord.status !== "active") {
     return undefined;

@@ -283,7 +283,7 @@ async function handleCursorPage(
     retrievalQuery: RetrievalQueryService;
   },
 ): Promise<Result<MusicDiscoveryLookupOutput>> {
-  const resolved = ctx.lookupCursors.resolve({
+  const resolved = await ctx.lookupCursors.resolve({
     ownerScope: ctx.ownerScope,
     cursorId: input.cursor,
   });
@@ -349,7 +349,7 @@ async function runLookupQuery(
       ...(result.page.nextCursor === undefined
         ? {}
         : {
-            nextCursor: ctx.lookupCursors.register({
+            nextCursor: await ctx.lookupCursors.register({
               ownerScope: ctx.ownerScope,
               internalCursor: result.page.nextCursor,
               queryInput: input.queryInput,

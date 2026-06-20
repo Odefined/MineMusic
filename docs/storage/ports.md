@@ -1,119 +1,81 @@
 # Storage Ports
 
-> Status: Current boundary authority for implemented Phase 4
+> Status: Current boundary authority
 > Scope: Storage-provided and Storage-consumed capabilities
 
-Storage provides a generic database gateway and SQLite adapter. It does not
-provide music-domain repositories yet.
+Storage provides a generic database gateway and a Postgres adapter. It does
+not provide music-domain repositories.
 
 ## Provides
 
 | Port | Provided to | Capabilities | Code |
 | --- | --- | --- | --- |
-| `MusicDatabase` | Stage Core / Server Host composition roots and future commands | Obtain context, run root transaction, close database. | `src/storage/database.ts` |
-| `MusicDatabaseContext` | Future repositories and schema modules | `run`, `all`, and `get` with `MusicDatabaseParameter` binding. | `src/storage/database.ts` |
-| `MusicDatabaseTransactionContext` | Future commands that require root transaction atomicity | Branded `MusicDatabaseContext` available only inside `transaction(...)`. | `src/storage/database.ts` |
-| `SqliteMusicDatabase` | Composition roots and storage tests | Concrete adapter backed by `node:sqlite` `DatabaseSync`. | `src/storage/sqlite/database.ts` |
-| Schema contribution runner | Owning area schema modules | Central idempotent initialization hook with explicit array order. | `src/storage/sqlite/schema.ts` |
+| `MusicDatabase` | Server Host / Stage Core composition roots and commands | Initialize schema, obtain context, run root transaction, close database. | `src/storage/database.ts` |
+| `MusicDatabaseContext` | Repositories, read models, and schema modules | `run`, `all`, and `get` with `MusicDatabaseParameter` binding. | `src/storage/database.ts` |
+| `MusicDatabaseTransactionContext` | Commands that require root transaction atomicity | Branded `MusicDatabaseContext` available only inside `transaction(...)`. | `src/storage/database.ts` |
+| `PostgresMusicDatabase` | Composition roots and storage tests | Concrete adapter backed by `pg.Pool`. | `src/storage/postgres/database.ts` |
+| Schema contribution runner | Owning area schema modules | Central idempotent initialization hook with explicit array order. | `src/storage/postgres/schema.ts` |
 
 ## Consumes
 
 | Consumed capability | Provided by | Used for | Read capabilities | Write capabilities |
 | --- | --- | --- | --- | --- |
-| `node:sqlite` `DatabaseSync` | Node runtime | Concrete SQLite adapter only. | SQL read execution. | SQL write/transaction execution. |
+| `pg` Pool/Client | `pg` package | Concrete Postgres adapter only. | SQL read execution. | SQL write/transaction execution. |
 | `MusicDatabaseError` | Storage | Storage-owned boundary violations. | Error code and message. | None. |
 
 ## Method-Level Capabilities
 
 | Capability | Method(s) | Read/Write | Allowed consumer | Notes |
 | --- | --- | --- | --- | --- |
-| Open concrete database | `SqliteMusicDatabase.open({ filename })` | Opens storage handle | Composition roots/tests | Filename is explicit; no raw `DatabaseSync` leaves adapter. |
-| Initialize schema | `initialize(...)` | DDL | Composition roots/tests | Explicit call; runs pragmas and synchronous schema contributions only. |
-| Execute statement | `MusicDatabaseContext.run` | Write/DDL | Future repositories/schema modules | No rows returned; params are `null`, `number`, `bigint`, `string`, or `Uint8Array`. |
-| Read rows | `MusicDatabaseContext.all` | Read | Future repositories/query modules | Generic row type supplied by caller; params use the same scalar/blob union. |
-| Read optional row | `MusicDatabaseContext.get` | Read | Future repositories/query modules | Returns `undefined` when no row; params use the same scalar/blob union. |
-| Root transaction | `MusicDatabase.transaction` | Write boundary | Commands/composition roots | Uses `BEGIN IMMEDIATE`; callback receives `MusicDatabaseTransactionContext` only and must complete synchronously. |
-| Close database | `MusicDatabase.close` | Lifecycle | Composition roots/tests | Owns concrete handle lifetime. |
+| Open concrete database | `PostgresMusicDatabase.open({ connectionString, schema?, maxConnections? })` | Opens storage handle | Composition roots/tests | Connection string is explicit; raw pool/client does not leave adapter. |
+| Initialize schema | `initialize(...)` | DDL | Composition roots/tests | Explicit call; runs ordered schema contributions. |
+| Execute statement | `MusicDatabaseContext.run` | Write/DDL | Repositories/schema modules | No rows returned; adapter translates `?` placeholders to Postgres parameters. |
+| Read rows | `MusicDatabaseContext.all` | Read | Repositories/query modules | Generic row type supplied by caller. |
+| Read optional row | `MusicDatabaseContext.get` | Read | Repositories/query modules | Returns `undefined` when no row. |
+| Root transaction | `MusicDatabase.transaction` | Write boundary | Commands/composition roots | Callback receives `MusicDatabaseTransactionContext`; nested transactions are rejected. |
+| Close database | `MusicDatabase.close` | Lifecycle | Composition roots/tests | Owns concrete pool lifetime. |
 
 ## Forbidden Dependencies
 
 | Forbidden dependency | Reason |
 | --- | --- |
-| Empty or blank SQLite filename | SQLite would open an implicit temporary database, violating explicit storage configuration. |
-| Music Data Platform -> `node:sqlite` / `DatabaseSync` | Music Data Platform should receive generic database context or repositories, not concrete DB primitives. |
-| Stage Interface -> storage/sqlite | Agent-facing tools must not know concrete storage adapters. |
-| Extension -> storage/sqlite | Capability registration must not access DB primitives. |
-| Provider implementations -> storage/sqlite | Providers return source facts; they do not persist them directly. |
-| Repository -> `new DatabaseSync(...)` | Repositories must share the gateway and transaction boundary. |
+| Music Data Platform -> concrete storage adapter internals | Music Data Platform receives generic database contexts or narrow ports, not concrete DB primitives. |
+| Stage Interface -> concrete storage adapter internals | Agent-facing tools must not know concrete storage adapters. |
+| Extension/provider implementations -> storage internals | Providers return source facts; they do not persist them directly. |
+| Repository-created database pools/clients | Repositories must share the gateway and transaction boundary. |
 | `MusicDatabaseContext` -> `transaction(...)` | Repositories must not create nested transaction boundaries. |
-| Async transaction callback | `BEGIN IMMEDIATE` would commit before awaited work completes. |
-| Stale transaction context use | Transaction-scoped context must not be usable after commit/rollback. |
-| Async schema contribution | Initialization must finish only after schema work is complete. |
-| `context()` / `transaction(...)` before initialization | Database use must not proceed before pragmas/schema setup. |
-| Repeated `initialize(...)` on one database instance | Runtime schema set should be decided once per open database handle. |
-| Initialization retry after failure | Partial schema initialization recovery is out of Phase 4 scope. |
+| `context()` / `transaction(...)` before initialization | Database use must not proceed before schema setup. |
+| Repeated `initialize(...)` on one database instance | Runtime schema set is decided once per opened handle. |
+| Initialization retry after failure | Partial schema initialization recovery requires close/reopen. |
 | Non-close operation after close | Closed handles must not be reused. |
 | `close()` inside active transaction | Do not close the database while a write boundary is active. |
-| `close()` during initialization | Do not leave an initialized wrapper around a closed database handle. |
+| `close()` during initialization | Do not leave an initialized wrapper around a closed handle. |
 | Storage primitives -> `Result<T>` | Low-level database primitives throw; public result translation belongs to higher boundaries. |
 
 ## Composition
 
-Planned future composition when an owning module needs persistence:
-
 ```text
 Server Host / Stage Core
-  -> select SqliteMusicDatabase
-  -> initialize storage
+  -> select PostgresMusicDatabase
+  -> initialize ordered schema contributions
   -> pass MusicDatabase or MusicDatabaseContext to owning area roots
 ```
 
 The composition root may know the concrete adapter. Area services should not.
-Phase 4 does not change the current default Server Host runtime composition.
 
 ## Guards
 
-Planned guards:
-
 | Guard | Expected test |
 | --- | --- |
-| `src/storage/**` is allowed as the formal storage root. | `test/formal/active-tree.test.ts` |
+| `src/storage/**` stays limited to the generic boundary and Postgres adapter. | `test/formal/active-tree.test.ts` |
 | Old pre-formal storage implementations do not return. | `test/formal/active-tree.test.ts` |
-| Empty and blank SQLite filenames are rejected. | Storage behavior test |
-| `DatabaseSync` appears only in `src/storage/sqlite/**` and storage boundary tests. | Active-tree text scan |
-| `node:sqlite` imports appear only in `src/storage/sqlite/**`. | Active-tree text scan |
-| `StatementSync` does not leak outside SQLite adapter or storage boundary tests. | Active-tree text scan |
-| `MusicDatabaseContext` exposes no raw `DatabaseSync`. | Type-level/storage test |
+| Concrete DB primitives do not leak into Music Data Platform, Stage Interface, Extension, or providers. | Active-tree text/import scans |
+| `MusicDatabaseContext` exposes no concrete pool/client. | Type-level/storage test |
 | `MusicDatabaseContext` has no `transaction` method. | Type-level/storage test |
-| Transaction rollback preserves pre-transaction state. | Storage behavior test |
-| Database remains usable after successful rollback. | Storage behavior test |
-| Transaction uses write-transaction semantics. | Storage behavior test |
-| Promise and thenable transaction callbacks are rejected and rolled back. | Type-level/storage behavior test |
-| Stale transaction context rejects late use after transaction end. | Storage behavior test |
-| Unsupported async callback continuation rejection is absorbed. | Storage behavior test |
-| Schema contributions run through the database foundation. | Storage behavior test |
-| Schema contributions run in explicit caller-provided order. | Storage behavior test |
-| Schema contributions are synchronous. | Type-level/storage behavior test |
-| Unsupported async schema contribution continuation rejection is absorbed. | Storage behavior test |
-| Idempotent schema contributions survive reopen on the same file. | Storage behavior test |
+| Transaction commit/rollback/lifecycle behavior remains explicit. | Storage behavior test |
+| Schema contributions run through the database foundation in caller order. | Storage behavior test |
 | `context()` and `transaction(...)` reject before initialization. | Storage behavior test |
 | Repeated `initialize(...)` rejects with `MusicDatabaseError`. | Storage behavior test |
-| Initialization failure makes `context()`, `transaction(...)`, and retry unavailable while keeping `close()` allowed. | Storage behavior test |
+| Initialization failure makes use/retry unavailable while keeping `close()` allowed. | Storage behavior test |
 | `close()` is idempotent and closed-handle use rejects. | Storage behavior test |
-| `close()` inside active transaction rejects. | Storage behavior test |
-| `close()` during initialization rejects through initialization failure. | Storage behavior test |
 | Storage-owned boundary errors use `MusicDatabaseError`. | Storage behavior test |
-
-## Out Of Scope
-
-- Source/material/canonical repositories.
-- Business tables.
-- Command audit.
-- Owner facts and projections.
-- Provider candidate temp relations.
-- Query engine SQL.
-- Provider execution or config.
-- Stage Interface tools.
-- Replaceable Storage Provider slot behavior.
-- Default Server Host database wiring.
-- Default database path or adapter-level env/config reads.

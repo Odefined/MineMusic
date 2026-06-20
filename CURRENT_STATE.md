@@ -191,24 +191,20 @@ Phase 4 Storage vocabulary includes:
 - `MusicDatabaseContext` as the generic SQL execution context;
 - `MusicDatabaseTransactionContext` as the transaction-scoped SQL context
   handed to root transaction callbacks;
-- `SqliteMusicDatabase` as a concrete SQLite adapter only;
-- raw SQLite primitives are confined to the SQLite adapter and storage
-  boundary tests;
+- `PostgresMusicDatabase` as the concrete runtime adapter;
+- concrete Postgres pool/client primitives are confined to the Postgres adapter;
 - SQL execution through `run` / `all` / `get` with `sql + params`, where
   params are limited to `null`, `number`, `bigint`, `string`, and
   `Uint8Array`, without public prepared statement objects or statement cache
   in Phase 4;
 - root-only transaction boundary through `MusicDatabase.transaction(...)`;
-- root transaction callbacks are synchronous-only; Promise and thenable
-  callbacks are rejected before commit and rolled back;
+- root transaction callbacks may be async and are committed only after the
+  callback resolves;
 - transaction callbacks receive a transaction-scoped context that becomes
   inactive after commit/rollback;
-- synchronous schema contribution runner as the Phase 4 initialization shape;
-- no default Server Host runtime storage wiring in Phase 4;
-- explicit SQLite filename only, with no adapter-level env/config reads or
-  default database path in Phase 4;
-- empty or blank SQLite filenames are rejected so SQLite cannot silently open
-  an implicit temporary database;
+- ordered schema contribution runner as the initialization shape;
+- default Server Host Music Data Platform runtime opens Postgres through
+  explicit runtime database config or environment defaults;
 - explicit initialization after open, with `context()` and `transaction(...)`
   unavailable until initialization succeeds;
 - schema contribution SQL is idempotent, but one database instance accepts only
@@ -539,9 +535,9 @@ The active TypeScript tree is now a formal skeleton:
 - `src/storage/database.ts` owns the generic `MusicDatabase` contract,
   `MusicDatabaseContext`, `MusicDatabaseTransactionContext`, schema
   contribution type, and `MusicDatabaseError`;
-- `src/storage/sqlite/database.ts` owns the concrete `SqliteMusicDatabase`
+- `src/storage/postgres/database.ts` owns the concrete `PostgresMusicDatabase`
   adapter;
-- `src/storage/sqlite/schema.ts` owns SQLite pragma and schema contribution
+- `src/storage/postgres/schema.ts` owns Postgres schema contribution
   initialization;
 - `src/storage/index.ts` owns Storage public exports.
 - `src/music_data_platform/errors.ts` owns Music Data Platform invariant
@@ -736,7 +732,7 @@ restored as compatibility layers.
   implemented Phase 4 Storage foundation spec.
 - `docs/storage/README.md`, `docs/storage/design.md`, `docs/storage/ports.md`,
   and `docs/storage/progress.md` are the current Storage area docs for the
-  generic database boundary and SQLite adapter foundation.
+  generic database boundary and Postgres adapter foundation.
 - `docs/formal-rebuild/phase-5-music-data-platform-identity-write-model.md`
   records the implemented Phase 5 Music Data Platform identity write model
   spec.

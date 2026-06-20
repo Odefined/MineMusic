@@ -43,10 +43,10 @@ export type OwnerCatalogReadPort = {
     ownerScope: string;
     entryKind?: OwnerMaterialEntryKind;
     entryRef?: Ref;
-  }): readonly OwnerMaterialEntryRecord[];
+  }): Promise<readonly OwnerMaterialEntryRecord[]>;
   listOwnerCatalogMaterials(input: {
     ownerScope: string;
-  }): readonly OwnerCatalogMaterialRecord[];
+  }): Promise<readonly OwnerCatalogMaterialRecord[]>;
 };
 
 type OwnerMaterialEntryRow = {
@@ -77,15 +77,15 @@ export function createOwnerCatalogRecords(
   const { db } = input;
 
   return {
-    listOwnerMaterialEntries(readInput) {
+    async listOwnerMaterialEntries(readInput) {
       assertOwnerScope(readInput.ownerScope);
 
-      return db.all<OwnerMaterialEntryRow>(
+      return (await db.all<OwnerMaterialEntryRow>(
         `
           SELECT * FROM owner_material_entries
           WHERE owner_scope = ?
-            AND (? IS NULL OR entry_kind = ?)
-            AND (? IS NULL OR entry_ref_key = ?)
+            AND (?::text IS NULL OR entry_kind = ?)
+            AND (?::text IS NULL OR entry_ref_key = ?)
           ORDER BY entry_kind ASC, entry_ref_key ASC, material_ref_key ASC
         `,
         [
@@ -95,19 +95,19 @@ export function createOwnerCatalogRecords(
           readInput.entryRef === undefined ? null : refKey(readInput.entryRef),
           readInput.entryRef === undefined ? null : refKey(readInput.entryRef),
         ],
-      ).map(ownerMaterialEntryFromRow);
+      )).map(ownerMaterialEntryFromRow);
     },
-    listOwnerCatalogMaterials(readInput) {
+    async listOwnerCatalogMaterials(readInput) {
       assertOwnerScope(readInput.ownerScope);
 
-      return db.all<OwnerCatalogMaterialRow>(
+      return (await db.all<OwnerCatalogMaterialRow>(
         `
           SELECT * FROM owner_material_catalog_view
           WHERE owner_scope = ?
           ORDER BY recently_added_at DESC, material_ref_key ASC
         `,
         [readInput.ownerScope],
-      ).map(ownerCatalogMaterialFromRow);
+      )).map(ownerCatalogMaterialFromRow);
     },
   };
 }

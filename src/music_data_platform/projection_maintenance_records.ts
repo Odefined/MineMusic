@@ -34,10 +34,10 @@ export type ProjectionMaintenanceTargetRecord = {
 export type ProjectionMaintenanceRecords = {
   getProjectionTarget(
     input: GetProjectionTargetInput,
-  ): ProjectionMaintenanceTargetRecord | undefined;
+  ): Promise<ProjectionMaintenanceTargetRecord | undefined>;
   listPendingProjectionTargets(
     input?: ListPendingProjectionTargetsInput,
-  ): readonly ProjectionMaintenanceTargetRecord[];
+  ): Promise<readonly ProjectionMaintenanceTargetRecord[]>;
 };
 
 type ProjectionMaintenanceTargetRow = {
@@ -58,11 +58,11 @@ export function createProjectionMaintenanceRecords(
   const { db } = input;
 
   return {
-    getProjectionTarget(readInput) {
+    async getProjectionTarget(readInput) {
       assertProjectionMaintenanceKind(readInput.projectionKind);
       assertProjectionMaintenanceTargetKey(readInput.targetKey);
 
-      const row = db.get<ProjectionMaintenanceTargetRow>(
+      const row = await db.get<ProjectionMaintenanceTargetRow>(
         `
           SELECT *
           FROM projection_maintenance_targets
@@ -74,10 +74,10 @@ export function createProjectionMaintenanceRecords(
 
       return row === undefined ? undefined : projectionMaintenanceTargetFromRow(row);
     },
-    listPendingProjectionTargets(readInput) {
+    async listPendingProjectionTargets(readInput) {
       const limit = validatedPendingLimit(readInput?.limit);
       const rows = limit === undefined
-        ? db.all<ProjectionMaintenanceTargetRow>(
+        ? await db.all<ProjectionMaintenanceTargetRow>(
           `
             SELECT *
             FROM projection_maintenance_targets
@@ -85,7 +85,7 @@ export function createProjectionMaintenanceRecords(
             ORDER BY updated_at ASC, projection_kind ASC, target_key ASC
           `,
         )
-        : db.all<ProjectionMaintenanceTargetRow>(
+        : await db.all<ProjectionMaintenanceTargetRow>(
           `
             SELECT *
             FROM projection_maintenance_targets

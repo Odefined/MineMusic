@@ -31,15 +31,15 @@ export type ProjectionMaintenanceRunSummary = {
 export type ProjectionMaintenanceRunner = {
   runProjectionMaintenance(input?: {
     limit?: number;
-  }): ProjectionMaintenanceRunSummary;
+  }): Promise<ProjectionMaintenanceRunSummary>;
 };
 
 export function createProjectionMaintenanceRunner(
   input: CreateProjectionMaintenanceRunnerInput,
 ): ProjectionMaintenanceRunner {
   return {
-    runProjectionMaintenance(runInput) {
-      const selectedTargets = createProjectionMaintenanceRecords({
+    async runProjectionMaintenance(runInput) {
+      const selectedTargets = await createProjectionMaintenanceRecords({
         db: input.database.context(),
       }).listPendingProjectionTargets(runInput);
       const summary: ProjectionMaintenanceRunSummary = {
@@ -51,8 +51,8 @@ export function createProjectionMaintenanceRunner(
 
       for (const target of selectedTargets) {
         try {
-          const cleaned = input.database.transaction((db) => {
-            dispatchProjectionTarget({
+          const cleaned = await input.database.transaction(async (db) => {
+            await dispatchProjectionTarget({
               target,
               ownerCatalogProjectionCommands: createOwnerCatalogProjectionCommands({
                 db,
@@ -64,14 +64,14 @@ export function createProjectionMaintenanceRunner(
               }),
             });
 
-            return createProjectionMaintenanceCommands({
+            return (await createProjectionMaintenanceCommands({
               db,
               now: input.now,
             }).markProjectionClean({
               projectionKind: target.projectionKind,
               targetKey: target.targetKey,
               expectedDirtyGeneration: target.dirtyGeneration,
-            }).cleaned;
+            })).cleaned;
           });
 
           if (cleaned) {
@@ -81,8 +81,8 @@ export function createProjectionMaintenanceRunner(
           }
         } catch (error) {
           const failure = compactProjectionMaintenanceFailure(error, target.projectionKind);
-          const failed = input.database.transaction((db) =>
-            createProjectionMaintenanceCommands({
+          const failed = await input.database.transaction(async (db) =>
+            (await createProjectionMaintenanceCommands({
               db,
               now: input.now,
             }).markProjectionFailed({
@@ -91,7 +91,7 @@ export function createProjectionMaintenanceRunner(
               expectedDirtyGeneration: target.dirtyGeneration,
               failureCode: failure.failureCode,
               failureMessage: failure.failureMessage,
-            }).failed);
+            })).failed);
 
           if (failed) {
             summary.failedCount += 1;
@@ -106,11 +106,11 @@ export function createProjectionMaintenanceRunner(
   };
 }
 
-function dispatchProjectionTarget(input: {
+async function dispatchProjectionTarget(input: {
   target: ProjectionMaintenanceTargetRecord;
   ownerCatalogProjectionCommands: ReturnType<typeof createOwnerCatalogProjectionCommands>;
   materialTextProjectionCommands: ReturnType<typeof createMaterialTextProjectionCommands>;
-}): void {
+}): Promise<void> {
   const payload = parseProjectionMaintenanceTargetPayload({
     projectionKind: input.target.projectionKind,
     targetPayloadJson: input.target.targetPayloadJson,
@@ -118,25 +118,25 @@ function dispatchProjectionTarget(input: {
 
   switch (payload.projectionKind) {
     case "owner_catalog_source_library":
-      input.ownerCatalogProjectionCommands.rebuildSourceLibraryEntriesForLibrary({
+      await input.ownerCatalogProjectionCommands.rebuildSourceLibraryEntriesForLibrary({
         ownerScope: payload.ownerScope,
         libraryRef: payload.libraryRef,
       });
       return;
     case "owner_catalog_source_library_material":
-      input.ownerCatalogProjectionCommands.rebuildSourceLibraryEntriesForMaterial({
+      await input.ownerCatalogProjectionCommands.rebuildSourceLibraryEntriesForMaterial({
         ownerScope: payload.ownerScope,
         materialRef: payload.materialRef,
       });
       return;
     case "owner_catalog_relation_material":
-      input.ownerCatalogProjectionCommands.rebuildOwnerRelationEntries({
+      await input.ownerCatalogProjectionCommands.rebuildOwnerRelationEntries({
         ownerScope: payload.ownerScope,
         materialRef: payload.materialRef,
       });
       return;
     case "material_text":
-      input.materialTextProjectionCommands.rebuildMaterialTextDocument({
+      await input.materialTextProjectionCommands.rebuildMaterialTextDocument({
         materialRef: payload.materialRef,
       });
       return;

@@ -129,11 +129,11 @@ export type LookupCursorStore = {
     ownerScope: string;
     internalCursor: string;
     queryInput: unknown;
-  }): string;
+  }): Promise<string>;
   resolve(input: {
     ownerScope: string;
     cursorId: string;
-  }): Result<{ internalCursor: string; queryInput: unknown }>;
+  }): Promise<Result<{ internalCursor: string; queryInput: unknown }>>;
 };
 
 export type ProviderAvailabilityPort = {

@@ -57,13 +57,17 @@ import { createStageInterfaceHandleRegistryRecords } from "../stage_interface/ha
 import { createLookupCursorStore, DEFAULT_LOOKUP_CURSOR_TTL_MS } from "../stage_interface/lookup_cursor_store.js";
 import type { HandleMintingPort, LookupCursorStore } from "../contracts/stage_interface.js";
 import {
-  SqliteMusicDatabase,
   type MusicDatabase,
   type MusicDatabaseContext,
+  PostgresMusicDatabase,
 } from "../storage/index.js";
 import type { RuntimeModule } from "../stage_core/index.js";
 import type { MineMusicRuntimeConfig } from "./config.js";
-import { mineMusicDatabaseFilename } from "./config.js";
+import {
+  mineMusicDatabaseMaxConnections,
+  mineMusicDatabaseSchema,
+  mineMusicDatabaseUrl,
+} from "./config.js";
 import {
   createProjectionMaintenanceScheduler,
   type ProjectionMaintenanceScheduler,
@@ -120,10 +124,14 @@ export function createMusicDataPlatformRuntimeModule(
     },
     async initialize() {
       try {
-        database = input.database ?? input.databaseFactory?.() ?? SqliteMusicDatabase.open({
-          filename: mineMusicDatabaseFilename(input.config),
+        const configuredSchema = mineMusicDatabaseSchema(input.config);
+        const configuredMaxConnections = mineMusicDatabaseMaxConnections(input.config);
+        database = input.database ?? input.databaseFactory?.() ?? PostgresMusicDatabase.open({
+          connectionString: mineMusicDatabaseUrl(input.config),
+          ...(configuredSchema === undefined ? {} : { schema: configuredSchema }),
+          ...(configuredMaxConnections === undefined ? {} : { maxConnections: configuredMaxConnections }),
         });
-        database.initialize({
+        await database.initialize({
           schemas: [
             musicDataPlatformIdentitySchema,
             musicDataPlatformSourceLibrarySchema,
@@ -254,7 +262,7 @@ export function createMusicDataPlatformRuntimeModule(
         retrievalQueryService = undefined;
         downloadCommand = undefined;
         localSourceCommand = undefined;
-        closeOwnedDatabase();
+        await closeOwnedDatabase();
         return {
           ok: false,
           error: {
@@ -273,7 +281,7 @@ export function createMusicDataPlatformRuntimeModule(
         projectionMaintenanceScheduler = undefined;
         await scheduler?.stop();
         await downloadCommand?.drain();
-        closeOwnedDatabase();
+        await closeOwnedDatabase();
         handleMintingPort = undefined;
         lookupCursorStore = undefined;
         musicScopeAvailabilityPort = undefined;
@@ -338,12 +346,12 @@ export function createMusicDataPlatformRuntimeModule(
     },
   };
 
-  function closeOwnedDatabase(): void {
+  async function closeOwnedDatabase(): Promise<void> {
     if (!ownsDatabase || database === undefined) {
       return;
     }
 
-    database.close();
+    await database.close();
     database = undefined;
   }
 }
@@ -356,15 +364,19 @@ function createMusicScopeAvailabilityPort(input: {
   const ownerRelationRead = createOwnerMaterialRelationRecords({ db: input.db });
 
   return {
-    listAvailableMusicScopes(readInput) {
+    async listAvailableMusicScopes(readInput) {
       const providerNames = providerDisplayNames(input.extensionRuntime);
+      const sourceLibraries = await sourceLibraryRead.listSourceLibraries({
+        ownerScope: readInput.ownerScope,
+      });
+      const relationSummaries = await ownerRelationRead.listOwnerRelationScopeSummaries({
+        ownerScope: readInput.ownerScope,
+      });
 
       const snapshot: MusicScopeAvailabilitySnapshot = {
-        sourceLibraries: sourceLibraryRead
-          .listSourceLibraries({ ownerScope: readInput.ownerScope })
+        sourceLibraries: sourceLibraries
           .map((record) => sourceLibraryScopeAvailability(record, providerNames)),
-        relations: ownerRelationRead
-          .listOwnerRelationScopeSummaries({ ownerScope: readInput.ownerScope })
+        relations: relationSummaries
           .map((summary) => ({
             id: relationScopeId({
               ownerScope: summary.ownerScope,

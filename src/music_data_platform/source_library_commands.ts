@@ -79,25 +79,25 @@ export type AdvanceSourceLibraryImportBatchCursorInput = {
 };
 
 export type SourceLibraryCommands = {
-  createImportBatch(input: CreateSourceLibraryImportBatchInput): SourceLibraryImportBatchRecord;
+  createImportBatch(input: CreateSourceLibraryImportBatchInput): Promise<SourceLibraryImportBatchRecord>;
   resolveImportBatchLibraryScope(
     input: ResolveSourceLibraryImportBatchScopeInput,
-  ): SourceLibraryImportBatchRecord;
+  ): Promise<SourceLibraryImportBatchRecord>;
   recordImportItem(
     input: RecordSourceLibraryImportItemInput,
-  ): RecordSourceLibraryImportItemResult;
+  ): Promise<RecordSourceLibraryImportItemResult>;
   recordImportItemFailure(
     input: RecordSourceLibraryImportItemFailureInput,
-  ): RecordSourceLibraryImportItemFailureResult;
+  ): Promise<RecordSourceLibraryImportItemFailureResult>;
   failImportBatch(
     input: FailSourceLibraryImportBatchInput,
-  ): SourceLibraryImportBatchRecord | undefined;
+  ): Promise<SourceLibraryImportBatchRecord | undefined>;
   completeImportBatch(
     input: CompleteSourceLibraryImportBatchInput,
-  ): SourceLibraryImportBatchRecord;
+  ): Promise<SourceLibraryImportBatchRecord>;
   advanceImportBatchCursor(
     input: AdvanceSourceLibraryImportBatchCursorInput,
-  ): SourceLibraryImportBatchRecord;
+  ): Promise<SourceLibraryImportBatchRecord>;
 };
 
 export function createSourceLibraryCommands(
@@ -107,17 +107,17 @@ export function createSourceLibraryCommands(
   const repositories = createSourceLibraryRepositories({ db: input.db });
 
   return {
-    createImportBatch(commandInput) {
+    async createImportBatch(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
 
-      if (repositories.batches.get({ batchId: commandInput.batchId }) !== undefined) {
+      if (await repositories.batches.get({ batchId: commandInput.batchId }) !== undefined) {
         throw new MusicDataPlatformError({
           code: "music_data.source_library_import_batch_id_collision",
           message: `Source library import batch '${commandInput.batchId}' already exists.`,
         });
       }
 
-      return repositories.batches.insert({
+      return await repositories.batches.insert({
         batchId: commandInput.batchId,
         ownerScope: commandInput.ownerScope,
         providerId: commandInput.providerId,
@@ -133,16 +133,16 @@ export function createSourceLibraryCommands(
         updatedAt: input.now,
       });
     },
-    resolveImportBatchLibraryScope(commandInput) {
+    async resolveImportBatchLibraryScope(commandInput) {
       const libraryRef = createSourceLibraryRef({
         ownerScope: commandInput.batch.ownerScope,
         providerId: commandInput.batch.providerId,
         providerAccountId: commandInput.providerAccountId,
         libraryKind: commandInput.batch.libraryKind,
       });
-      const existingLibrary = repositories.libraries.get({ libraryRef });
+      const existingLibrary = await repositories.libraries.get({ libraryRef });
 
-      repositories.libraries.upsert({
+      await repositories.libraries.upsert({
         libraryRef,
         ownerScope: commandInput.batch.ownerScope,
         providerId: commandInput.batch.providerId,
@@ -152,18 +152,18 @@ export function createSourceLibraryCommands(
         updatedAt: input.now,
       });
 
-      return repositories.batches.upsert({
+      return await repositories.batches.upsert({
         ...commandInput.batch,
         providerAccountId: commandInput.providerAccountId,
         libraryRef,
         updatedAt: input.now,
       });
     },
-    recordImportItem(commandInput) {
+    async recordImportItem(commandInput) {
       const batchScope = requireBatchLibraryScope(commandInput.batch);
       const sourceRefKey = refKey(commandInput.sourceRef);
       const materialRefKey = refKey(commandInput.materialRef);
-      const currentBinding = identityRead.findMaterialForSource({
+      const currentBinding = await identityRead.findMaterialForSource({
         sourceRef: commandInput.sourceRef,
       });
 
@@ -177,7 +177,7 @@ export function createSourceLibraryCommands(
         });
       }
 
-      const existingItem = repositories.items.get({
+      const existingItem = await repositories.items.get({
         libraryRef: batchScope.libraryRef,
         sourceRefKey,
       });
@@ -185,7 +185,7 @@ export function createSourceLibraryCommands(
       const shouldWriteItem = existingItem === undefined ||
         nextProviderAddedAt !== existingItem.providerAddedAt;
       const sourceLibraryItem = shouldWriteItem
-        ? repositories.items.upsert({
+        ? await repositories.items.upsert({
           libraryRef: batchScope.libraryRef,
           sourceRefKey,
           addedAt: existingItem?.addedAt ?? input.now,
@@ -195,7 +195,7 @@ export function createSourceLibraryCommands(
         : existingItem;
       const outcomeKind: SourceLibraryImportItemOutcome =
         existingItem === undefined ? "imported" : "already_present";
-      const outcome = repositories.itemOutcomes.insert({
+      const outcome = await repositories.itemOutcomes.insert({
         batchId: commandInput.batch.batchId,
         sequence: commandInput.batch.processedCount + 1,
         outcome: outcomeKind,
@@ -205,14 +205,14 @@ export function createSourceLibraryCommands(
         materialRefKey,
         createdAt: input.now,
       });
-      const batch = repositories.batches.upsert(incrementBatchCounts(
+      const batch = await repositories.batches.upsert(incrementBatchCounts(
         commandInput.batch,
         outcomeKind,
         input.now,
       ));
 
       if (shouldWriteItem) {
-        input.projectionInvalidationCommands.markProjectionInvalidated({
+        await input.projectionInvalidationCommands.markProjectionInvalidated({
           writes: [{
             writeKind: "source_library_item_written",
             ownerScope: commandInput.batch.ownerScope,
@@ -231,12 +231,12 @@ export function createSourceLibraryCommands(
         batch,
       };
     },
-    recordImportItemFailure(commandInput) {
+    async recordImportItemFailure(commandInput) {
       const batch = requireImportBatch(
-        repositories.batches.get({ batchId: commandInput.batchId }),
+        await repositories.batches.get({ batchId: commandInput.batchId }),
         commandInput.batchId,
       );
-      const outcome = repositories.itemOutcomes.insert({
+      const outcome = await repositories.itemOutcomes.insert({
         batchId: commandInput.batchId,
         sequence: batch.processedCount + 1,
         outcome: "failed",
@@ -247,7 +247,7 @@ export function createSourceLibraryCommands(
         errorMessage: commandInput.errorMessage,
         createdAt: input.now,
       });
-      const updatedBatch = repositories.batches.upsert(incrementBatchCounts(
+      const updatedBatch = await repositories.batches.upsert(incrementBatchCounts(
         batch,
         "failed",
         input.now,
@@ -258,14 +258,14 @@ export function createSourceLibraryCommands(
         batch: updatedBatch,
       };
     },
-    failImportBatch(commandInput) {
-      const batch = repositories.batches.get({ batchId: commandInput.batchId });
+    async failImportBatch(commandInput) {
+      const batch = await repositories.batches.get({ batchId: commandInput.batchId });
 
       if (batch === undefined) {
         return undefined;
       }
 
-      return repositories.batches.upsert({
+      return await repositories.batches.upsert({
         ...withoutCursor(batch),
         status: "failed",
         failureCode: commandInput.errorCode,
@@ -273,8 +273,8 @@ export function createSourceLibraryCommands(
         updatedAt: input.now,
       });
     },
-    completeImportBatch(commandInput) {
-      const completedBatch = repositories.batches.upsert({
+    async completeImportBatch(commandInput) {
+      const completedBatch = await repositories.batches.upsert({
         ...withoutCursor(commandInput.batch),
         status: "completed",
         completionReason: commandInput.completionReason,
@@ -289,13 +289,13 @@ export function createSourceLibraryCommands(
         return completedBatch;
       }
 
-      const reconciliation = repositories.items.deleteItemsNotObservedInBatch({
+      const reconciliation = await repositories.items.deleteItemsNotObservedInBatch({
         libraryRef: completedBatch.libraryRef,
         batchId: completedBatch.batchId,
       });
 
       if (reconciliation.deletedCount > 0) {
-        input.projectionInvalidationCommands.markProjectionInvalidated({
+        await input.projectionInvalidationCommands.markProjectionInvalidated({
           writes: [{
             writeKind: "source_library_scope_written",
             ownerScope: completedBatch.ownerScope,
@@ -306,8 +306,8 @@ export function createSourceLibraryCommands(
 
       return completedBatch;
     },
-    advanceImportBatchCursor(commandInput) {
-      return repositories.batches.upsert({
+    async advanceImportBatchCursor(commandInput) {
+      return await repositories.batches.upsert({
         ...commandInput.batch,
         cursor: commandInput.cursor,
         updatedAt: input.now,

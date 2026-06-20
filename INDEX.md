@@ -41,8 +41,8 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   manifests, registry semantics, source-provider slot registration, write
   policy, and Stage Core mounting.
 - `docs/formal-rebuild/phase-4-music-database-foundation.md`: implemented
-  Phase 4 spec for generic `MusicDatabase`, SQLite adapter confinement, root-only
-  transactions, and centralized schema initialization.
+  Phase 4 spec for generic `MusicDatabase`, root-only transactions, and
+  centralized schema initialization.
 - `docs/formal-rebuild/phase-5-music-data-platform-identity-write-model.md`:
   implemented Phase 5 spec for Music Data Platform identity records,
   source-material binding facts, repositories, commands, and the `refKey(ref)`
@@ -164,8 +164,8 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/extension/plugins/ncm.md`: NCM plugin-specific config, source search
   mapping, platform library mapping, source refs, errors, and smoke usage.
 - `docs/storage/README.md`: Storage area documentation entrypoint.
-- `docs/storage/design.md`: generic MusicDatabase and SQLite adapter design
-  authority for the implemented Phase 4 boundary.
+- `docs/storage/design.md`: generic MusicDatabase and Postgres adapter design
+  authority for the current Storage boundary.
 - `docs/storage/ports.md`: Storage provided/consumed ports, forbidden
   dependencies, composition, and guard plan.
 - `docs/storage/progress.md`: Storage implementation state, verification
@@ -375,8 +375,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   when invoked as main.
 - `src/index.ts`: formal skeleton package exports.
 - `src/storage/database.ts`: generic `MusicDatabase` boundary.
-- `src/storage/sqlite/database.ts`: concrete `SqliteMusicDatabase` adapter.
-- `src/storage/sqlite/schema.ts`: SQLite pragma and schema contribution
+- `src/storage/postgres/database.ts`: concrete `PostgresMusicDatabase` adapter.
+- `src/storage/postgres/schema.ts`: Postgres schema contribution
   initialization.
 - `src/storage/index.ts`: Storage public exports.
 - `src/music_data_platform/errors.ts`: Music Data Platform invariant error

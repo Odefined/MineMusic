@@ -22,9 +22,9 @@ export type DownloadJobRecord = {
 };
 
 export type DownloadJobRepository = {
-  get(input: { jobId: string }): DownloadJobRecord | undefined;
-  insert(record: DownloadJobRecord): DownloadJobRecord;
-  update(record: DownloadJobRecord): DownloadJobRecord;
+  get(input: { jobId: string }): Promise<DownloadJobRecord | undefined>;
+  insert(record: DownloadJobRecord): Promise<DownloadJobRecord>;
+  update(record: DownloadJobRecord): Promise<DownloadJobRecord>;
 };
 
 type DownloadJobRow = {
@@ -52,8 +52,8 @@ export function createDownloadJobRepository(input: {
   db: MusicDatabaseContext;
 }): DownloadJobRepository {
   return {
-    get({ jobId }) {
-      const row = input.db.get<DownloadJobRow>(
+    async get({ jobId }) {
+      const row = await input.db.get<DownloadJobRow>(
         `SELECT job_id, state, provider_id, source_ref_namespace, source_ref_kind,
                 source_ref_id, source_ref_label, output_path, bytes_downloaded,
                 total_bytes, container, bitrate, size_bytes, md5, error_code,
@@ -65,8 +65,8 @@ export function createDownloadJobRepository(input: {
 
       return row === undefined ? undefined : rowToRecord(row);
     },
-    insert(record) {
-      input.db.run(
+    async insert(record) {
+      await input.db.run(
         `INSERT INTO download_jobs (
            job_id, state, provider_id, source_ref_namespace, source_ref_kind,
            source_ref_id, source_ref_label, output_path, bytes_downloaded,
@@ -78,8 +78,8 @@ export function createDownloadJobRepository(input: {
 
       return record;
     },
-    update(record) {
-      input.db.run(
+    async update(record) {
+      await input.db.run(
         `UPDATE download_jobs
          SET state = ?, bytes_downloaded = ?, total_bytes = ?, container = ?,
              bitrate = ?, size_bytes = ?, md5 = ?, error_code = ?,

@@ -22,13 +22,13 @@ export type LibraryRelationControlPort = {
   getRelationState(input: {
     ownerScope: string;
     materialRef: Ref;
-  }): LibraryRelationState;
+  }): Promise<LibraryRelationState>;
   editRelation(input: {
     ownerScope: string;
     materialRef: Ref;
     edit: LibraryRelationEdit;
     now: string;
-  }): LibraryRelationState;
+  }): Promise<LibraryRelationState>;
 };
 
 export type CreateLibraryRelationRegistrationInput = {
@@ -316,11 +316,11 @@ async function handleLibraryRelation(
 
   try {
     const relations = edit === "get"
-      ? control.getRelationState({
+      ? await control.getRelationState({
         ownerScope: ctx.ownerScope,
         materialRef: materialRefResult.value,
       })
-      : control.editRelation({
+      : await control.editRelation({
         ownerScope: ctx.ownerScope,
         materialRef: materialRefResult.value,
         edit,

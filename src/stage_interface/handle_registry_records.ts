@@ -22,18 +22,18 @@ export type StageInterfaceHandleRegistryRecords = {
 export type StageInterfaceHandleBindingRepository = {
   getByPublicId(input: {
     publicId: string;
-  }): StageInterfaceHandleBindingRecord | undefined;
+  }): Promise<StageInterfaceHandleBindingRecord | undefined>;
   getByOwnerPublicId(input: {
     publicId: string;
     ownerScope: string;
     handleKind: StageInterfaceHandleKind;
-  }): StageInterfaceHandleBindingRecord | undefined;
+  }): Promise<StageInterfaceHandleBindingRecord | undefined>;
   getByOwnerAnchor(input: {
     ownerScope: string;
     handleKind: StageInterfaceHandleKind;
     internalAnchorJson: string;
-  }): StageInterfaceHandleBindingRecord | undefined;
-  createBinding(record: StageInterfaceHandleBindingRecord): StageInterfaceHandleBindingRecord;
+  }): Promise<StageInterfaceHandleBindingRecord | undefined>;
+  createBinding(record: StageInterfaceHandleBindingRecord): Promise<StageInterfaceHandleBindingRecord>;
 };
 
 type StageInterfaceHandleBindingRow = {
@@ -51,10 +51,10 @@ export function createStageInterfaceHandleRegistryRecords(
   const { db } = input;
 
   const bindings: StageInterfaceHandleBindingRepository = {
-    getByPublicId(readInput) {
+    async getByPublicId(readInput) {
       assertNonEmptyString(readInput.publicId, "publicId");
 
-      const row = db.get<StageInterfaceHandleBindingRow>(
+      const row = await db.get<StageInterfaceHandleBindingRow>(
         `
           SELECT *
           FROM stage_interface_handle_registry
@@ -65,12 +65,12 @@ export function createStageInterfaceHandleRegistryRecords(
 
       return row === undefined ? undefined : bindingFromRow(row);
     },
-    getByOwnerPublicId(readInput) {
+    async getByOwnerPublicId(readInput) {
       assertNonEmptyString(readInput.publicId, "publicId");
       assertNonEmptyString(readInput.ownerScope, "ownerScope");
       assertHandleKind(readInput.handleKind);
 
-      const row = db.get<StageInterfaceHandleBindingRow>(
+      const row = await db.get<StageInterfaceHandleBindingRow>(
         `
           SELECT *
           FROM stage_interface_handle_registry
@@ -83,12 +83,12 @@ export function createStageInterfaceHandleRegistryRecords(
 
       return row === undefined ? undefined : bindingFromRow(row);
     },
-    getByOwnerAnchor(readInput) {
+    async getByOwnerAnchor(readInput) {
       assertNonEmptyString(readInput.ownerScope, "ownerScope");
       assertHandleKind(readInput.handleKind);
       assertJsonString(readInput.internalAnchorJson);
 
-      const row = db.get<StageInterfaceHandleBindingRow>(
+      const row = await db.get<StageInterfaceHandleBindingRow>(
         `
           SELECT *
           FROM stage_interface_handle_registry
@@ -101,10 +101,10 @@ export function createStageInterfaceHandleRegistryRecords(
 
       return row === undefined ? undefined : bindingFromRow(row);
     },
-    createBinding(record) {
+    async createBinding(record) {
       assertBindingRecord(record);
 
-      db.run(
+      await db.run(
         `
           INSERT INTO stage_interface_handle_registry (
             public_id,

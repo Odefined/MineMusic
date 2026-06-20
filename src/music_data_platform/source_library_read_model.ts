@@ -10,8 +10,8 @@ export type CreateSourceLibraryReadPortInput = {
 };
 
 export type SourceLibraryReadPort = {
-  getImportBatch(input: { batchId: string }): SourceLibraryImportBatchRecord | undefined;
-  listSourceLibraries(input: { ownerScope: string }): readonly SourceLibraryRecord[];
+  getImportBatch(input: { batchId: string }): Promise<SourceLibraryImportBatchRecord | undefined>;
+  listSourceLibraries(input: { ownerScope: string }): Promise<readonly SourceLibraryRecord[]>;
 };
 
 export function createSourceLibraryReadPort(
@@ -20,10 +20,10 @@ export function createSourceLibraryReadPort(
   const repositories = createSourceLibraryRepositories({ db: input.db });
 
   return {
-    getImportBatch(readInput) {
+    async getImportBatch(readInput) {
       return repositories.batches.get(readInput);
     },
-    listSourceLibraries(readInput) {
+    async listSourceLibraries(readInput) {
       return repositories.libraries.listByOwnerScope(readInput);
     },
   };

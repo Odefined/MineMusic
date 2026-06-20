@@ -64,7 +64,7 @@ export function createRetrievalQueryService(
           });
         }
 
-        return queryMixed({
+        return await queryMixed({
           query: normalized.query,
           limit: normalized.limit,
           fingerprint: normalized.fingerprint,
@@ -89,8 +89,8 @@ export function createRetrievalQueryService(
         limit: normalized.limit,
         cursorPosition: localCursorPosition,
       });
-      const page = readPort.searchOwnerCatalogMaterials(searchInput);
-      const freshness = readPort.getRetrievalFreshness({
+      const page = await readPort.searchOwnerCatalogMaterials(searchInput);
+      const freshness = await readPort.getRetrievalFreshness({
         ownerScope: normalized.query.ownerScope,
       });
       const nextCursor = page.nextCursorPosition === undefined
@@ -147,7 +147,7 @@ async function queryMixed(input: {
     })
     : undefined;
   const localRecall = mixedDurableLocalRecall(input.query.pools);
-  const page = input.mixedRetrievalWorkspace.searchMixedResultSet({
+  const page = await input.mixedRetrievalWorkspace.searchMixedResultSet({
     ownerScope: input.query.ownerScope,
     text,
     ...(input.query.materialKind === undefined ? {} : { materialKind: input.query.materialKind }),

@@ -21,7 +21,7 @@ export type CreateCandidateCommitCommandInput = {
 };
 
 export type CandidateCommitCommand = {
-  commitCandidate(input: CandidateCommitInput): Result<CandidateCommitResult>;
+  commitCandidate(input: CandidateCommitInput): Promise<Result<CandidateCommitResult>>;
 };
 
 export type CandidateCommitInput = {
@@ -39,17 +39,17 @@ export function createCandidateCommitCommand(
   const now = input.now ?? (() => new Date().toISOString());
 
   return {
-    commitCandidate(commandInput) {
+    async commitCandidate(commandInput) {
       assertProviderMaterialCandidateRef(commandInput.materialCandidateRef);
 
-      return input.database.transaction((db) => {
+      return input.database.transaction(async (db) => {
         const timestamp = now();
         const candidateCache = createRetrievalResultSetRecords({ db })
           .materialCandidates;
         const materialCandidateRefKey = providerMaterialCandidateRefKey({
           materialCandidateRef: commandInput.materialCandidateRef,
         });
-        const cacheRecord = candidateCache.getByRefKey({
+        const cacheRecord = await candidateCache.getByRefKey({
           materialCandidateRefKey,
         });
 
@@ -71,7 +71,7 @@ export function createCandidateCommitCommand(
 
         const sourceEntity = sourceEntityFromCacheRecord(cacheRecord);
         const identityRead = createIdentityReadPort({ db });
-        const existingBinding = identityRead.findMaterialForSource({
+        const existingBinding = await identityRead.findMaterialForSource({
           sourceRef: sourceEntity.sourceRef,
         });
 
@@ -88,16 +88,16 @@ export function createCandidateCommitCommand(
         });
         const kind = materialKindForSourceKind(sourceEntity.kind);
 
-        writes.identity.upsertSourceRecord({ entity: sourceEntity });
+        await writes.identity.upsertSourceRecord({ entity: sourceEntity });
         const materialRef = input.materialRefFactory.createMaterialRef(kind);
-        writes.identity.upsertMaterialRecord({
+        await writes.identity.upsertMaterialRecord({
           materialRef,
           kind,
           ...(sourceEntity.versionInfo === undefined
             ? {}
             : { versionInfo: sourceEntity.versionInfo }),
         });
-        writes.identity.bindSourceToMaterial({
+        await writes.identity.bindSourceToMaterial({
           sourceRef: sourceEntity.sourceRef,
           materialRef,
           makePrimary: true,

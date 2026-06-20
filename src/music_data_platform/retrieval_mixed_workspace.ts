@@ -11,7 +11,6 @@ import { MusicDataPlatformError } from "./errors.js";
 import { assertMaterialRef, materialKindForSourceKind } from "./material_ref.js";
 import {
   buildMaterialTextFieldState,
-  buildMaterialTextPrefixOrQuery,
   buildMaterialTextPrefixQueryTokens,
   normalizeMaterialTextValue,
   type MaterialTextContribution,
@@ -44,7 +43,9 @@ import {
   retrievalTextFieldConfigs,
   matchedTokenCountSqlExpression,
   bestFieldPrioritySqlExpression,
-  fieldScopedPrefixQuery,
+  ftsRankSortValueSqlExpression,
+  ftsSearchConditionSql,
+  prefixTsQueryForTokens,
 } from "./material_text_ranking.js";
 import {
   createRetrievalResultSetRecords,
@@ -139,7 +140,7 @@ export type CreateMusicDataPlatformRetrievalWorkspaceInput = {
 export type MusicDataPlatformRetrievalWorkspace = {
   searchMixedResultSet(
     input: MusicDataPlatformMixedRetrievalSearchInput,
-  ): MusicDataPlatformMixedRetrievalPage;
+  ): Promise<MusicDataPlatformMixedRetrievalPage>;
 };
 
 type EffectiveTextQuery = {
@@ -229,7 +230,7 @@ export function createMusicDataPlatformRetrievalWorkspace(
   const { database } = input;
 
   return {
-    searchMixedResultSet(searchInput) {
+    async searchMixedResultSet(searchInput) {
       const now = validatedNow(searchInput.now);
       const ownerScope = validatedOwnerScope(searchInput.ownerScope);
       const order = validatedOrder(searchInput.order);
@@ -241,9 +242,9 @@ export function createMusicDataPlatformRetrievalWorkspace(
       const providerCandidates = searchInput.providerCandidates ?? [];
       const includeLocalCatalog = searchInput.includeLocalCatalog === true;
 
-      return database.transaction((db) => {
+      return database.transaction(async (db) => {
         if (searchInput.cursor !== undefined) {
-          return readExistingMixedResultSetPage({
+          return await readExistingMixedResultSetPage({
             db,
             resultSetId: searchInput.cursor.resultSetId,
             queryFingerprint,
@@ -255,10 +256,10 @@ export function createMusicDataPlatformRetrievalWorkspace(
         }
 
         const records = createRetrievalResultSetRecords({ db });
-        records.cleanupExpiredRetrievalResultSets({ now });
-        records.cleanupExpiredMaterialCandidates({ now });
+        await records.cleanupExpiredRetrievalResultSets({ now });
+        await records.cleanupExpiredMaterialCandidates({ now });
 
-        const poolFilter = normalizeDurablePoolFilter(
+        const poolFilter = await normalizeDurablePoolFilter(
           db,
           ownerScope,
           searchInput.durablePoolFilter,
@@ -268,7 +269,7 @@ export function createMusicDataPlatformRetrievalWorkspace(
           createdAt: now,
           ...(searchInput.ttlMs === undefined ? {} : { ttlMs: searchInput.ttlMs }),
         });
-        const localWindow = selectLocalResultWindow({
+        const localWindow = await selectLocalResultWindow({
           db,
           ownerScope,
           materialKind,
@@ -287,7 +288,7 @@ export function createMusicDataPlatformRetrievalWorkspace(
         }
 
         for (const candidate of providerCandidates) {
-          addProviderCandidateDescriptor({
+          await addProviderCandidateDescriptor({
             db,
             descriptors,
             records,
@@ -300,7 +301,7 @@ export function createMusicDataPlatformRetrievalWorkspace(
           });
         }
 
-        records.resultSets.insert({
+        await records.resultSets.insert({
           resultSetId,
           queryFingerprint,
           localResultWindowLimit,
@@ -311,18 +312,18 @@ export function createMusicDataPlatformRetrievalWorkspace(
         });
 
         const ftsRecords = ftsRecordsFromDescriptors(resultSetId, descriptors);
-        records.resultTextFts.insertMany(ftsRecords);
+        await records.resultTextFts.insertMany(ftsRecords);
 
-        const rankedRows = rankedRowsByResultRowKey({
+        const rankedRows = await rankedRowsByResultRowKey({
           db,
           resultSetId,
           textQuery,
         });
         const resultRows = resultRowsFromDescriptors(resultSetId, descriptors, rankedRows);
-        records.resultRows.insertMany(resultRows);
-        pruneUnmatchedResultSetFtsRows(db, resultSetId);
+        await records.resultRows.insertMany(resultRows);
+        await pruneUnmatchedResultSetFtsRows(db, resultSetId);
 
-        return readExistingMixedResultSetPage({
+        return await readExistingMixedResultSetPage({
           db,
           resultSetId,
           queryFingerprint,
@@ -335,7 +336,7 @@ export function createMusicDataPlatformRetrievalWorkspace(
   };
 }
 
-function readExistingMixedResultSetPage(input: {
+async function readExistingMixedResultSetPage(input: {
   db: MusicDatabaseContext;
   resultSetId: string;
   queryFingerprint: string;
@@ -343,9 +344,9 @@ function readExistingMixedResultSetPage(input: {
   limit: number;
   now: string;
   cursorPosition?: MixedRetrievalCursorPosition;
-}): MusicDataPlatformMixedRetrievalPage {
+}): Promise<MusicDataPlatformMixedRetrievalPage> {
   const resultSetId = validatedResultSetId(input.resultSetId);
-  const resultSet = createRetrievalResultSetRecords({ db: input.db }).resultSets.get({
+  const resultSet = await createRetrievalResultSetRecords({ db: input.db }).resultSets.get({
     resultSetId,
   });
 
@@ -357,7 +358,7 @@ function readExistingMixedResultSetPage(input: {
     return { status: "query_fingerprint_mismatch" };
   }
 
-  const selectedRows = input.db.all<MixedPageSqlRow>(
+  const selectedRows = await input.db.all<MixedPageSqlRow>(
     mixedPageSql(input.cursorPosition, input.textQuery),
     mixedPageParams({
       resultSetId,
@@ -371,7 +372,7 @@ function readExistingMixedResultSetPage(input: {
     return { status: "material_candidate_expired" };
   }
 
-  const textEvidence = matchedTextEvidenceByResultRowKey({
+  const textEvidence = await matchedTextEvidenceByResultRowKey({
     db: input.db,
     resultSetId,
     rows: visibleRows,
@@ -390,7 +391,7 @@ function readExistingMixedResultSetPage(input: {
   };
 }
 
-function selectLocalResultWindow(input: {
+async function selectLocalResultWindow(input: {
   db: MusicDatabaseContext;
   ownerScope: string;
   materialKind: MaterialEntityKind | undefined;
@@ -398,10 +399,10 @@ function selectLocalResultWindow(input: {
   includeLocalCatalog: boolean;
   textQuery: EffectiveTextQuery;
   localResultWindowLimit: number;
-}): {
+}): Promise<{
   rows: readonly LocalResultWindowRow[];
   hasMore: boolean;
-} {
+}> {
   if (!hasLocalRecallSource(input.includeLocalCatalog, input.poolFilter)) {
     return {
       rows: [],
@@ -409,7 +410,7 @@ function selectLocalResultWindow(input: {
     };
   }
 
-  const selectedRows = input.db.all<LocalResultWindowRow>(
+  const selectedRows = await input.db.all<LocalResultWindowRow>(
     localResultWindowSql(input.poolFilter, input.materialKind, input.textQuery),
     localResultWindowParams({
       ownerScope: input.ownerScope,
@@ -424,7 +425,7 @@ function selectLocalResultWindow(input: {
   };
 }
 
-function addProviderCandidateDescriptor(input: {
+async function addProviderCandidateDescriptor(input: {
   db: MusicDatabaseContext;
   descriptors: Map<string, ResultSetDescriptor>;
   records: ReturnType<typeof createRetrievalResultSetRecords>;
@@ -434,7 +435,7 @@ function addProviderCandidateDescriptor(input: {
   resultSetId: string;
   expiresAt: string;
   now: string;
-}): void {
+}): Promise<void> {
   const sourceEntity = validatedProviderCandidate(input.candidate);
   const candidateMaterialKind = materialKindForSourceKind(sourceEntity.kind);
 
@@ -443,18 +444,18 @@ function addProviderCandidateDescriptor(input: {
   }
 
   const sourceRefKey = refKey(sourceEntity.sourceRef);
-  const resolved = providerResolvedMaterialIdentity(input.db, sourceRefKey);
+  const resolved = await providerResolvedMaterialIdentity(input.db, sourceRefKey);
 
   if (resolved !== undefined) {
     if (input.materialKind !== undefined && input.materialKind !== resolved.materialKind) {
       return;
     }
 
-    if (providerResolvedMaterialBlocked(input.db, input.ownerScope, resolved.material_ref_key)) {
+    if (await providerResolvedMaterialBlocked(input.db, input.ownerScope, resolved.material_ref_key)) {
       return;
     }
 
-    const resolvedText = providerResolvedMaterialTextRow(input.db, resolved.material_ref_key);
+    const resolvedText = await providerResolvedMaterialTextRow(input.db, resolved.material_ref_key);
     if (resolvedText === undefined) {
       return;
     }
@@ -487,7 +488,7 @@ function addProviderCandidateDescriptor(input: {
     return;
   }
 
-  input.records.materialCandidates.upsert({
+  await input.records.materialCandidates.upsert({
     materialCandidateRefKey,
     providerId: sourceEntity.providerId!,
     sourceRefKey,
@@ -511,11 +512,11 @@ function addProviderCandidateDescriptor(input: {
   input.descriptors.set(descriptorKey(descriptor), descriptor);
 }
 
-function providerResolvedMaterialIdentity(
+async function providerResolvedMaterialIdentity(
   db: MusicDatabaseContext,
   sourceRefKey: string,
-): ProviderResolvedMaterialIdentityRow | undefined {
-  const row = db.get<{
+): Promise<ProviderResolvedMaterialIdentityRow | undefined> {
+  const row = await db.get<{
     material_ref_key: string;
     material_kind: MaterialEntityKind;
   }>(
@@ -542,11 +543,11 @@ function providerResolvedMaterialIdentity(
   };
 }
 
-function providerResolvedMaterialTextRow(
+async function providerResolvedMaterialTextRow(
   db: MusicDatabaseContext,
   materialRefKey: string,
-): RetrievalResultTextFields | undefined {
-  const row = db.get<{
+): Promise<RetrievalResultTextFields | undefined> {
+  const row = await db.get<{
     title_text: string;
     artist_text: string;
     album_text: string;
@@ -579,12 +580,12 @@ function providerResolvedMaterialTextRow(
   };
 }
 
-function providerResolvedMaterialBlocked(
+async function providerResolvedMaterialBlocked(
   db: MusicDatabaseContext,
   ownerScope: string,
   materialRefKey: string,
-): boolean {
-  return db.get<{ one: number }>(
+): Promise<boolean> {
+  return (await db.get<{ one: number }>(
     `
       SELECT 1 AS one
       FROM owner_material_relations
@@ -595,7 +596,7 @@ function providerResolvedMaterialBlocked(
       LIMIT 1
     `,
     [ownerScope, materialRefKey],
-  ) !== undefined;
+  )) !== undefined;
 }
 
 function materialDescriptorFromTextRow(
@@ -632,12 +633,12 @@ function ftsRecordsFromDescriptors(
   }));
 }
 
-function rankedRowsByResultRowKey(input: {
+async function rankedRowsByResultRowKey(input: {
   db: MusicDatabaseContext;
   resultSetId: string;
   textQuery: EffectiveTextQuery;
-}): ReadonlyMap<string, RankedResultSetFtsRow> {
-  const rows = input.db.all<RankedResultSetFtsRow>(
+}): Promise<ReadonlyMap<string, RankedResultSetFtsRow>> {
+  const rows = await input.db.all<RankedResultSetFtsRow>(
     `
       SELECT
         row_kind,
@@ -646,11 +647,11 @@ function rankedRowsByResultRowKey(input: {
           AS matched_token_count,
         ${bestFieldPrioritySqlExpression(input.textQuery.tokens, "retrieval_result_text_fts")}
           AS best_field_priority,
-        bm25(retrieval_result_text_fts, 1.0, 1.0, 1.0, 1.0, 1.0)
+        ${ftsRankSortValueSqlExpression("retrieval_result_text_fts", input.textQuery.matchQuery)}
           AS rank_sort_value
       FROM retrieval_result_text_fts
       WHERE result_set_id = ?
-        AND retrieval_result_text_fts MATCH ${sqlStringLiteral(input.textQuery.matchQuery)}
+        AND ${ftsSearchConditionSql("retrieval_result_text_fts", input.textQuery.matchQuery)}
     `,
     [input.resultSetId],
   );
@@ -700,11 +701,11 @@ function resultRowsFromDescriptors(
   return rows;
 }
 
-function pruneUnmatchedResultSetFtsRows(
+async function pruneUnmatchedResultSetFtsRows(
   db: MusicDatabaseContext,
   resultSetId: string,
-): void {
-  db.run(
+): Promise<void> {
+  await db.run(
     `
       DELETE FROM retrieval_result_text_fts
       WHERE result_set_id = ?
@@ -730,16 +731,16 @@ function localResultWindowSql(
   return `
     SELECT
       c.material_ref_key,
-      t.title_text AS titleText,
-      t.artist_text AS artistText,
-      t.album_text AS albumText,
-      t.version_text AS versionText,
-      t.alias_text AS aliasText,
+      t.title_text AS "titleText",
+      t.artist_text AS "artistText",
+      t.album_text AS "albumText",
+      t.version_text AS "versionText",
+      t.alias_text AS "aliasText",
       ${matchedTokenCountSqlExpression(textQuery.tokens, "material_text_fts")}
         AS matched_token_count,
       ${bestFieldPrioritySqlExpression(textQuery.tokens, "material_text_fts")}
         AS best_field_priority,
-      bm25(material_text_fts, 1.0, 1.0, 1.0, 1.0, 1.0)
+      ${ftsRankSortValueSqlExpression("material_text_fts", textQuery.matchQuery)}
         AS rank_sort_value
     FROM owner_material_catalog_view c
     JOIN material_records m
@@ -748,7 +749,7 @@ function localResultWindowSql(
       ON t.material_ref_key = c.material_ref_key
     JOIN material_text_fts
       ON material_text_fts.material_ref_key = c.material_ref_key
-    WHERE material_text_fts MATCH ${sqlStringLiteral(textQuery.matchQuery)}
+    WHERE ${ftsSearchConditionSql("material_text_fts", textQuery.matchQuery)}
       AND ${whereClauses.map((clause) => `(${clause.trim()})`).join("\n      AND ")}
     ORDER BY
       matched_token_count DESC,
@@ -790,11 +791,11 @@ function mixedPageSql(
       r.best_field_priority,
       r.rank_sort_value,
       r.row_kind_sort,
-      r.title_text AS titleText,
-      r.artist_text AS artistText,
-      r.album_text AS albumText,
-      r.version_text AS versionText,
-      r.alias_text AS aliasText,
+      r.title_text AS "titleText",
+      r.artist_text AS "artistText",
+      r.album_text AS "albumText",
+      r.version_text AS "versionText",
+      r.alias_text AS "aliasText",
       m.kind AS material_kind,
       m.entity_json AS material_entity_json,
       c.material_candidate_ref_key AS candidate_cache_ref_key,
@@ -809,7 +810,7 @@ function mixedPageSql(
     LEFT JOIN material_candidate_cache c
       ON c.material_candidate_ref_key = r.material_candidate_ref_key
     WHERE r.result_set_id = ?
-      AND retrieval_result_text_fts MATCH ${sqlStringLiteral(textQuery.matchQuery)}
+      AND ${ftsSearchConditionSql("retrieval_result_text_fts", textQuery.matchQuery)}
       ${cursorClause === undefined ? "" : `AND (${cursorClause})`}
     ORDER BY
       r.matched_token_count DESC,
@@ -882,17 +883,17 @@ function mixedCursorClause(
   `;
 }
 
-function matchedTextEvidenceByResultRowKey(input: {
+async function matchedTextEvidenceByResultRowKey(input: {
   db: MusicDatabaseContext;
   resultSetId: string;
   rows: readonly MixedPageSqlRow[];
   queryTokens: readonly string[];
-}): ReadonlyMap<string, {
+}): Promise<ReadonlyMap<string, {
   matchedTextFields: readonly RetrievalTextField[];
   matchedTextTokensByField: readonly RetrievalMatchedTextTokenEvidence[];
   matchedTokenCount: number;
   bestFieldPriority: number;
-}> {
+}>> {
   if (input.rows.length === 0 || input.queryTokens.length === 0) {
     return new Map();
   }
@@ -902,7 +903,7 @@ function matchedTextEvidenceByResultRowKey(input: {
     params.push(row.row_kind, row.stable_ref_key);
   }
 
-  const rows = input.db.all<MatchedTextEvidenceRow>(
+  const rows = await input.db.all<MatchedTextEvidenceRow>(
     matchedTextEvidenceSql(input.resultSetId, input.rows.length, input.queryTokens),
     params,
   );
@@ -936,7 +937,7 @@ function matchedTextEvidenceByResultRowKey(input: {
     const lastFieldEvidence =
       existing.matchedTextTokensByField[existing.matchedTextTokensByField.length - 1];
 
-    if (lastFieldEvidence?.field === row.field) {
+    if (lastFieldEvidence !== undefined && lastFieldEvidence.field === row.field) {
       lastFieldEvidence.tokens.push(row.token);
     } else {
       existing.matchedTextFields.push(row.field);
@@ -985,9 +986,12 @@ function matchedTextEvidenceSql(
           ON target_rows.row_kind = retrieval_result_text_fts.row_kind
           AND target_rows.stable_ref_key = retrieval_result_text_fts.stable_ref_key
         WHERE retrieval_result_text_fts.result_set_id = ${sqlStringLiteral(resultSetId)}
-          AND retrieval_result_text_fts MATCH ${sqlStringLiteral(
-            fieldScopedPrefixQuery(field.column, token),
+          AND ${ftsSearchConditionSql(
+            "retrieval_result_text_fts",
+            prefixTsQueryForTokens([token]),
           )}
+          AND to_tsvector('simple', COALESCE(retrieval_result_text_fts.${field.column}, ''))
+            @@ to_tsquery('simple', ${sqlStringLiteral(prefixTsQueryForTokens([token]))})
       `);
     }
   }
@@ -1191,11 +1195,11 @@ function catalogBaseParams(
   return params;
 }
 
-function normalizeDurablePoolFilter(
+async function normalizeDurablePoolFilter(
   db: MusicDatabaseContext,
   ownerScope: string,
   poolFilter: RetrievalReadPoolFilter | undefined,
-): NormalizedDurablePoolFilter {
+): Promise<NormalizedDurablePoolFilter> {
   const allOf = normalizePoolRefs(poolFilter?.allOf);
   const anyOf = normalizePoolRefs(poolFilter?.anyOf);
   const noneOf = normalizePoolRefs(poolFilter?.noneOf);
@@ -1215,7 +1219,7 @@ function normalizeDurablePoolFilter(
   for (const ref of [...allOf, ...anyOf, ...noneOf]) {
     switch (ref.namespace) {
       case "source_library":
-        validateSourceLibraryPoolRef(db, ownerScope, ref);
+        await validateSourceLibraryPoolRef(db, ownerScope, ref);
         break;
       case "owner_material_relation_pool":
         validateOwnerRelationPoolRef(ownerScope, ref);
@@ -1263,14 +1267,14 @@ function refsToKeys(refs: readonly Ref[]): readonly string[] {
   return keys;
 }
 
-function validateSourceLibraryPoolRef(
+async function validateSourceLibraryPoolRef(
   db: MusicDatabaseContext,
   ownerScope: string,
   libraryRef: Ref,
-): void {
+): Promise<void> {
   assertSourceLibraryRef(libraryRef);
   const storedRefKey = refKey(libraryRef);
-  const row = db.get<SourceLibraryRow>(
+  const row = await db.get<SourceLibraryRow>(
     `
       SELECT
         library_ref_key,
@@ -1461,7 +1465,7 @@ function effectiveTextQuery(text: string): EffectiveTextQuery {
   return {
     normalizedText,
     tokens,
-    matchQuery: buildMaterialTextPrefixOrQuery(normalizedText),
+    matchQuery: prefixTsQueryForTokens(tokens),
   };
 }
 

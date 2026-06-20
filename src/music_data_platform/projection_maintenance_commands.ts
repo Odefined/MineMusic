@@ -72,7 +72,7 @@ export type ProjectionMaintenanceInvalidationResult = {
 export type ProjectionInvalidationCommands = {
   markProjectionInvalidated(
     input: ProjectionMaintenanceInvalidationInput,
-  ): ProjectionMaintenanceInvalidationResult;
+  ): Promise<ProjectionMaintenanceInvalidationResult>;
 };
 
 export type CreateProjectionMaintenanceCommandsInput = {
@@ -131,13 +131,13 @@ export type ProjectionMaintenanceFailedResult = {
 export type ProjectionMaintenanceCommands = ProjectionInvalidationCommands & {
   markProjectionTargetDirty(
     input: ProjectionMaintenanceTargetInput,
-  ): ProjectionMaintenanceTargetDirtyResult;
+  ): Promise<ProjectionMaintenanceTargetDirtyResult>;
   markProjectionClean(
     input: ProjectionMaintenanceCleanInput,
-  ): ProjectionMaintenanceCleanResult;
+  ): Promise<ProjectionMaintenanceCleanResult>;
   markProjectionFailed(
     input: ProjectionMaintenanceFailedInput,
-  ): ProjectionMaintenanceFailedResult;
+  ): Promise<ProjectionMaintenanceFailedResult>;
 };
 
 type ProjectionMaintenanceTargetRow = {
@@ -172,11 +172,11 @@ export function createProjectionMaintenanceCommands(
   input: CreateProjectionMaintenanceCommandsInput,
 ): ProjectionMaintenanceCommands {
   return {
-    markProjectionTargetDirty(commandInput) {
+    async markProjectionTargetDirty(commandInput) {
       const normalizedTarget = normalizeProjectionMaintenanceTarget(commandInput);
       return upsertDirtyTarget(input, normalizedTarget);
     },
-    markProjectionInvalidated(commandInput) {
+    async markProjectionInvalidated(commandInput) {
       if (commandInput.writes.length === 0) {
         throw invalidProjectionMaintenanceTarget(
           "Projection maintenance invalidation writes must be non-empty.",
@@ -186,7 +186,7 @@ export function createProjectionMaintenanceCommands(
       const uniqueTargets = new Map<string, NormalizedProjectionMaintenanceTarget>();
 
       for (const write of commandInput.writes) {
-        for (const target of planProjectionInvalidationTargets(input.db, write)) {
+        for (const target of await planProjectionInvalidationTargets(input.db, write)) {
           const normalizedTarget = normalizeProjectionMaintenanceTarget(target);
           uniqueTargets.set(
             `${normalizedTarget.projectionKind}\u0000${normalizedTarget.targetKey}`,
@@ -196,7 +196,7 @@ export function createProjectionMaintenanceCommands(
       }
 
       for (const target of uniqueTargets.values()) {
-        upsertDirtyTarget(input, target);
+        await upsertDirtyTarget(input, target);
       }
 
       return {
@@ -204,13 +204,13 @@ export function createProjectionMaintenanceCommands(
         targetCount: uniqueTargets.size,
       };
     },
-    markProjectionClean(commandInput) {
+    async markProjectionClean(commandInput) {
       assertProjectionMaintenanceKind(commandInput.projectionKind);
       assertProjectionMaintenanceTargetKey(commandInput.targetKey);
       const expectedDirtyGeneration = assertExpectedDirtyGeneration(
         commandInput.expectedDirtyGeneration,
       );
-      const row = input.db.get<ProjectionMaintenanceTargetRow>(
+      const row = await input.db.get<ProjectionMaintenanceTargetRow>(
         `
           SELECT dirty_generation
           FROM projection_maintenance_targets
@@ -224,7 +224,7 @@ export function createProjectionMaintenanceCommands(
         return { cleaned: false };
       }
 
-      input.db.run(
+      await input.db.run(
         `
           DELETE FROM projection_maintenance_targets
           WHERE projection_kind = ?
@@ -240,7 +240,7 @@ export function createProjectionMaintenanceCommands(
 
       return { cleaned: true };
     },
-    markProjectionFailed(commandInput) {
+    async markProjectionFailed(commandInput) {
       assertProjectionMaintenanceKind(commandInput.projectionKind);
       assertProjectionMaintenanceTargetKey(commandInput.targetKey);
       const expectedDirtyGeneration = assertExpectedDirtyGeneration(
@@ -254,7 +254,7 @@ export function createProjectionMaintenanceCommands(
         commandInput.failureMessage,
         "Projection maintenance failure message cannot be empty.",
       );
-      const row = input.db.get<ProjectionMaintenanceTargetRow>(
+      const row = await input.db.get<ProjectionMaintenanceTargetRow>(
         `
           SELECT dirty_generation
           FROM projection_maintenance_targets
@@ -268,7 +268,7 @@ export function createProjectionMaintenanceCommands(
         return { failed: false };
       }
 
-      input.db.run(
+      await input.db.run(
         `
           UPDATE projection_maintenance_targets
           SET status = 'failed',
@@ -424,11 +424,11 @@ function normalizedRefPayload(ref: Ref): RefPayload {
   };
 }
 
-function upsertDirtyTarget(
+async function upsertDirtyTarget(
   input: CreateProjectionMaintenanceCommandsInput,
   normalizedTarget: NormalizedProjectionMaintenanceTarget,
-): ProjectionMaintenanceTargetDirtyResult {
-  input.db.run(
+): Promise<ProjectionMaintenanceTargetDirtyResult> {
+  await input.db.run(
     `
       INSERT INTO projection_maintenance_targets (
         projection_kind,
@@ -459,7 +459,7 @@ function upsertDirtyTarget(
     ],
   );
 
-  const row = input.db.get<ProjectionMaintenanceTargetRow>(
+  const row = await input.db.get<ProjectionMaintenanceTargetRow>(
     `
       SELECT dirty_generation
       FROM projection_maintenance_targets
@@ -481,14 +481,14 @@ function upsertDirtyTarget(
   };
 }
 
-function planProjectionInvalidationTargets(
+async function planProjectionInvalidationTargets(
   db: MusicDatabaseTransactionContext,
   write: ProjectionSourceWrite,
-): readonly ProjectionMaintenanceTargetInput[] {
+): Promise<readonly ProjectionMaintenanceTargetInput[]> {
   switch (write.writeKind) {
     case "source_record_written": {
       assertSafeRef(write.sourceRef, "sourceRef");
-      const currentMaterialRef = findCurrentMaterialRefForSource(db, write.sourceRef);
+      const currentMaterialRef = await findCurrentMaterialRefForSource(db, write.sourceRef);
       return currentMaterialRef === undefined
         ? []
         : [{ projectionKind: "material_text", materialRef: currentMaterialRef }];
@@ -498,7 +498,7 @@ function planProjectionInvalidationTargets(
       return materialScopedTargets(DEFAULT_OWNER_SCOPE, write.materialRef);
     case "canonical_record_written": {
       assertSafeRef(write.canonicalRef, "canonicalRef");
-      return findMaterialRefsForCanonical(db, write.canonicalRef).map((materialRef) => ({
+      return (await findMaterialRefsForCanonical(db, write.canonicalRef)).map((materialRef) => ({
         projectionKind: "material_text" as const,
         materialRef,
       }));
@@ -530,7 +530,7 @@ function planProjectionInvalidationTargets(
     case "source_library_item_written": {
       assertOwnerScope(write.ownerScope);
       assertSafeRef(write.sourceRef, "sourceRef");
-      const currentMaterialRef = findCurrentMaterialRefForSource(db, write.sourceRef);
+      const currentMaterialRef = await findCurrentMaterialRefForSource(db, write.sourceRef);
       return currentMaterialRef === undefined
         ? []
         : [{
@@ -578,11 +578,11 @@ function materialScopedTargets(
   ];
 }
 
-function findCurrentMaterialRefForSource(
+async function findCurrentMaterialRefForSource(
   db: MusicDatabaseTransactionContext,
   sourceRef: Ref,
-): Ref | undefined {
-  const row = db.get<MaterialRecordEntityRow>(
+): Promise<Ref | undefined> {
+  const row = await db.get<MaterialRecordEntityRow>(
     `
       SELECT m.entity_json
       FROM source_material_bindings b
@@ -596,18 +596,18 @@ function findCurrentMaterialRefForSource(
   return row === undefined ? undefined : materialRefFromEntityJson(row.entity_json);
 }
 
-function findMaterialRefsForCanonical(
+async function findMaterialRefsForCanonical(
   db: MusicDatabaseTransactionContext,
   canonicalRef: Ref,
-): readonly Ref[] {
-  return db.all<MaterialRecordEntityRow>(
+): Promise<readonly Ref[]> {
+  return (await db.all<MaterialRecordEntityRow>(
     `
       SELECT entity_json
       FROM material_records
       WHERE canonical_ref_key = ?
     `,
     [refKey(canonicalRef)],
-  ).map((row) => materialRefFromEntityJson(row.entity_json));
+  )).map((row) => materialRefFromEntityJson(row.entity_json));
 }
 
 function materialRefFromEntityJson(entityJson: string): Ref {

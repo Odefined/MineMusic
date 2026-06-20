@@ -16,8 +16,8 @@ export const musicDataPlatformIdentitySchema: MusicDatabaseSchemaContribution = 
       )
     `);
 
-    // The table-level UNIQUE was removed: SQLite treats multiple NULLs as
-    // distinct, so provider_id IS NULL local rows would never dedup. Two partial
+    // The table-level UNIQUE is split so provider rows and local rows each have
+    // one authoritative identity shape. Two partial
     // unique indexes (same shape as material_records_active_canonical_ref_key_uidx)
     // make each origin's identity authoritative.
     await context.run(`

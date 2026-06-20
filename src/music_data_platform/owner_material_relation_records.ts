@@ -62,13 +62,13 @@ export type CreateOwnerMaterialRelationRecordsInput = {
 export type OwnerMaterialRelationReadPort = {
   getOwnerMaterialRelation(
     input: GetOwnerMaterialRelationInput,
-  ): OwnerMaterialRelationRecord | undefined;
+  ): Promise<OwnerMaterialRelationRecord | undefined>;
   listOwnerMaterialRelations(
     input: ListOwnerMaterialRelationsInput,
-  ): readonly OwnerMaterialRelationRecord[];
+  ): Promise<readonly OwnerMaterialRelationRecord[]>;
   listOwnerRelationScopeSummaries(input: {
     ownerScope: string;
-  }): readonly OwnerRelationScopeSummaryRecord[];
+  }): Promise<readonly OwnerRelationScopeSummaryRecord[]>;
 };
 
 type OwnerMaterialRelationRow = {
@@ -97,12 +97,12 @@ export function createOwnerMaterialRelationRecords(
   const { db } = input;
 
   return {
-    getOwnerMaterialRelation(readInput) {
+    async getOwnerMaterialRelation(readInput) {
       assertOwnerScope(readInput.ownerScope);
       assertMaterialRef(readInput.materialRef);
       assertOwnerMaterialRelationKind(readInput.relationKind);
 
-      const row = db.get<OwnerMaterialRelationRow>(
+      const row = await db.get<OwnerMaterialRelationRow>(
         `
           SELECT * FROM owner_material_relations
           WHERE owner_scope = ?
@@ -118,7 +118,7 @@ export function createOwnerMaterialRelationRecords(
 
       return row === undefined ? undefined : ownerMaterialRelationFromRow(row);
     },
-    listOwnerMaterialRelations(readInput) {
+    async listOwnerMaterialRelations(readInput) {
       assertOwnerScope(readInput.ownerScope);
       const status = readInput.status ?? "active";
       assertOwnerMaterialRelationStatus(status);
@@ -162,15 +162,15 @@ export function createOwnerMaterialRelationRecords(
 
       sqlParts.push("ORDER BY relation_kind ASC, material_ref_key ASC");
 
-      return db.all<OwnerMaterialRelationRow>(
+      return (await db.all<OwnerMaterialRelationRow>(
         sqlParts.join("\n"),
         params,
-      ).map(ownerMaterialRelationFromRow);
+      )).map(ownerMaterialRelationFromRow);
     },
-    listOwnerRelationScopeSummaries(readInput) {
+    async listOwnerRelationScopeSummaries(readInput) {
       assertOwnerScope(readInput.ownerScope);
 
-      return db.all<OwnerRelationScopeSummaryRow>(
+      return (await db.all<OwnerRelationScopeSummaryRow>(
         `
           SELECT
             r.owner_scope,
@@ -188,7 +188,7 @@ export function createOwnerMaterialRelationRecords(
           ORDER BY r.relation_kind ASC, m.kind ASC
         `,
         [readInput.ownerScope],
-      ).map(ownerRelationScopeSummaryFromRow);
+      )).map(ownerRelationScopeSummaryFromRow);
     },
   };
 }

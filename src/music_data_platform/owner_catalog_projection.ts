@@ -44,13 +44,13 @@ export type OwnerRelationEntryProjectionSummary = {
 export type OwnerCatalogProjectionCommands = {
   rebuildSourceLibraryEntriesForLibrary(
     input: RebuildSourceLibraryEntriesForLibraryInput,
-  ): SourceLibraryEntryProjectionSummary;
+  ): Promise<SourceLibraryEntryProjectionSummary>;
   rebuildSourceLibraryEntriesForMaterial(
     input: RebuildSourceLibraryEntriesForMaterialInput,
-  ): SourceLibraryEntryProjectionSummary;
+  ): Promise<SourceLibraryEntryProjectionSummary>;
   rebuildOwnerRelationEntries(
     input: RebuildOwnerRelationEntriesInput,
-  ): OwnerRelationEntryProjectionSummary;
+  ): Promise<OwnerRelationEntryProjectionSummary>;
 };
 
 type SourceLibraryScopeRow = {
@@ -61,12 +61,12 @@ export function createOwnerCatalogProjectionCommands(
   input: CreateOwnerCatalogProjectionCommandsInput,
 ): OwnerCatalogProjectionCommands {
   return {
-    rebuildSourceLibraryEntriesForLibrary(commandInput) {
+    async rebuildSourceLibraryEntriesForLibrary(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
       assertSourceLibraryRef(commandInput.libraryRef);
 
       const libraryRefKey = refKey(commandInput.libraryRef);
-      const libraryScope = input.db.get<SourceLibraryScopeRow>(
+      const libraryScope = await input.db.get<SourceLibraryScopeRow>(
         `
           SELECT owner_scope
           FROM source_libraries
@@ -89,8 +89,8 @@ export function createOwnerCatalogProjectionCommands(
         });
       }
 
-      const sourceLibraryItemCount = countSourceLibraryItems(input.db, libraryRefKey);
-      const missingBindingCount = countItemsWithoutBinding(input.db, libraryRefKey);
+      const sourceLibraryItemCount = await countSourceLibraryItems(input.db, libraryRefKey);
+      const missingBindingCount = await countItemsWithoutBinding(input.db, libraryRefKey);
 
       if (missingBindingCount > 0) {
         throw new MusicDataPlatformError({
@@ -99,7 +99,7 @@ export function createOwnerCatalogProjectionCommands(
         });
       }
 
-      input.db.run(
+      await input.db.run(
         `
           INSERT INTO owner_material_entries (
             entry_key,
@@ -114,16 +114,14 @@ export function createOwnerCatalogProjectionCommands(
             updated_at
           )
           SELECT
-            'ome_' || lower(hex(
-              l.owner_scope || '|' || 'source_library' || '|' || l.library_ref_key || '|' || b.material_ref_key
-            )) AS entry_key,
+            'ome_' || md5(l.owner_scope || '|' || 'source_library' || '|' || l.library_ref_key || '|' || b.material_ref_key) AS entry_key,
             l.owner_scope,
             'source_library' AS entry_kind,
             l.library_ref_key AS entry_ref_key,
             b.material_ref_key,
             'positive' AS visibility_role,
             1 AS active,
-            json_object(
+            jsonb_build_object(
               'kind', 'source_library',
               'libraryRefKey', l.library_ref_key,
               'sourceItemCount', COUNT(*),
@@ -131,7 +129,7 @@ export function createOwnerCatalogProjectionCommands(
               'lastAddedAt', MAX(i.added_at),
               'firstProviderAddedAt', MIN(i.provider_added_at),
               'lastProviderAddedAt', MAX(i.provider_added_at)
-            ) AS provenance_json,
+            )::text AS provenance_json,
             ? AS created_at,
             ? AS updated_at
           FROM source_library_items i
@@ -153,13 +151,13 @@ export function createOwnerCatalogProjectionCommands(
         [input.now, input.now, libraryRefKey],
       );
 
-      const obsoleteEntryDeleteCount = countObsoleteSourceLibraryEntries(
+      const obsoleteEntryDeleteCount = await countObsoleteSourceLibraryEntries(
         input.db,
         commandInput.ownerScope,
         libraryRefKey,
       );
 
-      input.db.run(
+      await input.db.run(
         `
           DELETE FROM owner_material_entries
           WHERE owner_scope = ?
@@ -182,7 +180,7 @@ export function createOwnerCatalogProjectionCommands(
 
       return {
         sourceLibraryItemCount,
-        projectedEntryCount: countProjectedEntries(
+        projectedEntryCount: await countProjectedEntries(
           input.db,
           commandInput.ownerScope,
           libraryRefKey,
@@ -190,23 +188,23 @@ export function createOwnerCatalogProjectionCommands(
         obsoleteEntryDeleteCount,
       };
     },
-    rebuildSourceLibraryEntriesForMaterial(commandInput) {
+    async rebuildSourceLibraryEntriesForMaterial(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
       assertMaterialRef(commandInput.materialRef);
 
       const materialRefKey = refKey(commandInput.materialRef);
-      const sourceLibraryItemCount = countCurrentSourceLibraryItemsForMaterial(
+      const sourceLibraryItemCount = await countCurrentSourceLibraryItemsForMaterial(
         input.db,
         commandInput.ownerScope,
         materialRefKey,
       );
-      const obsoleteEntryDeleteCount = countObsoleteSourceLibraryEntriesForMaterial(
+      const obsoleteEntryDeleteCount = await countObsoleteSourceLibraryEntriesForMaterial(
         input.db,
         commandInput.ownerScope,
         materialRefKey,
       );
 
-      input.db.run(
+      await input.db.run(
         `
           DELETE FROM owner_material_entries
           WHERE owner_scope = ?
@@ -216,7 +214,7 @@ export function createOwnerCatalogProjectionCommands(
         [commandInput.ownerScope, materialRefKey],
       );
 
-      input.db.run(
+      await input.db.run(
         `
           INSERT INTO owner_material_entries (
             entry_key,
@@ -231,16 +229,14 @@ export function createOwnerCatalogProjectionCommands(
             updated_at
           )
           SELECT
-            'ome_' || lower(hex(
-              l.owner_scope || '|' || 'source_library' || '|' || l.library_ref_key || '|' || b.material_ref_key
-            )) AS entry_key,
+            'ome_' || md5(l.owner_scope || '|' || 'source_library' || '|' || l.library_ref_key || '|' || b.material_ref_key) AS entry_key,
             l.owner_scope,
             'source_library' AS entry_kind,
             l.library_ref_key AS entry_ref_key,
             b.material_ref_key,
             'positive' AS visibility_role,
             1 AS active,
-            json_object(
+            jsonb_build_object(
               'kind', 'source_library',
               'libraryRefKey', l.library_ref_key,
               'sourceItemCount', COUNT(*),
@@ -248,7 +244,7 @@ export function createOwnerCatalogProjectionCommands(
               'lastAddedAt', MAX(i.added_at),
               'firstProviderAddedAt', MIN(i.provider_added_at),
               'lastProviderAddedAt', MAX(i.provider_added_at)
-            ) AS provenance_json,
+            )::text AS provenance_json,
             ? AS created_at,
             ? AS updated_at
           FROM source_library_items i
@@ -278,7 +274,7 @@ export function createOwnerCatalogProjectionCommands(
 
       return {
         sourceLibraryItemCount,
-        projectedEntryCount: countProjectedEntriesForMaterial(
+        projectedEntryCount: await countProjectedEntriesForMaterial(
           input.db,
           commandInput.ownerScope,
           "source_library",
@@ -287,7 +283,7 @@ export function createOwnerCatalogProjectionCommands(
         obsoleteEntryDeleteCount,
       };
     },
-    rebuildOwnerRelationEntries(commandInput) {
+    async rebuildOwnerRelationEntries(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
       assertMaterialRef(commandInput.materialRef);
       const materialRefKey = refKey(commandInput.materialRef);
@@ -299,13 +295,13 @@ export function createOwnerCatalogProjectionCommands(
         }))
       );
       const relationKindPlaceholders = selectedRelationKinds.map(() => "?").join(", ");
-      const relationFactCount = countOwnerRelationFacts(
+      const relationFactCount = await countOwnerRelationFacts(
         input.db,
         commandInput.ownerScope,
         selectedRelationKinds,
         materialRefKey,
       );
-      const obsoleteEntryDeleteCount = countObsoleteOwnerRelationEntries(
+      const obsoleteEntryDeleteCount = await countObsoleteOwnerRelationEntries(
         input.db,
         commandInput.ownerScope,
         selectedPoolRefKeys,
@@ -313,7 +309,7 @@ export function createOwnerCatalogProjectionCommands(
         materialRefKey,
       );
 
-      input.db.run(
+      await input.db.run(
         `
           DELETE FROM owner_material_entries
           WHERE entry_kind = 'owner_relation'
@@ -326,7 +322,7 @@ export function createOwnerCatalogProjectionCommands(
         ],
       );
 
-      input.db.run(
+      await input.db.run(
         `
           INSERT INTO owner_material_entries (
             entry_key,
@@ -341,23 +337,23 @@ export function createOwnerCatalogProjectionCommands(
             updated_at
           )
           SELECT
-            'ome_' || lower(hex(
+            'ome_' || md5(
               r.owner_scope || '|' || 'owner_relation' || '|' ||
               refKeyPool.owner_relation_pool_ref_key || '|' || r.material_ref_key
-            )) AS entry_key,
+            ) AS entry_key,
             r.owner_scope,
             'owner_relation' AS entry_kind,
             refKeyPool.owner_relation_pool_ref_key AS entry_ref_key,
             r.material_ref_key,
             'positive' AS visibility_role,
             1 AS active,
-            json_object(
+            jsonb_build_object(
               'kind', 'owner_relation',
               'relationKind', r.relation_kind,
               'ownerRelationPoolRefKey', refKeyPool.owner_relation_pool_ref_key,
               'relationFactCount', COUNT(*),
               'lastRelationUpdatedAt', MAX(r.updated_at)
-            ) AS provenance_json,
+            )::text AS provenance_json,
             ? AS created_at,
             ? AS updated_at
           FROM owner_material_relations r
@@ -406,7 +402,7 @@ export function createOwnerCatalogProjectionCommands(
 
       return {
         relationFactCount,
-        projectedEntryCount: countProjectedOwnerRelationEntries(
+        projectedEntryCount: await countProjectedOwnerRelationEntries(
           input.db,
           commandInput.ownerScope,
           selectedPoolRefKeys,
@@ -418,25 +414,25 @@ export function createOwnerCatalogProjectionCommands(
   };
 }
 
-function countSourceLibraryItems(
+async function countSourceLibraryItems(
   db: MusicDatabaseTransactionContext,
   libraryRefKey: string,
-): number {
-  return db.get<{ count: number }>(
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
     `
       SELECT COUNT(*) AS count
       FROM source_library_items
       WHERE library_ref_key = ?
     `,
     [libraryRefKey],
-  )?.count ?? 0;
+  ))?.count ?? 0);
 }
 
-function countItemsWithoutBinding(
+async function countItemsWithoutBinding(
   db: MusicDatabaseTransactionContext,
   libraryRefKey: string,
-): number {
-  return db.get<{ count: number }>(
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
     `
       SELECT COUNT(*) AS count
       FROM source_library_items i
@@ -446,15 +442,15 @@ function countItemsWithoutBinding(
         AND b.source_ref_key IS NULL
     `,
     [libraryRefKey],
-  )?.count ?? 0;
+  ))?.count ?? 0);
 }
 
-function countObsoleteSourceLibraryEntries(
+async function countObsoleteSourceLibraryEntries(
   db: MusicDatabaseTransactionContext,
   ownerScope: string,
   libraryRefKey: string,
-): number {
-  return db.get<{ count: number }>(
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
     `
       SELECT COUNT(*) AS count
       FROM owner_material_entries
@@ -474,15 +470,15 @@ function countObsoleteSourceLibraryEntries(
         )
     `,
     [ownerScope, libraryRefKey, libraryRefKey],
-  )?.count ?? 0;
+  ))?.count ?? 0);
 }
 
-function countProjectedEntries(
+async function countProjectedEntries(
   db: MusicDatabaseTransactionContext,
   ownerScope: string,
   libraryRefKey: string,
-): number {
-  return db.get<{ count: number }>(
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
     `
       SELECT COUNT(*) AS count
       FROM owner_material_entries
@@ -493,15 +489,15 @@ function countProjectedEntries(
         AND visibility_role = 'positive'
     `,
     [ownerScope, libraryRefKey],
-  )?.count ?? 0;
+  ))?.count ?? 0);
 }
 
-function countCurrentSourceLibraryItemsForMaterial(
+async function countCurrentSourceLibraryItemsForMaterial(
   db: MusicDatabaseTransactionContext,
   ownerScope: string,
   materialRefKey: string,
-): number {
-  return db.get<{ count: number }>(
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
     `
       SELECT COUNT(*) AS count
       FROM source_library_items i
@@ -513,15 +509,15 @@ function countCurrentSourceLibraryItemsForMaterial(
         AND b.material_ref_key = ?
     `,
     [ownerScope, materialRefKey],
-  )?.count ?? 0;
+  ))?.count ?? 0);
 }
 
-function countObsoleteSourceLibraryEntriesForMaterial(
+async function countObsoleteSourceLibraryEntriesForMaterial(
   db: MusicDatabaseTransactionContext,
   ownerScope: string,
   materialRefKey: string,
-): number {
-  return db.get<{ count: number }>(
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
     `
       SELECT COUNT(*) AS count
       FROM owner_material_entries
@@ -544,16 +540,16 @@ function countObsoleteSourceLibraryEntriesForMaterial(
         )
     `,
     [ownerScope, materialRefKey],
-  )?.count ?? 0;
+  ))?.count ?? 0);
 }
 
-function countProjectedEntriesForMaterial(
+async function countProjectedEntriesForMaterial(
   db: MusicDatabaseTransactionContext,
   ownerScope: string,
   entryKind: "source_library" | "owner_relation",
   materialRefKey: string,
-): number {
-  return db.get<{ count: number }>(
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
     `
       SELECT COUNT(*) AS count
       FROM owner_material_entries
@@ -564,18 +560,18 @@ function countProjectedEntriesForMaterial(
         AND visibility_role = 'positive'
     `,
     [ownerScope, entryKind, materialRefKey],
-  )?.count ?? 0;
+  ))?.count ?? 0);
 }
 
-function countOwnerRelationFacts(
+async function countOwnerRelationFacts(
   db: MusicDatabaseTransactionContext,
   ownerScope: string,
   relationKinds: readonly OwnerRelationEntryKind[],
   materialRefKey: string,
-): number {
+): Promise<number> {
   const placeholders = relationKinds.map(() => "?").join(", ");
 
-  return db.get<{ count: number }>(
+  return Number((await db.get<{ count: number | string }>(
     `
       SELECT COUNT(*) AS count
       FROM owner_material_relations
@@ -589,20 +585,20 @@ function countOwnerRelationFacts(
       ...relationKinds,
       materialRefKey,
     ],
-  )?.count ?? 0;
+  ))?.count ?? 0);
 }
 
-function countObsoleteOwnerRelationEntries(
+async function countObsoleteOwnerRelationEntries(
   db: MusicDatabaseTransactionContext,
   ownerScope: string,
   selectedPoolRefKeys: readonly string[],
   selectedRelationKinds: readonly OwnerRelationEntryKind[],
   materialRefKey: string,
-): number {
+): Promise<number> {
   const poolRefKeyPlaceholders = selectedPoolRefKeys.map(() => "?").join(", ");
   const relationKindPlaceholders = selectedRelationKinds.map(() => "?").join(", ");
 
-  return db.get<{ count: number }>(
+  return Number((await db.get<{ count: number | string }>(
     `
       SELECT COUNT(*) AS count
       FROM owner_material_entries
@@ -640,18 +636,18 @@ function countObsoleteOwnerRelationEntries(
         relationKind: "favorite",
       })),
     ],
-  )?.count ?? 0;
+  ))?.count ?? 0);
 }
 
-function countProjectedOwnerRelationEntries(
+async function countProjectedOwnerRelationEntries(
   db: MusicDatabaseTransactionContext,
   ownerScope: string,
   selectedPoolRefKeys: readonly string[],
   materialRefKey: string,
-): number {
+): Promise<number> {
   const placeholders = selectedPoolRefKeys.map(() => "?").join(", ");
 
-  return db.get<{ count: number }>(
+  return Number((await db.get<{ count: number | string }>(
     `
       SELECT COUNT(*) AS count
       FROM owner_material_entries
@@ -667,5 +663,5 @@ function countProjectedOwnerRelationEntries(
       ...selectedPoolRefKeys,
       materialRefKey,
     ],
-  )?.count ?? 0;
+  ))?.count ?? 0);
 }

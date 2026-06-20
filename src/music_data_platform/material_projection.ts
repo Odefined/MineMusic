@@ -19,7 +19,7 @@ export type CreateMaterialProjectionInput = {
 };
 
 export type MaterialProjection = {
-  projectMusicMaterial(input: ProjectMusicMaterialInput): MusicMaterial | undefined;
+  projectMusicMaterial(input: ProjectMusicMaterialInput): Promise<MusicMaterial | undefined>;
 };
 
 export type ProjectMusicMaterialInput = {
@@ -32,7 +32,7 @@ export function createMaterialProjection(
   const repositories = createIdentityRepositories({ db: input.db });
 
   return {
-    projectMusicMaterial(projectInput) {
+    async projectMusicMaterial(projectInput) {
       return projectMusicMaterial({
         materialRef: projectInput.materialRef,
         repositories,
@@ -41,13 +41,13 @@ export function createMaterialProjection(
   };
 }
 
-function projectMusicMaterial(input: {
+async function projectMusicMaterial(input: {
   materialRef: Ref;
   repositories: ReturnType<typeof createIdentityRepositories>;
-}): MusicMaterial | undefined {
+}): Promise<MusicMaterial | undefined> {
   assertMaterialRef(input.materialRef);
 
-  const materialRecord = input.repositories.materialRecords.get({
+  const materialRecord = await input.repositories.materialRecords.get({
     materialRef: input.materialRef,
   });
 
@@ -56,7 +56,7 @@ function projectMusicMaterial(input: {
   }
 
   if (materialRecord.mergedIntoMaterialRef !== undefined) {
-    return projectMusicMaterial({
+    return await projectMusicMaterial({
       materialRef: materialRecord.mergedIntoMaterialRef,
       repositories: input.repositories,
     });
@@ -68,13 +68,13 @@ function projectMusicMaterial(input: {
     return undefined;
   }
 
-  assertPrimarySourceBound({
+  await assertPrimarySourceBound({
     materialRecord,
     primarySourceRef,
     repositories: input.repositories,
   });
 
-  const sourceRecord = input.repositories.sourceRecords.get({
+  const sourceRecord = await input.repositories.sourceRecords.get({
     sourceRef: primarySourceRef,
   });
 
@@ -96,13 +96,13 @@ function projectMusicMaterial(input: {
   });
 }
 
-function assertPrimarySourceBound(input: {
+async function assertPrimarySourceBound(input: {
   materialRecord: MaterialRecord;
   primarySourceRef: Ref;
   repositories: ReturnType<typeof createIdentityRepositories>;
-}): void {
+}): Promise<void> {
   const primarySourceRefKey = refKey(input.primarySourceRef);
-  const bindings = input.repositories.sourceMaterialBindings.listSourcesForMaterial({
+  const bindings = await input.repositories.sourceMaterialBindings.listSourcesForMaterial({
     materialRef: input.materialRecord.entity.materialRef,
   });
 

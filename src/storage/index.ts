@@ -13,18 +13,6 @@ export type {
   MusicDatabaseTransactionContext,
 } from "./database.js";
 export {
-  SqliteMusicDatabase,
-} from "./sqlite/database.js";
-export type {
-  OpenSqliteMusicDatabaseInput,
-} from "./sqlite/database.js";
-export {
-  initializeSqliteSchema,
-} from "./sqlite/schema.js";
-export type {
-  InitializeSqliteSchemaInput,
-} from "./sqlite/schema.js";
-export {
   PostgresMusicDatabase,
 } from "./postgres/database.js";
 export type {

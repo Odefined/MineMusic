@@ -104,7 +104,7 @@ export function createSourceLibraryImportService(
         return callLimit;
       }
 
-      const created = input.database.transaction((db) => {
+      const created = await input.database.transaction(async (db) => {
         const timestamp = now();
         const batchId = newBatchId();
         const commands = createMusicDataPlatformSourceOfTruthWriteCommands({
@@ -112,7 +112,7 @@ export function createSourceLibraryImportService(
           now: timestamp,
         }).sourceLibrary;
 
-        return musicDataCommandResult(() => commands.createImportBatch({
+        return await musicDataCommandResult(() => commands.createImportBatch({
           batchId,
           ownerScope: DEFAULT_OWNER_SCOPE,
           providerId: startInput.providerId,
@@ -126,7 +126,7 @@ export function createSourceLibraryImportService(
         return created;
       }
 
-      return processNextPage(created.value.batchId, callLimit.value);
+      return await processNextPage(created.value.batchId, callLimit.value);
     },
     async continueImport(continueInput) {
       const validation = validateContinueInput(continueInput);
@@ -141,7 +141,7 @@ export function createSourceLibraryImportService(
         return callLimit;
       }
 
-      const batch = getBatch(continueInput.batchId);
+      const batch = await getBatch(continueInput.batchId);
 
       if (batch === undefined) {
         return failMusicData(
@@ -171,7 +171,7 @@ export function createSourceLibraryImportService(
         );
       }
 
-      return processNextPage(batch.batchId, callLimit.value);
+      return await processNextPage(batch.batchId, callLimit.value);
     },
   };
 
@@ -179,7 +179,7 @@ export function createSourceLibraryImportService(
     batchId: string,
     callLimit: number,
   ): Promise<Result<SourceLibraryImportResult>> {
-    const initialBatch = getBatch(batchId);
+    const initialBatch = await getBatch(batchId);
 
     if (initialBatch === undefined) {
       return failMusicData(
@@ -195,7 +195,7 @@ export function createSourceLibraryImportService(
     }
 
     if (allowance.value === 0) {
-      const batch = completeBatch(
+      const batch = await completeBatch(
         initialBatch,
         "max_new_items_reached",
         now(),
@@ -218,7 +218,7 @@ export function createSourceLibraryImportService(
     });
 
     if (!read.ok) {
-      markBatchFailed(initialBatch.batchId, read.error, now());
+      await markBatchFailed(initialBatch.batchId, read.error, now());
       return read;
     }
 
@@ -236,7 +236,7 @@ export function createSourceLibraryImportService(
     try {
       assertProviderReadPostExtensionContract(read.value, allowance.value);
     } catch (error) {
-      markBatchFailed(
+      await markBatchFailed(
         initialBatch.batchId,
         systemProviderReadContractFailure(),
         now(),
@@ -247,14 +247,14 @@ export function createSourceLibraryImportService(
     const pageValidation = validateProviderPageForBatch(initialBatch, read.value);
 
     if (!pageValidation.ok) {
-      markBatchFailed(initialBatch.batchId, pageValidation.error, now());
+      await markBatchFailed(initialBatch.batchId, pageValidation.error, now());
       return pageValidation;
     }
 
     const accountValidation = resolvedProviderAccountId(initialBatch, read.value);
 
     if (!accountValidation.ok) {
-      markBatchFailed(initialBatch.batchId, accountValidation.error, now());
+      await markBatchFailed(initialBatch.batchId, accountValidation.error, now());
       return accountValidation;
     }
 
@@ -262,11 +262,11 @@ export function createSourceLibraryImportService(
     const candidateValidation = validateProviderCandidatesForBatch(initialBatch, read.value, providerAccountId);
 
     if (!candidateValidation.ok) {
-      markBatchFailed(initialBatch.batchId, candidateValidation.error, now());
+      await markBatchFailed(initialBatch.batchId, candidateValidation.error, now());
       return candidateValidation;
     }
 
-    let batch = persistBatchLibraryScope(initialBatch, providerAccountId, now());
+    let batch = await persistBatchLibraryScope(initialBatch, providerAccountId, now());
     const page: SourceLibraryImportProviderPage = {
       providerId: read.value.providerId,
       providerAccountId,
@@ -278,37 +278,37 @@ export function createSourceLibraryImportService(
     const itemResults: SourceLibraryImportItemResult[] = [];
 
     for (const candidate of read.value.candidates) {
-      const latestBatch = requireBatch(batch.batchId);
+      const latestBatch = await requireBatch(batch.batchId);
 
       if (hasReachedMaxNewItems(latestBatch)) {
-        batch = completeBatch(latestBatch, "max_new_items_reached", now());
+        batch = await completeBatch(latestBatch, "max_new_items_reached", now());
         break;
       }
 
       let itemResult: SourceLibraryImportItemResult;
       try {
-        itemResult = processCandidate(latestBatch, candidate);
+        itemResult = await processCandidate(latestBatch, candidate);
       } catch (error) {
         // TRANSLATE, never silence: classify the write failure so the durable
         // batch record carries the real cause, then rethrow with the original as
         // `cause` so logs/telemetry keep it too.
         const failure = classifyCandidateWriteFailure(error);
-        markBatchFailed(latestBatch.batchId, failure, now());
+        await markBatchFailed(latestBatch.batchId, failure, now());
         throw new CandidateWriteFailureError(failure, error);
       }
 
       itemResults.push(itemResult);
-      batch = requireBatch(batch.batchId);
+      batch = await requireBatch(batch.batchId);
     }
 
-    const latestBatch = requireBatch(batch.batchId);
+    const latestBatch = await requireBatch(batch.batchId);
 
     if (hasReachedMaxNewItems(latestBatch)) {
-      batch = completeBatch(latestBatch, "max_new_items_reached", now());
+      batch = await completeBatch(latestBatch, "max_new_items_reached", now());
     } else if (read.value.nextCursor === undefined) {
-      batch = completeBatch(latestBatch, "provider_exhausted", now());
+      batch = await completeBatch(latestBatch, "provider_exhausted", now());
     } else {
-      batch = updateBatchCursor(latestBatch, read.value.nextCursor, now());
+      batch = await updateBatchCursor(latestBatch, read.value.nextCursor, now());
     }
 
     return ok({
@@ -318,11 +318,11 @@ export function createSourceLibraryImportService(
     });
   }
 
-  function processCandidate(
+  async function processCandidate(
     batch: SourceLibraryImportBatchRecord,
     candidate: PlatformLibraryCandidate,
-  ): SourceLibraryImportItemResult {
-    return input.database.transaction((db) => {
+  ): Promise<SourceLibraryImportItemResult> {
+    return input.database.transaction(async (db) => {
       const timestamp = now();
       const identityRead = createIdentityReadPort({ db });
       const writes = createMusicDataPlatformSourceOfTruthWriteCommands({
@@ -331,30 +331,30 @@ export function createSourceLibraryImportService(
       });
       const identityCommands = writes.identity;
       const sourceLibraryCommands = writes.sourceLibrary;
-      const sourceRecord = identityCommands.upsertSourceRecord({
+      const sourceRecord = await identityCommands.upsertSourceRecord({
         entity: candidate.sourceEntity,
       });
-      const existingBinding = identityRead.findMaterialForSource({
+      const existingBinding = await identityRead.findMaterialForSource({
         sourceRef: candidate.sourceEntity.sourceRef,
       });
       const materialRef = existingBinding?.materialRef ??
         input.materialRefFactory.createMaterialRef(materialKindForSourceKind(candidate.sourceEntity.kind));
 
       if (existingBinding === undefined) {
-        identityCommands.upsertMaterialRecord({
+        await identityCommands.upsertMaterialRecord({
           materialRef,
           kind: materialKindForSourceKind(candidate.sourceEntity.kind),
           ...(candidate.sourceEntity.versionInfo === undefined ? {} : { versionInfo: candidate.sourceEntity.versionInfo }),
         });
       }
 
-      identityCommands.bindSourceToMaterial({
+      await identityCommands.bindSourceToMaterial({
         sourceRef: candidate.sourceEntity.sourceRef,
         materialRef,
         makePrimary: existingBinding === undefined,
       });
 
-      const itemWrite = sourceLibraryCommands.recordImportItem({
+      const itemWrite = await sourceLibraryCommands.recordImportItem({
         batch,
         sourceRef: candidate.sourceEntity.sourceRef,
         providerId: candidate.sourceEntity.providerId!,
@@ -373,15 +373,15 @@ export function createSourceLibraryImportService(
     });
   }
 
-  function getBatch(batchId: string): SourceLibraryImportBatchRecord | undefined {
+  async function getBatch(batchId: string): Promise<SourceLibraryImportBatchRecord | undefined> {
     return createSourceLibraryReadPort({
       db: input.database.context(),
     }).getImportBatch({ batchId });
   }
 
-  function requireBatch(batchId: string): SourceLibraryImportBatchRecord {
+  async function requireBatch(batchId: string): Promise<SourceLibraryImportBatchRecord> {
     return requireRecord(
-      getBatch(batchId),
+      await getBatch(batchId),
       "source library import batch disappeared during processing",
     );
   }
@@ -390,8 +390,8 @@ export function createSourceLibraryImportService(
     batch: SourceLibraryImportBatchRecord,
     providerAccountId: string,
     timestamp: string,
-  ): SourceLibraryImportBatchRecord {
-    return input.database.transaction((db) => {
+  ): Promise<SourceLibraryImportBatchRecord> {
+    return input.database.transaction(async (db) => {
       return createMusicDataPlatformSourceOfTruthWriteCommands({
         db,
         now: timestamp,
@@ -406,8 +406,8 @@ export function createSourceLibraryImportService(
     batchId: string,
     error: StageError,
     timestamp: string,
-  ): SourceLibraryImportBatchRecord | undefined {
-    return input.database.transaction((db) => {
+  ): Promise<SourceLibraryImportBatchRecord | undefined> {
+    return input.database.transaction(async (db) => {
       return createMusicDataPlatformSourceOfTruthWriteCommands({
         db,
         now: timestamp,
@@ -423,8 +423,8 @@ export function createSourceLibraryImportService(
     batch: SourceLibraryImportBatchRecord,
     completionReason: SourceLibraryImportCompletionReason,
     timestamp: string,
-  ): SourceLibraryImportBatchRecord {
-    return input.database.transaction((db) => {
+  ): Promise<SourceLibraryImportBatchRecord> {
+    return input.database.transaction(async (db) => {
       return createMusicDataPlatformSourceOfTruthWriteCommands({
         db,
         now: timestamp,
@@ -439,8 +439,8 @@ export function createSourceLibraryImportService(
     batch: SourceLibraryImportBatchRecord,
     cursor: string,
     timestamp: string,
-  ): SourceLibraryImportBatchRecord {
-    return input.database.transaction((db) => {
+  ): Promise<SourceLibraryImportBatchRecord> {
+    return input.database.transaction(async (db) => {
       return createMusicDataPlatformSourceOfTruthWriteCommands({
         db,
         now: timestamp,
@@ -843,9 +843,9 @@ function ok<T>(value: T): Result<T> {
   return { ok: true, value };
 }
 
-function musicDataCommandResult<T>(operation: () => T): Result<T> {
+async function musicDataCommandResult<T>(operation: () => T | Promise<T>): Promise<Result<T>> {
   try {
-    return ok(operation());
+    return ok(await operation());
   } catch (error) {
     if (isMusicDataPlatformError(error)) {
       return failMusicData(error.code, error.message);
@@ -874,8 +874,8 @@ function invalidProviderPage(message: string): Result<never> {
   );
 }
 
-const SQLITE_UNIQUE_ERRCODES = new Set([2067, 1555, 2579]);
-const SQLITE_TRANSIENT_ERRCODES = new Set([5, 6]); // SQLITE_BUSY, SQLITE_LOCKED
+const POSTGRES_CONSTRAINT_SQLSTATES = new Set(["23505", "23503", "23514", "23P01"]);
+const POSTGRES_TRANSIENT_SQLSTATES = new Set(["40001", "40P01", "55P03"]);
 
 // Classifies a processCandidate write failure into a durable StageError so the
 // batch record and the rethrown error describe the SAME cause. No branch
@@ -887,17 +887,17 @@ function classifyCandidateWriteFailure(error: unknown): StageError {
     return musicDataError(error.code, error.message, false);
   }
 
-  const errcode = sqliteErrcode(error);
+  const sqlState = postgresSqlState(error);
 
-  if (errcode !== undefined && SQLITE_UNIQUE_ERRCODES.has(errcode)) {
+  if (sqlState !== undefined && POSTGRES_CONSTRAINT_SQLSTATES.has(sqlState)) {
     return musicDataError(
       "music_data.source_library_import_constraint_conflict",
-      errorMessage(error, "Source library import item write violated a uniqueness constraint."),
+      errorMessage(error, "Source library import item write violated a database constraint."),
       false,
     );
   }
 
-  if (errcode !== undefined && SQLITE_TRANSIENT_ERRCODES.has(errcode)) {
+  if (sqlState !== undefined && POSTGRES_TRANSIENT_SQLSTATES.has(sqlState)) {
     return musicDataError(
       "music_data.source_library_import_write_contention",
       errorMessage(error, "Source library import item write failed due to database contention."),
@@ -920,16 +920,14 @@ function classifyCandidateWriteFailure(error: unknown): StageError {
   );
 }
 
-function sqliteErrcode(error: unknown): number | undefined {
+function postgresSqlState(error: unknown): string | undefined {
   if (typeof error !== "object" || error === null) {
     return undefined;
   }
   const candidate = (error as { code?: unknown }).code;
-  if (candidate !== "ERR_SQLITE_ERROR") {
-    return undefined;
-  }
-  const errcode = (error as { errcode?: unknown }).errcode;
-  return typeof errcode === "number" ? errcode : undefined;
+  return typeof candidate === "string" && /^[0-9A-Z]{5}$/u.test(candidate)
+    ? candidate
+    : undefined;
 }
 
 function errorMessage(error: unknown, fallback: string): string {

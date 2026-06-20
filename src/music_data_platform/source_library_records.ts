@@ -72,40 +72,40 @@ export type SourceLibraryRepositories = {
 };
 
 export type SourceLibraryRepository = {
-  get(input: { libraryRef: Ref }): SourceLibraryRecord | undefined;
-  listByOwnerScope(input: { ownerScope: string }): readonly SourceLibraryRecord[];
+  get(input: { libraryRef: Ref }): Promise<SourceLibraryRecord | undefined>;
+  listByOwnerScope(input: { ownerScope: string }): Promise<readonly SourceLibraryRecord[]>;
   findByOwnerProviderIdentity(input: {
     ownerScope: string;
     providerId: string;
     providerAccountId: string;
     libraryKind: PlatformLibraryKind;
-  }): SourceLibraryRecord | undefined;
-  upsert(record: SourceLibraryRecord): SourceLibraryRecord;
+  }): Promise<SourceLibraryRecord | undefined>;
+  upsert(record: SourceLibraryRecord): Promise<SourceLibraryRecord>;
 };
 
 export type SourceLibraryItemRepository = {
   get(input: {
     libraryRef: Ref;
     sourceRefKey: string;
-  }): SourceLibraryItemRecord | undefined;
-  upsert(record: SourceLibraryItemRecord): SourceLibraryItemRecord;
+  }): Promise<SourceLibraryItemRecord | undefined>;
+  upsert(record: SourceLibraryItemRecord): Promise<SourceLibraryItemRecord>;
   deleteItemsNotObservedInBatch(input: {
     libraryRef: Ref;
     batchId: string;
-  }): {
+  }): Promise<{
     deletedCount: number;
-  };
+  }>;
 };
 
 export type SourceLibraryImportBatchRepository = {
-  get(input: { batchId: string }): SourceLibraryImportBatchRecord | undefined;
-  insert(record: SourceLibraryImportBatchRecord): SourceLibraryImportBatchRecord;
-  upsert(record: SourceLibraryImportBatchRecord): SourceLibraryImportBatchRecord;
+  get(input: { batchId: string }): Promise<SourceLibraryImportBatchRecord | undefined>;
+  insert(record: SourceLibraryImportBatchRecord): Promise<SourceLibraryImportBatchRecord>;
+  upsert(record: SourceLibraryImportBatchRecord): Promise<SourceLibraryImportBatchRecord>;
 };
 
 export type SourceLibraryImportItemOutcomeRepository = {
-  insert(record: SourceLibraryImportItemOutcomeRecord): SourceLibraryImportItemOutcomeRecord;
-  listForBatch(input: { batchId: string }): readonly SourceLibraryImportItemOutcomeRecord[];
+  insert(record: SourceLibraryImportItemOutcomeRecord): Promise<SourceLibraryImportItemOutcomeRecord>;
+  listForBatch(input: { batchId: string }): Promise<readonly SourceLibraryImportItemOutcomeRecord[]>;
 };
 
 type SourceLibraryRow = {
@@ -170,28 +170,28 @@ export function createSourceLibraryRepositories(
   const { db } = input;
 
   const libraries: SourceLibraryRepository = {
-    get(input) {
-      const row = db.get<SourceLibraryRow>(
+    async get(input) {
+      const row = await db.get<SourceLibraryRow>(
         "SELECT * FROM source_libraries WHERE library_ref_key = ?",
         [refKey(input.libraryRef)],
       );
 
       return row === undefined ? undefined : sourceLibraryFromRow(row);
     },
-    listByOwnerScope(input) {
+    async listByOwnerScope(input) {
       assertOwnerScope(input.ownerScope);
 
-      return db.all<SourceLibraryRow>(
+      return (await db.all<SourceLibraryRow>(
         `
           SELECT * FROM source_libraries
           WHERE owner_scope = ?
           ORDER BY provider_id ASC, provider_account_id ASC, library_kind ASC
         `,
         [input.ownerScope],
-      ).map(sourceLibraryFromRow);
+      )).map(sourceLibraryFromRow);
     },
-    findByOwnerProviderIdentity(input) {
-      const row = db.get<SourceLibraryRow>(
+    async findByOwnerProviderIdentity(input) {
+      const row = await db.get<SourceLibraryRow>(
         `
           SELECT * FROM source_libraries
           WHERE owner_scope = ?
@@ -209,10 +209,10 @@ export function createSourceLibraryRepositories(
 
       return row === undefined ? undefined : sourceLibraryFromRow(row);
     },
-    upsert(record) {
+    async upsert(record) {
       assertSourceLibraryRecordConsistency(record);
 
-      db.run(
+      await db.run(
         `
           INSERT INTO source_libraries (
             library_ref_key,
@@ -243,15 +243,15 @@ export function createSourceLibraryRepositories(
       );
 
       return requireRecord(
-        libraries.get({ libraryRef: record.libraryRef }),
+        await libraries.get({ libraryRef: record.libraryRef }),
         "source library upsert did not return a stored record",
       );
     },
   };
 
   const items: SourceLibraryItemRepository = {
-    get(input) {
-      const row = db.get<SourceLibraryItemRow>(
+    async get(input) {
+      const row = await db.get<SourceLibraryItemRow>(
         `
           SELECT
             i.library_ref_key,
@@ -274,10 +274,10 @@ export function createSourceLibraryRepositories(
 
       return row === undefined ? undefined : sourceLibraryItemFromRow(row);
     },
-    upsert(record) {
+    async upsert(record) {
       assertSourceLibraryItemRecordConsistency(record);
 
-      db.run(
+      await db.run(
         `
           INSERT INTO source_library_items (
             library_ref_key,
@@ -301,23 +301,23 @@ export function createSourceLibraryRepositories(
       );
 
       return requireRecord(
-        items.get({
+        await items.get({
           libraryRef: record.libraryRef,
           sourceRefKey: record.sourceRefKey,
         }),
         "source library item upsert did not return a stored record",
       );
     },
-    deleteItemsNotObservedInBatch(input) {
+    async deleteItemsNotObservedInBatch(input) {
       assertSourceLibraryRef(input.libraryRef);
 
       const libraryRefKey = refKey(input.libraryRef);
-      assertImportBatchMatchesLibraryRef({
+      await assertImportBatchMatchesLibraryRef({
         batchId: input.batchId,
         db,
         libraryRefKey,
       });
-      const deletedCount = db.get<{ count: number }>(
+      const deletedCount = Number((await db.get<{ count: number | string }>(
         `
           SELECT COUNT(*) AS count
           FROM source_library_items AS current_items
@@ -331,13 +331,13 @@ export function createSourceLibraryRepositories(
             )
         `,
         [libraryRefKey, input.batchId],
-      )?.count ?? 0;
+      ))?.count ?? 0);
 
       if (deletedCount === 0) {
         return { deletedCount: 0 };
       }
 
-      db.run(
+      await db.run(
         `
           DELETE FROM source_library_items
           WHERE library_ref_key = ?
@@ -357,18 +357,18 @@ export function createSourceLibraryRepositories(
   };
 
   const batches: SourceLibraryImportBatchRepository = {
-    get(input) {
-      const row = db.get<SourceLibraryImportBatchRow>(
+    async get(input) {
+      const row = await db.get<SourceLibraryImportBatchRow>(
         "SELECT * FROM source_library_import_batches WHERE batch_id = ?",
         [input.batchId],
       );
 
       return row === undefined ? undefined : sourceLibraryImportBatchFromRow(row);
     },
-    insert(record) {
+    async insert(record) {
       assertSourceLibraryImportBatchConsistency(record);
 
-      db.run(
+      await db.run(
         `
           INSERT INTO source_library_import_batches (
             batch_id,
@@ -415,14 +415,14 @@ export function createSourceLibraryRepositories(
       );
 
       return requireRecord(
-        batches.get({ batchId: record.batchId }),
+        await batches.get({ batchId: record.batchId }),
         "source library import batch insert did not return a stored record",
       );
     },
-    upsert(record) {
+    async upsert(record) {
       assertSourceLibraryImportBatchConsistency(record);
 
-      db.run(
+      await db.run(
         `
           INSERT INTO source_library_import_batches (
             batch_id,
@@ -483,15 +483,15 @@ export function createSourceLibraryRepositories(
       );
 
       return requireRecord(
-        batches.get({ batchId: record.batchId }),
+        await batches.get({ batchId: record.batchId }),
         "source library import batch upsert did not return a stored record",
       );
     },
   };
 
   const itemOutcomes: SourceLibraryImportItemOutcomeRepository = {
-    insert(record) {
-      db.run(
+    async insert(record) {
+      await db.run(
         `
           INSERT INTO source_library_import_item_outcomes (
             batch_id,
@@ -523,15 +523,15 @@ export function createSourceLibraryRepositories(
 
       return record;
     },
-    listForBatch(input) {
-      return db.all<SourceLibraryImportItemOutcomeRow>(
+    async listForBatch(input) {
+      return (await db.all<SourceLibraryImportItemOutcomeRow>(
         `
           SELECT * FROM source_library_import_item_outcomes
           WHERE batch_id = ?
           ORDER BY sequence ASC
         `,
         [input.batchId],
-      ).map(sourceLibraryImportItemOutcomeFromRow);
+      )).map(sourceLibraryImportItemOutcomeFromRow);
     },
   };
 
@@ -715,12 +715,12 @@ function assertSourceLibraryImportBatchConsistency(record: SourceLibraryImportBa
   }
 }
 
-function assertImportBatchMatchesLibraryRef(input: {
+async function assertImportBatchMatchesLibraryRef(input: {
   batchId: string;
   db: MusicDatabaseContext;
   libraryRefKey: string;
-}): void {
-  const row = input.db.get<{ library_ref_key: string | null }>(
+}): Promise<void> {
+  const row = await input.db.get<{ library_ref_key: string | null }>(
     "SELECT library_ref_key FROM source_library_import_batches WHERE batch_id = ?",
     [input.batchId],
   );

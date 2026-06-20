@@ -6,9 +6,9 @@ export type MusicDatabaseParameter =
   | Uint8Array;
 
 export type MusicDatabaseContext = {
-  run(sql: string, params?: readonly MusicDatabaseParameter[]): void;
-  all<Row>(sql: string, params?: readonly MusicDatabaseParameter[]): readonly Row[];
-  get<Row>(sql: string, params?: readonly MusicDatabaseParameter[]): Row | undefined;
+  run(sql: string, params?: readonly MusicDatabaseParameter[]): Promise<void>;
+  all<Row>(sql: string, params?: readonly MusicDatabaseParameter[]): Promise<readonly Row[]>;
+  get<Row>(sql: string, params?: readonly MusicDatabaseParameter[]): Promise<Row | undefined>;
 };
 
 declare const transactionContextBrand: unique symbol;
@@ -17,8 +17,7 @@ export type MusicDatabaseTransactionContext = MusicDatabaseContext & {
   readonly [transactionContextBrand]: true;
 };
 
-export type MusicDatabaseImmediateResult<Result> =
-  Result & (Result extends { then: unknown } ? never : unknown);
+export type MusicDatabaseImmediateResult<Result> = Result | Promise<Result>;
 
 export type MusicDatabaseSchemaContribution = {
   id: string;
@@ -30,16 +29,15 @@ export type InitializeMusicDatabaseInput = {
 };
 
 export type MusicDatabase = {
-  initialize(input?: InitializeMusicDatabaseInput): void;
+  initialize(input?: InitializeMusicDatabaseInput): Promise<void>;
   context(): MusicDatabaseContext;
   transaction<Result>(
     operation: (context: MusicDatabaseTransactionContext) => MusicDatabaseImmediateResult<Result>,
-  ): MusicDatabaseImmediateResult<Result>;
-  close(): void;
+  ): Promise<Result>;
+  close(): Promise<void>;
 };
 
 export type MusicDatabaseErrorCode =
-  | "storage.invalid_database_filename"
   | "storage.invalid_database_url"
   | "storage.database_not_initialized"
   | "storage.database_already_initialized"
@@ -47,8 +45,7 @@ export type MusicDatabaseErrorCode =
   | "storage.database_initialization_active"
   | "storage.database_closed"
   | "storage.transaction_already_active"
-  | "storage.transaction_context_inactive"
-  | "storage.async_callback_not_supported";
+  | "storage.transaction_context_inactive";
 
 export type CreateMusicDatabaseErrorInput = {
   code: MusicDatabaseErrorCode;

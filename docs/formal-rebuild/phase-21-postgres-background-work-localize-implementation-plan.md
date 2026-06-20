@@ -1,6 +1,6 @@
 # Phase 21 Postgres Storage, Background Work, And Localize Implementation Plan
 
-> Status: Proposed
+> Status: Slice 3 complete; stopped before Background Work / queue / localize
 > Owning bounded contexts: Storage, Server Host / Runtime Orchestration, Stage
 > Core, Music Data Platform
 
@@ -15,6 +15,24 @@ The product goal is still `localizeProviderSource`: given a committed provider
 `sourceRef`, download the provider source into MineMusic-owned storage and
 register the resulting file as a Local Source bound to the existing material.
 Postgres and background jobs are enabling infrastructure, not the domain goal.
+
+## Current Stop Point
+
+Completed through Slice 3:
+
+- Postgres is the only active formal runtime storage adapter.
+- Runtime database config uses Postgres URL/schema settings.
+- Active schema contributions, records, commands, read models, Stage Interface
+  registries, formal tests, and live smoke harnesses have been migrated to
+  Postgres semantics.
+- SQLite runtime adapter and SQLite-specific active tests have been removed.
+
+Not started:
+
+- Background Work backend port.
+- Postgres queue adapter.
+- `localizeProviderSource` job submission or handler.
+- Embedding, music-to-language, or any other background job type.
 
 ## Destructive Migration Definition
 

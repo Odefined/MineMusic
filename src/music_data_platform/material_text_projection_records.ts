@@ -43,10 +43,10 @@ export type MaterialTextMatchRecord = {
 export type MaterialTextProjectionReadPort = {
   getMaterialTextDocument(
     input: GetMaterialTextDocumentInput,
-  ): MaterialTextDocumentRecord | undefined;
+  ): Promise<MaterialTextDocumentRecord | undefined>;
   matchMaterialTextDocuments(
     input: MatchMaterialTextDocumentsInput,
-  ): readonly MaterialTextMatchRecord[];
+  ): Promise<readonly MaterialTextMatchRecord[]>;
 };
 
 type MaterialTextDocumentRow = {
@@ -78,8 +78,8 @@ export function createMaterialTextProjectionRecords(
   const { db } = input;
 
   return {
-    getMaterialTextDocument(readInput) {
-      const row = db.get<MaterialTextDocumentRow>(
+    async getMaterialTextDocument(readInput) {
+      const row = await db.get<MaterialTextDocumentRow>(
         `
           SELECT * FROM material_text_documents
           WHERE material_ref_key = ?
@@ -89,7 +89,7 @@ export function createMaterialTextProjectionRecords(
 
       return row === undefined ? undefined : materialTextDocumentFromRow(row);
     },
-    matchMaterialTextDocuments(readInput) {
+    async matchMaterialTextDocuments(readInput) {
       const limit = validatedMatchLimit(readInput.limit);
       const normalizedText = normalizeMaterialTextValue(readInput.text);
 
@@ -99,7 +99,7 @@ export function createMaterialTextProjectionRecords(
 
       const matchQuery = buildMaterialTextMatchQuery(normalizedText);
 
-      return db.all<MaterialTextMatchRow>(
+      return (await db.all<MaterialTextMatchRow>(
         `
           SELECT
             d.material_ref_key,
@@ -112,12 +112,13 @@ export function createMaterialTextProjectionRecords(
           FROM material_text_fts f
           JOIN material_text_documents d
             ON d.material_ref_key = f.material_ref_key
-          WHERE material_text_fts MATCH ?
-          ORDER BY d.material_ref_key ASC
+          WHERE f.search_vector @@ to_tsquery('simple', ?)
+          ORDER BY ts_rank(f.search_vector, to_tsquery('simple', ?)) DESC,
+            d.material_ref_key ASC
           LIMIT ?
         `,
-        [matchQuery, limit],
-      ).map(materialTextMatchFromRow);
+        [matchQuery, matchQuery, limit],
+      )).map(materialTextMatchFromRow);
     },
   };
 }

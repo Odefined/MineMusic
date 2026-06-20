@@ -1,4 +1,4 @@
-// Material Text Ranking — the shared FTS5 text-ranking SQL engine for
+// Material Text Ranking — the shared Postgres text-ranking SQL engine for
 // retrieval (architecture deepening candidate #2). Parameterised by the FTS
 // table name so the local retrieval read model (material_text_fts) and the
 // mixed retrieval workspace (retrieval_result_text_fts) share ONE ranking
@@ -22,6 +22,28 @@ export type RetrievalFtsTableName = "material_text_fts" | "retrieval_result_text
 
 export function sqlStringLiteral(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
+}
+
+export function prefixTsQueryForTokens(tokens: readonly string[]): string {
+  return tokens.map(prefixTsQueryForToken).join(" | ");
+}
+
+export function prefixTsQueryForToken(token: string): string {
+  return `'${token.replaceAll("'", "''")}':*`;
+}
+
+export function ftsSearchConditionSql(
+  ftsTableName: RetrievalFtsTableName,
+  matchQuery: string,
+): string {
+  return `${ftsTableName}.search_vector @@ to_tsquery('simple', ${sqlStringLiteral(matchQuery)})`;
+}
+
+export function ftsRankSortValueSqlExpression(
+  ftsTableName: RetrievalFtsTableName,
+  matchQuery: string,
+): string {
+  return `-ts_rank(${ftsTableName}.search_vector, to_tsquery('simple', ${sqlStringLiteral(matchQuery)}))`;
 }
 
 export const retrievalTextFieldConfigs = [
@@ -94,12 +116,8 @@ export function fieldMatchSqlExpression(
   ftsTableName: RetrievalFtsTableName,
 ): string {
   return `
-    EXISTS (
-      SELECT 1
-      FROM ${ftsTableName} f
-      WHERE f.rowid = ${ftsTableName}.rowid
-        AND ${ftsTableName} MATCH ${sqlStringLiteral(fieldScopedPrefixQuery(fieldColumn, token))}
-    )
+    to_tsvector('simple', COALESCE(${ftsTableName}.${fieldColumn}, ''))
+      @@ to_tsquery('simple', ${sqlStringLiteral(prefixTsQueryForToken(token))})
   `.trim();
 }
 

@@ -43,7 +43,7 @@ import service, and the source-library batch read port.
 | `owner_material_entries` | Owner catalog projection row. | One row per `owner_scope + entry_kind + entry_ref_key + material_ref_key`; not source-of-truth. |
 | `owner_material_catalog_view` | Owner catalog SQL read model. | Aggregates active positive entries by owner/material and excludes active material-scope blocked facts. |
 | `material_text_documents` | Current material-centered text document projection. | One row per active material ref; built only from current material/bound-source/confirmed-canonical facts. |
-| `material_text_fts` | SQLite FTS read model for projected material text. | Indexes `title/artist/album/version/alias` only; `search_text` remains a non-FTS stored projection column. |
+| `material_text_fts` | Postgres full-text read model for projected material text. | Stores `title/artist/album/version/alias` text plus a `tsvector` search column; `search_text` remains a stored projection column on `material_text_documents`. |
 | Retrieval read port | Query-ready read boundary over owner catalog/material text/projection freshness. | Phase 12A/12B support owner-visible pool filtering, kind filtering, `stable` / `recently_added` / `text_relevance` ordering, SQL keyset pagination, matched pool/text evidence, and coarse freshness. |
 | `materialCandidateRef` | Runtime material-facing handle for an unresolved provider candidate. | `material_candidate:provider_candidate:<opaque>` derived from `digest(refKey(sourceEntity.sourceRef))`; not durable material identity and not a source ref. |
 | `retrieval_result_sets` | Runtime mixed retrieval result-set header. | Stores query fingerprint, local result window metadata, and TTL; it does not store Stage Interface output. |

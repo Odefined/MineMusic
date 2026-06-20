@@ -18,6 +18,7 @@ import {
   createSourceLibraryCommands,
   type SourceLibraryCommands,
 } from "./source_library_commands.js";
+import type { SourceLibraryImportBatchRecord } from "./source_library_records.js";
 
 export type CreateMusicDataPlatformSourceOfTruthWriteCommandsInput = {
   db: MusicDatabaseTransactionContext;
@@ -38,7 +39,7 @@ export function createMusicDataPlatformSourceOfTruthWriteCommands(
     now: input.now,
   });
   const projectionInvalidationCommands: ProjectionInvalidationCommands = {
-    markProjectionInvalidated(invalidationInput) {
+    async markProjectionInvalidated(invalidationInput) {
       return projectionMaintenanceCommands.markProjectionInvalidated(
         invalidationInput,
       );
@@ -69,51 +70,51 @@ export function createMusicDataPlatformSourceOfTruthWriteCommands(
         assertWorkflowFacingOwnerScope(commandInput.ownerScope);
         return sourceLibrary.createImportBatch(commandInput);
       },
-      resolveImportBatchLibraryScope(commandInput) {
+      async resolveImportBatchLibraryScope(commandInput) {
         return sourceLibrary.resolveImportBatchLibraryScope({
           ...commandInput,
-          batch: requireWorkflowFacingBatch(
+          batch: await requireWorkflowFacingBatch(
             sourceLibraryReads,
             commandInput.batch.batchId,
           ),
         });
       },
-      recordImportItem(commandInput) {
+      async recordImportItem(commandInput) {
         return sourceLibrary.recordImportItem({
           ...commandInput,
-          batch: requireWorkflowFacingBatch(
+          batch: await requireWorkflowFacingBatch(
             sourceLibraryReads,
             commandInput.batch.batchId,
           ),
         });
       },
-      recordImportItemFailure(commandInput) {
-        assertWorkflowFacingBatchOwnerScope(
+      async recordImportItemFailure(commandInput) {
+        await assertWorkflowFacingBatchOwnerScope(
           sourceLibraryReads,
           commandInput.batchId,
         );
         return sourceLibrary.recordImportItemFailure(commandInput);
       },
-      failImportBatch(commandInput) {
-        assertWorkflowFacingBatchOwnerScope(
+      async failImportBatch(commandInput) {
+        await assertWorkflowFacingBatchOwnerScope(
           sourceLibraryReads,
           commandInput.batchId,
         );
         return sourceLibrary.failImportBatch(commandInput);
       },
-      completeImportBatch(commandInput) {
+      async completeImportBatch(commandInput) {
         return sourceLibrary.completeImportBatch({
           ...commandInput,
-          batch: requireWorkflowFacingBatch(
+          batch: await requireWorkflowFacingBatch(
             sourceLibraryReads,
             commandInput.batch.batchId,
           ),
         });
       },
-      advanceImportBatchCursor(commandInput) {
+      async advanceImportBatchCursor(commandInput) {
         return sourceLibrary.advanceImportBatchCursor({
           ...commandInput,
-          batch: requireWorkflowFacingBatch(
+          batch: await requireWorkflowFacingBatch(
             sourceLibraryReads,
             commandInput.batch.batchId,
           ),
@@ -142,11 +143,11 @@ function assertWorkflowFacingOwnerScope(ownerScope: string): void {
   }
 }
 
-function requireWorkflowFacingBatch(
+async function requireWorkflowFacingBatch(
   sourceLibraryReads: ReturnType<typeof createSourceLibraryReadPort>,
   batchId: string,
-) {
-  const batch = sourceLibraryReads.getImportBatch({ batchId });
+): Promise<SourceLibraryImportBatchRecord> {
+  const batch = await sourceLibraryReads.getImportBatch({ batchId });
 
   if (batch === undefined) {
     throw new MusicDataPlatformError({
@@ -160,11 +161,11 @@ function requireWorkflowFacingBatch(
   return batch;
 }
 
-function assertWorkflowFacingBatchOwnerScope(
+async function assertWorkflowFacingBatchOwnerScope(
   sourceLibraryReads: ReturnType<typeof createSourceLibraryReadPort>,
   batchId: string,
-): void {
-  const batch = sourceLibraryReads.getImportBatch({ batchId });
+): Promise<void> {
+  const batch = await sourceLibraryReads.getImportBatch({ batchId });
 
   if (batch !== undefined) {
     assertWorkflowFacingOwnerScope(batch.ownerScope);

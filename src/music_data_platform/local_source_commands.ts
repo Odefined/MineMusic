@@ -15,7 +15,7 @@ export type CreateLocalSourceCommandInput = {
 };
 
 export type LocalSourceCommand = {
-  createLocalSource(input: CreateLocalSourceInput): Result<CreateLocalSourceResult>;
+  createLocalSource(input: CreateLocalSourceInput): Promise<Result<CreateLocalSourceResult>>;
 };
 
 // materialRef presence selects the material relationship:
@@ -54,7 +54,7 @@ export function createLocalSourceCommand(
   const now = input.now ?? (() => new Date().toISOString());
 
   return {
-    createLocalSource(commandInput) {
+    async createLocalSource(commandInput) {
       // createLocalSource is the owning command boundary for local-source
       // registration. The transaction body may throw MusicDataPlatformError,
       // but only declared scenario-B caller-input failures (missing / wrong-kind
@@ -62,7 +62,7 @@ export function createLocalSourceCommand(
       // propagate as throws (one failure channel; let broken invariants crash).
       // The transaction has already rolled back, so there is no partial write.
       try {
-        return input.database.transaction((db) => {
+        return await input.database.transaction(async (db) => {
           const timestamp = now();
           const sourceRef = createLocalSourceRef({
             md5: commandInput.md5,
@@ -75,7 +75,7 @@ export function createLocalSourceCommand(
           // names a DIFFERENT material is a conflict (same file -> two
           // materials), surfaced explicitly rather than silently rebinding.
           const identityRead = createIdentityReadPort({ db });
-          const existingBinding = identityRead.findMaterialForSource({ sourceRef });
+          const existingBinding = await identityRead.findMaterialForSource({ sourceRef });
           if (existingBinding !== undefined) {
             if (
               commandInput.materialRef !== undefined &&
@@ -99,13 +99,13 @@ export function createLocalSourceCommand(
             md5: commandInput.md5,
             filePath: commandInput.filePath,
           });
-          writes.identity.upsertSourceRecord({ entity: localSourceEntity });
+          await writes.identity.upsertSourceRecord({ entity: localSourceEntity });
 
           if (commandInput.materialRef === undefined) {
             const materialKind = materialKindForSourceKind(commandInput.kind);
             const materialRef = input.materialRefFactory.createMaterialRef(materialKind);
-            writes.identity.upsertMaterialRecord({ materialRef, kind: materialKind });
-            writes.identity.bindSourceToMaterial({
+            await writes.identity.upsertMaterialRecord({ materialRef, kind: materialKind });
+            await writes.identity.bindSourceToMaterial({
               sourceRef,
               materialRef,
               makePrimary: true,
@@ -113,7 +113,7 @@ export function createLocalSourceCommand(
             return ok({ materialRef, created: true });
           }
 
-          writes.identity.bindSourceToMaterial({
+          await writes.identity.bindSourceToMaterial({
             sourceRef,
             materialRef: commandInput.materialRef,
             makePrimary: false,
