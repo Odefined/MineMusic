@@ -276,5 +276,8 @@ function importlessMusicDataPlatformModule(): MusicDataPlatformRuntimeModule {
         localSource() {
             return undefined;
         },
+        localizeProviderSource() {
+            return undefined;
+        },
     };
 }

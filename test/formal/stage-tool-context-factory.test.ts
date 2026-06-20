@@ -178,6 +178,9 @@ const stubAudit: StageToolAuditPort = {
                 url: databaseUrl,
                 schema: databaseSchema,
             },
+            localSources: {
+                rootDir: `/tmp/minemusic-stage-tool-context-local-sources-${process.pid}`,
+            },
             projectionMaintenance: { enabled: false },
         },
     });

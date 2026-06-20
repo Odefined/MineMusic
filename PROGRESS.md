@@ -1195,11 +1195,13 @@ cursor with a Stage Interface-owned registry-backed Public Cursor Veil:
   cursor-page field isolation, output veil behavior, context factory wiring, and
   active-tree write-boundary allow-listing.
 
-## 2026-06-20: Phase 21 Postgres, Background Work, And Download Helper
+## 2026-06-20: Phase 21 Postgres, Background Work, Download Helper, And Localize Runtime
 
 The Postgres / Background Work / localize Phase 21 track is active. Storage
 migration through Slice 3 is complete, Slice 4 establishes the first Background
-Work runtime infrastructure, and Slice 5 extracts the reusable download helper:
+Work runtime infrastructure, Slice 5 extracts the reusable download helper,
+Slice 6 adds the localize submit/handler contract, and Slice 7 wires the
+runtime composition:
 
 - `src/background_work/backend.ts` defines the MineMusic-owned v1 port:
   `submit`, `registerHandler`, `start`, and `stop`.
@@ -1237,8 +1239,21 @@ Work runtime infrastructure, and Slice 5 extracts the reusable download helper:
 - `test/formal/music-data-platform-localize-provider-source.test.ts` covers the
   localize submit/handler contract without importing pg-boss or Extension
   Runtime into Music Data Platform.
-- Runtime wiring for Server Host localize config, handler registration, and any
-  public Stage Interface localize tool remains the next slice.
+- `src/server/config.ts` now accepts `localSources.rootDir` and falls back to
+  `MINEMUSIC_LOCAL_SOURCES_ROOT`; Background Work database config defaults to
+  the formal Postgres runtime database when no Background Work-specific
+  override is supplied.
+- `src/server/music_data_platform_runtime_module.ts` registers the localize job
+  handler with an injected `BackgroundWorkBackend`, exposes the localize submit
+  command, and keeps provider download resolution behind the Extension-backed
+  narrow download-source port.
+- `src/server/host.ts` creates the default pg-boss backend, starts it through a
+  `background-work` runtime module after Extension initialization, and stops it
+  before Extension and Music Data Platform shutdown.
+- `test/formal/server-music-data-platform-runtime-module.test.ts` and
+  `test/formal/server-host.test.ts` cover handler registration, required Local
+  Source root config, localize submit access, and worker lifecycle ordering.
+- A public Stage Interface localize tool remains unscoped.
 
 ## Next Formal Milestones
 

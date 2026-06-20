@@ -447,6 +447,9 @@ function musicDataPlatformModuleFor(input: {
         localSource() {
             return undefined;
         },
+        localizeProviderSource() {
+            return undefined;
+        },
     };
 }
 async function assertStartError(failure: Result<SourceLibraryImportResult>, expectedCode: string): Promise<void> {

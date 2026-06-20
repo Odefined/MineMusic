@@ -76,7 +76,12 @@ job or domain state. Slice 6 adds the Music Data Platform
 payloads, policy-versioned idempotency keys, injected provider download-source
 resolution, staged downloads, content-addressed finalization, Local Source
 registration through `createLocalSource`, and declared cleanup/error behavior.
-Server Host runtime registration and public tool exposure are not wired yet.
+Slice 7 wires runtime integration: Server Host config reads explicit
+`localSources.rootDir` / `MINEMUSIC_LOCAL_SOURCES_ROOT`, default host creates
+the Postgres-backed Background Work backend, Music Data Platform registers the
+localize handler before workers start, Extension initializes before worker
+start, and stop order drains Background Work before Extension/database
+shutdown. No public Stage Interface localize tool is exposed yet.
 Phase 17 adds the internal Music Data Platform Candidate Commit owning command
 (ADR-0011), Material Projection (`materialRef` -> `MusicMaterial`), the Effect
 Boundary auto-pass widening for presentation-driven admission (ADR-0021), and
@@ -847,8 +852,7 @@ Current formal state does not implement:
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
   sandboxing, or process isolation;
 - HTTP transport (MCP-over-stdio shipped in Phase 20; HTTP/CLI/Web UI remain);
-- Server Host runtime wiring for `localizeProviderSource` command/handler,
-  Local Source root config, and any public localize tool surface;
+- public Stage Interface localize tool surface;
 - presentation history beyond the immediate `music.experience.present` output;
 - update baselines, collection, additional owner catalog producers,
   wrong-version, not-playable, bad-match, feedback/correction facts, signals,

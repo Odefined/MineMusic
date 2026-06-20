@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import type { Ref } from "../../src/contracts/kernel.js";
+import type {
+    BackgroundWorkBackend,
+    BackgroundWorkHandler,
+    BackgroundWorkSubmitInput,
+} from "../../src/background_work/index.js";
 import { DEFAULT_OWNER_SCOPE, createProjectionMaintenanceCommands, createProjectionMaintenanceRecords, createMusicDataPlatformRetrievalReadPort, createMusicDataPlatformSourceOfTruthWriteCommands, type ProjectionMaintenanceTargetRecord, } from "../../src/music_data_platform/index.js";
 import type { SourceEntity } from "../../src/contracts/music_data_platform.js";
 import { createMineMusicExtensionRuntime, createMusicDataPlatformRuntimeModule, type MusicDataPlatformRuntimeModule, } from "../../src/server/index.js";
@@ -64,6 +69,77 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     assert.equal(module.candidateCommit(), undefined);
     assert.equal(module.materialProjection(), undefined);
     await database.close();
+}
+{
+    const timers = createFakeTimerQueue();
+    const database = await openUninitializedPostgresTestMusicDatabase();
+    const backgroundWork = createFakeBackgroundWorkBackend();
+    const module = createMusicDataPlatformRuntimeModule({
+        extensionRuntime: createMineMusicExtensionRuntime(),
+        config: {
+            localSources: {
+                rootDir: "/tmp/minemusic-local-sources",
+            },
+            projectionMaintenance: {
+                enabled: false,
+            },
+        },
+        database,
+        backgroundWork,
+        projectionMaintenanceSchedulerDependencies: timers.dependencies(),
+    });
+    const initialized = await module.initialize({});
+    assert.equal(initialized.ok, true);
+    assert.equal(module.localizeProviderSource() === undefined, false);
+    assert.deepEqual(backgroundWork.registrations.map((registration) => registration.jobType), [
+        "music_data_platform.localize_provider_source",
+    ]);
+    assert.equal(backgroundWork.startCount, 0);
+    const submitted = await module.localizeProviderSource()?.submit({
+        sourceRef: { namespace: "source_netease", kind: "track", id: "localize-runtime-1" },
+    });
+    assert.equal(submitted?.ok, true);
+    assert.deepEqual(backgroundWork.submissions.map((submission) => ({
+        jobType: submission.jobType,
+        payload: submission.payload,
+        idempotencyKey: submission.idempotencyKey,
+    })), [
+        {
+            jobType: "music_data_platform.localize_provider_source",
+            payload: {
+                sourceRef: { namespace: "source_netease", kind: "track", id: "localize-runtime-1" },
+                targetPolicyVersion: 1,
+            },
+            idempotencyKey: "source:source_netease:track:localize-runtime-1|bitrate:provider_default|targetPolicy:1",
+        },
+    ]);
+    const stopped = await stopModule(module);
+    assert.equal(stopped.ok, true);
+    assert.equal(module.localizeProviderSource(), undefined);
+    await database.close();
+}
+{
+    const database = await createCloseSpyDatabase();
+    const backgroundWork = createFakeBackgroundWorkBackend();
+    const module = createMusicDataPlatformRuntimeModule({
+        extensionRuntime: createMineMusicExtensionRuntime(),
+        config: {
+            projectionMaintenance: {
+                enabled: false,
+            },
+        },
+        databaseFactory: () => database,
+        backgroundWork,
+    });
+    const initialized = await module.initialize({});
+    assert.equal(initialized.ok, false);
+    if (initialized.ok) {
+        throw new Error("Expected runtime module initialization to fail.");
+    }
+    assert.equal(initialized.error.code, "server_host.music_data_platform_initialization_failed");
+    assert.equal(backgroundWork.registrations.length, 0);
+    assert.equal(module.localizeProviderSource(), undefined);
+    assert.equal(database.closeCount(), 1);
 }
 {
     const database = await createCloseSpyDatabase();
@@ -339,6 +415,45 @@ function sourceTrack(id: string, title: string): SourceEntity {
         label: title,
         title,
     };
+}
+function createFakeBackgroundWorkBackend(): BackgroundWorkBackend & {
+    registrations: {
+        jobType: string;
+        handler: BackgroundWorkHandler<object>;
+    }[];
+    submissions: BackgroundWorkSubmitInput<object>[];
+    startCount: number;
+    stopCount: number;
+} {
+    const backend = {
+        registrations: [] as {
+            jobType: string;
+            handler: BackgroundWorkHandler<object>;
+        }[],
+        submissions: [] as BackgroundWorkSubmitInput<object>[],
+        startCount: 0,
+        stopCount: 0,
+        async submit(input: BackgroundWorkSubmitInput<object>) {
+            backend.submissions.push(input);
+            return {
+                jobId: "runtime-localize-job",
+                submission: "created" as const,
+            };
+        },
+        registerHandler(input: {
+            jobType: string;
+            handler: BackgroundWorkHandler<object>;
+        }) {
+            backend.registrations.push(input);
+        },
+        async start() {
+            backend.startCount += 1;
+        },
+        async stop() {
+            backend.stopCount += 1;
+        },
+    };
+    return backend;
 }
 function createFakeTimerQueue(): {
     activeCount(): number;

@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
+import type { BackgroundWorkBackend } from "../background_work/index.js";
 import type { ExtensionRuntime } from "../extension/index.js";
 import {
   sourceLibraryKindScopeMetadata,
@@ -8,7 +9,10 @@ import {
 import {
   createCandidateCommitCommand,
   createLibraryRelationService,
+  createLocalizeProviderSourceCommand,
+  createLocalizeProviderSourceJobHandler,
   createMaterialRefFactory,
+  createIdentityReadPort,
   createMaterialProjection,
   createMusicDataPlatformRetrievalReadPort,
   createMusicDataPlatformRetrievalWorkspace,
@@ -16,6 +20,7 @@ import {
   createOwnerRelationPoolRef,
   createSourceLibraryImportService,
   createSourceLibraryReadPort,
+  LOCALIZE_PROVIDER_SOURCE_JOB_TYPE,
   musicDataPlatformIdentitySchema,
   musicDataPlatformMaterialTextProjectionSchema,
   musicDataPlatformOwnerCatalogEntriesSchema,
@@ -26,6 +31,7 @@ import {
   musicDataPlatformSourceLibrarySchema,
   type CandidateCommitCommand,
   type LibraryRelationService,
+  type LocalizeProviderSourceCommand,
   type MaterialRefFactory,
   type MaterialProjection,
   type OwnerRelationEntryKind,
@@ -35,10 +41,11 @@ import {
   type SourceLibraryReadPort,
 } from "../music_data_platform/index.js";
 import { createRetrievalResultSetRecords } from "../music_data_platform/retrieval_result_set_records.js";
-import { createDownloadCommands, type DownloadCommands } from "../music_data_platform/download_commands.js";
+import { createDownloadCommands, type DownloadCommands, type DownloadSourceProvider } from "../music_data_platform/download_commands.js";
 import { musicDataPlatformDownloadSchema } from "../music_data_platform/download_schema.js";
-import { createNodeMediaFileWriter } from "../music_data_platform/download_file_writer.js";
+import { createNodeLocalizeProviderSourceFileStore, createNodeMediaFileWriter } from "../music_data_platform/download_file_writer.js";
 import { createLocalSourceCommand, type LocalSourceCommand } from "../music_data_platform/local_source_commands.js";
+import { MusicDataPlatformError } from "../music_data_platform/errors.js";
 import {
   createRetrievalQueryService,
   type RetrievalQueryService,
@@ -67,6 +74,7 @@ import {
   mineMusicDatabaseMaxConnections,
   mineMusicDatabaseSchema,
   mineMusicDatabaseUrl,
+  mineMusicLocalSourcesRootDir,
 } from "./config.js";
 import {
   createProjectionMaintenanceScheduler,
@@ -87,6 +95,7 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   lookupCursorStore(): LookupCursorStore | undefined;
   download(): DownloadCommands | undefined;
   localSource(): LocalSourceCommand | undefined;
+  localizeProviderSource(): LocalizeProviderSourceCommand | undefined;
 };
 
 export type CreateMusicDataPlatformRuntimeModuleInput = {
@@ -94,6 +103,7 @@ export type CreateMusicDataPlatformRuntimeModuleInput = {
   config?: MineMusicRuntimeConfig;
   database?: MusicDatabase;
   databaseFactory?: () => MusicDatabase;
+  backgroundWork?: BackgroundWorkBackend;
   materialRefFactory?: MaterialRefFactory;
   projectionMaintenanceSchedulerDependencies?: Partial<ProjectionMaintenanceSchedulerDependencies<unknown>>;
 };
@@ -114,6 +124,7 @@ export function createMusicDataPlatformRuntimeModule(
   let lookupCursorStore: LookupCursorStore | undefined;
   let downloadCommand: DownloadCommands | undefined;
   let localSourceCommand: LocalSourceCommand | undefined;
+  let localizeProviderSourceCommand: LocalizeProviderSourceCommand | undefined;
   const ownsDatabase = input.database === undefined;
 
   return {
@@ -169,6 +180,30 @@ export function createMusicDataPlatformRuntimeModule(
           database,
           materialRefFactory,
         });
+        const downloadSourceProvider = createExtensionRuntimeDownloadSourceProvider(input.extensionRuntime);
+        if (input.backgroundWork !== undefined) {
+          const localSourcesRootDir = mineMusicLocalSourcesRootDir(input.config);
+          if (localSourcesRootDir === undefined) {
+            throw new MusicDataPlatformError({
+              code: "music_data.localize_config_missing",
+              message: "Localize requires explicit localSources.rootDir or MINEMUSIC_LOCAL_SOURCES_ROOT.",
+            });
+          }
+
+          localizeProviderSourceCommand = createLocalizeProviderSourceCommand({
+            backgroundWork: input.backgroundWork,
+          });
+          input.backgroundWork.registerHandler({
+            jobType: LOCALIZE_PROVIDER_SOURCE_JOB_TYPE,
+            handler: createLocalizeProviderSourceJobHandler({
+              identityRead: createIdentityReadPort({ db: database.context() }),
+              downloadSourceProvider,
+              localSourceCommand,
+              localSourcesRootDir,
+              fileStore: createNodeLocalizeProviderSourceFileStore(),
+            }),
+          });
+        }
         materialProjection = createMaterialProjection({
           db: database.context(),
         });
@@ -213,22 +248,7 @@ export function createMusicDataPlatformRuntimeModule(
         });
         downloadCommand = createDownloadCommands({
           database,
-          downloadSourceProvider: {
-            async getDownloadSource(dsInput) {
-              const result = await input.extensionRuntime.getSourceProviderDownloadSource({
-                providerId: dsInput.providerId,
-                sourceRef: dsInput.sourceRef,
-                ...(dsInput.preferredBitrate === undefined ? {} : { preferredBitrate: dsInput.preferredBitrate }),
-                ...(dsInput.sessionId === undefined ? {} : { sessionId: dsInput.sessionId }),
-              });
-
-              if (!result.ok) {
-                return result;
-              }
-
-              return { ok: true, value: result.value.downloadSource };
-            },
-          },
+          downloadSourceProvider,
           fileWriter: createNodeMediaFileWriter(),
           clock: () => new Date().toISOString(),
           generateJobId: () =>
@@ -262,6 +282,7 @@ export function createMusicDataPlatformRuntimeModule(
         retrievalQueryService = undefined;
         downloadCommand = undefined;
         localSourceCommand = undefined;
+        localizeProviderSourceCommand = undefined;
         await closeOwnedDatabase();
         return {
           ok: false,
@@ -293,6 +314,7 @@ export function createMusicDataPlatformRuntimeModule(
         retrievalQueryService = undefined;
         downloadCommand = undefined;
         localSourceCommand = undefined;
+        localizeProviderSourceCommand = undefined;
 
         return {
           ok: true,
@@ -344,6 +366,9 @@ export function createMusicDataPlatformRuntimeModule(
     localSource() {
       return localSourceCommand;
     },
+    localizeProviderSource() {
+      return localizeProviderSourceCommand;
+    },
   };
 
   async function closeOwnedDatabase(): Promise<void> {
@@ -354,6 +379,27 @@ export function createMusicDataPlatformRuntimeModule(
     await database.close();
     database = undefined;
   }
+}
+
+function createExtensionRuntimeDownloadSourceProvider(
+  extensionRuntime: ExtensionRuntime,
+): DownloadSourceProvider {
+  return {
+    async getDownloadSource(input) {
+      const result = await extensionRuntime.getSourceProviderDownloadSource({
+        providerId: input.providerId,
+        sourceRef: input.sourceRef,
+        ...(input.preferredBitrate === undefined ? {} : { preferredBitrate: input.preferredBitrate }),
+        ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+      });
+
+      if (!result.ok) {
+        return result;
+      }
+
+      return { ok: true, value: result.value.downloadSource };
+    },
+  };
 }
 
 function createMusicScopeAvailabilityPort(input: {

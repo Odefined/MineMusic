@@ -31,6 +31,7 @@ const child = spawn(process.execPath, [join(process.cwd(), ".tmp-test/src/server
         ...process.env,
         MINEMUSIC_DATABASE_URL: databaseUrl,
         MINEMUSIC_DATABASE_SCHEMA: databaseSchema,
+        MINEMUSIC_LOCAL_SOURCES_ROOT: `/tmp/minemusic-entrypoint-local-sources-${process.pid}`,
     },
 });
 const stdoutLines: string[] = [];

@@ -1,7 +1,9 @@
-import { createWriteStream, existsSync, mkdirSync, rmSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { once } from "node:events";
 import { finished } from "node:stream/promises";
+import { createHash } from "node:crypto";
 import type { MediaFileWriter } from "./download_to_file.js";
+import type { LocalizeProviderSourceFileStore } from "./localize_provider_source_job.js";
 
 // Production MediaFileWriter over node:fs. Writes stream asynchronously
 // (createWriteStream + backpressure via 'drain') so a large download never
@@ -40,6 +42,25 @@ export function createNodeMediaFileWriter(): MediaFileWriter {
           await finished(stream);
         },
       };
+    },
+  };
+}
+
+export function createNodeLocalizeProviderSourceFileStore(): LocalizeProviderSourceFileStore {
+  const writer = createNodeMediaFileWriter();
+
+  return {
+    ...writer,
+    async md5(path) {
+      const hash = createHash("md5");
+      const stream = createReadStream(path);
+      for await (const chunk of stream) {
+        hash.update(chunk);
+      }
+      return hash.digest("hex");
+    },
+    move(fromPath, toPath) {
+      renameSync(fromPath, toPath);
     },
   };
 }

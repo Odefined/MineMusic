@@ -6,6 +6,10 @@ import type {
   ToolCallOutput,
 } from "../contracts/stage_interface.js";
 import {
+  createPgBossBackgroundWorkBackend,
+  type BackgroundWorkBackend,
+} from "../background_work/index.js";
+import {
   createExtensionRuntimeModule,
   createStageRuntime,
   type RuntimeModule,
@@ -33,6 +37,12 @@ import {
   createMusicDiscoveryRuntimeModule,
   emptyMusicScopeAvailabilitySnapshot,
 } from "../music_intelligence/stage_adapter/index.js";
+import type { LocalizeProviderSourceCommand } from "../music_data_platform/index.js";
+import {
+  mineMusicBackgroundWorkDatabaseMaxConnections,
+  mineMusicBackgroundWorkDatabaseSchema,
+  mineMusicBackgroundWorkDatabaseUrl,
+} from "./config.js";
 
 export type ServerHost = {
   start(): Promise<Result<StageRuntimeSnapshot>>;
@@ -41,6 +51,7 @@ export type ServerHost = {
   dispatch(ctx: StageToolContext, input: ToolCallInput): Promise<Result<ToolCallOutput>>;
   sourceLibraryImport(): SourceLibraryImportService | undefined;
   retrievalQuery(): RetrievalQueryService | undefined;
+  localizeProviderSource(): LocalizeProviderSourceCommand | undefined;
   toolContextFactory(): StageToolContextFactory | undefined;
 };
 
@@ -48,14 +59,20 @@ export type CreateServerHostInput = {
   runtime?: StageRuntime;
   modules?: readonly RuntimeModule[];
   config?: MineMusicRuntimeConfig;
+  backgroundWork?: BackgroundWorkBackend;
 };
 
 export function createServerHost(input: CreateServerHostInput = {}): ServerHost {
   const extensionRuntime = createMineMusicExtensionRuntime(input.config);
+  const usesDefaultRuntime = input.runtime === undefined && input.modules === undefined;
+  const backgroundWork: BackgroundWorkBackend | undefined = usesDefaultRuntime
+    ? input.backgroundWork ?? createDefaultBackgroundWorkBackend(input.config)
+    : undefined;
   const musicDataPlatformModule: MusicDataPlatformRuntimeModule | undefined =
-    input.runtime === undefined && input.modules === undefined
+    usesDefaultRuntime
       ? createMusicDataPlatformRuntimeModule({
           extensionRuntime,
+          ...(backgroundWork === undefined ? {} : { backgroundWork }),
           ...(input.config === undefined ? {} : { config: input.config }),
         })
       : undefined;
@@ -108,12 +125,16 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       : createLibraryRelationServerRuntimeModule({
           musicDataPlatformModule,
         });
+  const backgroundWorkModule: RuntimeModule | undefined = backgroundWork === undefined
+    ? undefined
+    : createBackgroundWorkRuntimeModule({ backgroundWork });
   const runtime = input.runtime ?? createStageRuntime({
     modules: input.modules ?? [
       ...(musicDataPlatformModule === undefined ? [] : [musicDataPlatformModule]),
       createExtensionRuntimeModule({
         runtime: extensionRuntime,
       }),
+      ...(backgroundWorkModule === undefined ? [] : [backgroundWorkModule]),
       ...(libraryImportModule === undefined ? [] : [libraryImportModule]),
       ...(libraryRelationModule === undefined ? [] : [libraryRelationModule]),
       ...(musicDiscoveryModule === undefined ? [] : [musicDiscoveryModule]),
@@ -140,8 +161,82 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     retrievalQuery() {
       return musicDataPlatformModule?.retrievalQuery();
     },
+    localizeProviderSource() {
+      return musicDataPlatformModule?.localizeProviderSource();
+    },
     toolContextFactory() {
       return stageToolContextFactory;
+    },
+  };
+}
+
+function createDefaultBackgroundWorkBackend(
+  config: MineMusicRuntimeConfig | undefined,
+): BackgroundWorkBackend {
+  const schema = mineMusicBackgroundWorkDatabaseSchema(config);
+  const maxConnections = mineMusicBackgroundWorkDatabaseMaxConnections(config);
+  return createPgBossBackgroundWorkBackend({
+    connectionString: mineMusicBackgroundWorkDatabaseUrl(config),
+    ...(schema === undefined ? {} : { schema }),
+    ...(maxConnections === undefined ? {} : { maxConnections }),
+  });
+}
+
+function createBackgroundWorkRuntimeModule(input: {
+  backgroundWork: BackgroundWorkBackend;
+}): RuntimeModule {
+  return {
+    descriptor: {
+      id: "background-work",
+      ownerArea: "stage_core",
+      label: "Background Work",
+    },
+    async initialize() {
+      try {
+        await input.backgroundWork.start();
+        return {
+          ok: true,
+          value: {},
+        };
+      } catch (cause) {
+        let cleanupCause: unknown;
+        try {
+          await input.backgroundWork.stop();
+        } catch (stopCause) {
+          cleanupCause = stopCause;
+        }
+
+        return {
+          ok: false,
+          error: {
+            code: "server_host.background_work_start_failed",
+            message: "Background Work runtime module failed to start.",
+            area: "server_host",
+            retryable: false,
+            cause: cleanupCause === undefined ? cause : { cause, cleanupCause },
+          },
+        };
+      }
+    },
+    async stop() {
+      try {
+        await input.backgroundWork.stop();
+        return {
+          ok: true,
+          value: undefined,
+        };
+      } catch (cause) {
+        return {
+          ok: false,
+          error: {
+            code: "server_host.background_work_stop_failed",
+            message: "Background Work runtime module failed to stop.",
+            area: "server_host",
+            retryable: false,
+            cause,
+          },
+        };
+      }
     },
   };
 }

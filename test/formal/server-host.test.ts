@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import type {
+    BackgroundWorkBackend,
+    BackgroundWorkHandler,
+} from "../../src/background_work/index.js";
 import type { StageError } from "../../src/contracts/kernel.js";
 import type { ProviderMaterialCandidate } from "../../src/contracts/music_data_platform.js";
 import type { StageToolContext } from "../../src/contracts/stage_interface.js";
@@ -15,11 +19,16 @@ await createPostgresTestSchema({
     connectionString: serverHostDatabaseUrl,
     schema: serverHostSchema,
 });
+const serverHostBackgroundWork = createFakeBackgroundWorkBackend();
 const host = createServerHost({
+    backgroundWork: serverHostBackgroundWork,
     config: {
         database: {
             url: serverHostDatabaseUrl,
             schema: serverHostSchema,
+        },
+        localSources: {
+            rootDir: "/tmp/minemusic-server-host-local-sources",
         },
         projectionMaintenance: {
             enabled: false,
@@ -31,6 +40,7 @@ assert.equal(host.snapshot().interfaceContract.tools.length, 0);
 assert.deepEqual(host.snapshot().modules.map((module) => module.id), [
     "music-data-platform",
     "extension",
+    "background-work",
     "library-import",
     "library-relation",
     "music-discovery",
@@ -44,6 +54,11 @@ assert.equal(started.ok, true);
 assert.equal(host.snapshot().status, "ready");
 assert.equal(host.sourceLibraryImport() === undefined, false);
 assert.equal(host.retrievalQuery() === undefined, false);
+assert.equal(host.localizeProviderSource() === undefined, false);
+assert.deepEqual(serverHostBackgroundWork.log, [
+    "register:music_data_platform.localize_provider_source",
+    "start",
+]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     id,
     ownerArea,
@@ -57,6 +72,11 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     {
         id: "extension",
         ownerArea: "extension",
+        status: "initialized",
+    },
+    {
+        id: "background-work",
+        ownerArea: "stage_core",
         status: "initialized",
     },
     {
@@ -114,6 +134,12 @@ const stopped = await host.stop();
 assert.equal(stopped.ok, true);
 assert.equal(host.snapshot().status, "stopped");
 assert.equal(host.retrievalQuery(), undefined);
+assert.equal(host.localizeProviderSource(), undefined);
+assert.deepEqual(serverHostBackgroundWork.log, [
+    "register:music_data_platform.localize_provider_source",
+    "start",
+    "stop",
+]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     id,
     ownerArea,
@@ -127,6 +153,11 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     {
         id: "extension",
         ownerArea: "extension",
+        status: "stopped",
+    },
+    {
+        id: "background-work",
+        ownerArea: "stage_core",
         status: "stopped",
     },
     {
@@ -415,6 +446,33 @@ function fixtureSourceProviderPlugin(candidate: ProviderMaterialCandidate): Mine
                     },
                 },
             });
+        },
+    };
+}
+function createFakeBackgroundWorkBackend(): BackgroundWorkBackend & {
+    log: string[];
+} {
+    const log: string[] = [];
+    return {
+        log,
+        async submit() {
+            return {
+                jobId: "server-host-background-job",
+                submission: "created",
+            };
+        },
+        registerHandler(input: {
+            jobType: string;
+            handler: BackgroundWorkHandler<object>;
+        }) {
+            void input.handler;
+            log.push(`register:${input.jobType}`);
+        },
+        async start() {
+            log.push("start");
+        },
+        async stop() {
+            log.push("stop");
         },
     };
 }

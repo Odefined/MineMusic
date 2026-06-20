@@ -1,6 +1,6 @@
 # Phase 21 Postgres Storage, Background Work, And Localize Implementation Plan
 
-> Status: Slice 6 complete; stopped before runtime localize wiring
+> Status: Slice 7 complete; stopped before any public localize tool surface
 > Owning bounded contexts: Storage, Server Host / Runtime Orchestration, Stage
 > Core, Music Data Platform
 
@@ -18,7 +18,7 @@ Postgres and background jobs are enabling infrastructure, not the domain goal.
 
 ## Current Stop Point
 
-Completed through Slice 6:
+Completed through Slice 7:
 
 - Postgres is the only active formal runtime storage adapter.
 - Runtime database config uses Postgres URL/schema settings.
@@ -53,11 +53,22 @@ Completed through Slice 6:
   rejection, content-addressed finalization, idempotent existing Local Source
   replay, final-path collision refusal, declared registration-failure cleanup,
   and missing Local Source root config errors.
+- Server Host config now carries explicit Local Source root configuration via
+  `localSources.rootDir` or `MINEMUSIC_LOCAL_SOURCES_ROOT`.
+- Server Host config wires Background Work database settings, defaulting to the
+  formal Postgres runtime database URL/schema/maxConnections when no
+  Background Work-specific database override is supplied.
+- Default Server Host composition creates the `pg-boss`-backed
+  `BackgroundWorkBackend`, passes it to Music Data Platform for localize
+  submit/handler registration, then starts workers through a `background-work`
+  runtime module after Extension initialization.
+- Runtime stop order stops Background Work workers before Extension and Music
+  Data Platform database shutdown.
+- The production node file port now supports localize finalization with
+  streamed md5 calculation and atomic rename through the file boundary.
 
 Not started:
 
-- Runtime registration of the localize command and handler with Server Host /
-  Stage Core Background Work lifecycle.
 - Stage Interface localize tool surface, if separately scoped later.
 - Embedding, music-to-language, or any other background job type.
 

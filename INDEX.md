@@ -154,7 +154,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Work v1 over `pg-boss`, and `localizeProviderSource`; storage migration is
   complete through Slice 3, Background Work Slice 4 has landed, Slice 5 has
   extracted the reusable download-to-file helper, and Slice 6 has added the
-  Music Data Platform localize submit command plus job handler.
+  Music Data Platform localize submit command plus job handler. Slice 7 wires
+  Server Host local source config and Background Work lifecycle so the default
+  runtime can run localize jobs.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
