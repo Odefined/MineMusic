@@ -257,6 +257,8 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Work uses `pg-boss` behind a MineMusic-owned adapter.
 - `docs/adr/0028-localize-uses-content-addressed-local-source-paths.md`:
   localized audio uses content-addressed canonical Local Source paths.
+- `docs/adr/0029-library-import-uses-chained-background-work-jobs.md`:
+  library import drives multi-page provider reads as chained Background Work jobs.
 
 ## Pre-Formal ADR Evidence
 

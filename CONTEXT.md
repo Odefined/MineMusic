@@ -677,20 +677,25 @@ or current `MaterialRecord` into a domain `MusicMaterial`.
 _Avoid_: compact agent-facing card projection, policy relation application,
 provider/source materialization.
 
-Material Projection owns label selection, source-ref ordering, playable-link
-projection, material-kind normalization, merge-current lookup, and projected
-material state derived from current Material Store facts. Material Query,
-Material Policy, Material Materialization, Stage Interface, and app entrypoints
-should use Material Projection instead of reimplementing
+Material Projection owns label selection, bound-source consistency checks,
+Source Preference Policy application, source navigation projection,
+material-kind normalization, merge-current lookup, and projected material state
+derived from current Material Store facts. It selects Preferred Sources at read
+time from the Material's Bound Source Set; it does not expose a permanent
+primary source ref as `MusicMaterial` identity. Material Query, Material
+Policy, Material Materialization, Stage Interface, and app entrypoints should
+use Material Projection instead of reimplementing
 `MaterialRecord`-to-`MusicMaterial` rules.
 
 ### Bound Source Set
 
 The current set of Source Entities associated with one Material.
 
-A Bound Source Set says which sources ground or describe a Material. It does not
-say which source should permanently win for presentation, playback, search, or
-provider navigation.
+A Bound Source Set says which sources ground or describe a Material. For
+read-side policy application, `MaterialEntity.sourceRefs` provides the stable
+tie-break order among currently bound sources; it is still not a permanent
+winner. The set does not say which source should permanently win for
+presentation, playback, search, or provider navigation.
 _Avoid_: primary source, preferred source, source priority, provider order.
 
 ### Source Preference Policy
@@ -699,9 +704,19 @@ A runtime policy that orders eligible bound sources for a requested purpose.
 
 Source Preference Policy may prefer local files or named provider sources, but
 it does not create material identity and is not stored as a permanent source ref
-on the Material.
+on the Material. Applying Source Preference Policy produces an ordered source
+selection, not only one winning source; a caller may use the first source or
+continue through the ordered candidates when its workflow explicitly supports
+preference fallback. Requested purposes use product language such as
+descriptive metadata, source navigation, or playback; storage/projection field
+names such as `providerUrl` or `availabilityHint` are details, not Source
+Preference Policy purposes. A policy may define a default order and
+purpose-specific overrides; when a purpose has no override, the default order
+applies. Runtime composition may supply the policy from configuration, but
+applying the policy is Material Projection behavior; server configuration is not
+Material truth.
 _Avoid_: primary source, canonical source, permanent source ref, provider
-registration order.
+registration order, error fallback, field-level source priority.
 
 ### Preferred Source
 
@@ -709,8 +724,12 @@ The read-time Source Entity selected from a Material's Bound Source Set by
 applying Source Preference Policy for a requested purpose.
 
 A Preferred Source can change when runtime configuration or source bindings
-change. It is not durable Material truth.
-_Avoid_: primary source, material owner, canonical source, source identity.
+change. It is the first source in the ordered source selection and is not
+durable Material truth. It may be recorded as internal projection provenance or
+trace detail when needed, but it should not become a `MusicMaterial` identity
+field.
+_Avoid_: primary source, material owner, canonical source, source identity,
+preferred source ref.
 
 ### Material Candidate
 
@@ -833,23 +852,45 @@ attribution must not make the legacy primary-source role or source-priority
 ordering part of the Search model. Equivalent normalized field values are
 deduplicated within the same metadata field, not across different fields;
 multiple sources for the same normalized field value are represented as merged
-attribution. Alias is a recall field, but alias evidence must not be treated as
-primary title evidence. Metadata lookup evidence may distinguish exact, prefix,
-full-text, and fuzzy field matches; exact and prefix matches are stronger
-metadata evidence than fuzzy matches. Metadata Search Corpus documents are
-material-level search documents; owner visibility and owner-scoped filters are
-query constraints, not separate owner-scoped metadata documents.
+attribution. Source or contribution count is not rank weight; text rerank uses
+the deduplicated searchable field text. Alias is a recall field, but alias
+evidence must not be treated as primary title evidence. Metadata lookup
+evidence may distinguish exact, prefix, full-text, and fuzzy field matches;
+exact and prefix matches are stronger metadata evidence than fuzzy matches.
+Metadata Search Corpus documents are material-level search documents; owner
+visibility and owner-scoped filters are query constraints, not separate
+owner-scoped metadata documents.
 _Avoid_: material text projection, matched-token ranking model, provider
 corpus, embedding corpus, search_text-only blob, source identity field.
 
 ### Metadata Lookup Document
 
 A Searchable Document shape for Metadata Lookup Query reranking. Durable
-material metadata documents and runtime provider candidate documents share this
-field shape, but only active materials are stored as durable metadata search
-documents.
+material metadata documents and unresolved runtime provider candidate documents
+share this field shape. Provider results that resolve to an existing material do
+not contribute provider metadata documents for reranking; the existing material
+uses its durable metadata search document.
 _Avoid_: provider raw payload, material record, source record, global document
 schema.
+
+### Metadata Field Attribution
+
+The explanation of which current fact category supplied a Metadata Lookup
+Document field value. It is kept for explanation and maintenance, uses
+source-of-truth categories rather than legacy primary-source priority, and does
+not define searchable fields or rank weight.
+_Avoid_: primary source, provider rank, source identity field, search score.
+
+### Mixed Search Set
+
+A query-execution set of Searchable Documents assembled so selected durable
+material documents and unresolved runtime provider candidate documents can be
+reranked together by the same corpus-specific search logic. It is execution
+state for a query, not durable metadata truth, and it does not require a
+persisted runtime table when the Ranked Result Set stores the final ordered
+snapshot.
+_Avoid_: durable search index, provider cache, final result set, manual merge
+of separately ranked lists, persistent input snapshot.
 
 ### Metadata Lookup Normalization
 
@@ -870,6 +911,15 @@ Query fields after entering MineMusic; provider raw payloads and provider order
 are auxiliary evidence, not the shared metadata field model.
 _Avoid_: Search Target, material candidate allocator, provider adapter-owned
 Searchable Document, final result source.
+
+### Resolved Provider Hit
+
+A provider search hit that can be confirmed as an existing durable material.
+It is a discovery path to that material, not a runtime provider metadata
+document for reranking; metadata lookup rerank uses the material's durable
+metadata search document.
+_Avoid_: material candidate, duplicate metadata document, provider metadata
+boost.
 
 ### Document Evidence
 
@@ -1008,6 +1058,25 @@ and import/update history such as batches, reports, snapshots, and absences.
 
 A Source Entity for one provider-owned playable or library track identity.
 _Avoid_: Canonical Recording, NetEase track table.
+
+### Source Navigation URL
+
+A Source Entity URL that opens the source in its native provider or local
+navigation context.
+
+For provider-origin sources this is usually `providerUrl`. It is durable source
+metadata, but it is not a Playable Link and does not prove audio playback is
+available.
+_Avoid_: playable link, display link, `Ref.url`, playback capability.
+
+### Playable Link
+
+A runtime link that can be used for audio playback.
+
+Provider Playable Links come from Source Provider playback-link resolution, not
+from durable Source Entity or Source Record facts. A Local Source's playback
+path is its local file identity/path, not a stored provider Playable Link.
+_Avoid_: provider URL, source navigation URL, display link, source record link.
 
 ### Local Source
 

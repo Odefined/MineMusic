@@ -67,7 +67,9 @@ export type {
   IdentityReadPort,
 } from "./identity_read_model.js";
 export {
+  DEFAULT_SOURCE_PREFERENCE_POLICY,
   createMaterialProjection,
+  rankBoundSources,
 } from "./material_projection.js";
 export type {
   CreateMaterialProjectionInput,

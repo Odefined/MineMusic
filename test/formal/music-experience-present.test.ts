@@ -22,11 +22,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     const source = sourceTrack("present-candidate", "Present Candidate Song", {
         artistLabels: ["Candidate Artist", "Featured Artist"],
         albumLabel: "Candidate Album",
-        links: [{
-                url: "https://music.example/present-candidate",
-                label: "Play Candidate",
-                requiresAccount: true,
-            }],
+        providerUrl: "https://music.example/present-candidate",
         availabilityHint: "playable",
         versionInfo: {
             label: "single version",
@@ -105,7 +101,6 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
             albumLabel: "Candidate Album",
             displayLinks: [{
                     url: "https://music.example/present-candidate",
-                    label: "Play Candidate",
                 }],
             availability: "playable",
             versionLabel: "single version",
@@ -145,10 +140,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     const source = sourceTrack("library-present", "Library Present Song", {
         artistLabels: ["Library Artist"],
         albumLabel: "Library Album",
-        links: [{
-                url: "https://music.example/library-present",
-                requiresAccount: true,
-            }],
+        providerUrl: "https://music.example/library-present",
         availabilityHint: "restricted",
     });
     await database.transaction(async (db) => {
@@ -229,18 +221,12 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     const winnerSource = sourceTrack("merge-winner", "Winner Song", {
         artistLabels: ["Winner Artist"],
         albumLabel: "Winner Album",
-        links: [{
-                url: "https://music.example/winner",
-                requiresAccount: true,
-            }],
+        providerUrl: "https://music.example/winner",
         availabilityHint: "playable",
     });
     const loserSource = sourceTrack("merge-loser", "Loser Song", {
         artistLabels: ["Loser Artist"],
-        links: [{
-                url: "https://music.example/loser",
-                requiresAccount: true,
-            }],
+        providerUrl: "https://music.example/loser",
         availabilityHint: "playable",
     });
     await database.transaction(async (db) => {

@@ -52,10 +52,14 @@ The formal model separates these objects:
 
 | Term | Meaning | Formal Rule |
 | --- | --- | --- |
-| `SourceEntity` | Durable normalized provider-side facts. | `kind = track | album | artist`; contains provider ids, source ref, explicit normalized facts, optional links, optional version info. |
+| `SourceEntity` | Durable normalized provider/source facts. | `kind = track | album | artist`; contains provider ids when provider-origin, source ref, explicit normalized facts, optional `providerUrl`, and optional version info. It must not store playable links. |
 | `SourceRecord` | Storage record for source facts and lookup columns. | Keyed by `refKey(entity.sourceRef)`. May contain SQL/storage indexes; do not expose a separate `recordId`. |
 | `MaterialEntity` | MineMusic-owned material identity anchor. | Domain identity only; may carry canonical/source identity anchors and version info. |
 | `MaterialRecord` | Storage record for material identity persistence. | Keyed by `refKey(entity.materialRef)`. Persistence shape only; do not expose a separate `recordId`. |
+| `MusicMaterial` | Material Projection read model for a durable material. | Derived at read time from current bound sources and Source Preference Policy. It is not material identity and must not expose `primarySourceRef`, `sourceRefs`, or canonical refs. |
+| Bound Source Set | Current Source Entities bound to one Material. | Defines eligible source facts; does not define a permanent winner. `MaterialEntity.sourceRefs` gives stable tie-break order among current bindings. |
+| Source Preference Policy | Runtime policy that orders eligible bound sources by purpose. | May have a default order plus purpose-specific overrides such as descriptive metadata, source navigation, or playback. It is not stored as Material truth. |
+| Preferred Source | First source selected by Source Preference Policy for a purpose. | Read-time projection choice only; not a durable source ref field. |
 | `CanonicalEntity` | Cross-source identity authority. | May carry display/search aliases and version info only when canonical identity is version-specific. |
 | `CanonicalRecord` | Storage record for canonical identity maintenance. | Keyed by `refKey(entity.canonicalRef)`. May carry storage indexes and evidence facts; do not expose a separate `recordId`. |
 
@@ -87,12 +91,13 @@ The formal model separates these objects:
 
 | Term | Meaning | Formal Rule |
 | --- | --- | --- |
-| `PlayableLink` | Source-owned internal playable link value. | Shape: `{ url, label?, requiresAccount? }`; no `sourceRef`, no `expiresAt`. |
+| `PlayableLink` | Runtime playable link value returned by a playback/link refresh capability. | Shape: `{ url, label?, requiresAccount? }`; no `sourceRef`, no `expiresAt`; not persisted inside `SourceEntity` or `SourceRecord`. |
+| `SourceNavigationLink` | Material Projection link for opening a source in its native context. | Shape: `{ url, label? }`; projected from durable source navigation facts such as `providerUrl`; not a playable link. |
 | `PublicDisplayLink` | Public display link. | Shape: `{ url, label? }`; no account constraint field. |
 | `providerUrl` | Source/provider navigation hint. | Not a playable link and not a replacement for `Ref.url`. |
 | `availabilityHint` | Source/provider-side availability hint. | Not final material availability. |
 | `MaterialAvailability` | Computed availability axis. | `playable | restricted | unavailable | unknown`; computed in projection/query/present, not stored as `MaterialEntity` core state. |
-| `SourceProvider.getPlayableLinks` | Explicit refresh/repair/account re-check capability. | Not the default extra provider call during ordinary present. |
+| `SourceProvider.getPlayableLinks` | Explicit playback-link resolution / refresh / account re-check capability. | The provider runtime path for playable links; not persisted as `SourceEntity` facts and not the default extra provider call during ordinary present. |
 
 ## Stage, Extension, Intelligence, And Memory Vocabulary
 
@@ -181,7 +186,7 @@ membership on the entity core.
 
 | MVP Term | Formal Handling |
 | --- | --- |
-| `MusicMaterial` | Delete as active contract. Replace with `MaterialEntity` for identity and separate output/query contracts for public responses. |
+| Old MVP generic `MusicMaterial` | Delete as active identity/public-output contract. Use `MaterialEntity` for identity, current internal `MusicMaterial` for Material Projection read models, and separate public response contracts such as `MusicCard`. |
 | `SourceMaterial` | Delete. Provider search returns `ProviderMaterialCandidate`. |
 | `MaterialResolve*` | Delete from active contracts and public tools. |
 | `PublicMaterialResolve*` | Delete from active public contracts. |

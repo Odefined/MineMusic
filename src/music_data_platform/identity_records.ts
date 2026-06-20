@@ -102,6 +102,7 @@ export function createIdentityRepositories(
 
   const sourceRecords: SourceRecordRepository = {
     async upsert(record) {
+      assertSourceEntityHasNoStoredLinks(record.entity, refKey(record.entity.sourceRef));
       await db.run(
         `
           INSERT INTO source_records (
@@ -388,6 +389,8 @@ function sourceRecordFromRow(row: SourceRecordRow): SourceRecord {
 // read boundary so a corrupt row never flows into projections, nor surfaces
 // later as a misleading identity_conflict on the next write touching that ref.
 function assertSourceRecordRowIntegrity(row: SourceRecordRow, entity: SourceEntity): void {
+  assertSourceEntityHasNoStoredLinks(entity, row.ref_key);
+
   // entity_json is parsed JSON; treat origin as an untrusted string rather than
   // the narrowed SourceOrigin literal, so a corrupt origin is reported rather
   // than narrowed to `never`.
@@ -415,6 +418,14 @@ function assertSourceRecordRowIntegrity(row: SourceRecordRow, entity: SourceEnti
   if ((entity.providerEntityId ?? null) !== row.provider_entity_id) {
     throw new Error(
       `source_records row corrupt (ref_key=${row.ref_key}): entity providerEntityId '${String(entity.providerEntityId)}' disagrees with provider_entity_id column '${row.provider_entity_id}'.`,
+    );
+  }
+}
+
+function assertSourceEntityHasNoStoredLinks(entity: SourceEntity, refKeyForMessage: string): void {
+  if (Object.prototype.hasOwnProperty.call(entity, "links")) {
+    throw new Error(
+      `source_records row corrupt (ref_key=${refKeyForMessage}): SourceEntity must not store playable links.`,
     );
   }
 }

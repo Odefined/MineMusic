@@ -214,6 +214,8 @@ Music Data Platform owns formal music data truth and projections:
 - Collection membership and collection-local notes;
 - Library Import / Update persistence;
 - Canonical Maintenance;
+- Material Projection read models, including Source Preference Policy
+  application over current source-material bindings;
 - owner catalog projections and read models.
 
 Library Import is a Music Data Platform workflow. It consumes
@@ -262,8 +264,9 @@ records, not public/domain entity contracts.
 `origin = provider | local_file`: provider-backed sources carry a required
 (providerId, providerEntityId) pair, while local-file sources are identified by
 file md5 with no provider. It may contain explicit normalized facts,
-source-owned links, and source-side version information. It does not own
-material identity, owner facts, public presentation, or raw provider payload.
+provider/source navigation hints such as `providerUrl`, and source-side version
+information. It does not own material identity, owner facts, playable links,
+public presentation, or raw provider payload.
 
 `MaterialEntity` is a MineMusic material identity anchor. It does not own
 playable links, public display links, availability, query score,
@@ -418,7 +421,7 @@ compatibility aliases:
 - Ephemeral Material and `emat` material identity;
 - public `canonical.review.*` tools;
 - public `mat:` / `emat:` material id codecs;
-- active `MusicMaterial` and `SourceMaterial` vocabulary;
+- old MVP generic `MusicMaterial` and `SourceMaterial` vocabulary;
 - provider raw payloads in active source/entity/candidate contracts.
 
 ## Reference Documents

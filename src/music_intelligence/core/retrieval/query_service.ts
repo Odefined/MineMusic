@@ -650,7 +650,6 @@ function validateProviderSourceEntity(input: {
 
 function validateProviderSourceEntityBaseOptionalFields(sourceEntity: Record<string, unknown>): void {
   validateOptionalString(sourceEntity.providerUrl, "sourceEntity.providerUrl");
-  validateOptionalPlayableLinks(sourceEntity.links, "sourceEntity.links");
   validateOptionalAvailabilityHint(sourceEntity.availabilityHint, "sourceEntity.availabilityHint");
   validateOptionalVersionInfo(sourceEntity.versionInfo, "sourceEntity.versionInfo");
 }
@@ -730,32 +729,6 @@ function validateOptionalVersionInfo(value: unknown, fieldName: string): void {
 
   validateOptionalString(value.label, `${fieldName}.label`);
   validateOptionalStringArray(value.tags, `${fieldName}.tags`);
-}
-
-function validateOptionalPlayableLinks(value: unknown, fieldName: string): void {
-  if (value === undefined) {
-    return;
-  }
-
-  if (!Array.isArray(value)) {
-    throw providerSearchResultInvalid(`Provider search ${fieldName} must be an array when present.`);
-  }
-
-  for (const item of value) {
-    if (!isRecord(item)) {
-      throw providerSearchResultInvalid(`Provider search ${fieldName} entries must be objects.`);
-    }
-
-    if (typeof item.url !== "string" || item.url.length === 0) {
-      throw providerSearchResultInvalid(`Provider search ${fieldName} entries must include a non-empty url.`);
-    }
-
-    validateOptionalString(item.label, `${fieldName}.label`);
-
-    if (item.requiresAccount !== undefined && typeof item.requiresAccount !== "boolean") {
-      throw providerSearchResultInvalid(`Provider search ${fieldName}.requiresAccount must be boolean when present.`);
-    }
-  }
 }
 
 function validateOptionalAvailabilityHint(value: unknown, fieldName: string): void {

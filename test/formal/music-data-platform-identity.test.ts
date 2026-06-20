@@ -72,6 +72,14 @@ await database.transaction(async (db) => {
     }), "music_data.record_ref_key_mismatch");
     await assertMusicDataError(() => commands.upsertSourceRecord({
         entity: {
+            ...sourceTrack("source-with-links", "Source With Links"),
+            links: [{
+                    url: "https://music.example/play",
+                }],
+        } as unknown as SourceEntity,
+    }), "music_data.record_ref_key_mismatch");
+    await assertMusicDataError(() => commands.upsertSourceRecord({
+        entity: {
             ...sourceTrack("source-bad-ref-id", "Source Bad Ref Id"),
             sourceRef: {
                 namespace: "source_netease",

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import type { Ref } from "../../src/contracts/kernel.js";
-import type { SourceAlbum, SourceArtist, SourceEntity, SourceTrack, } from "../../src/contracts/music_data_platform.js";
+import { refKey, type Ref } from "../../src/contracts/kernel.js";
+import type { SourceAlbum, SourceArtist, SourceEntity, SourcePreferencePolicy, SourceTrack, } from "../../src/contracts/music_data_platform.js";
 import { musicDataPlatformIdentitySchema } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
-import { createMaterialProjection } from "../../src/music_data_platform/material_projection.js";
+import { createMaterialProjection, rankBoundSources } from "../../src/music_data_platform/material_projection.js";
 import type { MusicDatabase } from "../../src/storage/index.js";
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
@@ -25,11 +25,7 @@ await database.transaction(async (db) => {
             trackCount: 12,
         },
         durationMs: 233000,
-        links: [{
-                url: "https://music.example/primary-recording",
-                label: "Play Primary",
-                requiresAccount: true,
-            }],
+        providerUrl: "https://music.example/primary-recording",
         availabilityHint: "playable",
         versionInfo: {
             label: "single version",
@@ -47,7 +43,6 @@ await database.transaction(async (db) => {
     assert.deepEqual(await createMaterialProjection({ db }).projectMusicMaterial({ materialRef: material }), {
         kind: "recording",
         materialRef: material,
-        primarySourceRef: source.sourceRef,
         title: "Primary Title",
         artistLabels: ["Primary Artist"],
         albumLabel: "Primary Album",
@@ -57,10 +52,8 @@ await database.transaction(async (db) => {
             trackCount: 12,
         },
         durationMs: 233000,
-        playableLinks: [{
+        sourceNavigationLinks: [{
                 url: "https://music.example/primary-recording",
-                label: "Play Primary",
-                requiresAccount: true,
             }],
         availability: "playable",
         versionInfo: {
@@ -75,13 +68,92 @@ await database.transaction(async (db) => {
         now,
         projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
     });
+    const providerSource = sourceTrack("policy-navigation", "Provider Title", {
+        artistLabels: ["Provider Artist"],
+        albumLabel: "Provider Album",
+        providerUrl: "https://music.example/provider-navigation",
+        availabilityHint: "restricted",
+        versionInfo: {
+            label: "provider version",
+        },
+    });
+    const localSource = localSourceTrack("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "Localized Title", {
+        artistLabels: ["Localized Artist"],
+        albumLabel: "Localized Album",
+        availabilityHint: "playable",
+        versionInfo: {
+            label: "localized version",
+        },
+    });
+    const material = materialRef("recording", "purpose-policy");
+    const sourcePreferencePolicy: SourcePreferencePolicy = {
+        defaultOrder: [
+            { origin: "local_file" },
+            { origin: "provider", providerId: "netease" },
+        ],
+        purposeOverrides: {
+            source_navigation: [
+                { origin: "provider", providerId: "netease" },
+                { origin: "local_file" },
+            ],
+        },
+    };
+    await commands.upsertSourceRecord({ entity: providerSource });
+    await commands.upsertSourceRecord({ entity: localSource });
+    await commands.upsertMaterialRecord({ materialRef: material, kind: "recording" });
+    await commands.bindSourceToMaterial({
+        sourceRef: providerSource.sourceRef,
+        materialRef: material,
+        makePrimary: true,
+    });
+    await commands.bindSourceToMaterial({
+        sourceRef: localSource.sourceRef,
+        materialRef: material,
+    });
+    assert.deepEqual(rankBoundSources({
+        sources: [providerSource, localSource],
+        policy: sourcePreferencePolicy,
+        purpose: "descriptive_metadata",
+    }).map((source) => refKey(source.sourceRef)), [
+        refKey(localSource.sourceRef),
+        refKey(providerSource.sourceRef),
+    ]);
+    assert.deepEqual(rankBoundSources({
+        sources: [providerSource, localSource],
+        policy: sourcePreferencePolicy,
+        purpose: "source_navigation",
+    }).map((source) => refKey(source.sourceRef)), [
+        refKey(providerSource.sourceRef),
+        refKey(localSource.sourceRef),
+    ]);
+    assert.deepEqual(await createMaterialProjection({
+        db,
+        sourcePreferencePolicy,
+    }).projectMusicMaterial({ materialRef: material }), {
+        kind: "recording",
+        materialRef: material,
+        title: "Localized Title",
+        artistLabels: ["Localized Artist"],
+        albumLabel: "Localized Album",
+        sourceNavigationLinks: [{
+                url: "https://music.example/provider-navigation",
+            }],
+        availability: "playable",
+        versionInfo: {
+            label: "localized version",
+        },
+    });
+});
+await database.transaction(async (db) => {
+    const commands = createIdentityWriteCommands({
+        db,
+        now,
+        projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+    });
     const source = sourceAlbum("primary-album", "Primary Album", {
         artistLabels: ["Album Artist"],
         releaseDate: "2026-06-18",
-        links: [{
-                url: "https://music.example/primary-album",
-                label: "Open Album",
-            }],
+        providerUrl: "https://music.example/primary-album",
         availabilityHint: "restricted",
         versionInfo: {
             label: "deluxe",
@@ -99,13 +171,11 @@ await database.transaction(async (db) => {
     assert.deepEqual(await createMaterialProjection({ db }).projectMusicMaterial({ materialRef: material }), {
         kind: "album",
         materialRef: material,
-        primarySourceRef: source.sourceRef,
         title: "Primary Album",
         artistLabels: ["Album Artist"],
         releaseDate: "2026-06-18",
-        playableLinks: [{
+        sourceNavigationLinks: [{
                 url: "https://music.example/primary-album",
-                label: "Open Album",
             }],
         availability: "restricted",
         versionInfo: {
@@ -135,10 +205,9 @@ await database.transaction(async (db) => {
     assert.deepEqual(await createMaterialProjection({ db }).projectMusicMaterial({ materialRef: material }), {
         kind: "artist",
         materialRef: material,
-        primarySourceRef: source.sourceRef,
         name: "Primary Artist",
         aliases: ["P. Artist"],
-        playableLinks: [],
+        sourceNavigationLinks: [],
         availability: "unknown",
     });
 });
@@ -148,31 +217,31 @@ await database.transaction(async (db) => {
         now,
         projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
     });
-    const primary = sourceTrack("multi-primary", "Primary Wins", {
-        artistLabels: ["Primary Artist"],
-        albumLabel: "Primary Album",
-        links: [{
-                url: "https://music.example/primary",
-                label: "Primary Link",
-            }],
+    const primary = sourceTrack("multi-netease", "Netease Durable Primary", {
+        artistLabels: ["Netease Artist"],
+        albumLabel: "Netease Album",
+        providerUrl: "https://music.example/netease",
         availabilityHint: "restricted",
         versionInfo: {
-            label: "primary version",
+            label: "netease version",
         },
     });
-    const secondary = sourceTrack("multi-secondary", "Secondary Ignored", {
-        artistLabels: ["Secondary Artist"],
-        albumLabel: "Secondary Album",
-        links: [{
-                url: "https://music.example/secondary",
-                label: "Secondary Link",
-            }],
+    const secondary = sourceTrack("multi-qq", "QQ Policy Preferred", {
+        artistLabels: ["QQ Artist"],
+        albumLabel: "QQ Album",
+        providerUrl: "https://music.example/qq",
         availabilityHint: "playable",
         versionInfo: {
-            label: "secondary version",
+            label: "qq version",
         },
-    });
+    }, "qq");
     const material = materialRef("recording", "multi-source");
+    const sourcePreferencePolicy: SourcePreferencePolicy = {
+        defaultOrder: [
+            { origin: "provider", providerId: "qq" },
+            { origin: "provider", providerId: "netease" },
+        ],
+    };
     await commands.upsertSourceRecord({ entity: primary });
     await commands.upsertSourceRecord({ entity: secondary });
     await commands.upsertMaterialRecord({ materialRef: material, kind: "recording" });
@@ -185,20 +254,29 @@ await database.transaction(async (db) => {
         materialRef: material,
         makePrimary: true,
     });
-    assert.deepEqual(await createMaterialProjection({ db }).projectMusicMaterial({ materialRef: material }), {
+    assert.deepEqual(rankBoundSources({
+        sources: [primary, secondary],
+        policy: sourcePreferencePolicy,
+        purpose: "descriptive_metadata",
+    }).map((source) => refKey(source.sourceRef)), [
+        refKey(secondary.sourceRef),
+        refKey(primary.sourceRef),
+    ]);
+    assert.deepEqual(await createMaterialProjection({
+        db,
+        sourcePreferencePolicy,
+    }).projectMusicMaterial({ materialRef: material }), {
         kind: "recording",
         materialRef: material,
-        primarySourceRef: primary.sourceRef,
-        title: "Primary Wins",
-        artistLabels: ["Primary Artist"],
-        albumLabel: "Primary Album",
-        playableLinks: [{
-                url: "https://music.example/primary",
-                label: "Primary Link",
+        title: "QQ Policy Preferred",
+        artistLabels: ["QQ Artist"],
+        albumLabel: "QQ Album",
+        sourceNavigationLinks: [{
+                url: "https://music.example/qq",
             }],
-        availability: "restricted",
+        availability: "playable",
         versionInfo: {
-            label: "primary version",
+            label: "qq version",
         },
     });
 });
@@ -236,10 +314,9 @@ await database.transaction(async (db) => {
     assert.deepEqual(await createMaterialProjection({ db }).projectMusicMaterial({ materialRef: loser }), {
         kind: "recording",
         materialRef: winner,
-        primarySourceRef: winnerSource.sourceRef,
         title: "Winner Source",
         artistLabels: ["Winner Artist"],
-        playableLinks: [],
+        sourceNavigationLinks: [],
         availability: "playable",
     });
 });
@@ -257,7 +334,14 @@ await database.transaction(async (db) => {
         sourceRef: source.sourceRef,
         materialRef: primaryless,
     });
-    assert.equal(await createMaterialProjection({ db }).projectMusicMaterial({ materialRef: primaryless }), undefined);
+    assert.deepEqual(await createMaterialProjection({ db }).projectMusicMaterial({ materialRef: primaryless }), {
+        kind: "recording",
+        materialRef: primaryless,
+        title: "Primaryless Source",
+        artistLabels: [],
+        sourceNavigationLinks: [],
+        availability: "unknown",
+    });
 });
 await database.transaction(async (db) => {
     assert.equal(await createMaterialProjection({ db }).projectMusicMaterial({
@@ -265,15 +349,25 @@ await database.transaction(async (db) => {
     }), undefined);
 });
 await database.close();
-type SourceTrackOverrides = Partial<Omit<SourceTrack, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "title">>;
-type SourceAlbumOverrides = Partial<Omit<SourceAlbum, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "title">>;
-type SourceArtistOverrides = Partial<Omit<SourceArtist, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "name">>;
-function sourceTrack(id: string, title: string, overrides: SourceTrackOverrides = {}): SourceTrack {
+type ProviderSourceTrack = Extract<SourceTrack, { origin: "provider" }>;
+type ProviderSourceAlbum = Extract<SourceAlbum, { origin: "provider" }>;
+type ProviderSourceArtist = Extract<SourceArtist, { origin: "provider" }>;
+type LocalSourceTrack = Extract<SourceTrack, { origin: "local_file" }>;
+type SourceTrackOverrides = Partial<Omit<ProviderSourceTrack, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "title">>;
+type SourceAlbumOverrides = Partial<Omit<ProviderSourceAlbum, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "title">>;
+type SourceArtistOverrides = Partial<Omit<ProviderSourceArtist, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "name">>;
+type LocalSourceTrackOverrides = Partial<Omit<LocalSourceTrack, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "filePath" | "label" | "title">>;
+function sourceTrack(
+    id: string,
+    title: string,
+    overrides: SourceTrackOverrides = {},
+    providerId = "netease",
+): SourceTrack {
     return {
         kind: "track",
-        sourceRef: sourceRef("track", id),
+        sourceRef: sourceRef("track", id, providerId),
         origin: "provider",
-        providerId: "netease",
+        providerId,
         providerEntityId: id,
         label: title,
         title,
@@ -304,9 +398,28 @@ function sourceArtist(id: string, name: string, overrides: SourceArtistOverrides
         ...overrides,
     };
 }
-function sourceRef(kind: SourceEntity["kind"], id: string): Ref {
+function localSourceTrack(md5: string, title: string, overrides: LocalSourceTrackOverrides = {}): SourceTrack {
     return {
-        namespace: "source_netease",
+        kind: "track",
+        sourceRef: localSourceRef("track", md5),
+        origin: "local_file",
+        providerEntityId: md5,
+        filePath: `/tmp/minemusic/${md5}.mp3`,
+        label: title,
+        title,
+        ...overrides,
+    };
+}
+function sourceRef(kind: SourceEntity["kind"], id: string, providerId = "netease"): Ref {
+    return {
+        namespace: `source_${providerId}`,
+        kind,
+        id,
+    };
+}
+function localSourceRef(kind: SourceEntity["kind"], id: string): Ref {
+    return {
+        namespace: "source_local",
         kind,
         id,
     };

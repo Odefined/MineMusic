@@ -146,6 +146,12 @@ Material-to-canonical confirmation uses `bindMaterialToCanonical`.
 commands, but any non-empty primary source must already be bound to that
 material.
 
+`primarySourceRef` is now a legacy identity-write signal, not Material
+Projection's presentation source selector. Material Projection derives
+`MusicMaterial` read models from current source-material bindings and applies
+Source Preference Policy at read time; durable primary-source migration for
+write-model/schema/text-projection paths is a later step.
+
 ## Canonical Records
 
 `CanonicalRecord` stores full `CanonicalEntity` snapshots as `entity_json` plus

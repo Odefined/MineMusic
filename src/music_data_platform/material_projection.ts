@@ -7,6 +7,10 @@ import type {
   MusicRecording,
   SourceAvailabilityHint,
   SourceEntity,
+  SourceNavigationLink,
+  SourcePreferencePolicy,
+  SourcePreferencePurpose,
+  SourcePreferenceSelector,
 } from "../contracts/music_data_platform.js";
 import type { MaterialRecord } from "../contracts/storage.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
@@ -16,6 +20,7 @@ import { assertMaterialRef, materialKindForSourceKind } from "./material_ref.js"
 
 export type CreateMaterialProjectionInput = {
   db: MusicDatabaseContext;
+  sourcePreferencePolicy?: SourcePreferencePolicy;
 };
 
 export type MaterialProjection = {
@@ -26,16 +31,44 @@ export type ProjectMusicMaterialInput = {
   materialRef: Ref;
 };
 
+export const DEFAULT_SOURCE_PREFERENCE_POLICY: SourcePreferencePolicy = {
+  defaultOrder: [
+    { origin: "local_file" },
+    { origin: "provider", providerId: "netease" },
+    { origin: "provider", providerId: "qq" },
+  ],
+};
+
+export function rankBoundSources(input: {
+  sources: readonly SourceEntity[];
+  policy: SourcePreferencePolicy;
+  purpose: SourcePreferencePurpose;
+}): readonly SourceEntity[] {
+  const selectors = selectorsForPurpose(input.policy, input.purpose);
+
+  return input.sources
+    .map((source, index) => ({
+      source,
+      index,
+      rank: sourcePreferenceRank(source, selectors),
+    }))
+    .sort((left, right) => left.rank - right.rank || left.index - right.index)
+    .map((entry) => entry.source);
+}
+
 export function createMaterialProjection(
   input: CreateMaterialProjectionInput,
 ): MaterialProjection {
   const repositories = createIdentityRepositories({ db: input.db });
+  const sourcePreferencePolicy = input.sourcePreferencePolicy
+    ?? DEFAULT_SOURCE_PREFERENCE_POLICY;
 
   return {
     async projectMusicMaterial(projectInput) {
       return projectMusicMaterial({
         materialRef: projectInput.materialRef,
         repositories,
+        sourcePreferencePolicy,
       });
     },
   };
@@ -44,6 +77,7 @@ export function createMaterialProjection(
 async function projectMusicMaterial(input: {
   materialRef: Ref;
   repositories: ReturnType<typeof createIdentityRepositories>;
+  sourcePreferencePolicy: SourcePreferencePolicy;
 }): Promise<MusicMaterial | undefined> {
   assertMaterialRef(input.materialRef);
 
@@ -59,62 +93,85 @@ async function projectMusicMaterial(input: {
     return await projectMusicMaterial({
       materialRef: materialRecord.mergedIntoMaterialRef,
       repositories: input.repositories,
+      sourcePreferencePolicy: input.sourcePreferencePolicy,
     });
   }
 
-  const primarySourceRef = materialRecord.entity.primarySourceRef;
-
-  if (primarySourceRef === undefined) {
-    return undefined;
-  }
-
-  await assertPrimarySourceBound({
+  const boundSources = await boundSourcesForMaterial({
     materialRecord,
-    primarySourceRef,
     repositories: input.repositories,
   });
 
-  const sourceRecord = await input.repositories.sourceRecords.get({
-    sourceRef: primarySourceRef,
-  });
+  if (boundSources.length === 0) {
+    return undefined;
+  }
 
-  if (sourceRecord === undefined) {
-    throw new MusicDataPlatformError({
-      code: "music_data.source_not_found",
-      message: `Material primary source is missing a source record: ${refKey(primarySourceRef)}`,
+  for (const source of boundSources) {
+    assertSourceKindMatchesMaterial({
+      materialRecord,
+      source,
     });
   }
 
-  assertPrimarySourceKindMatchesMaterial({
-    materialRecord,
-    source: sourceRecord.entity,
+  const descriptiveSource = firstSourceForPurpose({
+    sources: boundSources,
+    policy: input.sourcePreferencePolicy,
+    purpose: "descriptive_metadata",
+  });
+  const sourceNavigationSource = firstSourceWithNavigationUrl({
+    sources: boundSources,
+    policy: input.sourcePreferencePolicy,
+    purpose: "source_navigation",
   });
 
-  return musicMaterialFromPrimarySource({
+  return musicMaterialFromPreferredSources({
     materialRecord,
-    source: sourceRecord.entity,
+    descriptiveSource,
+    ...(sourceNavigationSource === undefined ? {} : { sourceNavigationSource }),
   });
 }
 
-async function assertPrimarySourceBound(input: {
+async function boundSourcesForMaterial(input: {
   materialRecord: MaterialRecord;
-  primarySourceRef: Ref;
   repositories: ReturnType<typeof createIdentityRepositories>;
-}): Promise<void> {
-  const primarySourceRefKey = refKey(input.primarySourceRef);
+}): Promise<readonly SourceEntity[]> {
   const bindings = await input.repositories.sourceMaterialBindings.listSourcesForMaterial({
     materialRef: input.materialRecord.entity.materialRef,
   });
+  const bindingRefKeys = new Set(bindings.map((binding) => refKey(binding.sourceRef)));
+  const materialSourceRefKeys = input.materialRecord.entity.sourceRefs.map(refKey);
 
-  if (!bindings.some((binding) => refKey(binding.sourceRef) === primarySourceRefKey)) {
+  if (
+    bindings.length !== materialSourceRefKeys.length ||
+    materialSourceRefKeys.some((sourceRefKey) => !bindingRefKeys.has(sourceRefKey))
+  ) {
     throw new MusicDataPlatformError({
-      code: "music_data.material_primary_source_not_bound",
-      message: "Material primary source must be one of the material source bindings.",
+      code: "music_data.material_source_binding_invalid",
+      message: "Material sourceRefs must match current source-material bindings.",
     });
   }
+
+  const sources: SourceEntity[] = [];
+
+  for (const sourceRef of input.materialRecord.entity.sourceRefs) {
+    const sourceRecord = await input.repositories.sourceRecords.get({
+      sourceRef,
+    });
+
+    if (sourceRecord === undefined) {
+      throw new MusicDataPlatformError({
+        code: "music_data.source_not_found",
+        message: `Material bound source is missing a source record: ${refKey(sourceRef)}`,
+      });
+    }
+
+    sources.push(sourceRecord.entity);
+  }
+
+  return sources;
 }
 
-function assertPrimarySourceKindMatchesMaterial(input: {
+function assertSourceKindMatchesMaterial(input: {
   materialRecord: MaterialRecord;
   source: SourceEntity;
 }): void {
@@ -123,74 +180,160 @@ function assertPrimarySourceKindMatchesMaterial(input: {
   if (sourceMaterialKind !== input.materialRecord.entity.kind) {
     throw new MusicDataPlatformError({
       code: "music_data.record_kind_mismatch",
-      message: "Material primary source kind is not compatible with material kind.",
+      message: "Material bound source kind is not compatible with material kind.",
     });
   }
 }
 
-function musicMaterialFromPrimarySource(input: {
+function firstSourceForPurpose(input: {
+  sources: readonly SourceEntity[];
+  policy: SourcePreferencePolicy;
+  purpose: SourcePreferencePurpose;
+}): SourceEntity {
+  const source = rankBoundSources(input)[0];
+
+  if (source === undefined) {
+    throw new Error("Material Projection requires at least one bound source.");
+  }
+
+  return source;
+}
+
+function firstSourceWithNavigationUrl(input: {
+  sources: readonly SourceEntity[];
+  policy: SourcePreferencePolicy;
+  purpose: SourcePreferencePurpose;
+}): SourceEntity | undefined {
+  return rankBoundSources(input).find((source) => source.providerUrl !== undefined);
+}
+
+function selectorsForPurpose(
+  policy: SourcePreferencePolicy,
+  purpose: SourcePreferencePurpose,
+): readonly SourcePreferenceSelector[] {
+  return policy.purposeOverrides?.[purpose] ?? policy.defaultOrder;
+}
+
+function sourcePreferenceRank(
+  source: SourceEntity,
+  selectors: readonly SourcePreferenceSelector[],
+): number {
+  const index = selectors.findIndex((selector) => sourceMatchesSelector(source, selector));
+
+  return index === -1 ? selectors.length : index;
+}
+
+function sourceMatchesSelector(
+  source: SourceEntity,
+  selector: SourcePreferenceSelector,
+): boolean {
+  if (selector.origin === "local_file") {
+    return source.origin === "local_file";
+  }
+
+  return source.origin === "provider" && source.providerId === selector.providerId;
+}
+
+function musicMaterialFromPreferredSources(input: {
   materialRecord: MaterialRecord;
-  source: SourceEntity;
+  descriptiveSource: SourceEntity;
+  sourceNavigationSource?: SourceEntity;
 }): MusicMaterial {
-  switch (input.source.kind) {
+  switch (input.descriptiveSource.kind) {
     case "track":
-      return musicRecordingFromPrimarySource(input.materialRecord, input.source);
+      return musicRecordingFromPreferredSources({
+        materialRecord: input.materialRecord,
+        descriptiveSource: input.descriptiveSource,
+        ...(input.sourceNavigationSource === undefined
+          ? {}
+          : { sourceNavigationSource: input.sourceNavigationSource }),
+      });
     case "album":
-      return musicAlbumFromPrimarySource(input.materialRecord, input.source);
+      return musicAlbumFromPreferredSources({
+        materialRecord: input.materialRecord,
+        descriptiveSource: input.descriptiveSource,
+        ...(input.sourceNavigationSource === undefined
+          ? {}
+          : { sourceNavigationSource: input.sourceNavigationSource }),
+      });
     case "artist":
-      return musicArtistFromPrimarySource(input.materialRecord, input.source);
+      return musicArtistFromPreferredSources({
+        materialRecord: input.materialRecord,
+        descriptiveSource: input.descriptiveSource,
+        ...(input.sourceNavigationSource === undefined
+          ? {}
+          : { sourceNavigationSource: input.sourceNavigationSource }),
+      });
   }
 }
 
-function musicRecordingFromPrimarySource(
-  materialRecord: MaterialRecord,
-  source: Extract<SourceEntity, { kind: "track" }>,
-): MusicRecording {
+function musicRecordingFromPreferredSources(input: {
+  materialRecord: MaterialRecord;
+  descriptiveSource: Extract<SourceEntity, { kind: "track" }>;
+  sourceNavigationSource?: SourceEntity;
+}): MusicRecording {
+  const source = input.descriptiveSource;
+
   return {
     kind: "recording",
-    materialRef: materialRecord.entity.materialRef,
-    primarySourceRef: source.sourceRef,
+    materialRef: input.materialRecord.entity.materialRef,
     title: source.title,
     artistLabels: source.artistLabels ?? [],
     ...(source.albumLabel === undefined ? {} : { albumLabel: source.albumLabel }),
     ...(source.trackPosition === undefined ? {} : { trackPosition: source.trackPosition }),
     ...(source.durationMs === undefined ? {} : { durationMs: source.durationMs }),
-    playableLinks: source.links ?? [],
+    sourceNavigationLinks: sourceNavigationLinksFromSource(input.sourceNavigationSource),
     availability: materialAvailabilityFromSourceHint(source.availabilityHint),
     ...(source.versionInfo === undefined ? {} : { versionInfo: source.versionInfo }),
   };
 }
 
-function musicAlbumFromPrimarySource(
-  materialRecord: MaterialRecord,
-  source: Extract<SourceEntity, { kind: "album" }>,
-): MusicAlbum {
+function musicAlbumFromPreferredSources(input: {
+  materialRecord: MaterialRecord;
+  descriptiveSource: Extract<SourceEntity, { kind: "album" }>;
+  sourceNavigationSource?: SourceEntity;
+}): MusicAlbum {
+  const source = input.descriptiveSource;
+
   return {
     kind: "album",
-    materialRef: materialRecord.entity.materialRef,
-    primarySourceRef: source.sourceRef,
+    materialRef: input.materialRecord.entity.materialRef,
     title: source.title,
     ...(source.artistLabels === undefined ? {} : { artistLabels: source.artistLabels }),
     ...(source.releaseDate === undefined ? {} : { releaseDate: source.releaseDate }),
-    playableLinks: source.links ?? [],
+    sourceNavigationLinks: sourceNavigationLinksFromSource(input.sourceNavigationSource),
     availability: materialAvailabilityFromSourceHint(source.availabilityHint),
     ...(source.versionInfo === undefined ? {} : { versionInfo: source.versionInfo }),
   };
 }
 
-function musicArtistFromPrimarySource(
-  materialRecord: MaterialRecord,
-  source: Extract<SourceEntity, { kind: "artist" }>,
-): MusicArtist {
+function musicArtistFromPreferredSources(input: {
+  materialRecord: MaterialRecord;
+  descriptiveSource: Extract<SourceEntity, { kind: "artist" }>;
+  sourceNavigationSource?: SourceEntity;
+}): MusicArtist {
+  const source = input.descriptiveSource;
+
   return {
     kind: "artist",
-    materialRef: materialRecord.entity.materialRef,
-    primarySourceRef: source.sourceRef,
+    materialRef: input.materialRecord.entity.materialRef,
     name: source.name,
     ...(source.aliases === undefined ? {} : { aliases: source.aliases }),
-    playableLinks: source.links ?? [],
+    sourceNavigationLinks: sourceNavigationLinksFromSource(input.sourceNavigationSource),
     availability: materialAvailabilityFromSourceHint(source.availabilityHint),
   };
+}
+
+function sourceNavigationLinksFromSource(
+  source: SourceEntity | undefined,
+): readonly SourceNavigationLink[] {
+  if (source?.providerUrl === undefined) {
+    return [];
+  }
+
+  return [{
+    url: source.providerUrl,
+  }];
 }
 
 function materialAvailabilityFromSourceHint(

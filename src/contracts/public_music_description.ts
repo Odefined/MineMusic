@@ -1,7 +1,7 @@
 import type {
   MusicMaterial,
   PlatformLibraryKind,
-  PlayableLink,
+  SourceNavigationLink,
 } from "./music_data_platform.js";
 import type {
   MusicCard,
@@ -159,7 +159,7 @@ export function musicCardFromMusicMaterial(material: MusicMaterial): MusicCard {
         label: material.title,
         ...(artistsText === undefined ? {} : { artistsText }),
         ...(material.albumLabel === undefined ? {} : { albumLabel: material.albumLabel }),
-        displayLinks: displayLinksFromPlayableLinks(material.playableLinks),
+        displayLinks: displayLinksFromSourceNavigationLinks(material.sourceNavigationLinks),
         availability: material.availability,
         ...(material.versionInfo?.label === undefined
           ? {}
@@ -173,7 +173,7 @@ export function musicCardFromMusicMaterial(material: MusicMaterial): MusicCard {
         kind: material.kind,
         label: material.title,
         ...(artistsText === undefined ? {} : { artistsText }),
-        displayLinks: displayLinksFromPlayableLinks(material.playableLinks),
+        displayLinks: displayLinksFromSourceNavigationLinks(material.sourceNavigationLinks),
         availability: material.availability,
         ...(material.versionInfo?.label === undefined
           ? {}
@@ -184,7 +184,7 @@ export function musicCardFromMusicMaterial(material: MusicMaterial): MusicCard {
       return {
         kind: material.kind,
         label: material.name,
-        displayLinks: displayLinksFromPlayableLinks(material.playableLinks),
+        displayLinks: displayLinksFromSourceNavigationLinks(material.sourceNavigationLinks),
         availability: material.availability,
       };
   }
@@ -214,8 +214,8 @@ function artistsTextForLabels(labels: readonly string[] | undefined): string | u
   return cleanLabelPart(labels?.join(", "));
 }
 
-function displayLinksFromPlayableLinks(
-  links: readonly PlayableLink[],
+function displayLinksFromSourceNavigationLinks(
+  links: readonly SourceNavigationLink[],
 ): readonly PublicDisplayLink[] {
   return links.map((link) => {
     const label = cleanLabelPart(link.label);

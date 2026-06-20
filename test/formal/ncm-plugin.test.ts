@@ -102,13 +102,6 @@ assert.deepEqual(track?.versionInfo, {
     tags: ["remaster", "extended"],
 });
 assert.equal(track?.providerUrl, "https://music.163.com/#/song?id=1001");
-assert.deepEqual(track?.links, [
-    {
-        url: "https://music.163.com/#/song?id=1001",
-        label: "NetEase Cloud Music",
-        requiresAccount: true,
-    },
-]);
 assert.equal(track?.availabilityHint, "restricted");
 assert.equal("providerScore" in (trackSearch[0] ?? {}), false);
 const unavailableTrackProvider = await sourceProviderFor({
@@ -131,7 +124,6 @@ const unavailableTrackSearch = await assertOk(await unavailableTrackProvider.sea
 }) ?? fail("missing_search", "missing search"));
 const unavailableTrack = unavailableTrackSearch[0]?.sourceEntity;
 assert.equal(unavailableTrack?.availabilityHint, "unavailable");
-assert.equal(unavailableTrack?.links, undefined);
 const fallbackTrackProvider = await sourceProviderFor({
     fetch: fetchJson({
         result: {
@@ -270,7 +262,6 @@ assert.deepEqual(album?.versionInfo, {
     tags: ["deluxe"],
 });
 assert.equal(album?.providerUrl, "https://music.163.com/#/album?id=3002");
-assert.equal(album?.links, undefined);
 const artistFetch = fetchJson({
     result: {
         artists: [
@@ -301,7 +292,6 @@ assert.equal(artist?.kind, "artist");
 assert.equal(artist?.name, "Phoenix");
 assert.deepEqual(artist?.aliases, ["Alt Phoenix", "Translated Phoenix"]);
 assert.equal(artist?.providerUrl, "https://music.163.com/#/artist?id=5001");
-assert.equal(artist?.links, undefined);
 assert.equal(artist?.versionInfo, undefined);
 const savedTrackAddedAt = Date.UTC(2026, 0, 2, 3, 4, 5);
 const savedTrackFetch = fetchSequence([

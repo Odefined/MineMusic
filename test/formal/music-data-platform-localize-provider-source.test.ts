@@ -221,11 +221,6 @@ async function seedProviderMaterial(database: MusicDatabase, sourceRef: Ref): Pr
         tags: ["remastered"],
       },
       providerUrl: "https://music.example/provider-track",
-      links: [{
-        url: "https://music.example/play",
-        label: "Provider Play",
-        requiresAccount: true,
-      }],
       availabilityHint: "restricted",
     };
     const writes = createMusicDataPlatformSourceOfTruthWriteCommands({ db, now });
@@ -431,7 +426,6 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
     tags: ["remastered"],
   });
   assert.equal(localSourceRecord.entity.providerUrl, undefined);
-  assert.equal(localSourceRecord.entity.links, undefined);
   assert.equal(localSourceRecord.entity.availabilityHint, undefined);
 
   const localBinding = await repositories.sourceMaterialBindings.findMaterialForSource({

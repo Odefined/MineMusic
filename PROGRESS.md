@@ -53,7 +53,11 @@ Phase 1 resets active code instead of patching the MVP runtime:
 - material/canonical identity kind vocabulary uses
   `recording | album | artist | work | release`;
 - `VersionInfo` is first-class source/material/canonical information;
-- `PlayableLink` is source-owned and contains no `sourceRef` or `expiresAt`;
+- `PlayableLink` is a runtime playback-link value returned by provider
+  playback/link refresh capabilities, contains no `sourceRef` or `expiresAt`,
+  and is not persisted inside `SourceEntity` / `SourceRecord`;
+- `SourceNavigationLink` carries projected source navigation URLs for
+  presentation display links and is not a playback capability;
 - `ProviderMaterialCandidate` wraps normalized `SourceEntity` facts rather than
   material identity;
 - `SourceProvider` declares optional capabilities because providers do not all
@@ -276,8 +280,8 @@ registration-only proof to a narrow search seam:
 - NCM search maps tracks, albums, and artists into normalized `SourceEntity`
   facts using `source_netease` refs;
 - NCM mapping preserves source-side version info, stable artist source refs,
-  optional track position, availability hints, provider URLs, and track links
-  without synthesizing `providerScore`;
+  optional track position, availability hints, and provider URLs without
+  synthesizing `providerScore`;
 - NCM plugin config is plugin-id keyed through
   `plugins["minemusic.ncm"]`, keeping overall runtime config separate from
   plugin-specific config;
@@ -1006,7 +1010,11 @@ Phase 16D ships the full text-driven Music Discovery lookup tool:
 Phase 17 ships the first durable-write consumption path:
 
 - Material Projection maps durable material refs to discriminated
-  `MusicMaterial` read models from primary source facts.
+  `MusicMaterial` read models from current bound sources. It applies
+  Source Preference Policy at read time, uses `MaterialEntity.sourceRefs` only
+  as stable tie-break order among current bindings, no longer exposes
+  `primarySourceRef` in `MusicMaterial`, and projects `sourceNavigationLinks`
+  from source navigation facts such as `providerUrl`.
 - Candidate Commit is owned by Music Data Platform and admits provider
   candidates from runtime candidate cache into durable material/source identity,
   idempotently reusing existing source-material bindings.

@@ -742,6 +742,13 @@ function assertCanonicalRecordConsistency(record: CanonicalRecord): void {
 }
 
 function assertSourceEntityRefShape(entity: SourceEntity): void {
+  if (Object.prototype.hasOwnProperty.call(entity, "links")) {
+    throwMusicDataError({
+      code: "music_data.record_ref_key_mismatch",
+      message: "Source entity must not carry playable links; use providerUrl for navigation and SourceProvider.getPlayableLinks for playback.",
+    });
+  }
+
   musicDataPlatformRefKey({
     ref: entity.sourceRef,
     fieldName: "sourceRef",

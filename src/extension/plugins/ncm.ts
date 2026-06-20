@@ -1017,7 +1017,6 @@ function toTrackCandidate(song: NcmSong): ProviderMaterialCandidate | undefined 
   const label = labelWithArtists(title, artists.labels);
   const unavailable = song.noCopyrightRcmd !== undefined && song.noCopyrightRcmd !== null;
   const restricted = !unavailable && typeof song.fee === "number" && song.fee !== 0;
-  const links = unavailable ? [] : [trackLink(id, restricted)];
   const versionInfo = extractVersionInfo([
     song.name,
     ...stringArray(song.alias),
@@ -1048,7 +1047,6 @@ function toTrackCandidate(song: NcmSong): ProviderMaterialCandidate | undefined 
     ...(duration === undefined ? {} : { durationMs: duration }),
     ...(versionInfo === undefined ? {} : { versionInfo }),
     providerUrl: songUrl(id),
-    ...(links.length === 0 ? {} : { links }),
     availabilityHint: unavailable ? "unavailable" : restricted ? "restricted" : "playable",
   };
 
@@ -1292,14 +1290,6 @@ function toTrackPosition(song: NcmSong, album: NcmAlbum | undefined): SourceTrac
 
 function durationMs(song: NcmSong): number | undefined {
   return toPositiveInteger(song.duration) ?? toPositiveInteger(song.dt);
-}
-
-function trackLink(id: string, requiresAccount: boolean): PlayableLink {
-  return {
-    url: songUrl(id),
-    label: "NetEase Cloud Music",
-    ...(requiresAccount ? { requiresAccount: true } : {}),
-  };
 }
 
 // extractVersionInfo / explicitVersionPhrases / versionTagsForPhrase moved to

@@ -42,6 +42,11 @@ export type PlayableLink = {
   requiresAccount?: boolean;
 };
 
+export type SourceNavigationLink = {
+  url: string;
+  label?: string;
+};
+
 // A downloadable audio source: a direct file URL (HTTP GET yields the complete
 // decodable audio) plus the facts a downloader needs to name, size-check, and
 // integrity-verify the file. This is deliberately separate from PlayableLink:
@@ -80,12 +85,25 @@ export type SourceAvailabilityHint =
 
 export type SourceOrigin = "provider" | "local_file";
 
+export type SourcePreferencePurpose =
+  | "descriptive_metadata"
+  | "source_navigation"
+  | "playback";
+
+export type SourcePreferenceSelector =
+  | { origin: "provider"; providerId: string }
+  | { origin: "local_file" };
+
+export type SourcePreferencePolicy = {
+  defaultOrder: readonly SourcePreferenceSelector[];
+  purposeOverrides?: Partial<Record<SourcePreferencePurpose, readonly SourcePreferenceSelector[]>>;
+};
+
 // Fields shared by both origins.
 type SourceEntitySharedFields = {
   sourceRef: Ref;
   label: string;
   providerUrl?: string;
-  links?: readonly PlayableLink[];
   availabilityHint?: SourceAvailabilityHint;
   versionInfo?: VersionInfo;
 };
@@ -185,13 +203,12 @@ export type MaterialAvailability =
 export type MusicRecording = {
   kind: "recording";
   materialRef: Ref;
-  primarySourceRef: Ref;
   title: string;
   artistLabels: readonly string[];
   albumLabel?: string;
   trackPosition?: SourceTrackPosition;
   durationMs?: number;
-  playableLinks: readonly PlayableLink[];
+  sourceNavigationLinks: readonly SourceNavigationLink[];
   availability: MaterialAvailability;
   versionInfo?: VersionInfo;
 };
@@ -199,11 +216,10 @@ export type MusicRecording = {
 export type MusicAlbum = {
   kind: "album";
   materialRef: Ref;
-  primarySourceRef: Ref;
   title: string;
   artistLabels?: readonly string[];
   releaseDate?: string;
-  playableLinks: readonly PlayableLink[];
+  sourceNavigationLinks: readonly SourceNavigationLink[];
   availability: MaterialAvailability;
   versionInfo?: VersionInfo;
 };
@@ -211,10 +227,9 @@ export type MusicAlbum = {
 export type MusicArtist = {
   kind: "artist";
   materialRef: Ref;
-  primarySourceRef: Ref;
   name: string;
   aliases?: readonly string[];
-  playableLinks: readonly PlayableLink[];
+  sourceNavigationLinks: readonly SourceNavigationLink[];
   availability: MaterialAvailability;
 };
 

@@ -76,8 +76,8 @@ job or domain state. Slice 6 adds the Music Data Platform
 payloads, policy-versioned idempotency keys, injected provider download-source
 resolution, staged downloads, content-addressed finalization, Local Source
 registration through `createLocalSource`, localized descriptive metadata
-snapshotting from the provider source without provider links/availability, and
-declared cleanup/error behavior.
+snapshotting from the provider source without provider navigation,
+playable-link, or availability facts, and declared cleanup/error behavior.
 Slice 7 wires runtime integration: Server Host config reads explicit
 `localSources.rootDir` / `MINEMUSIC_LOCAL_SOURCES_ROOT`, default host creates
 the Postgres-backed Background Work backend, Music Data Platform registers the
@@ -88,7 +88,11 @@ Phase 17 adds the internal Music Data Platform Candidate Commit owning command
 (ADR-0011), Material Projection (`materialRef` -> `MusicMaterial`), the Effect
 Boundary auto-pass widening for presentation-driven admission (ADR-0021), and
 the `music.experience.present` consumption tool that returns a stable library
-handle and a leak-free `MusicCard`. Phase 18A introduces the `library.`
+handle and a leak-free `MusicCard`. Material Projection now applies
+Source Preference Policy to current bound sources at read time and no longer
+exposes `primarySourceRef` in `MusicMaterial`; the durable
+`MaterialEntity.primarySourceRef` field remains a legacy identity-write signal
+until its later migration. Phase 18A introduces the `library.`
 Public Agent Protocol namespace, keeps Library Import owned by Music Data
 Platform rather than a new top-level area, and adds the initially empty
 MDP-owned `library-import` RuntimeModule under
@@ -167,7 +171,13 @@ Accepted vocabulary includes:
   (md5 identity, no providerId);
 - material/canonical kinds `recording | album | artist | work | release`;
 - first-class `VersionInfo`;
-- source-owned `PlayableLink = { url, label?, requiresAccount? }`;
+- runtime `PlayableLink = { url, label?, requiresAccount? }` returned by
+  `SourceProvider.getPlayableLinks`, not persisted inside `SourceEntity` /
+  `SourceRecord`;
+- source-owned `providerUrl` as a durable source navigation hint, not a
+  playable link;
+- `SourceNavigationLink = { url, label? }` as the Material Projection shape
+  used to turn source navigation facts into public display links;
 - `ProviderMaterialCandidate = { sourceEntity, providerScore? }`;
 - `Collection` as a user-named organizing container;
 - `owner_material_relations` as owner-scoped factual relation source-of-truth;
