@@ -2,8 +2,8 @@ import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 
 export const musicDataPlatformOwnerCatalogEntriesSchema: MusicDatabaseSchemaContribution = {
   id: "music_data_platform.owner_catalog_entries_v1",
-  apply(context) {
-    context.run(`
+  async apply(context) {
+    await context.run(`
       CREATE TABLE IF NOT EXISTS owner_material_entries (
         entry_key TEXT PRIMARY KEY,
         owner_scope TEXT NOT NULL,
@@ -23,12 +23,12 @@ export const musicDataPlatformOwnerCatalogEntriesSchema: MusicDatabaseSchemaCont
       )
     `);
 
-    context.run(`
+    await context.run(`
       CREATE INDEX IF NOT EXISTS owner_material_entries_owner_material_idx
       ON owner_material_entries(owner_scope, material_ref_key, active, visibility_role)
     `);
 
-    context.run(`
+    await context.run(`
       CREATE INDEX IF NOT EXISTS owner_material_entries_kind_ref_idx
       ON owner_material_entries(owner_scope, entry_kind, entry_ref_key, active)
     `);
@@ -37,9 +37,9 @@ export const musicDataPlatformOwnerCatalogEntriesSchema: MusicDatabaseSchemaCont
 
 export const musicDataPlatformOwnerCatalogViewSchema: MusicDatabaseSchemaContribution = {
   id: "music_data_platform.owner_catalog_view_v1",
-  apply(context) {
-    context.run("DROP VIEW IF EXISTS owner_material_catalog_view");
-    context.run(`
+  async apply(context) {
+    await context.run("DROP VIEW IF EXISTS owner_material_catalog_view");
+    await context.run(`
       CREATE VIEW owner_material_catalog_view AS
       SELECT
         e.owner_scope,
@@ -49,25 +49,25 @@ export const musicDataPlatformOwnerCatalogViewSchema: MusicDatabaseSchemaContrib
         COALESCE(
           MAX(
             CASE
-              WHEN json_extract(e.provenance_json, '$.lastProviderAddedAt') IS NOT NULL
-              THEN json_extract(e.provenance_json, '$.lastProviderAddedAt')
+              WHEN e.provenance_json::jsonb ->> 'lastProviderAddedAt' IS NOT NULL
+              THEN e.provenance_json::jsonb ->> 'lastProviderAddedAt'
             END
           ),
           MAX(
             CASE
-              WHEN json_extract(e.provenance_json, '$.lastAddedAt') IS NOT NULL
-              THEN json_extract(e.provenance_json, '$.lastAddedAt')
+              WHEN e.provenance_json::jsonb ->> 'lastAddedAt' IS NOT NULL
+              THEN e.provenance_json::jsonb ->> 'lastAddedAt'
             END
           ),
           MAX(
             CASE
-              WHEN json_extract(e.provenance_json, '$.lastRelationUpdatedAt') IS NOT NULL
-              THEN json_extract(e.provenance_json, '$.lastRelationUpdatedAt')
+              WHEN e.provenance_json::jsonb ->> 'lastRelationUpdatedAt' IS NOT NULL
+              THEN e.provenance_json::jsonb ->> 'lastRelationUpdatedAt'
             END
           ),
           MAX(e.created_at)
         ) AS recently_added_at,
-        json_group_array(json(e.provenance_json)) AS provenance_json
+        jsonb_agg(e.provenance_json::jsonb)::text AS provenance_json
       FROM owner_material_entries e
       JOIN material_records m
         ON m.ref_key = e.material_ref_key

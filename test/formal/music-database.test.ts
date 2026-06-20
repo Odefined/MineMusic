@@ -71,7 +71,6 @@ if (false) {
 
   const typeOnlyAsyncSchema: MusicDatabaseSchemaContribution = {
     id: "async-schema",
-    // @ts-expect-error Schema contribution callback must be synchronous.
     async apply() {},
   };
   void typeOnlyAsyncSchema;

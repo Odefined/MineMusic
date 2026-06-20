@@ -9,8 +9,8 @@ import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 // (unlike the handle registry): every page mints a fresh cursor id.
 export const stageInterfaceLookupCursorRegistrySchema: MusicDatabaseSchemaContribution = {
   id: "stage_interface.lookup_cursor_registry_v1",
-  apply(context) {
-    context.run(`
+  async apply(context) {
+    await context.run(`
       CREATE TABLE IF NOT EXISTS stage_interface_lookup_cursor_registry (
         cursor_id TEXT PRIMARY KEY,
         owner_scope TEXT NOT NULL,
@@ -21,7 +21,7 @@ export const stageInterfaceLookupCursorRegistrySchema: MusicDatabaseSchemaContri
       )
     `);
 
-    context.run(`
+    await context.run(`
       CREATE INDEX IF NOT EXISTS stage_interface_lookup_cursor_registry_owner_cursor_idx
       ON stage_interface_lookup_cursor_registry(owner_scope, cursor_id)
     `);

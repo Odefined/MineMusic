@@ -2,8 +2,8 @@ import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 
 export const musicDataPlatformProjectionMaintenanceSchema: MusicDatabaseSchemaContribution = {
   id: "music_data_platform.projection_maintenance_v1",
-  apply(context) {
-    context.run(`
+  async apply(context) {
+    await context.run(`
       CREATE TABLE IF NOT EXISTS projection_maintenance_targets (
         projection_kind TEXT NOT NULL,
         target_key TEXT NOT NULL,
@@ -27,7 +27,7 @@ export const musicDataPlatformProjectionMaintenanceSchema: MusicDatabaseSchemaCo
       )
     `);
 
-    context.run(`
+    await context.run(`
       CREATE INDEX IF NOT EXISTS projection_maintenance_targets_pending_order_idx
       ON projection_maintenance_targets(updated_at, projection_kind, target_key)
     `);

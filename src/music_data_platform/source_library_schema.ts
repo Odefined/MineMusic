@@ -2,8 +2,8 @@ import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 
 export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContribution = {
   id: "music_data_platform.source_library_v3",
-  apply(context) {
-    context.run(`
+  async apply(context) {
+    await context.run(`
       CREATE TABLE IF NOT EXISTS source_libraries (
         library_ref_key TEXT PRIMARY KEY,
         owner_scope TEXT NOT NULL,
@@ -16,7 +16,7 @@ export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContributi
       )
     `);
 
-    context.run(`
+    await context.run(`
       CREATE TABLE IF NOT EXISTS source_library_items (
         library_ref_key TEXT NOT NULL,
         source_ref_key TEXT NOT NULL,
@@ -29,12 +29,12 @@ export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContributi
       )
     `);
 
-    context.run(`
+    await context.run(`
       CREATE INDEX IF NOT EXISTS source_library_items_source_ref_key_idx
       ON source_library_items(source_ref_key)
     `);
 
-    context.run(`
+    await context.run(`
       CREATE TABLE IF NOT EXISTS source_library_import_batches (
         batch_id TEXT PRIMARY KEY,
         owner_scope TEXT NOT NULL,
@@ -58,7 +58,7 @@ export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContributi
       )
     `);
 
-    context.run(`
+    await context.run(`
       CREATE TABLE IF NOT EXISTS source_library_import_item_outcomes (
         batch_id TEXT NOT NULL,
         sequence INTEGER NOT NULL,
@@ -75,12 +75,12 @@ export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContributi
       )
     `);
 
-    context.run(`
+    await context.run(`
       CREATE INDEX IF NOT EXISTS source_library_import_item_outcomes_batch_id_idx
       ON source_library_import_item_outcomes(batch_id)
     `);
 
-    context.run(`
+    await context.run(`
       CREATE INDEX IF NOT EXISTS source_library_import_item_outcomes_batch_source_outcome_idx
       ON source_library_import_item_outcomes(batch_id, source_ref_key, outcome)
     `);

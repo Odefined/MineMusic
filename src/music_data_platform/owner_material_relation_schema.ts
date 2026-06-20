@@ -2,8 +2,8 @@ import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 
 export const musicDataPlatformOwnerRelationSchema: MusicDatabaseSchemaContribution = {
   id: "music_data_platform.owner_relations_v1",
-  apply(context) {
-    context.run(`
+  async apply(context) {
+    await context.run(`
       CREATE TABLE IF NOT EXISTS owner_material_relations (
         relation_ref_key TEXT PRIMARY KEY,
         relation_ref_json TEXT NOT NULL,
@@ -23,17 +23,17 @@ export const musicDataPlatformOwnerRelationSchema: MusicDatabaseSchemaContributi
       )
     `);
 
-    context.run(`
+    await context.run(`
       CREATE INDEX IF NOT EXISTS owner_material_relations_owner_material_kind_status_idx
       ON owner_material_relations(owner_scope, material_ref_key, relation_kind, status)
     `);
 
-    context.run(`
+    await context.run(`
       CREATE INDEX IF NOT EXISTS owner_material_relations_kind_status_material_idx
       ON owner_material_relations(owner_scope, relation_kind, status, material_ref_key)
     `);
 
-    context.run(`
+    await context.run(`
       CREATE UNIQUE INDEX IF NOT EXISTS owner_material_relations_target_unique_idx
       ON owner_material_relations(owner_scope, material_ref_key, relation_kind)
     `);

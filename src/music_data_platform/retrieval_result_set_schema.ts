@@ -2,8 +2,8 @@ import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 
 export const musicDataPlatformRetrievalResultSetSchema: MusicDatabaseSchemaContribution = {
   id: "music_data_platform.retrieval_result_set_v1",
-  apply(context) {
-    context.run(`
+  async apply(context) {
+    await context.run(`
       CREATE TABLE IF NOT EXISTS retrieval_result_sets (
         result_set_id TEXT PRIMARY KEY,
         query_fingerprint TEXT NOT NULL,
@@ -18,12 +18,12 @@ export const musicDataPlatformRetrievalResultSetSchema: MusicDatabaseSchemaContr
       )
     `);
 
-    context.run(`
+    await context.run(`
       CREATE INDEX IF NOT EXISTS retrieval_result_sets_expires_at_idx
       ON retrieval_result_sets(expires_at, result_set_id)
     `);
 
-    context.run(`
+    await context.run(`
       CREATE TABLE IF NOT EXISTS retrieval_result_rows (
         result_set_id TEXT NOT NULL,
         row_kind TEXT NOT NULL,
@@ -54,26 +54,34 @@ export const musicDataPlatformRetrievalResultSetSchema: MusicDatabaseSchemaContr
       )
     `);
 
-    context.run(`
+    await context.run(`
       CREATE INDEX IF NOT EXISTS retrieval_result_rows_candidate_ref_key_idx
       ON retrieval_result_rows(material_candidate_ref_key)
     `);
 
-    context.run(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS retrieval_result_text_fts USING fts5(
-        result_set_id UNINDEXED,
-        row_kind UNINDEXED,
-        stable_ref_key UNINDEXED,
-        title_text,
-        artist_text,
-        album_text,
-        version_text,
-        alias_text,
-        tokenize = 'unicode61'
+    await context.run(`
+      CREATE TABLE IF NOT EXISTS retrieval_result_text_fts (
+        result_set_id TEXT NOT NULL,
+        row_kind TEXT NOT NULL,
+        stable_ref_key TEXT NOT NULL,
+        title_text TEXT NOT NULL,
+        artist_text TEXT NOT NULL,
+        album_text TEXT NOT NULL,
+        version_text TEXT NOT NULL,
+        alias_text TEXT NOT NULL,
+        search_vector tsvector NOT NULL DEFAULT ''::tsvector,
+        PRIMARY KEY(result_set_id, row_kind, stable_ref_key),
+        FOREIGN KEY(result_set_id, row_kind, stable_ref_key)
+          REFERENCES retrieval_result_rows(result_set_id, row_kind, stable_ref_key)
       )
     `);
 
-    context.run(`
+    await context.run(`
+      CREATE INDEX IF NOT EXISTS retrieval_result_text_fts_search_vector_idx
+      ON retrieval_result_text_fts USING GIN(search_vector)
+    `);
+
+    await context.run(`
       CREATE TABLE IF NOT EXISTS material_candidate_cache (
         material_candidate_ref_key TEXT NOT NULL,
         provider_id TEXT NOT NULL,
@@ -92,7 +100,7 @@ export const musicDataPlatformRetrievalResultSetSchema: MusicDatabaseSchemaContr
       )
     `);
 
-    context.run(`
+    await context.run(`
       CREATE INDEX IF NOT EXISTS material_candidate_cache_expires_at_idx
       ON material_candidate_cache(expires_at, material_candidate_ref_key)
     `);

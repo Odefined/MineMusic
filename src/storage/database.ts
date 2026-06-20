@@ -22,7 +22,7 @@ export type MusicDatabaseImmediateResult<Result> =
 
 export type MusicDatabaseSchemaContribution = {
   id: string;
-  apply(context: MusicDatabaseContext): undefined;
+  apply(context: MusicDatabaseContext): void | Promise<void>;
 };
 
 export type InitializeMusicDatabaseInput = {

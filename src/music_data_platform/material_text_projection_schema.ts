@@ -2,8 +2,8 @@ import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 
 export const musicDataPlatformMaterialTextProjectionSchema: MusicDatabaseSchemaContribution = {
   id: "music_data_platform.material_text_projection_v1",
-  apply(context) {
-    context.run(`
+  async apply(context) {
+    await context.run(`
       CREATE TABLE IF NOT EXISTS material_text_documents (
         material_ref_key TEXT PRIMARY KEY,
         material_kind TEXT NOT NULL,
@@ -20,16 +20,22 @@ export const musicDataPlatformMaterialTextProjectionSchema: MusicDatabaseSchemaC
       )
     `);
 
-    context.run(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS material_text_fts USING fts5(
-        material_ref_key UNINDEXED,
-        title_text,
-        artist_text,
-        album_text,
-        version_text,
-        alias_text,
-        tokenize = 'unicode61'
+    await context.run(`
+      CREATE TABLE IF NOT EXISTS material_text_fts (
+        material_ref_key TEXT PRIMARY KEY,
+        title_text TEXT NOT NULL,
+        artist_text TEXT NOT NULL,
+        album_text TEXT NOT NULL,
+        version_text TEXT NOT NULL,
+        alias_text TEXT NOT NULL,
+        search_vector tsvector NOT NULL DEFAULT ''::tsvector,
+        FOREIGN KEY(material_ref_key) REFERENCES material_text_documents(material_ref_key)
       )
+    `);
+
+    await context.run(`
+      CREATE INDEX IF NOT EXISTS material_text_fts_search_vector_idx
+      ON material_text_fts USING GIN(search_vector)
     `);
   },
 };

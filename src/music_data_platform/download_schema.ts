@@ -2,8 +2,8 @@ import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 
 export const musicDataPlatformDownloadSchema: MusicDatabaseSchemaContribution = {
   id: "music_data_platform.download_v1",
-  apply(context) {
-    context.run(`
+  async apply(context) {
+    await context.run(`
       CREATE TABLE IF NOT EXISTS download_jobs (
         job_id TEXT PRIMARY KEY,
         state TEXT NOT NULL,
