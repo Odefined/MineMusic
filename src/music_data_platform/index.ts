@@ -218,21 +218,23 @@ export type {
   CreateMusicDataPlatformRetrievalReadPortInput,
   MusicDataPlatformRetrievalMaterialRow,
   MusicDataPlatformRetrievalReadPort,
-  MusicDataPlatformRetrievalSearchInput,
   MusicDataPlatformRetrievalSearchPage,
-  RetrievalFreshness,
   RetrievalMatchedTextTokenEvidence,
-  RetrievalOrder,
-  RetrievalReadCursorPosition,
   RetrievalReadPoolFilter,
   RetrievalTextField,
 } from "./retrieval_read_model.js";
+export type {
+  MixedRetrievalCursorPosition,
+  MusicDataPlatformRetrievalSearchInput,
+  RetrievalFreshness,
+  RetrievalOrder,
+  RetrievalReadCursorPosition,
+} from "./retrieval_shared.js";
 export {
   createMusicDataPlatformRetrievalWorkspace,
 } from "./retrieval_mixed_workspace.js";
 export type {
   CreateMusicDataPlatformRetrievalWorkspaceInput,
-  MixedRetrievalCursorPosition,
   MusicDataPlatformMixedRetrievalMaterialCandidateRow,
   MusicDataPlatformMixedRetrievalMaterialRow,
   MusicDataPlatformMixedRetrievalPage,

@@ -34,6 +34,7 @@ import {
   requiredFiniteNumber,
   requiredPositiveInteger,
   sqlPlaceholders,
+  type MixedRetrievalCursorPosition,
   type RetrievalMatchedTextTokenEvidence,
   type RetrievalReadPoolFilter,
 } from "./retrieval_shared.js";
@@ -60,15 +61,6 @@ import {
   createSourceLibraryRef,
 } from "./source_library_ref.js";
 import { assertComparableTimestamp } from "./timestamp_validation.js";
-
-export type MixedRetrievalCursorPosition = {
-  order: "text_relevance";
-  matchedTokenCount: number;
-  bestFieldPriority: number;
-  rankSortValue: number;
-  rowKind: "material" | "material_candidate";
-  stableRefKey: string;
-};
 
 export type MusicDataPlatformMixedRetrievalSearchInput = {
   ownerScope: string;

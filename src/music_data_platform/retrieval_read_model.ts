@@ -37,54 +37,19 @@ import {
   requiredFiniteNumber,
   requiredPositiveInteger,
   sqlPlaceholders,
+  type MusicDataPlatformRetrievalSearchInput,
+  type RetrievalFreshness,
   type RetrievalMatchedTextTokenEvidence,
+  type RetrievalOrder,
+  type RetrievalReadCursorPosition,
   type RetrievalReadPoolFilter,
 } from "./retrieval_shared.js";
-
-export type RetrievalOrder =
-  | "text_relevance"
-  | "recently_added"
-  | "stable";
 
 export type { RetrievalTextField } from "./material_text_ranking.js";
 export type {
   RetrievalMatchedTextTokenEvidence,
   RetrievalReadPoolFilter,
 } from "./retrieval_shared.js";
-
-export type RetrievalReadCursorPosition =
-  | {
-      order: "text_relevance";
-      matchedTokenCount: number;
-      bestFieldPriority: number;
-      rankSortValue: number;
-      materialRefKey: string;
-    }
-  | {
-      order: "recently_added";
-      recentlyAddedAt: string;
-      materialRefKey: string;
-    }
-  | {
-      order: "stable";
-      materialRefKey: string;
-    };
-
-export type RetrievalFreshness = {
-  status: "current" | "possibly_stale";
-  dirtyTargetCount?: number;
-  failedTargetCount?: number;
-};
-
-export type MusicDataPlatformRetrievalSearchInput = {
-  ownerScope: string;
-  text?: string;
-  materialKind?: MaterialEntityKind;
-  poolFilter?: RetrievalReadPoolFilter;
-  order: RetrievalOrder;
-  limit: number;
-  cursorPosition?: RetrievalReadCursorPosition;
-};
 
 export type MusicDataPlatformRetrievalMaterialRow = {
   materialRef: Ref;

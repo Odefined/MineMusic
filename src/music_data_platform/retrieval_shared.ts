@@ -15,6 +15,7 @@
 // are supplied per-call via an `invalid` factory so each consumer keeps its own
 // vocabulary. Those factory-parameterized helpers land in a later change.
 
+import type { MaterialEntityKind } from "../contracts/music_data_platform.js";
 import type { Ref } from "../contracts/kernel.js";
 import type { MusicDataPlatformError } from "./errors.js";
 import type { RetrievalTextField } from "./material_text_ranking.js";
@@ -28,6 +29,54 @@ export type RetrievalReadPoolFilter = {
 export type RetrievalMatchedTextTokenEvidence = {
   field: RetrievalTextField;
   tokens: readonly string[];
+};
+
+export type RetrievalOrder =
+  | "text_relevance"
+  | "recently_added"
+  | "stable";
+
+export type RetrievalReadCursorPosition =
+  | {
+      order: "text_relevance";
+      matchedTokenCount: number;
+      bestFieldPriority: number;
+      rankSortValue: number;
+      materialRefKey: string;
+    }
+  | {
+      order: "recently_added";
+      recentlyAddedAt: string;
+      materialRefKey: string;
+    }
+  | {
+      order: "stable";
+      materialRefKey: string;
+    };
+
+export type RetrievalFreshness = {
+  status: "current" | "possibly_stale";
+  dirtyTargetCount?: number;
+  failedTargetCount?: number;
+};
+
+export type MixedRetrievalCursorPosition = {
+  order: "text_relevance";
+  matchedTokenCount: number;
+  bestFieldPriority: number;
+  rankSortValue: number;
+  rowKind: "material" | "material_candidate";
+  stableRefKey: string;
+};
+
+export type MusicDataPlatformRetrievalSearchInput = {
+  ownerScope: string;
+  text?: string;
+  materialKind?: MaterialEntityKind;
+  poolFilter?: RetrievalReadPoolFilter;
+  order: RetrievalOrder;
+  limit: number;
+  cursorPosition?: RetrievalReadCursorPosition;
 };
 
 export function sqlPlaceholders(count: number): string {
