@@ -249,7 +249,7 @@ async function seedProviderMaterial(database: MusicDatabase, songId: string): Pr
     };
     const expectsRefKeyMismatch = (error: unknown): error is MusicDataPlatformError => error instanceof MusicDataPlatformError && error.code === "music_data.record_ref_key_mismatch";
     // (1) sourceRef.id !== providerEntityId — ref identity and md5 identity diverge.
-    assert.throws(() => upsert({
+    await assert.rejects(() => upsert({
         origin: "local_file",
         sourceRef: { namespace: "source_local", kind: "track", id: "22222222222222222222222222222222" },
         providerEntityId: md5,
@@ -259,7 +259,7 @@ async function seedProviderMaterial(database: MusicDatabase, songId: string): Pr
         filePath: trackFilePath,
     }), expectsRefKeyMismatch);
     // (2) providerId present on a local_file entity (forbidden).
-    assert.throws(() => upsert({
+    await assert.rejects(() => upsert({
         origin: "local_file",
         sourceRef: { namespace: "source_local", kind: "track", id: md5 },
         providerId: "netease",
@@ -270,7 +270,7 @@ async function seedProviderMaterial(database: MusicDatabase, songId: string): Pr
         filePath: trackFilePath,
     } as SourceTrack), expectsRefKeyMismatch);
     // (3) namespace !== source_local.
-    assert.throws(() => upsert({
+    await assert.rejects(() => upsert({
         origin: "local_file",
         sourceRef: { namespace: "source_netease", kind: "track", id: md5 },
         providerEntityId: md5,
@@ -281,7 +281,7 @@ async function seedProviderMaterial(database: MusicDatabase, songId: string): Pr
     }), expectsRefKeyMismatch);
     // (4) providerEntityId is not a 32-lowercase-hex md5 (write-model hex guard,
     //     independent of createLocalSourceRef).
-    assert.throws(() => upsert({
+    await assert.rejects(() => upsert({
         origin: "local_file",
         sourceRef: { namespace: "source_local", kind: "track", id: "not_a_valid_md5_value" },
         providerEntityId: "not_a_valid_md5_value",
@@ -291,7 +291,7 @@ async function seedProviderMaterial(database: MusicDatabase, songId: string): Pr
         filePath: trackFilePath,
     }), expectsRefKeyMismatch);
     // (5) filePath missing/empty — a local source must carry an on-disk location.
-    assert.throws(() => upsert({
+    await assert.rejects(() => upsert({
         origin: "local_file",
         sourceRef: { namespace: "source_local", kind: "track", id: md5 },
         providerEntityId: md5,

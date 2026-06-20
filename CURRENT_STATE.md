@@ -75,7 +75,9 @@ job or domain state. Slice 6 adds the Music Data Platform
 `music_data_platform.localize_provider_source` handler: compact sourceRef-based
 payloads, policy-versioned idempotency keys, injected provider download-source
 resolution, staged downloads, content-addressed finalization, Local Source
-registration through `createLocalSource`, and declared cleanup/error behavior.
+registration through `createLocalSource`, localized descriptive metadata
+snapshotting from the provider source without provider links/availability, and
+declared cleanup/error behavior.
 Slice 7 wires runtime integration: Server Host config reads explicit
 `localSources.rootDir` / `MINEMUSIC_LOCAL_SOURCES_ROOT`, default host creates
 the Postgres-backed Background Work backend, Music Data Platform registers the

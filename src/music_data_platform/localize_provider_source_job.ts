@@ -8,7 +8,7 @@ import {
   refKey,
   type Ref,
 } from "../contracts/kernel.js";
-import type { DownloadSource } from "../contracts/music_data_platform.js";
+import type { DownloadSource, SourceEntity, SourceTrack } from "../contracts/music_data_platform.js";
 import type { DownloadSourceProvider } from "./download_commands.js";
 import {
   downloadToFile,
@@ -19,7 +19,7 @@ import {
   type MusicDataPlatformErrorCode,
 } from "./errors.js";
 import type { IdentityReadPort } from "./identity_read_model.js";
-import type { LocalSourceCommand } from "./local_source_commands.js";
+import type { LocalSourceCommand, LocalSourceDescriptiveMetadata } from "./local_source_commands.js";
 import { musicDataPlatformRefKey } from "./ref_validation.js";
 
 export const LOCALIZE_PROVIDER_SOURCE_JOB_TYPE = "music_data_platform.localize_provider_source";
@@ -38,7 +38,7 @@ export type LocalizeProviderSourceFileStore = MediaFileWriter & {
   move(fromPath: string, toPath: string): void | Promise<void>;
 };
 
-export type LocalizeProviderSourceBindingLookup = Pick<IdentityReadPort, "findMaterialForSource">;
+export type LocalizeProviderSourceBindingLookup = Pick<IdentityReadPort, "findMaterialForSource" | "getSourceRecord">;
 
 export type CreateLocalizeProviderSourceJobHandlerInput = {
   identityRead: LocalizeProviderSourceBindingLookup;
@@ -96,6 +96,21 @@ export function createLocalizeProviderSourceJobHandler(
       );
     }
 
+    const providerSourceRecord = await input.identityRead.getSourceRecord({
+      sourceRef: payload.sourceRef,
+    });
+    if (providerSourceRecord === undefined) {
+      throw localizeError(
+        "music_data.source_not_found",
+        `No source record exists for source '${refKey(payload.sourceRef)}'.`,
+      );
+    }
+
+    const providerSource = assertLocalizableProviderTrackSource({
+      source: providerSourceRecord.entity,
+      providerId,
+    });
+
     const source = await input.downloadSourceProvider.getDownloadSource({
       providerId,
       sourceRef: payload.sourceRef,
@@ -140,6 +155,7 @@ export function createLocalizeProviderSourceJobHandler(
       kind: "track",
       filePath: finalPath,
       materialRef: binding.materialRef,
+      descriptiveMetadata: descriptiveMetadataFromProviderSource(providerSource),
     });
 
     if (!registered.ok) {
@@ -153,6 +169,50 @@ export function createLocalizeProviderSourceJobHandler(
         registered.error,
       );
     }
+  };
+}
+
+function assertLocalizableProviderTrackSource(input: {
+  source: SourceEntity;
+  providerId: string;
+}): SourceTrack {
+  if (
+    input.source.origin !== "provider" ||
+    input.source.kind !== "track" ||
+    input.source.providerId !== input.providerId
+  ) {
+    throw localizeError(
+      "music_data.record_kind_mismatch",
+      "Localize source record must be a provider track matching the source namespace.",
+    );
+  }
+
+  if (
+    typeof input.source.label !== "string" ||
+    input.source.label.length === 0 ||
+    typeof input.source.title !== "string" ||
+    input.source.title.length === 0
+  ) {
+    throw localizeError(
+      "music_data.record_kind_mismatch",
+      "Localize provider source record must include label and title metadata.",
+    );
+  }
+
+  return input.source;
+}
+
+function descriptiveMetadataFromProviderSource(source: SourceTrack): LocalSourceDescriptiveMetadata {
+  return {
+    label: source.label,
+    title: source.title,
+    ...(source.artistLabels === undefined ? {} : { artistLabels: source.artistLabels }),
+    ...(source.artistSourceRefs === undefined ? {} : { artistSourceRefs: source.artistSourceRefs }),
+    ...(source.albumLabel === undefined ? {} : { albumLabel: source.albumLabel }),
+    ...(source.albumSourceRef === undefined ? {} : { albumSourceRef: source.albumSourceRef }),
+    ...(source.trackPosition === undefined ? {} : { trackPosition: source.trackPosition }),
+    ...(source.durationMs === undefined ? {} : { durationMs: source.durationMs }),
+    ...(source.versionInfo === undefined ? {} : { versionInfo: source.versionInfo }),
   };
 }
 

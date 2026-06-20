@@ -31,7 +31,21 @@ export type CreateLocalSourceInput = {
   kind: "track";
   filePath: string;
   materialRef?: Ref;
+  descriptiveMetadata?: LocalSourceDescriptiveMetadata;
 };
+
+export type LocalSourceDescriptiveMetadata =
+  Pick<SourceTrack, "label" | "title"> &
+  Partial<Pick<
+    SourceTrack,
+    | "artistLabels"
+    | "artistSourceRefs"
+    | "albumLabel"
+    | "albumSourceRef"
+    | "trackPosition"
+    | "durationMs"
+    | "versionInfo"
+  >>;
 
 export type CreateLocalSourceResult = {
   materialRef: Ref;
@@ -98,6 +112,7 @@ export function createLocalSourceCommand(
             sourceRef,
             md5: commandInput.md5,
             filePath: commandInput.filePath,
+            ...(commandInput.descriptiveMetadata === undefined ? {} : { descriptiveMetadata: commandInput.descriptiveMetadata }),
           });
           await writes.identity.upsertSourceRecord({ entity: localSourceEntity });
 
@@ -137,24 +152,29 @@ function buildLocalSourceEntity(input: {
   sourceRef: Ref;
   md5: string;
   filePath: string;
+  descriptiveMetadata?: LocalSourceDescriptiveMetadata;
 }): SourceEntity {
-  // The entity carries no rich metadata here: the import layer fills
-  // title/artist from file tags (follow-up) and upserts again. Until then
-  // label/title are placeholders. origin/providerEntityId (md5) are the dedup
-  // identity and must not change on that re-upsert. filePath is the caller-
-  // supplied on-disk location, stored verbatim.
   const normalizedMd5 = input.md5.toLowerCase();
-  const placeholder = `Local file ${normalizedMd5.slice(0, 8)}`;
+  const descriptiveMetadata = input.descriptiveMetadata ?? placeholderLocalSourceMetadata(normalizedMd5);
   const entity: SourceTrack = {
     origin: "local_file",
     sourceRef: input.sourceRef,
     providerEntityId: normalizedMd5,
     filePath: input.filePath,
     kind: "track",
+    ...descriptiveMetadata,
+  };
+  return entity;
+}
+
+function placeholderLocalSourceMetadata(normalizedMd5: string): LocalSourceDescriptiveMetadata {
+  // Bare local-file intake has no source metadata yet; a later tag import can
+  // upsert richer descriptive fields without changing md5 identity.
+  const placeholder = `Local file ${normalizedMd5.slice(0, 8)}`;
+  return {
     label: placeholder,
     title: placeholder,
   };
-  return entity;
 }
 
 function ok<T>(value: T): Result<T> {

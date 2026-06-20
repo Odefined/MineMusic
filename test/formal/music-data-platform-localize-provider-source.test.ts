@@ -203,6 +203,30 @@ async function seedProviderMaterial(database: MusicDatabase, sourceRef: Ref): Pr
       kind: "track",
       label: `NetEase ${sourceRef.id}`,
       title: `NetEase ${sourceRef.id}`,
+      artistLabels: ["Provider Artist", "Featured Artist"],
+      artistSourceRefs: [
+        { namespace: "source_netease", kind: "artist", id: "artist_1" },
+        { namespace: "source_netease", kind: "artist", id: "artist_2" },
+      ],
+      albumLabel: "Provider Album",
+      albumSourceRef: { namespace: "source_netease", kind: "album", id: "album_1" },
+      trackPosition: {
+        discNumber: "1",
+        trackNumber: 7,
+        trackCount: 12,
+      },
+      durationMs: 243000,
+      versionInfo: {
+        label: "Provider Version",
+        tags: ["remastered"],
+      },
+      providerUrl: "https://music.example/provider-track",
+      links: [{
+        url: "https://music.example/play",
+        label: "Provider Play",
+        requiresAccount: true,
+      }],
+      availabilityHint: "restricted",
     };
     const writes = createMusicDataPlatformSourceOfTruthWriteCommands({ db, now });
     await writes.identity.upsertSourceRecord({ entity: providerSource });
@@ -382,7 +406,33 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
   if (localSourceRecord?.entity.origin !== "local_file") {
     throw new Error("expected local file source");
   }
+  if (localSourceRecord.entity.kind !== "track") {
+    throw new Error("expected local track source");
+  }
   assert.equal(localSourceRecord.entity.filePath, expectedFinalPath);
+  assert.equal(localSourceRecord.entity.providerEntityId, md5(audio));
+  assert.equal(localSourceRecord.entity.label, "NetEase 1001");
+  assert.equal(localSourceRecord.entity.title, "NetEase 1001");
+  assert.deepEqual(localSourceRecord.entity.artistLabels, ["Provider Artist", "Featured Artist"]);
+  assert.deepEqual(localSourceRecord.entity.artistSourceRefs?.map(refKey), [
+    "source_netease:artist:artist_1",
+    "source_netease:artist:artist_2",
+  ]);
+  assert.equal(localSourceRecord.entity.albumLabel, "Provider Album");
+  assert.equal(localSourceRecord.entity.albumSourceRef === undefined ? undefined : refKey(localSourceRecord.entity.albumSourceRef), "source_netease:album:album_1");
+  assert.deepEqual(localSourceRecord.entity.trackPosition, {
+    discNumber: "1",
+    trackNumber: 7,
+    trackCount: 12,
+  });
+  assert.equal(localSourceRecord.entity.durationMs, 243000);
+  assert.deepEqual(localSourceRecord.entity.versionInfo, {
+    label: "Provider Version",
+    tags: ["remastered"],
+  });
+  assert.equal(localSourceRecord.entity.providerUrl, undefined);
+  assert.equal(localSourceRecord.entity.links, undefined);
+  assert.equal(localSourceRecord.entity.availabilityHint, undefined);
 
   const localBinding = await repositories.sourceMaterialBindings.findMaterialForSource({
     sourceRef: localSourceRef,
@@ -399,6 +449,57 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
   assert.equal(await tableCount(database.context(), "source_material_bindings"), 2);
 
   await database.close();
+}
+
+// --- handler rejects corrupt provider source metadata before download/local registration ---
+{
+  const materialRef: Ref = { namespace: "material", kind: "recording", id: "m_corrupt_source" };
+  const provider = createFakeDownloadSourceProvider(() => ok(okSource(new Uint8Array([8, 8, 8]))));
+  const localSource = createFakeLocalSourceCommand(() => ok({ materialRef, created: true }));
+  const handler = createLocalizeProviderSourceJobHandler({
+    identityRead: {
+      async findMaterialForSource() {
+        return {
+          sourceRef: trackRef,
+          materialRef,
+          createdAt: now,
+          updatedAt: now,
+        };
+      },
+      async getSourceRecord() {
+        return {
+          entity: {
+            origin: "provider",
+            sourceRef: trackRef,
+            providerId: "netease",
+            providerEntityId: trackRef.id,
+            kind: "track",
+            label: "Provider Track",
+          } as unknown as SourceTrack,
+          lookup: {
+            origin: "provider",
+            providerId: "netease",
+            providerEntityId: trackRef.id,
+            kind: "track",
+          },
+          createdAt: now,
+          updatedAt: now,
+        };
+      },
+    },
+    downloadSourceProvider: provider,
+    localSourceCommand: localSource,
+    localSourcesRootDir: localRoot,
+    fileStore: createMemoryLocalizeFileStore().fileStore,
+    fetch: (async () => new Response(new Uint8Array([8, 8, 8]))) as typeof fetch,
+  });
+
+  await assert.rejects(
+    () => handler(localizeJob()),
+    expectMusicDataPlatformError("music_data.record_kind_mismatch"),
+  );
+  assert.equal(provider.calls.length, 0);
+  assert.equal(localSource.calls.length, 0);
 }
 
 // --- handler refuses to overwrite a content-addressed final path with different content ---
@@ -454,6 +555,27 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
           updatedAt: now,
         };
       },
+      async getSourceRecord() {
+        return {
+          entity: {
+            origin: "provider",
+            sourceRef: trackRef,
+            providerId: "netease",
+            providerEntityId: trackRef.id,
+            kind: "track",
+            label: "Provider Track",
+            title: "Provider Track",
+          },
+          lookup: {
+            origin: "provider",
+            providerId: "netease",
+            providerEntityId: trackRef.id,
+            kind: "track",
+          },
+          createdAt: now,
+          updatedAt: now,
+        };
+      },
     },
     downloadSourceProvider: provider,
     localSourceCommand: localSource,
@@ -476,6 +598,9 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
   assert.throws(() => createLocalizeProviderSourceJobHandler({
     identityRead: {
       async findMaterialForSource() {
+        return undefined;
+      },
+      async getSourceRecord() {
         return undefined;
       },
     },

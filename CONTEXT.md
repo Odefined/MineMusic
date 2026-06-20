@@ -684,6 +684,34 @@ Material Policy, Material Materialization, Stage Interface, and app entrypoints
 should use Material Projection instead of reimplementing
 `MaterialRecord`-to-`MusicMaterial` rules.
 
+### Bound Source Set
+
+The current set of Source Entities associated with one Material.
+
+A Bound Source Set says which sources ground or describe a Material. It does not
+say which source should permanently win for presentation, playback, search, or
+provider navigation.
+_Avoid_: primary source, preferred source, source priority, provider order.
+
+### Source Preference Policy
+
+A runtime policy that orders eligible bound sources for a requested purpose.
+
+Source Preference Policy may prefer local files or named provider sources, but
+it does not create material identity and is not stored as a permanent source ref
+on the Material.
+_Avoid_: primary source, canonical source, permanent source ref, provider
+registration order.
+
+### Preferred Source
+
+The read-time Source Entity selected from a Material's Bound Source Set by
+applying Source Preference Policy for a requested purpose.
+
+A Preferred Source can change when runtime configuration or source bindings
+change. It is not durable Material truth.
+_Avoid_: primary source, material owner, canonical source, source identity.
+
 ### Material Candidate
 
 An unconfirmed provider-origin music object held in runtime cache, not a durable
@@ -771,36 +799,65 @@ commit.
 
 ### Searchable Document
 
-A corpus-owned evidence carrier that can be matched by retrieval and points to a
-Search Target. It is never the final result identity; multiple Searchable
-Documents may explain the same Search Target. Provider search results are
-Searchable Documents from a provider corpus; their final Search Target is either
-a runtime `material_candidate` or an existing bound `material`. Each Searchable
+A corpus-owned searchable index document that can produce Document Evidence and
+points to a Search Target. It is never the final result identity; multiple
+Searchable Documents may explain the same Search Target. A metadata search
+index row can be a Metadata Search Corpus Searchable Document, while other
+corpora may use different document shapes, indexes, or storage. Each Searchable
 Document points to exactly one Search Target; multi-target evidence is split
-into one document per target with shared provenance. A Searchable Document is a
-retrieval boundary shape, not a requirement that every corpus write into one
-global durable document table.
-_Avoid_: result item, material, source, tag, memory, embedding row, global
-searchable_documents table.
+into one document per target.
+_Avoid_: result item, material, source, tag, memory, embedding row, one global
+searchable_documents schema.
 
 ### Search Corpus
 
-A retrieval source or capability that can produce Searchable Documents for a
-query. A Search Corpus may be backed by a Postgres text index, provider API,
-embedding index, memory store, tag assertions, or generated music description;
-it is not synonymous with one storage table.
-_Avoid_: table, repository, material catalog, provider adapter, ranking policy.
+A retrieval source or index boundary that can produce Searchable Documents for
+a compatible Search Query Kind. Different corpora may have different schemas,
+indexes, query semantics, and scoring rules; being a Search Corpus does not make
+metadata lookup, provider lookup, description search, tag query, and similar
+music search the same kind of search.
+_Avoid_: table, repository, material catalog, provider adapter, ranking policy,
+universal search schema.
 
 ### Metadata Search Corpus
 
-A Search Corpus over MineMusic-owned descriptive music metadata, such as title,
-artist, album, version, and alias text. It is one corpus among others and must
-not define the general Retrieval model, result scoring, or evidence vocabulary.
-Metadata Search Corpus documents preserve metadata fields as first-class
-evidence dimensions; they must not collapse searchable metadata into one
-unstructured blob.
+A Search Corpus over MineMusic-owned descriptive music metadata. Its first
+searchable metadata fields are title, artist, album, version, and alias. It is
+one corpus among others and must not define the general Retrieval model, result
+scoring, or evidence vocabulary. Metadata Search Corpus documents preserve
+searchable metadata fields as first-class dimensions; they must not collapse
+searchable metadata into one unstructured blob. Field values may carry
+attribution for explanation and maintenance, but attribution, identifiers, and
+identity/binding data are not metadata lookup fields. Metadata Search Corpus
+attribution must not make the legacy primary-source role or source-priority
+ordering part of the Search model. Equivalent normalized field values are
+deduplicated within the same metadata field, not across different fields;
+multiple sources for the same normalized field value are represented as merged
+attribution. Alias is a recall field, but alias evidence must not be treated as
+primary title evidence. Metadata lookup evidence may distinguish exact, prefix,
+full-text, and fuzzy field matches; exact and prefix matches are stronger
+metadata evidence than fuzzy matches. Metadata Search Corpus documents are
+material-level search documents; owner visibility and owner-scoped filters are
+query constraints, not separate owner-scoped metadata documents.
 _Avoid_: material text projection, matched-token ranking model, provider
-corpus, embedding corpus, search_text-only blob.
+corpus, embedding corpus, search_text-only blob, source identity field.
+
+### Metadata Lookup Document
+
+A Searchable Document shape for Metadata Lookup Query reranking. Durable
+material metadata documents and runtime provider candidate documents share this
+field shape, but only active materials are stored as durable metadata search
+documents.
+_Avoid_: provider raw payload, material record, source record, global document
+schema.
+
+### Metadata Lookup Normalization
+
+The Postgres-owned normalization used to compare Metadata Lookup Query text with
+Metadata Search Corpus fields. It is versioned search-index behavior, not
+display text and not a general MineMusic string helper.
+_Avoid_: material text normalization helper, display label normalization,
+provider query rewriting.
 
 ### Provider Search Corpus
 
@@ -808,7 +865,9 @@ A Search Corpus over provider-returned music search candidates. It contributes
 provider evidence as Searchable Documents; it does not itself decide final
 Search Target identity. Provider plugins expose provider-native search
 capabilities; the Search Core adapter turns those candidates into provider
-Searchable Documents.
+Searchable Documents. Provider candidates are projected into Metadata Lookup
+Query fields after entering MineMusic; provider raw payloads and provider order
+are auxiliary evidence, not the shared metadata field model.
 _Avoid_: Search Target, material candidate allocator, provider adapter-owned
 Searchable Document, final result source.
 
@@ -820,7 +879,7 @@ does not expose old token-count, field-priority, or SQL-rank mechanics as
 Retrieval language. It explains the line of evidence, not the final merged
 result.
 _Avoid_: final score, result card text, ranked result identity, matched-token
-ranking model.
+ranking model, raw match dump.
 
 ### Result Evidence
 
@@ -828,15 +887,17 @@ Merged explanation for why one Search Target appears in the final retrieval
 result after combining one or more Searchable Documents. It may contain
 selected metadata, provider, tag, memory, embedding, or generated-description
 evidence, but it is not a dump of every corpus-local match or raw provider
-payload.
+payload. Selected Result Evidence may include the matched field, match kind, and
+matched value needed to explain the result.
 _Avoid_: document evidence, ranking score, cursor identity, debug dump, raw
 provider payload.
 
 ### Corpus-Local Score
 
 A score whose meaning is valid only inside the Search Corpus that produced a
-Searchable Document. Corpus-Local Scores may inform result ranking, but final
-ordering is produced after documents are merged by Search Target.
+Searchable Document. A corpus may use its own index engine to rerank bounded
+recall candidates and produce Corpus-Local Scores; final ordering is produced
+after documents are merged by Search Target.
 _Avoid_: final rank, global score, cursor order.
 
 ### Result Scoring
@@ -844,20 +905,35 @@ _Avoid_: final rank, global score, cursor order.
 The Retrieval step that ranks Search Targets after Target Merge and Result
 Evidence selection. It may use Corpus-Local Scores as signals, but it owns the
 final result order because scores from different corpora are not directly
-comparable.
+comparable. It does not reimplement a corpus engine's local ranking.
 _Avoid_: corpus-local score, SQL rank, BM25 score, embedding similarity,
 provider confidence.
+
+### Rerank Profile
+
+The declared ordering policy applied after a Search Query recalls candidate
+documents. A Rerank Profile can prefer metadata relevance, recency, stability,
+or future MineMusic-specific signals without changing the Search Query Kind.
+_Avoid_: corpus name, SQL cursor key, provider order, final recommendation.
+
+### Bounded Recall
+
+The Search Core step that asks each compatible corpus for an indexed, size-bound
+candidate set before Target Merge, evidence selection, and Result Scoring.
+Bounded Recall may use corpus-local rank or similarity as signals, but it does
+not define final result order.
+_Avoid_: full table scan, final ranking, result-set paging.
 
 ### Ranked Result Set
 
 A TTL-bound retrieval result snapshot containing the final ordered Search
 Targets for one query after corpus recall, document merge, evidence merge, and
-result-level scoring. It may carry selected Result Evidence needed to explain
-the ordered results, but it is not a store for complete Searchable Documents,
-corpus internals, raw provider payloads, or vectors. It stabilizes cursor paging
-and is not durable domain truth.
+ordering. It may carry selected Result Evidence needed to explain the ordered
+results, but it is not a store for complete Searchable Documents, corpus
+internals, raw provider payloads, vectors, or a layered score ledger. It
+stabilizes cursor paging and is not durable domain truth.
 _Avoid_: corpus result, provider cache, permanent playlist, domain record, full
-document store.
+document store, score ledger.
 
 ### Direct Search
 
@@ -941,6 +1017,11 @@ song held as both flac and mp3 is two Local Sources, not one. Recording-level
 identity — which song a Local Source is — is a material concern, not a source
 concern; Local Sources (and provider sources) bind to the same material by
 recording-level identity, never by collapsing several files into one source.
+A Local Source localized from a provider source keeps the provider source's
+descriptive music metadata, but it does not inherit provider navigation,
+playable links, or availability facts.
+Localized metadata is a snapshot taken when the provider source is localized,
+not an implicit live mirror of later provider-source metadata changes.
 Local Sources enter through a local-source command, not the provider import /
 Source Library mirror.
 _Avoid_: provider source, Material, recording-level dedup key, audio fingerprint

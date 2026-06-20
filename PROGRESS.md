@@ -1234,8 +1234,10 @@ runtime composition:
   `music_data_platform.localize_provider_source`, including payload validation,
   injected provider download-source resolution, staged download, content-
   addressed finalization, Local Source registration through `createLocalSource`,
-  matching-content idempotent success, final-path collision failure, declared
-  registration-failure cleanup, and missing root config failure.
+  localized descriptive metadata snapshotting from the provider source without
+  provider links/availability facts, matching-content idempotent success,
+  final-path collision failure, declared registration-failure cleanup, and
+  missing root config failure.
 - `test/formal/music-data-platform-localize-provider-source.test.ts` covers the
   localize submit/handler contract without importing pg-boss or Extension
   Runtime into Music Data Platform.
