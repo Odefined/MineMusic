@@ -157,6 +157,12 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Music Data Platform localize submit command plus job handler. Slice 7 wires
   Server Host local source config and Background Work lifecycle so the default
   runtime can run localize jobs.
+- `docs/formal-rebuild/phase-22-search-core-metadata-lookup-refactor-implementation-plan.md`:
+  active Phase 22 plan for replacing lookup-time metadata/provider retrieval
+  with Postgres-native Search Core metadata lookup; the first implementation
+  slice has landed material-level `search_metadata_documents`, Search result
+  windows, text-score reranking, and default `music.discovery.lookup` wiring
+  through the Metadata Lookup adapter.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

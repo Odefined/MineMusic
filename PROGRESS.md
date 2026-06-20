@@ -1266,6 +1266,37 @@ runtime composition:
   Source root config, localize submit access, and worker lifecycle ordering.
 - A public Stage Interface localize tool remains unscoped.
 
+## 2026-06-21: Phase 22 Metadata Lookup Search Core First Slice
+
+Phase 22 begins replacing lookup-time metadata retrieval with a Postgres-native
+Search Core path:
+
+- Music Data Platform now owns `search_metadata_documents`, a material-level
+  metadata lookup index over `title`, `artist`, `album`, `version`, and
+  `alias`.
+- Search metadata documents are built from active material records, current
+  source-material bindings, bound source records, confirmed active canonical
+  records, and material version facts; they do not use source priority,
+  `primarySourceRef`, or provider result metadata for resolved hits.
+- Field values are normalized and deduped within each field, with merged
+  attribution evidence stored as JSONB.
+- Projection Maintenance rebuilds the new search metadata index when it
+  processes existing material-scoped projection targets; legacy
+  `material_text_*` tables remain preserved but are no longer the default
+  lookup path.
+- Music Data Platform now owns `search_result_sets` and `search_result_rows`
+  for metadata lookup result windows, Postgres text-score reranking, and
+  local/provider mixed recall.
+- Music Intelligence now exposes a Metadata Lookup adapter behind the existing
+  lookup query port used by `music.discovery.lookup`; default Server Host
+  wiring uses this adapter.
+- Provider search hits already bound to an active material rerank from the
+  durable material metadata search document only. Unresolved provider hits
+  become runtime metadata lookup candidate documents.
+- Focused tests cover search metadata projection, resolved-provider dedupe,
+  unresolved runtime candidates, schema contributions, active-tree guards,
+  lookup/server wiring, and projection-maintenance integration.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

@@ -126,6 +126,12 @@ export {
   musicDataPlatformMaterialTextProjectionSchema,
 } from "./material_text_projection_schema.js";
 export {
+  musicDataPlatformSearchMetadataProjectionSchema,
+} from "./search_metadata_projection_schema.js";
+export {
+  musicDataPlatformSearchResultSetSchema,
+} from "./search_result_set_schema.js";
+export {
   musicDataPlatformRetrievalResultSetSchema,
 } from "./retrieval_result_set_schema.js";
 export {
@@ -187,6 +193,15 @@ export type {
   MatchMaterialTextDocumentsInput,
 } from "./material_text_projection_records.js";
 export {
+  createSearchMetadataProjectionRecords,
+} from "./search_metadata_projection_records.js";
+export type {
+  CreateSearchMetadataProjectionRecordsInput,
+  GetSearchMetadataDocumentInput,
+  SearchMetadataDocumentRecord,
+  SearchMetadataProjectionReadPort,
+} from "./search_metadata_projection_records.js";
+export {
   createProjectionMaintenanceRecords,
 } from "./projection_maintenance_records.js";
 export type {
@@ -225,6 +240,19 @@ export type {
   MusicDataPlatformRetrievalWorkspace,
   MusicDataPlatformMixedRetrievalSearchInput,
 } from "./retrieval_mixed_workspace.js";
+export {
+  createMusicDataPlatformMetadataLookupSearchWorkspace,
+} from "./metadata_lookup_search_workspace.js";
+export type {
+  CreateMusicDataPlatformMetadataLookupSearchWorkspaceInput,
+  MetadataLookupSearchCursorPosition,
+  MusicDataPlatformMetadataLookupMaterialCandidateRow,
+  MusicDataPlatformMetadataLookupMaterialRow,
+  MusicDataPlatformMetadataLookupSearchInput,
+  MusicDataPlatformMetadataLookupSearchPage,
+  MusicDataPlatformMetadataLookupSearchRow,
+  MusicDataPlatformMetadataLookupSearchWorkspace,
+} from "./metadata_lookup_search_workspace.js";
 export type {
   OwnerMaterialRelationCommands,
   RecordOwnerMaterialRelationInput,
@@ -241,6 +269,17 @@ export type {
   RebuildMaterialTextDocumentsInput,
   RebuildMaterialTextDocumentsSummary,
 } from "./material_text_projection_commands.js";
+export {
+  createSearchMetadataProjectionCommands,
+} from "./search_metadata_projection_commands.js";
+export type {
+  CreateSearchMetadataProjectionCommandsInput,
+  RebuildSearchMetadataDocumentInput,
+  RebuildSearchMetadataDocumentSummary,
+  RebuildSearchMetadataDocumentsInput,
+  RebuildSearchMetadataDocumentsSummary,
+  SearchMetadataProjectionCommands,
+} from "./search_metadata_projection_commands.js";
 export {
   createProjectionMaintenanceCommands,
 } from "./projection_maintenance_commands.js";

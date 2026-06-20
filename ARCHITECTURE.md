@@ -55,7 +55,7 @@ Formal v1 has nine top-level architecture areas:
 | Stage Core | Stage Runtime graph assembly, capability wiring, repository/provider/plugin wiring, initialization, readiness, and runtime lifecycle. | Process/transport hosting, plugin semantics, music domain facts, or agent-facing tool language. |
 | Extension | Plugin System, Capability Slots, provider/plugin manifests, adapter lifecycle metadata, and replaceability semantics. | Runtime graph composition, music facts, material identity, owner facts, query/present workflow, or final presentation. |
 | Music Data Platform | Source/material/canonical identity, storage records, bindings, owner-scoped fact families, library import/update persistence, projections, and canonical maintenance. | Provider integration, plugin semantics, Stage Interface schemas, query/present orchestration, Memory, or Effect execution. |
-| Music Intelligence | Retrieval and Knowledge capabilities for discovery, comparison, attributed evidence, ranking evidence, and reasoning support. | Durable facts, long-term Memory, final recommendation judgement, material identity, or external effects. |
+| Music Intelligence | Search, Retrieval compatibility, and Knowledge capabilities for discovery, comparison, attributed evidence, ranking evidence, and reasoning support. | Durable facts, long-term Memory, final recommendation judgement, material identity, or external effects. |
 | Music Experience | Radio mode behavior, queue/now-playing intent, presented recommendation history, play/open/skip events, feedback binding, pacing, dedupe, and external action intent. | Retrieval, Music Data Platform writes outside explicit ports, long-term Memory, effect execution, or effect permission policy. |
 | Memory | Long-term user/music relationship state, taste memory, preference/rule memory, contextual preferences, and evidence-backed memory proposals. | Material identity, owner relation source-of-truth, Retrieval, Knowledge, or external effects. |
 | Effect Boundary | Permission, approval, effect proposal/decision, side-effect audit, and execution policy. | Provider capability declaration, domain facts, recommendation judgement, or normal query/presentation output. |
@@ -155,11 +155,11 @@ Music Discovery tools are contributed by Music Intelligence through its
 scope-availability port over already-known Music Data Platform and Extension
 metadata; it returns public Music Scope handles plus descriptions and must not
 call provider APIs or refresh provider account state. Lookup normalizes public
-Music Scopes into Retrieval typed pools, calls the internal Retrieval query
-service through a narrow port, mints public `library` / `candidate` item handles
-through `StageToolContext.handleMinting`, and wraps internal Retrieval cursors
-through the Stage Interface-owned registry-backed `LookupCursorStore`
-(ADR-0024).
+Music Scopes into the Music Intelligence Metadata Lookup Search adapter, which
+uses Music Data Platform search metadata and result-window ports, mints public
+`library` / `candidate` item handles through `StageToolContext.handleMinting`,
+and wraps internal lookup cursors through the Stage Interface-owned
+registry-backed `LookupCursorStore` (ADR-0024).
 
 ## Extension And Providers
 
@@ -300,20 +300,26 @@ becoming durable material records. Durable materialization occurs only at
 explicit commit boundaries such as save, present commit, feedback,
 add-to-collection, or another accepted write command.
 
-Retrieval may call provider search only through a narrow provider-search port
-owned by composition. Provider execution stays outside database transactions.
-Music Data Platform owns any runtime result-set rows, material-candidate cache
-rows, SQL ranking, and pagination needed to mix provider candidates with local
-materials. Retrieval owns query normalization, cursor/fingerprint validation,
+Retrieval/Search may call provider search only through a narrow provider-search
+port owned by composition. Provider execution stays outside database
+transactions. Music Data Platform owns runtime result-set rows,
+material-candidate cache rows, Postgres text-score reranking, pagination, and
+material-level metadata lookup indexes needed to mix provider candidates with
+local materials. A provider hit already bound to an active material is a
+discovery path to that material, not a runtime provider metadata document; it
+reranks from the durable material metadata search document. Only unresolved
+provider hits become runtime metadata lookup candidate documents. Music
+Intelligence owns query normalization, cursor/fingerprint validation,
 provider-search error mapping, and compact hit shaping; it does not import
 provider plugins or write runtime cache tables directly.
 
-Music Intelligence keeps Retrieval domain code under `core/retrieval`; Stage
-Interface tool handlers live under `stage_adapter` and are the only Music
-Intelligence subtree allowed to import Stage Interface contracts or public
-description helpers. Stage adapters may contribute RuntimeModule tool
-registrations for Music Intelligence-owned instruments without pulling Stage
-Interface DTOs into `core/retrieval`.
+Music Intelligence keeps Retrieval compatibility code under `core/retrieval`
+and new lookup search orchestration under `core/search`; Stage Interface tool
+handlers live under `stage_adapter` and are the only Music Intelligence subtree
+allowed to import Stage Interface contracts or public description helpers.
+Stage adapters may contribute RuntimeModule tool registrations for
+Music Intelligence-owned instruments without pulling Stage Interface DTOs into
+core search/retrieval code.
 
 Query output is query result/hit information for the agent's next decision.
 `MusicCard` is final Stage Interface presentation output, rendered by a
@@ -354,11 +360,13 @@ caller-owned row construction or row-by-row TypeScript merge loops.
 
 ## Music Intelligence, Experience, And Memory
 
-Music Intelligence groups Retrieval and Knowledge only. Retrieval owns
-candidate discovery, query planning, ranking evidence assembly, and query
-result evidence. Knowledge owns read-oriented, provider-attributed music
-knowledge search/lookup/evidence. Neither writes durable material identity,
-canonical identity, owner facts, Memory, or presentation output.
+Music Intelligence groups Search, Retrieval compatibility, and Knowledge.
+Search owns candidate discovery, query planning, ranking evidence assembly,
+and query result evidence for new lookup paths. Retrieval compatibility remains
+for old internal query contracts while migration continues. Knowledge owns
+read-oriented, provider-attributed music knowledge search/lookup/evidence.
+Neither writes durable material identity, canonical identity, owner facts,
+Memory, or presentation output.
 
 Music Experience owns behavior and state for the active music experience:
 radio mode, queue/now-playing intent, presented recommendations, play/open/skip

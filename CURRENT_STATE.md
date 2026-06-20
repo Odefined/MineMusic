@@ -84,6 +84,25 @@ the Postgres-backed Background Work backend, Music Data Platform registers the
 localize handler before workers start, Extension initializes before worker
 start, and stop order drains Background Work before Extension/database
 shutdown. No public Stage Interface localize tool is exposed yet.
+Phase 22 starts the Postgres-native Search Core replacement for lookup-time
+metadata retrieval. The first landed slice adds Music Data Platform
+`search_metadata_documents` as a material-level metadata lookup index over
+`title`, `artist`, `album`, `version`, and `alias`, with field-local
+normalized-value dedupe and attribution JSON that distinguishes
+`material_fact`, `bound_source_fact`, `canonical_fact`, and runtime
+`provider_candidate_fact` evidence without source-priority ranking. Projection
+maintenance now rebuilds this new index alongside the preserved legacy
+`material_text_*` projection when a material-scoped projection target is
+processed. Music Data Platform also owns `search_result_sets` /
+`search_result_rows` for metadata lookup result windows, text-score reranking,
+and provider/local mixed recall. Server Host now wires
+`music.discovery.lookup` through the new Metadata Lookup Search adapter: a
+provider hit already bound to an active material is only a discovery path to
+that material and is reranked from the durable material metadata document;
+only unresolved provider hits become runtime metadata lookup candidate
+documents. The old Retrieval modules and legacy result-set tables remain in
+the tree for follow-up migration and tests, but default lookup no longer uses
+the old material-text matched-token / field-priority ranking path.
 Phase 17 adds the internal Music Data Platform Candidate Commit owning command
 (ADR-0011), Material Projection (`materialRef` -> `MusicMaterial`), the Effect
 Boundary auto-pass widening for presentation-driven admission (ADR-0021), and

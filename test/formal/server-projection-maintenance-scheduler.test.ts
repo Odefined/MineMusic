@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { Ref } from "../../src/contracts/kernel.js";
-import { createProjectionMaintenanceCommands, createProjectionMaintenanceRecords, musicDataPlatformIdentitySchema, musicDataPlatformMaterialTextProjectionSchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformSourceLibrarySchema, type ProjectionMaintenanceTargetRecord, } from "../../src/music_data_platform/index.js";
+import { createProjectionMaintenanceCommands, createProjectionMaintenanceRecords, musicDataPlatformIdentitySchema, musicDataPlatformMaterialTextProjectionSchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformSearchMetadataProjectionSchema, musicDataPlatformSourceLibrarySchema, type ProjectionMaintenanceTargetRecord, } from "../../src/music_data_platform/index.js";
 import type { MineMusicRuntimeConfig } from "../../src/server/config.js";
 import { createProjectionMaintenanceScheduler, type CreateProjectionMaintenanceSchedulerInput, type ProjectionMaintenanceScheduler, type ProjectionMaintenanceSchedulerConfig, type ProjectionMaintenanceSchedulerDependencies, type ProjectionMaintenanceSchedulerSnapshot, } from "../../src/server/projection_maintenance_scheduler.js";
 import { type MusicDatabase } from "../../src/storage/index.js";
@@ -318,6 +318,7 @@ async function initializedDatabase(): Promise<MusicDatabase> {
             musicDataPlatformOwnerRelationSchema,
             musicDataPlatformOwnerCatalogViewSchema,
             musicDataPlatformMaterialTextProjectionSchema,
+            musicDataPlatformSearchMetadataProjectionSchema,
             musicDataPlatformProjectionMaintenanceSchema,
         ],
     });

@@ -15,8 +15,7 @@ import {
   createMaterialRefFactory,
   createIdentityReadPort,
   createMaterialProjection,
-  createMusicDataPlatformRetrievalReadPort,
-  createMusicDataPlatformRetrievalWorkspace,
+  createMusicDataPlatformMetadataLookupSearchWorkspace,
   createOwnerMaterialRelationRecords,
   createOwnerRelationPoolRef,
   createSourceLibraryImportService,
@@ -32,6 +31,8 @@ import {
   musicDataPlatformOwnerRelationSchema,
   musicDataPlatformProjectionMaintenanceSchema,
   musicDataPlatformRetrievalResultSetSchema,
+  musicDataPlatformSearchMetadataProjectionSchema,
+  musicDataPlatformSearchResultSetSchema,
   musicDataPlatformSourceLibrarySchema,
   type CandidateCommitCommand,
   type LibraryRelationService,
@@ -52,7 +53,7 @@ import { createNodeLocalizeProviderSourceFileStore, createNodeMediaFileWriter } 
 import { createLocalSourceCommand, type LocalSourceCommand } from "../music_data_platform/local_source_commands.js";
 import { MusicDataPlatformError } from "../music_data_platform/errors.js";
 import {
-  createRetrievalQueryService,
+  createMetadataLookupRetrievalQueryService,
   type RetrievalQueryService,
 } from "../music_intelligence/index.js";
 import type {
@@ -162,8 +163,10 @@ export function createMusicDataPlatformRuntimeModule(
             musicDataPlatformOwnerRelationSchema,
             musicDataPlatformOwnerCatalogViewSchema,
             musicDataPlatformMaterialTextProjectionSchema,
+            musicDataPlatformSearchMetadataProjectionSchema,
             musicDataPlatformProjectionMaintenanceSchema,
             musicDataPlatformRetrievalResultSetSchema,
+            musicDataPlatformSearchResultSetSchema,
             musicDataPlatformDownloadSchema,
             stageInterfaceHandleRegistrySchema,
             stageInterfaceLookupCursorRegistrySchema,
@@ -242,11 +245,8 @@ export function createMusicDataPlatformRuntimeModule(
         libraryRelationService = createLibraryRelationService({
           database,
         });
-        retrievalQueryService = createRetrievalQueryService({
-          readPort: createMusicDataPlatformRetrievalReadPort({
-            db: database.context(),
-          }),
-          mixedRetrievalWorkspace: createMusicDataPlatformRetrievalWorkspace({
+        retrievalQueryService = createMetadataLookupRetrievalQueryService({
+          searchWorkspace: createMusicDataPlatformMetadataLookupSearchWorkspace({
             database,
           }),
           providerSearch: createExtensionRuntimeRetrievalProviderSearchPort({

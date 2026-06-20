@@ -7,3 +7,4 @@ export type {
   MusicIntelligenceErrorCode,
 } from "./errors.js";
 export * from "./core/retrieval/index.js";
+export * from "./core/search/index.js";

@@ -96,7 +96,7 @@ export type RetrievalQueryHitBase = {
     versionText?: string;
   };
   rankScore?: {
-    kind: "fts_bm25";
+    kind: "fts_bm25" | "postgres_text_rank";
     value: number;
   };
   matchedText?: {

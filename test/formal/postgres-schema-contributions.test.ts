@@ -5,6 +5,8 @@ import { musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatal
 import { musicDataPlatformOwnerRelationSchema, } from "../../src/music_data_platform/owner_material_relation_schema.js";
 import { musicDataPlatformProjectionMaintenanceSchema, } from "../../src/music_data_platform/projection_maintenance_schema.js";
 import { musicDataPlatformRetrievalResultSetSchema, } from "../../src/music_data_platform/retrieval_result_set_schema.js";
+import { musicDataPlatformSearchMetadataProjectionSchema, } from "../../src/music_data_platform/search_metadata_projection_schema.js";
+import { musicDataPlatformSearchResultSetSchema, } from "../../src/music_data_platform/search_result_set_schema.js";
 import { musicDataPlatformSourceLibrarySchema, } from "../../src/music_data_platform/source_library_schema.js";
 import { PostgresMusicDatabase, type PostgresMusicDatabaseSchemaContribution, } from "../../src/storage/index.js";
 import { stageInterfaceHandleRegistrySchema, } from "../../src/stage_interface/handle_registry_schema.js";
@@ -21,8 +23,10 @@ await database.initialize({
         musicDataPlatformOwnerRelationSchema,
         musicDataPlatformOwnerCatalogViewSchema,
         musicDataPlatformMaterialTextProjectionSchema,
+        musicDataPlatformSearchMetadataProjectionSchema,
         musicDataPlatformProjectionMaintenanceSchema,
         musicDataPlatformRetrievalResultSetSchema,
+        musicDataPlatformSearchResultSetSchema,
         musicDataPlatformDownloadSchema,
         stageInterfaceHandleRegistrySchema,
         stageInterfaceLookupCursorRegistrySchema,
@@ -50,6 +54,28 @@ const materialTextFts = await context.get<{
 `);
 if (materialTextFts === undefined) {
     throw new Error("material text search vector index was not initialized");
+}
+const searchMetadataDocuments = await context.get<{
+    table_name: string;
+}>(`
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name = 'search_metadata_documents'
+`);
+if (searchMetadataDocuments === undefined) {
+    throw new Error("search metadata documents table was not initialized");
+}
+const searchResultSets = await context.get<{
+    table_name: string;
+}>(`
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name = 'search_result_sets'
+`);
+if (searchResultSets === undefined) {
+    throw new Error("search result sets table was not initialized");
 }
 const ownerCatalogView = await context.get<{
     table_name: string;

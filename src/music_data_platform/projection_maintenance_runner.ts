@@ -15,6 +15,9 @@ import {
   createProjectionMaintenanceRecords,
   type ProjectionMaintenanceTargetRecord,
 } from "./projection_maintenance_records.js";
+import {
+  createSearchMetadataProjectionCommands,
+} from "./search_metadata_projection_commands.js";
 
 export type CreateProjectionMaintenanceRunnerInput = {
   database: MusicDatabase;
@@ -59,6 +62,10 @@ export function createProjectionMaintenanceRunner(
                 now: input.now,
               }),
               materialTextProjectionCommands: createMaterialTextProjectionCommands({
+                db,
+                now: input.now,
+              }),
+              searchMetadataProjectionCommands: createSearchMetadataProjectionCommands({
                 db,
                 now: input.now,
               }),
@@ -110,6 +117,7 @@ async function dispatchProjectionTarget(input: {
   target: ProjectionMaintenanceTargetRecord;
   ownerCatalogProjectionCommands: ReturnType<typeof createOwnerCatalogProjectionCommands>;
   materialTextProjectionCommands: ReturnType<typeof createMaterialTextProjectionCommands>;
+  searchMetadataProjectionCommands: ReturnType<typeof createSearchMetadataProjectionCommands>;
 }): Promise<void> {
   const payload = parseProjectionMaintenanceTargetPayload({
     projectionKind: input.target.projectionKind,
@@ -137,6 +145,9 @@ async function dispatchProjectionTarget(input: {
       return;
     case "material_text":
       await input.materialTextProjectionCommands.rebuildMaterialTextDocument({
+        materialRef: payload.materialRef,
+      });
+      await input.searchMetadataProjectionCommands.rebuildSearchMetadataDocument({
         materialRef: payload.materialRef,
       });
       return;
