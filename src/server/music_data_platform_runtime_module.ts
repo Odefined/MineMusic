@@ -83,16 +83,22 @@ import {
   mineMusicLocalSourcesRootDir,
 } from "./config.js";
 import {
-  createProjectionMaintenanceScheduler,
-  type ProjectionMaintenanceScheduler,
-  type ProjectionMaintenanceSchedulerDependencies,
-} from "./projection_maintenance_scheduler.js";
+  createProjectionMaintenanceJobHandler,
+  PROJECTION_MAINTENANCE_JOB_TYPE,
+  type ProjectionMaintenanceDispatcher,
+} from "../music_data_platform/index.js";
 import { createExtensionRuntimeRetrievalProviderSearchPort } from "./retrieval_provider_search_adapter.js";
 
 // Library import background work tuning. Pacing spaces provider page reads to protect
 // NCM/QQ rate limits; retry limits provider-page read retries with exponential backoff.
 const LIBRARY_IMPORT_PACING_DELAY_MS = 3000;
 const LIBRARY_IMPORT_RETRY = { limit: 3, backoffMs: 1000 };
+
+// Projection maintenance background work tuning. The dispatcher submits each
+// dirty target as a job with this retry budget; the job handler reads the same
+// retryLimit to decide when a persistently failing target is marked failed.
+const PROJECTION_MAINTENANCE_RETRY_LIMIT = 3;
+const PROJECTION_MAINTENANCE_RETRY_DELAY_SECONDS = 5;
 
 export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   sourceLibraryImport(): SourceLibraryImportService | undefined;
@@ -117,7 +123,6 @@ export type CreateMusicDataPlatformRuntimeModuleInput = {
   databaseFactory?: () => MusicDatabase;
   backgroundWork?: BackgroundWorkBackend;
   materialRefFactory?: MaterialRefFactory;
-  projectionMaintenanceSchedulerDependencies?: Partial<ProjectionMaintenanceSchedulerDependencies<unknown>>;
 };
 
 export function createMusicDataPlatformRuntimeModule(
@@ -132,7 +137,6 @@ export function createMusicDataPlatformRuntimeModule(
   let candidateCommitCommand: CandidateCommitCommand | undefined;
   let materialProjection: MaterialProjection | undefined;
   let libraryRelationService: LibraryRelationService | undefined;
-  let projectionMaintenanceScheduler: ProjectionMaintenanceScheduler | undefined;
   let handleMintingPort: HandleMintingPort | undefined;
   let lookupCursorStore: LookupCursorStore | undefined;
   let downloadCommand: DownloadCommands | undefined;
@@ -176,6 +180,10 @@ export function createMusicDataPlatformRuntimeModule(
         sourceLibraryReadPort = createSourceLibraryReadPort({
           db: database.context(),
         });
+        const projectionMaintenanceDispatcher: ProjectionMaintenanceDispatcher | undefined =
+          input.backgroundWork === undefined
+            ? undefined
+            : createProjectionMaintenanceDispatcherAdapter(input.backgroundWork);
         sourceLibraryImportService = createSourceLibraryImportService({
           database,
           platformLibraryProvider: {
@@ -186,14 +194,23 @@ export function createMusicDataPlatformRuntimeModule(
           ...(input.config?.sourceLibraryImport?.defaultLimit === undefined
             ? {}
             : { defaultLimit: input.config.sourceLibraryImport.defaultLimit }),
+          ...(projectionMaintenanceDispatcher === undefined
+            ? {}
+            : { projectionMaintenanceDispatcher }),
         });
         candidateCommitCommand = createCandidateCommitCommand({
           database,
           materialRefFactory,
+          ...(projectionMaintenanceDispatcher === undefined
+            ? {}
+            : { projectionMaintenanceDispatcher }),
         });
         localSourceCommand = createLocalSourceCommand({
           database,
           materialRefFactory,
+          ...(projectionMaintenanceDispatcher === undefined
+            ? {}
+            : { projectionMaintenanceDispatcher }),
         });
         const downloadSourceProvider = createExtensionRuntimeDownloadSourceProvider(input.extensionRuntime);
         if (input.backgroundWork !== undefined) {
@@ -238,12 +255,23 @@ export function createMusicDataPlatformRuntimeModule(
               retry: LIBRARY_IMPORT_RETRY,
             }),
           });
+          input.backgroundWork.registerHandler({
+            jobType: PROJECTION_MAINTENANCE_JOB_TYPE,
+            handler: createProjectionMaintenanceJobHandler({
+              database,
+              now: () => new Date().toISOString(),
+              retryLimit: PROJECTION_MAINTENANCE_RETRY_LIMIT,
+            }),
+          });
         }
         materialProjection = createMaterialProjection({
           db: database.context(),
         });
         libraryRelationService = createLibraryRelationService({
           database,
+          ...(projectionMaintenanceDispatcher === undefined
+            ? {}
+            : { projectionMaintenanceDispatcher }),
         });
         retrievalQueryService = createMetadataLookupRetrievalQueryService({
           searchWorkspace: createMusicDataPlatformMetadataLookupSearchWorkspace({
@@ -286,23 +314,11 @@ export function createMusicDataPlatformRuntimeModule(
           generateJobId: () =>
             `dl_${createHash("sha256").update(`${Date.now()}-${randomUUID()}`).digest("base64url").slice(0, 16)}`,
         });
-        projectionMaintenanceScheduler = createProjectionMaintenanceScheduler({
-          database,
-          ...(input.config?.projectionMaintenance === undefined
-            ? {}
-            : { config: input.config.projectionMaintenance }),
-          ...(input.projectionMaintenanceSchedulerDependencies === undefined
-            ? {}
-            : { dependencies: input.projectionMaintenanceSchedulerDependencies }),
-        });
-        projectionMaintenanceScheduler.start();
-
         return {
           ok: true,
           value: {},
         };
       } catch (cause) {
-        projectionMaintenanceScheduler = undefined;
         handleMintingPort = undefined;
         lookupCursorStore = undefined;
         musicScopeAvailabilityPort = undefined;
@@ -331,9 +347,6 @@ export function createMusicDataPlatformRuntimeModule(
     },
     async stop() {
       try {
-        const scheduler = projectionMaintenanceScheduler;
-        projectionMaintenanceScheduler = undefined;
-        await scheduler?.stop();
         await downloadCommand?.drain();
         await closeOwnedDatabase();
         handleMintingPort = undefined;
@@ -549,4 +562,30 @@ function opaqueScopeId(prefix: "relation", anchor: string): string {
   // PR16C runs without the PR16B handle registry; keep these ids opaque until
   // registry-backed scope mint/resolve replaces this composition seam.
   return `${prefix}_${createHash("sha256").update(anchor).digest("base64url").slice(0, 22)}`;
+}
+
+function createProjectionMaintenanceDispatcherAdapter(
+  backgroundWork: BackgroundWorkBackend,
+): ProjectionMaintenanceDispatcher {
+  return {
+    async submitDirty(targets) {
+      for (const target of targets) {
+        await backgroundWork.submit({
+          jobType: PROJECTION_MAINTENANCE_JOB_TYPE,
+          payload: {
+            projectionKind: target.projectionKind,
+            targetKey: target.targetKey,
+            expectedDirtyGeneration: target.dirtyGeneration,
+          },
+          // targetKey is stable across re-dirty cycles, so updatedAt (refreshed
+          // on every dirty upsert) is appended to keep pg-boss's deterministic
+          // jobId from deduplicating a genuinely new dirty cycle into silence.
+          idempotencyKey: `${target.targetKey}:${target.updatedAt}`,
+          retryLimit: PROJECTION_MAINTENANCE_RETRY_LIMIT,
+          retryDelay: PROJECTION_MAINTENANCE_RETRY_DELAY_SECONDS,
+          retryBackoff: true,
+        });
+      }
+    },
+  };
 }

@@ -20,11 +20,6 @@ export type MineMusicRuntimeConfig = {
   localSources?: {
     rootDir?: string;
   };
-  projectionMaintenance?: {
-    enabled?: boolean;
-    intervalMs?: number;
-    batchLimit?: number;
-  };
   sourceLibraryImport?: {
     defaultLimit?: number;
   };

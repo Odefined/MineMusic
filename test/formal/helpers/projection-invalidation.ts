@@ -17,6 +17,7 @@ export function createRecordingProjectionInvalidationCommands(): RecordingProjec
             return {
                 writeCount: input.writes.length,
                 targetCount: 0,
+                invalidatedTargets: [],
             };
         },
     };

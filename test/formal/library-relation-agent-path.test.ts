@@ -29,9 +29,6 @@ const musicDataPlatformModule = createMusicDataPlatformRuntimeModule({
     extensionRuntime: idleExtensionRuntime(),
     database,
     config: {
-        projectionMaintenance: {
-            enabled: false,
-        },
     },
 });
 const initializedMdp = await musicDataPlatformModule.initialize({});

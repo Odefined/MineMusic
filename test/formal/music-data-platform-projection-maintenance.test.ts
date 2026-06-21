@@ -3,6 +3,7 @@ import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import * as musicDataPlatform from "../../src/music_data_platform/index.js";
 import { DEFAULT_OWNER_SCOPE, createMaterialTextProjectionRecords, createMusicDataPlatformSourceOfTruthWriteCommands, createOwnerCatalogRecords, createOwnerRelationPoolRef, createProjectionMaintenanceCommands, createProjectionMaintenanceRecords, createProjectionMaintenanceRunner, createSourceLibraryRef, isMusicDataPlatformError, musicDataPlatformIdentitySchema, musicDataPlatformMaterialTextProjectionSchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformSearchMetadataProjectionSchema, musicDataPlatformSourceLibrarySchema, type CreateProjectionMaintenanceCommandsInput, type CreateProjectionMaintenanceRecordsInput, type CreateProjectionMaintenanceRunnerInput, type CreateMusicDataPlatformSourceOfTruthWriteCommandsInput, type GetProjectionTargetInput, type ListPendingProjectionTargetsInput, type ProjectionMaintenanceCleanInput, type ProjectionMaintenanceCleanResult, type ProjectionMaintenanceCommands, type ProjectionInvalidationCommands, type ProjectionMaintenanceInvalidationInput, type ProjectionMaintenanceInvalidationResult, type ProjectionMaintenanceFailedInput, type ProjectionMaintenanceFailedResult, type ProjectionMaintenanceKind, type ProjectionMaintenanceRecords, type ProjectionMaintenanceRunSummary, type ProjectionMaintenanceRunner, type ProjectionSourceWrite, type ProjectionMaintenanceTargetDirtyResult, type ProjectionMaintenanceTargetInput, type ProjectionMaintenanceTargetRecord, type ProjectionMaintenanceTargetStatus, } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
+import { runSourceOfTruthWrite, type ProjectionMaintenanceDispatcher } from "../../src/music_data_platform/index.js";
 import { createOwnerMaterialRelationCommands } from "../../src/music_data_platform/owner_material_relation_commands.js";
 import { assertProjectionMaintenanceKind, parseProjectionMaintenanceTargetPayload, } from "../../src/music_data_platform/projection_maintenance_commands.js";
 import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
@@ -38,7 +39,7 @@ export type _projectionMaintenanceRelationMaterialTargetInputShape = Expect<Equa
 export type _projectionMaintenanceMaterialTextTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"material_text">, "projectionKind" | "materialRef">>;
 export type _projectionMaintenanceTargetDirtyResultShape = Expect<Equal<keyof ProjectionMaintenanceTargetDirtyResult, "targetKey" | "dirtyGeneration">>;
 export type _projectionMaintenanceInvalidationInputShape = Expect<Equal<keyof ProjectionMaintenanceInvalidationInput, "writes">>;
-export type _projectionMaintenanceInvalidationResultShape = Expect<Equal<keyof ProjectionMaintenanceInvalidationResult, "writeCount" | "targetCount">>;
+export type _projectionMaintenanceInvalidationResultShape = Expect<Equal<keyof ProjectionMaintenanceInvalidationResult, "writeCount" | "targetCount" | "invalidatedTargets">>;
 export type _projectionSourceWriteShape = Expect<Equal<ProjectionSourceWrite["writeKind"], "source_record_written" | "material_record_written" | "canonical_record_written" | "source_material_binding_written" | "source_library_item_written" | "source_library_scope_written" | "owner_relation_written">>;
 export type _projectionMaintenanceCleanInputShape = Expect<Equal<keyof ProjectionMaintenanceCleanInput, "projectionKind" | "targetKey" | "expectedDirtyGeneration">>;
 export type _projectionMaintenanceCleanResultShape = Expect<Equal<keyof ProjectionMaintenanceCleanResult, "cleaned">>;
@@ -46,7 +47,7 @@ export type _projectionMaintenanceFailedInputShape = Expect<Equal<keyof Projecti
 export type _projectionMaintenanceFailedResultShape = Expect<Equal<keyof ProjectionMaintenanceFailedResult, "failed">>;
 export type _projectionMaintenanceCommandsShape = Expect<Equal<keyof ProjectionMaintenanceCommands, "markProjectionInvalidated" | "markProjectionTargetDirty" | "markProjectionClean" | "markProjectionFailed">>;
 export type _projectionInvalidationCommandsShape = Expect<Equal<keyof ProjectionInvalidationCommands, "markProjectionInvalidated">>;
-export type _createSourceOfTruthWriteCommandsInputShape = Expect<Equal<keyof CreateMusicDataPlatformSourceOfTruthWriteCommandsInput, "db" | "now">>;
+export type _createSourceOfTruthWriteCommandsInputShape = Expect<Equal<keyof CreateMusicDataPlatformSourceOfTruthWriteCommandsInput, "db" | "now" | "accumulateInvalidatedTargets">>;
 export type _createProjectionMaintenanceRecordsInputShape = Expect<Equal<keyof CreateProjectionMaintenanceRecordsInput, "db">>;
 export type _getProjectionTargetInputShape = Expect<Equal<keyof GetProjectionTargetInput, "projectionKind" | "targetKey">>;
 export type _listPendingProjectionTargetsInputShape = Expect<Equal<keyof ListPendingProjectionTargetsInput, "limit">>;
@@ -319,7 +320,7 @@ await plannerDatabase.transaction(async (db) => {
         firstImportedAt: "2026-06-13T12:17:45.000Z",
     });
 });
-assert.deepEqual(await plannerDatabase.transaction(async (db) => await createProjectionMaintenanceCommands({
+const plannerInvalidation = await plannerDatabase.transaction(async (db) => await createProjectionMaintenanceCommands({
     db,
     now: "2026-06-13T12:18:00.000Z",
 }).markProjectionInvalidated({
@@ -349,7 +350,10 @@ assert.deepEqual(await plannerDatabase.transaction(async (db) => await createPro
             materialRef: plannerBoundMaterialRef,
         },
     ],
-})), { writeCount: 5, targetCount: 5 });
+}));
+assert.equal(plannerInvalidation.writeCount, 5);
+assert.equal(plannerInvalidation.targetCount, 5);
+assert.equal(plannerInvalidation.invalidatedTargets.length, 5);
 assert.deepEqual(await summarizePendingTargets(plannerDatabase), [
     {
         projectionKind: "material_text",
@@ -1075,6 +1079,46 @@ assert.deepEqual(await createProjectionMaintenanceRunner({
 });
 assert.deepEqual(await createProjectionMaintenanceRecords({ db: staleDatabase.context() }).listPendingProjectionTargets(), []);
 await staleDatabase.close();
+// runSourceOfTruthWrite: fn throwing inside the transaction rolls back and the
+// dispatcher is never called (no orphan projection-maintenance jobs after a
+// rolled-back write).
+{
+    const database = await initializedDatabase();
+    const submitted: { projectionKind: string; targetKey: string }[] = [];
+    const dispatcher: ProjectionMaintenanceDispatcher = {
+        async submitDirty(targets) {
+            for (const target of targets) {
+                submitted.push({ projectionKind: target.projectionKind, targetKey: target.targetKey });
+            }
+        },
+    };
+    await assert.rejects(
+        () => runSourceOfTruthWrite({
+            database,
+            now: "2026-06-21T00:00:00.000Z",
+            dispatcher,
+            fn: async () => {
+                throw new Error("write boom");
+            },
+        }),
+        /write boom/,
+    );
+    assert.deepEqual(submitted, []);
+    await database.close();
+}
+// runSourceOfTruthWrite: with no dispatcher wired, the helper still runs fn and
+// simply skips submit (tests and unwired callers).
+{
+    const database = await initializedDatabase();
+    const result = await runSourceOfTruthWrite({
+        database,
+        now: "2026-06-21T00:00:00.000Z",
+        dispatcher: undefined,
+        fn: async () => "ok",
+    });
+    assert.equal(result, "ok");
+    await database.close();
+}
 async function initializedDatabase(): Promise<MusicDatabase> {
     const database = await openUninitializedPostgresTestMusicDatabase();
     await database.initialize({

@@ -12,12 +12,14 @@ import {
   createRetrievalResultSetRecords,
   type MaterialCandidateCacheRecord,
 } from "./retrieval_result_set_records.js";
-import { createMusicDataPlatformSourceOfTruthWriteCommands } from "./source_of_truth_write_commands.js";
+import { runSourceOfTruthWrite } from "./source_of_truth_write_commands.js";
+import type { ProjectionMaintenanceDispatcher } from "./projection_maintenance_dispatcher.js";
 
 export type CreateCandidateCommitCommandInput = {
   database: MusicDatabase;
   materialRefFactory: MaterialRefFactory;
   now?: () => string;
+  projectionMaintenanceDispatcher?: ProjectionMaintenanceDispatcher;
 };
 
 export type CandidateCommitCommand = {
@@ -42,70 +44,71 @@ export function createCandidateCommitCommand(
     async commitCandidate(commandInput) {
       assertProviderMaterialCandidateRef(commandInput.materialCandidateRef);
 
-      return input.database.transaction(async (db) => {
-        const timestamp = now();
-        const candidateCache = createRetrievalResultSetRecords({ db })
-          .materialCandidates;
-        const materialCandidateRefKey = providerMaterialCandidateRefKey({
-          materialCandidateRef: commandInput.materialCandidateRef,
-        });
-        const cacheRecord = await candidateCache.getByRefKey({
-          materialCandidateRefKey,
-        });
-
-        if (cacheRecord === undefined) {
-          return failMusicData(
-            "music_data.material_candidate_not_found",
-            "Material candidate is missing or has already been removed from the runtime cache.",
-            true,
-          );
-        }
-
-        if (cacheRecord.expiresAt <= timestamp) {
-          return failMusicData(
-            "music_data.material_candidate_expired",
-            "Material candidate has expired from the runtime cache.",
-            true,
-          );
-        }
-
-        const sourceEntity = sourceEntityFromCacheRecord(cacheRecord);
-        const identityRead = createIdentityReadPort({ db });
-        const existingBinding = await identityRead.findMaterialForSource({
-          sourceRef: sourceEntity.sourceRef,
-        });
-
-        if (existingBinding !== undefined) {
-          return ok({
-            materialRef: existingBinding.materialRef,
-            created: false,
+      const timestamp = now();
+      return runSourceOfTruthWrite({
+        database: input.database,
+        now: timestamp,
+        dispatcher: input.projectionMaintenanceDispatcher,
+        fn: async (db, writes) => {
+          const candidateCache = createRetrievalResultSetRecords({ db })
+            .materialCandidates;
+          const materialCandidateRefKey = providerMaterialCandidateRefKey({
+            materialCandidateRef: commandInput.materialCandidateRef,
           });
-        }
+          const cacheRecord = await candidateCache.getByRefKey({
+            materialCandidateRefKey,
+          });
 
-        const writes = createMusicDataPlatformSourceOfTruthWriteCommands({
-          db,
-          now: timestamp,
-        });
-        const kind = materialKindForSourceKind(sourceEntity.kind);
+          if (cacheRecord === undefined) {
+            return failMusicData(
+              "music_data.material_candidate_not_found",
+              "Material candidate is missing or has already been removed from the runtime cache.",
+              true,
+            );
+          }
 
-        await writes.identity.upsertSourceRecord({ entity: sourceEntity });
-        const materialRef = input.materialRefFactory.createMaterialRef(kind);
-        await writes.identity.upsertMaterialRecord({
-          materialRef,
-          kind,
-          ...(sourceEntity.versionInfo === undefined
-            ? {}
-            : { versionInfo: sourceEntity.versionInfo }),
-        });
-        await writes.identity.bindSourceToMaterial({
-          sourceRef: sourceEntity.sourceRef,
-          materialRef,
-        });
+          if (cacheRecord.expiresAt <= timestamp) {
+            return failMusicData(
+              "music_data.material_candidate_expired",
+              "Material candidate has expired from the runtime cache.",
+              true,
+            );
+          }
 
-        return ok({
-          materialRef,
-          created: true,
-        });
+          const sourceEntity = sourceEntityFromCacheRecord(cacheRecord);
+          const identityRead = createIdentityReadPort({ db });
+          const existingBinding = await identityRead.findMaterialForSource({
+            sourceRef: sourceEntity.sourceRef,
+          });
+
+          if (existingBinding !== undefined) {
+            return ok({
+              materialRef: existingBinding.materialRef,
+              created: false,
+            });
+          }
+
+          const kind = materialKindForSourceKind(sourceEntity.kind);
+
+          await writes.identity.upsertSourceRecord({ entity: sourceEntity });
+          const materialRef = input.materialRefFactory.createMaterialRef(kind);
+          await writes.identity.upsertMaterialRecord({
+            materialRef,
+            kind,
+            ...(sourceEntity.versionInfo === undefined
+              ? {}
+              : { versionInfo: sourceEntity.versionInfo }),
+          });
+          await writes.identity.bindSourceToMaterial({
+            sourceRef: sourceEntity.sourceRef,
+            materialRef,
+          });
+
+          return ok({
+            materialRef,
+            created: true,
+          });
+        },
       });
     },
   };

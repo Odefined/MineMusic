@@ -31,7 +31,7 @@ const testModules = [
     "./formal/music-intelligence-metadata-lookup-search.test.js",
     "./formal/music-data-platform-candidate-commit.test.js",
     "./formal/music-data-platform-localize-provider-source.test.js",
-    "./formal/server-projection-maintenance-scheduler.test.js",
+    "./formal/projection-maintenance-job.test.js",
     "./formal/server-music-data-platform-runtime-module.test.js",
     "./formal/server-entrypoint.test.js",
     "./formal/stage-runtime.test.js",

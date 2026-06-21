@@ -1,4 +1,4 @@
-import type { MusicDatabaseTransactionContext } from "../storage/database.js";
+import type { MusicDatabase, MusicDatabaseTransactionContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import {
   createIdentityWriteCommands,
@@ -11,7 +11,9 @@ import {
 import {
   createProjectionMaintenanceCommands,
   type ProjectionInvalidationCommands,
+  type ProjectionMaintenanceInvalidatedTarget,
 } from "./projection_maintenance_commands.js";
+import type { ProjectionMaintenanceDispatcher } from "./projection_maintenance_dispatcher.js";
 import { DEFAULT_OWNER_SCOPE } from "./owner_scope.js";
 import { createSourceLibraryReadPort } from "./source_library_read_model.js";
 import {
@@ -23,6 +25,11 @@ import type { SourceLibraryImportBatchRecord } from "./source_library_records.js
 export type CreateMusicDataPlatformSourceOfTruthWriteCommandsInput = {
   db: MusicDatabaseTransactionContext;
   now: string;
+  // Optional sink collecting every target dirtied inside this transaction, so
+  // the transaction owner can submit rebuild jobs after commit without
+  // re-reading the dirty set. Omitted by callers (including tests) that do not
+  // dispatch jobs.
+  accumulateInvalidatedTargets?: ProjectionMaintenanceInvalidatedTarget[];
 };
 
 export type MusicDataPlatformSourceOfTruthWriteCommands = {
@@ -38,11 +45,18 @@ export function createMusicDataPlatformSourceOfTruthWriteCommands(
     db: input.db,
     now: input.now,
   });
+  const accumulateInto = input.accumulateInvalidatedTargets;
   const projectionInvalidationCommands: ProjectionInvalidationCommands = {
     async markProjectionInvalidated(invalidationInput) {
-      return projectionMaintenanceCommands.markProjectionInvalidated(
+      const result = await projectionMaintenanceCommands.markProjectionInvalidated(
         invalidationInput,
       );
+      if (accumulateInto !== undefined) {
+        for (const target of result.invalidatedTargets) {
+          accumulateInto.push(target);
+        }
+      }
+      return result;
     },
   };
   const sourceLibraryReads = createSourceLibraryReadPort({ db: input.db });
@@ -170,4 +184,50 @@ async function assertWorkflowFacingBatchOwnerScope(
   if (batch !== undefined) {
     assertWorkflowFacingOwnerScope(batch.ownerScope);
   }
+}
+
+export type RunSourceOfTruthWriteFn<Result> = (
+  db: MusicDatabaseTransactionContext,
+  writes: MusicDataPlatformSourceOfTruthWriteCommands,
+) => Promise<Result>;
+
+export type RunSourceOfTruthWriteInput<Result> = {
+  database: MusicDatabase;
+  now: string;
+  // Explicit `| undefined` rather than `?`: exactOptionalPropertyTypes forbids
+  // assigning `undefined` to an optional property, and every call site passes
+  // the dispatcher through unconditionally (it is simply undefined when no
+  // background work is wired, e.g. in tests).
+  dispatcher: ProjectionMaintenanceDispatcher | undefined;
+  fn: RunSourceOfTruthWriteFn<Result>;
+};
+
+/**
+ * Runs a source-of-truth write inside a transaction, then submits projection
+ * rebuild jobs for every target dirtied by it AFTER the transaction commits.
+ *
+ * The transaction is owned here so the dispatcher never runs inside it: a
+ * rollback leaves no orphan jobs. `fn` receives the transaction context and a
+ * freshly built write-commands handle (whose invalidations accumulate into a
+ * local sink), so each caller keeps its existing composite logic — reads,
+ * idempotency checks, multiple writes — verbatim inside `fn`.
+ */
+export async function runSourceOfTruthWrite<Result>(
+  input: RunSourceOfTruthWriteInput<Result>,
+): Promise<Result> {
+  const accumulated: ProjectionMaintenanceInvalidatedTarget[] = [];
+  const result = await input.database.transaction(async (db) => {
+    const writes = createMusicDataPlatformSourceOfTruthWriteCommands({
+      db,
+      now: input.now,
+      accumulateInvalidatedTargets: accumulated,
+    });
+    return input.fn(db, writes);
+  });
+
+  if (input.dispatcher !== undefined && accumulated.length > 0) {
+    await input.dispatcher.submitDirty(accumulated);
+  }
+
+  return result;
 }

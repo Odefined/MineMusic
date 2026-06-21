@@ -181,7 +181,6 @@ const stubAudit: StageToolAuditPort = {
             localSources: {
                 rootDir: `/tmp/minemusic-stage-tool-context-local-sources-${process.pid}`,
             },
-            projectionMaintenance: { enabled: false },
         },
     });
     assert.equal(host.toolContextFactory() === undefined, false);

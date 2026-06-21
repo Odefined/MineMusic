@@ -4,6 +4,7 @@ import {
   createPgBossBackgroundWorkBackend,
   type PgBossBackgroundWorkClient,
 } from "../../src/background_work/index.js";
+import type { JobWithMetadata } from "pg-boss";
 
 const localizeJobType = "music_data_platform.localize_provider_source";
 
@@ -11,16 +12,7 @@ type SendOptionsForFake = Parameters<PgBossBackgroundWorkClient["send"]>[2];
 type WorkOptionsForFake = Parameters<PgBossBackgroundWorkClient["work"]>[1];
 type FindJobsOptionsForFake = Parameters<PgBossBackgroundWorkClient["findJobs"]>[1];
 
-type FakeJob<Payload extends object = Record<string, unknown>> = {
-  id: string;
-  name: string;
-  data: Payload;
-  expireInSeconds: number;
-  heartbeatSeconds: number | null;
-  signal: AbortSignal;
-};
-
-type FakeWorkHandler = (jobs: FakeJob[]) => Promise<void>;
+type FakeWorkHandler = (jobs: JobWithMetadata[]) => Promise<void>;
 
 type SendCall = {
   name: string;
@@ -100,7 +92,7 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
   async work<Payload extends object>(
     name: string,
     options: WorkOptionsForFake,
-    handler: (jobs: FakeJob<Payload>[]) => Promise<void>,
+    handler: (jobs: JobWithMetadata<Payload>[]) => Promise<void>,
   ): Promise<string> {
     this.workCalls.push({
       name,
@@ -183,14 +175,12 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
   await backend.start();
 
   await client.workCalls[0]?.handler([
-    {
+    fakeJob({
       id: "a5f91a6d-91fc-4c2e-a213-b8db121e9f51",
       name: localizeJobType,
       data: { sourceRefKey: "source_netease:track:1003" },
-      expireInSeconds: 900,
-      heartbeatSeconds: null,
       signal,
-    },
+    }),
   ]);
 
   assert.deepEqual(seenJobs, [
@@ -199,6 +189,8 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
       jobType: localizeJobType,
       payload: { sourceRefKey: "source_netease:track:1003" },
       signal,
+      retryCount: 0,
+      retryLimit: 0,
     },
   ]);
 }
@@ -240,4 +232,47 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
   await backend.stop();
 
   assert.deepEqual(client.stopCalls, [{ graceful: true, close: true }]);
+}
+
+function fakeJob<Payload extends object>(input: {
+  id: string;
+  name: string;
+  data: Payload;
+  signal: AbortSignal;
+}): JobWithMetadata<Payload> {
+  const epoch = new Date(0);
+  // Backend reads id/name/data/signal/retryCount/retryLimit; the remaining
+  // JobWithMetadata fields are filled with inert defaults so the fake satisfies
+  // the type without exercising any pg-boss semantics.
+  return {
+    id: input.id,
+    name: input.name,
+    data: input.data,
+    signal: input.signal,
+    groupId: null,
+    groupTier: null,
+    expireInSeconds: 900,
+    heartbeatSeconds: null,
+    priority: 0,
+    state: "active",
+    retryLimit: 0,
+    retryCount: 0,
+    retryDelay: 0,
+    retryBackoff: false,
+    startAfter: epoch,
+    startedOn: epoch,
+    singletonKey: null,
+    singletonOn: null,
+    deleteAfterSeconds: 604800,
+    createdOn: epoch,
+    completedOn: null,
+    keepUntil: epoch,
+    policy: "standard",
+    heartbeatOn: null,
+    blocked: false,
+    blocking: false,
+    pendingDependencies: 0,
+    deadLetter: "",
+    output: {},
+  } as JobWithMetadata<Payload>;
 }

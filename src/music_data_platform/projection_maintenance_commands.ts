@@ -64,9 +64,20 @@ export type ProjectionMaintenanceInvalidationInput = {
   writes: readonly [ProjectionSourceWrite, ...ProjectionSourceWrite[]];
 };
 
+export type ProjectionMaintenanceInvalidatedTarget = {
+  projectionKind: ProjectionMaintenanceKind;
+  targetKey: string;
+  dirtyGeneration: number;
+  updatedAt: string;
+};
+
 export type ProjectionMaintenanceInvalidationResult = {
   writeCount: number;
   targetCount: number;
+  // Targets dirtied by this invalidation, in a shape ready to be submitted as
+  // background-work jobs after the write transaction commits. Carried out of
+  // the transaction so the dispatcher never submits inside it.
+  invalidatedTargets: readonly ProjectionMaintenanceInvalidatedTarget[];
 };
 
 export type ProjectionInvalidationCommands = {
@@ -195,13 +206,21 @@ export function createProjectionMaintenanceCommands(
         }
       }
 
+      const invalidatedTargets: ProjectionMaintenanceInvalidatedTarget[] = [];
       for (const target of uniqueTargets.values()) {
-        await upsertDirtyTarget(input, target);
+        const dirty = await upsertDirtyTarget(input, target);
+        invalidatedTargets.push({
+          projectionKind: target.projectionKind,
+          targetKey: dirty.targetKey,
+          dirtyGeneration: dirty.dirtyGeneration,
+          updatedAt: input.now,
+        });
       }
 
       return {
         writeCount: commandInput.writes.length,
         targetCount: uniqueTargets.size,
+        invalidatedTargets,
       };
     },
     async markProjectionClean(commandInput) {

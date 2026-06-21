@@ -22,9 +22,6 @@ else {
                 url: databaseUrl,
                 schema: databaseSchema,
             },
-            projectionMaintenance: {
-                enabled: false,
-            },
             plugins: {
                 "minemusic.ncm": {
                     ...(baseUrl === undefined ? {} : { baseUrl }),

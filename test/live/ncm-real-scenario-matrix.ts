@@ -423,7 +423,6 @@ async function withHost<Result>(database: PostgresDatabaseTarget, config: Scenar
                 url: database.url,
                 schema: database.schema,
             },
-            projectionMaintenance: { enabled: false },
             plugins: {
                 "minemusic.ncm": {
                     ...(config.baseUrl === undefined ? {} : { baseUrl: config.baseUrl }),

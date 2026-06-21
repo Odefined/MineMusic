@@ -5,13 +5,15 @@ import { MusicDataPlatformError, type MusicDataPlatformErrorCode } from "./error
 import { createIdentityReadPort } from "./identity_read_model.js";
 import { materialKindForSourceKind } from "./material_ref.js";
 import type { MaterialRefFactory } from "./material_ref_factory.js";
-import { createMusicDataPlatformSourceOfTruthWriteCommands } from "./source_of_truth_write_commands.js";
+import { runSourceOfTruthWrite } from "./source_of_truth_write_commands.js";
+import type { ProjectionMaintenanceDispatcher } from "./projection_maintenance_dispatcher.js";
 import { createLocalSourceRef } from "./local_source_ref.js";
 
 export type CreateLocalSourceCommandInput = {
   database: MusicDatabase;
   materialRefFactory: MaterialRefFactory;
   now?: () => string;
+  projectionMaintenanceDispatcher?: ProjectionMaintenanceDispatcher;
 };
 
 export type LocalSourceCommand = {
@@ -76,62 +78,61 @@ export function createLocalSourceCommand(
       // propagate as throws (one failure channel; let broken invariants crash).
       // The transaction has already rolled back, so there is no partial write.
       try {
-        return await input.database.transaction(async (db) => {
-          const timestamp = now();
-          const sourceRef = createLocalSourceRef({
-            md5: commandInput.md5,
-            kind: commandInput.kind,
-          });
+        return await runSourceOfTruthWrite({
+          database: input.database,
+          now: now(),
+          dispatcher: input.projectionMaintenanceDispatcher,
+          fn: async (db, writes) => {
+            const sourceRef = createLocalSourceRef({
+              md5: commandInput.md5,
+              kind: commandInput.kind,
+            });
 
-          // Idempotency short-circuit (mirrors candidate_commit). A local source
-          // is one file (md5) bound to ONE material; the binding is fixed once
-          // written. A replay returns the existing material. A later call that
-          // names a DIFFERENT material is a conflict (same file -> two
-          // materials), surfaced explicitly rather than silently rebinding.
-          const identityRead = createIdentityReadPort({ db });
-          const existingBinding = await identityRead.findMaterialForSource({ sourceRef });
-          if (existingBinding !== undefined) {
-            if (
-              commandInput.materialRef !== undefined &&
-              refKey(existingBinding.materialRef) !== refKey(commandInput.materialRef)
-            ) {
-              return failLocalSource(
-                "music_data.local_source_material_conflict",
-                "Local source (md5) is already bound to a different material.",
-              );
+            // Idempotency short-circuit (mirrors candidate_commit). A local source
+            // is one file (md5) bound to ONE material; the binding is fixed once
+            // written. A replay returns the existing material. A later call that
+            // names a DIFFERENT material is a conflict (same file -> two
+            // materials), surfaced explicitly rather than silently rebinding.
+            const identityRead = createIdentityReadPort({ db });
+            const existingBinding = await identityRead.findMaterialForSource({ sourceRef });
+            if (existingBinding !== undefined) {
+              if (
+                commandInput.materialRef !== undefined &&
+                refKey(existingBinding.materialRef) !== refKey(commandInput.materialRef)
+              ) {
+                return failLocalSource(
+                  "music_data.local_source_material_conflict",
+                  "Local source (md5) is already bound to a different material.",
+                );
+              }
+              return ok({ materialRef: existingBinding.materialRef, created: false });
             }
-            return ok({ materialRef: existingBinding.materialRef, created: false });
-          }
 
-          const writes = createMusicDataPlatformSourceOfTruthWriteCommands({
-            db,
-            now: timestamp,
-          });
+            const localSourceEntity = buildLocalSourceEntity({
+              sourceRef,
+              md5: commandInput.md5,
+              filePath: commandInput.filePath,
+              ...(commandInput.descriptiveMetadata === undefined ? {} : { descriptiveMetadata: commandInput.descriptiveMetadata }),
+            });
+            await writes.identity.upsertSourceRecord({ entity: localSourceEntity });
 
-          const localSourceEntity = buildLocalSourceEntity({
-            sourceRef,
-            md5: commandInput.md5,
-            filePath: commandInput.filePath,
-            ...(commandInput.descriptiveMetadata === undefined ? {} : { descriptiveMetadata: commandInput.descriptiveMetadata }),
-          });
-          await writes.identity.upsertSourceRecord({ entity: localSourceEntity });
+            if (commandInput.materialRef === undefined) {
+              const materialKind = materialKindForSourceKind(commandInput.kind);
+              const materialRef = input.materialRefFactory.createMaterialRef(materialKind);
+              await writes.identity.upsertMaterialRecord({ materialRef, kind: materialKind });
+              await writes.identity.bindSourceToMaterial({
+                sourceRef,
+                materialRef,
+              });
+              return ok({ materialRef, created: true });
+            }
 
-          if (commandInput.materialRef === undefined) {
-            const materialKind = materialKindForSourceKind(commandInput.kind);
-            const materialRef = input.materialRefFactory.createMaterialRef(materialKind);
-            await writes.identity.upsertMaterialRecord({ materialRef, kind: materialKind });
             await writes.identity.bindSourceToMaterial({
               sourceRef,
-              materialRef,
+              materialRef: commandInput.materialRef,
             });
-            return ok({ materialRef, created: true });
-          }
-
-          await writes.identity.bindSourceToMaterial({
-            sourceRef,
-            materialRef: commandInput.materialRef,
-          });
-          return ok({ materialRef: commandInput.materialRef, created: true });
+            return ok({ materialRef: commandInput.materialRef, created: true });
+          },
         });
       } catch (cause) {
         if (

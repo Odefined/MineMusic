@@ -11,8 +11,10 @@ import type {
 } from "./owner_material_relation_ref.js";
 import { DEFAULT_OWNER_SCOPE } from "./owner_scope.js";
 import {
-  createMusicDataPlatformSourceOfTruthWriteCommands,
+  runSourceOfTruthWrite,
+  type MusicDataPlatformSourceOfTruthWriteCommands,
 } from "./source_of_truth_write_commands.js";
+import type { ProjectionMaintenanceDispatcher } from "./projection_maintenance_dispatcher.js";
 
 export type LibraryRelationServiceState = {
   saved: boolean;
@@ -43,6 +45,7 @@ export type LibraryRelationService = {
 
 export type CreateLibraryRelationServiceInput = {
   database: MusicDatabase;
+  projectionMaintenanceDispatcher?: ProjectionMaintenanceDispatcher;
 };
 
 type MaterialLifecycleRow = {
@@ -63,54 +66,56 @@ export function createLibraryRelationService(
       });
     },
     async editRelation(editInput) {
-      return input.database.transaction(async (db) => {
-        await readRelationState({
-          db,
-          ownerScope: editInput.ownerScope,
-          materialRef: editInput.materialRef,
-          requireWritable: true,
-        });
+      return runSourceOfTruthWrite({
+        database: input.database,
+        now: editInput.now,
+        dispatcher: input.projectionMaintenanceDispatcher,
+        fn: async (db, writes) => {
+          await readRelationState({
+            db,
+            ownerScope: editInput.ownerScope,
+            materialRef: editInput.materialRef,
+            requireWritable: true,
+          });
 
-        const commands = createMusicDataPlatformSourceOfTruthWriteCommands({
-          db,
-          now: editInput.now,
-        }).ownerRelations;
-        const existing = await relationSet({
-          db,
-          ownerScope: editInput.ownerScope,
-          materialRef: editInput.materialRef,
-        });
+          const commands = writes.ownerRelations;
+          const existing = await relationSet({
+            db,
+            ownerScope: editInput.ownerScope,
+            materialRef: editInput.materialRef,
+          });
 
-        switch (editInput.edit) {
-          case "save":
-            await removeIfActive(commands, existing, editInput, "blocked");
-            await record(commands, editInput, "saved");
-            break;
-          case "unsave":
-            await removeIfActive(commands, existing, editInput, "saved");
-            break;
-          case "favorite":
-            await removeIfActive(commands, existing, editInput, "blocked");
-            await record(commands, editInput, "favorite");
-            break;
-          case "unfavorite":
-            await removeIfActive(commands, existing, editInput, "favorite");
-            break;
-          case "block":
-            await removeIfActive(commands, existing, editInput, "saved");
-            await removeIfActive(commands, existing, editInput, "favorite");
-            await record(commands, editInput, "blocked");
-            break;
-          case "unblock":
-            await removeIfActive(commands, existing, editInput, "blocked");
-            break;
-        }
+          switch (editInput.edit) {
+            case "save":
+              await removeIfActive(commands, existing, editInput, "blocked");
+              await record(commands, editInput, "saved");
+              break;
+            case "unsave":
+              await removeIfActive(commands, existing, editInput, "saved");
+              break;
+            case "favorite":
+              await removeIfActive(commands, existing, editInput, "blocked");
+              await record(commands, editInput, "favorite");
+              break;
+            case "unfavorite":
+              await removeIfActive(commands, existing, editInput, "favorite");
+              break;
+            case "block":
+              await removeIfActive(commands, existing, editInput, "saved");
+              await removeIfActive(commands, existing, editInput, "favorite");
+              await record(commands, editInput, "blocked");
+              break;
+            case "unblock":
+              await removeIfActive(commands, existing, editInput, "blocked");
+              break;
+          }
 
-        return relationStateFromKinds(await relationSet({
-          db,
-          ownerScope: editInput.ownerScope,
-          materialRef: editInput.materialRef,
-        }));
+          return relationStateFromKinds(await relationSet({
+            db,
+            ownerScope: editInput.ownerScope,
+            materialRef: editInput.materialRef,
+          }));
+        },
       });
     },
   };
@@ -155,7 +160,7 @@ function relationStateFromKinds(kinds: ReadonlySet<OwnerMaterialRelationKind>): 
 }
 
 async function record(
-  commands: ReturnType<typeof createMusicDataPlatformSourceOfTruthWriteCommands>["ownerRelations"],
+  commands: MusicDataPlatformSourceOfTruthWriteCommands["ownerRelations"],
   input: {
     ownerScope: string;
     materialRef: Ref;
@@ -171,7 +176,7 @@ async function record(
 }
 
 async function removeIfActive(
-  commands: ReturnType<typeof createMusicDataPlatformSourceOfTruthWriteCommands>["ownerRelations"],
+  commands: MusicDataPlatformSourceOfTruthWriteCommands["ownerRelations"],
   existing: ReadonlySet<OwnerMaterialRelationKind>,
   input: {
     ownerScope: string;

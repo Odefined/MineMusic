@@ -122,7 +122,6 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/server")))
     "src/server/mcp_stdio_entrypoint.ts",
     "src/server/music_data_platform_runtime_module.ts",
     "src/server/music_experience_runtime_module.ts",
-    "src/server/projection_maintenance_scheduler.ts",
     "src/server/retrieval_provider_search_adapter.ts",
     "src/server/stage_tool_context_assembly.ts",
     "src/server/transports/mcp_framing.ts",
@@ -176,6 +175,8 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_data_pl
     "src/music_data_platform/owner_material_relation_service.ts",
     "src/music_data_platform/owner_scope.ts",
     "src/music_data_platform/projection_maintenance_commands.ts",
+    "src/music_data_platform/projection_maintenance_dispatcher.ts",
+    "src/music_data_platform/projection_maintenance_job.ts",
     "src/music_data_platform/projection_maintenance_records.ts",
     "src/music_data_platform/projection_maintenance_runner.ts",
     "src/music_data_platform/projection_maintenance_schema.ts",
@@ -404,46 +405,10 @@ for (const forbidden of hostThinForbidden) {
     }
 }
 assert.deepEqual(hostThinFailures, [], "src/server/host.ts must stay thin: no production ports, Stage Interface factory, or transport/entrypoint wiring");
-const projectionMaintenanceSchedulerText = await readFile(join(repositoryRoot, "src/server/projection_maintenance_scheduler.ts"), "utf8");
-const projectionMaintenanceSchedulerImportFailures: string[] = [];
-const projectionMaintenanceSchedulerAllowedMdpImports = new Set([
-    "createProjectionMaintenanceRunner",
-    "ProjectionMaintenanceRunSummary",
-]);
-for (const forbiddenImport of [
-    "../music_data_platform/",
-    "../storage/",
-]) {
-    if ((projectionMaintenanceSchedulerText.includes(`from "${forbiddenImport}`)
-        || projectionMaintenanceSchedulerText.includes(`from '${forbiddenImport}`))
-        && !projectionMaintenanceSchedulerText.includes(`from "${forbiddenImport === "../music_data_platform/" ? "../music_data_platform/index.js" : "../storage/index.js"}"`)
-        && !projectionMaintenanceSchedulerText.includes(`from '${forbiddenImport === "../music_data_platform/" ? "../music_data_platform/index.js" : "../storage/index.js"}'`)) {
-        projectionMaintenanceSchedulerImportFailures.push(`src/server/projection_maintenance_scheduler.ts imports forbidden internal boundary '${forbiddenImport}'`);
-    }
-}
-for (const importedName of musicDataPlatformIndexImportNames(projectionMaintenanceSchedulerText)) {
-    if (!projectionMaintenanceSchedulerAllowedMdpImports.has(importedName)) {
-        projectionMaintenanceSchedulerImportFailures.push(`src/server/projection_maintenance_scheduler.ts imports disallowed Music Data Platform index symbol '${importedName}'`);
-    }
-}
-if (hasMusicDataPlatformIndexNamespaceImport(projectionMaintenanceSchedulerText)) {
-    projectionMaintenanceSchedulerImportFailures.push("src/server/projection_maintenance_scheduler.ts imports Music Data Platform index through a namespace import");
-}
-for (const forbiddenImport of [
-    "../music_data_platform/projection_maintenance_",
-    "../music_data_platform/owner_catalog_",
-    "../music_data_platform/material_text_",
-]) {
-    if (projectionMaintenanceSchedulerText.includes(`from "${forbiddenImport}`)
-        || projectionMaintenanceSchedulerText.includes(`from '${forbiddenImport}`)) {
-        projectionMaintenanceSchedulerImportFailures.push(`src/server/projection_maintenance_scheduler.ts imports forbidden implementation root '${forbiddenImport}'`);
-    }
-}
-assert.deepEqual(projectionMaintenanceSchedulerImportFailures, [], "Projection Maintenance scheduler helper must depend only on Server Host policy, Music Data Platform public runner access, and Storage public database types");
 const musicDataPlatformRuntimeModuleText = await readFile(join(repositoryRoot, "src/server/music_data_platform_runtime_module.ts"), "utf8");
-assert.equal(musicDataPlatformRuntimeModuleText.includes("createProjectionMaintenanceRunner"), false, "Music Data Platform runtime module must compose the scheduler helper and must not reference the Projection Maintenance runner directly");
-assert.equal(musicDataPlatformRuntimeModuleText.includes('from "./projection_maintenance_scheduler.js"')
-    || musicDataPlatformRuntimeModuleText.includes("from './projection_maintenance_scheduler.js'"), true, "Music Data Platform runtime module must compose the Projection Maintenance scheduler helper through the local Server Host boundary");
+assert.equal(musicDataPlatformRuntimeModuleText.includes("createProjectionMaintenanceRunner"), false, "Music Data Platform runtime module must drive projection maintenance through background-work handlers and must not reference the Projection Maintenance runner directly");
+assert.equal(musicDataPlatformRuntimeModuleText.includes("projection_maintenance_scheduler"), false, "Music Data Platform runtime module must not reference the retired Projection Maintenance scheduler");
+assert.equal(musicDataPlatformRuntimeModuleText.includes("PROJECTION_MAINTENANCE_JOB_TYPE"), true, "Music Data Platform runtime module must register the Projection Maintenance background-work handler");
 const extensionImportFailures: string[] = [];
 for (const file of await sourceFilesUnder(join(repositoryRoot, "src/extension"))) {
     const text = await readFile(file, "utf8");
@@ -965,7 +930,6 @@ assert.deepEqual(projectionRebuildCallFailures, []);
 const projectionMaintenanceRunnerFactoryAllowedFiles = new Set([
     "src/music_data_platform/index.ts",
     "src/music_data_platform/projection_maintenance_runner.ts",
-    "src/server/projection_maintenance_scheduler.ts",
 ]);
 const projectionMaintenanceRunnerFactoryFailures: string[] = [];
 for (const file of activeFiles) {

@@ -30,9 +30,6 @@ const host = createServerHost({
         localSources: {
             rootDir: "/tmp/minemusic-server-host-local-sources",
         },
-        projectionMaintenance: {
-            enabled: false,
-        },
     },
 });
 assert.equal(host.snapshot().status, "created");
@@ -58,6 +55,7 @@ assert.equal(host.localizeProviderSource() === undefined, false);
 assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.localize_provider_source",
     "register:music_data_platform.library_import_advance",
+    "register:music_data_platform.projection_maintenance",
     "start",
 ]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
@@ -138,6 +136,7 @@ assert.equal(host.localizeProviderSource(), undefined);
 assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.localize_provider_source",
     "register:music_data_platform.library_import_advance",
+    "register:music_data_platform.projection_maintenance",
     "start",
     "stop",
 ]);
@@ -204,9 +203,6 @@ const fixtureMusicDataPlatformModule = createMusicDataPlatformRuntimeModule({
         database: {
             url: serverHostDatabaseUrl,
             schema: serverHostFixtureSchema,
-        },
-        projectionMaintenance: {
-            enabled: false,
         },
     },
 });

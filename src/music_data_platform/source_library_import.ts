@@ -14,7 +14,11 @@ import {
   type SourceLibraryImportBatchRecord,
 } from "./source_library_records.js";
 import { createSourceLibraryReadPort } from "./source_library_read_model.js";
-import { createMusicDataPlatformSourceOfTruthWriteCommands } from "./source_of_truth_write_commands.js";
+import {
+  createMusicDataPlatformSourceOfTruthWriteCommands,
+  runSourceOfTruthWrite,
+} from "./source_of_truth_write_commands.js";
+import type { ProjectionMaintenanceDispatcher } from "./projection_maintenance_dispatcher.js";
 
 export type PlatformLibraryReadPort = {
   readPlatformLibraryProvider(input: {
@@ -30,6 +34,7 @@ export type CreateSourceLibraryImportServiceInput = {
   now?: () => string;
   newBatchId?: () => string;
   defaultLimit?: number;
+  projectionMaintenanceDispatcher?: ProjectionMaintenanceDispatcher;
 };
 
 export type SourceLibraryImportService = {
@@ -250,45 +255,46 @@ export function createSourceLibraryImportService(
     batch: SourceLibraryImportBatchRecord,
     candidate: PlatformLibraryCandidate,
   ): Promise<void> {
-    await input.database.transaction(async (db) => {
-      const timestamp = now();
-      const identityRead = createIdentityReadPort({ db });
-      const writes = createMusicDataPlatformSourceOfTruthWriteCommands({
-        db,
-        now: timestamp,
-      });
-      const identityCommands = writes.identity;
-      const sourceLibraryCommands = writes.sourceLibrary;
-      await identityCommands.upsertSourceRecord({
-        entity: candidate.sourceEntity,
-      });
-      const existingBinding = await identityRead.findMaterialForSource({
-        sourceRef: candidate.sourceEntity.sourceRef,
-      });
-      const materialRef = existingBinding?.materialRef ??
-        input.materialRefFactory.createMaterialRef(materialKindForSourceKind(candidate.sourceEntity.kind));
-
-      if (existingBinding === undefined) {
-        await identityCommands.upsertMaterialRecord({
-          materialRef,
-          kind: materialKindForSourceKind(candidate.sourceEntity.kind),
-          ...(candidate.sourceEntity.versionInfo === undefined ? {} : { versionInfo: candidate.sourceEntity.versionInfo }),
+    const timestamp = now();
+    await runSourceOfTruthWrite({
+      database: input.database,
+      now: timestamp,
+      dispatcher: input.projectionMaintenanceDispatcher,
+      fn: async (db, writes) => {
+        const identityRead = createIdentityReadPort({ db });
+        const identityCommands = writes.identity;
+        const sourceLibraryCommands = writes.sourceLibrary;
+        await identityCommands.upsertSourceRecord({
+          entity: candidate.sourceEntity,
         });
-      }
+        const existingBinding = await identityRead.findMaterialForSource({
+          sourceRef: candidate.sourceEntity.sourceRef,
+        });
+        const materialRef = existingBinding?.materialRef ??
+          input.materialRefFactory.createMaterialRef(materialKindForSourceKind(candidate.sourceEntity.kind));
 
-      await identityCommands.bindSourceToMaterial({
-        sourceRef: candidate.sourceEntity.sourceRef,
-        materialRef,
-      });
+        if (existingBinding === undefined) {
+          await identityCommands.upsertMaterialRecord({
+            materialRef,
+            kind: materialKindForSourceKind(candidate.sourceEntity.kind),
+            ...(candidate.sourceEntity.versionInfo === undefined ? {} : { versionInfo: candidate.sourceEntity.versionInfo }),
+          });
+        }
 
-      await sourceLibraryCommands.recordImportItem({
-        batch,
-        sourceRef: candidate.sourceEntity.sourceRef,
-        providerId: candidate.sourceEntity.providerId!,
-        providerEntityId: candidate.sourceEntity.providerEntityId!,
-        materialRef,
-        ...(candidate.providerAddedAt === undefined ? {} : { providerAddedAt: candidate.providerAddedAt }),
-      });
+        await identityCommands.bindSourceToMaterial({
+          sourceRef: candidate.sourceEntity.sourceRef,
+          materialRef,
+        });
+
+        await sourceLibraryCommands.recordImportItem({
+          batch,
+          sourceRef: candidate.sourceEntity.sourceRef,
+          providerId: candidate.sourceEntity.providerId!,
+          providerEntityId: candidate.sourceEntity.providerEntityId!,
+          materialRef,
+          ...(candidate.providerAddedAt === undefined ? {} : { providerAddedAt: candidate.providerAddedAt }),
+        });
+      },
     });
   }
 
@@ -310,14 +316,14 @@ export function createSourceLibraryImportService(
     providerAccountId: string,
     timestamp: string,
   ): Promise<SourceLibraryImportBatchRecord> {
-    return input.database.transaction(async (db) => {
-      return createMusicDataPlatformSourceOfTruthWriteCommands({
-        db,
-        now: timestamp,
-      }).sourceLibrary.resolveImportBatchLibraryScope({
+    return runSourceOfTruthWrite({
+      database: input.database,
+      now: timestamp,
+      dispatcher: input.projectionMaintenanceDispatcher,
+      fn: async (_db, writes) => writes.sourceLibrary.resolveImportBatchLibraryScope({
         batch,
         providerAccountId,
-      });
+      }),
     });
   }
 
@@ -343,14 +349,14 @@ export function createSourceLibraryImportService(
     completionReason: SourceLibraryImportCompletionReason,
     timestamp: string,
   ): Promise<SourceLibraryImportBatchRecord> {
-    return input.database.transaction(async (db) => {
-      return createMusicDataPlatformSourceOfTruthWriteCommands({
-        db,
-        now: timestamp,
-      }).sourceLibrary.completeImportBatch({
+    return runSourceOfTruthWrite({
+      database: input.database,
+      now: timestamp,
+      dispatcher: input.projectionMaintenanceDispatcher,
+      fn: async (_db, writes) => writes.sourceLibrary.completeImportBatch({
         batch,
         completionReason,
-      });
+      }),
     });
   }
 

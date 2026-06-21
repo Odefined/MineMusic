@@ -374,7 +374,6 @@ async function withStartedHost<Result>(database: PostgresDatabaseTarget, config:
                 url: database.url,
                 schema: database.schema,
             },
-            projectionMaintenance: { enabled: false },
             plugins: {
                 "minemusic.ncm": {
                     ...(config.baseUrl === undefined ? {} : { baseUrl: config.baseUrl }),

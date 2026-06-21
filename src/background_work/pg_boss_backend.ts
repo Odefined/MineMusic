@@ -4,7 +4,7 @@ import {
   PgBoss,
   type ConstructorOptions,
   type FindJobsOptions,
-  type Job,
+  type JobWithMetadata,
   type Queue,
   type SendOptions,
   type StopOptions,
@@ -30,7 +30,7 @@ export type PgBossBackgroundWorkClient = {
   work<Payload extends object>(
     name: string,
     options: WorkOptions,
-    handler: (jobs: Job<Payload>[]) => Promise<void>,
+    handler: (jobs: JobWithMetadata<Payload>[]) => Promise<void>,
   ): Promise<string>;
 };
 
@@ -75,6 +75,9 @@ export function createPgBossBackgroundWorkBackend(
       const options: SendOptions = {
         ...(expectedJobId === undefined ? {} : { id: expectedJobId }),
         ...(submitInput.runAfter === undefined ? {} : { startAfter: submitInput.runAfter }),
+        ...(submitInput.retryLimit === undefined ? {} : { retryLimit: submitInput.retryLimit }),
+        ...(submitInput.retryDelay === undefined ? {} : { retryDelay: submitInput.retryDelay }),
+        ...(submitInput.retryBackoff === undefined ? {} : { retryBackoff: submitInput.retryBackoff }),
       };
 
       const createdJobId = await client.send(jobType, submitInput.payload, options);
@@ -131,6 +134,11 @@ export function createPgBossBackgroundWorkBackend(
           {
             batchSize: 1,
             ...(input.workOptions ?? {}),
+            // Force metadata so handlers can observe retryCount/retryLimit and
+            // distinguish a final attempt from a retriable one (pg-boss v12 has
+            // no onComplete failure hook, so retry-state observation happens in
+            // the work handler itself).
+            includeMetadata: true,
           },
           async (jobs) => {
             for (const job of jobs) {
@@ -139,6 +147,8 @@ export function createPgBossBackgroundWorkBackend(
                 jobType: job.name,
                 payload: job.data,
                 signal: job.signal,
+                retryCount: job.retryCount,
+                retryLimit: job.retryLimit,
               });
             }
           },
