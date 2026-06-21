@@ -151,6 +151,15 @@ export async function dispatchProjectionTarget(input: {
         materialRef: payload.materialRef,
       });
       return;
+    default:
+      // A registered ProjectionMaintenanceKind without a rebuild case must fail
+      // loudly (ADR-0035): the runner catches this and marks the target
+      // `failed` rather than silently cleaning it. This keeps a dirty target
+      // visible (and re-dirtied on the next write) until its rebuild case lands,
+      // instead of masking staleness as a clean-without-work.
+      throw new Error(
+        `Unhandled projection maintenance target kind '${payload.projectionKind}'; no rebuild case is registered.`,
+      );
   }
 }
 

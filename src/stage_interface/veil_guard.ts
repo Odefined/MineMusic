@@ -40,6 +40,10 @@ export const INTERNAL_ANCHOR_PROPERTY_NAMES = [
   "ownerRelationPoolRefKeys",
   "relationRef",
   "relationRefKey",
+  "collectionRef",
+  "collectionRefs",
+  "collectionRefKey",
+  "collectionRefKeys",
   // Retrieval / material-internal anchors
   "poolRef",
   "matchedPoolRefs",

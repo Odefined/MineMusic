@@ -180,6 +180,58 @@ export type {
   LibraryRelationServiceState,
 } from "./owner_material_relation_service.js";
 export {
+  createCollectionRef,
+  assertCollectionRef,
+  assertCollectionKind,
+  assertCollectionStatus,
+  assertCollectionItemStatus,
+  assertCollectionName,
+} from "./collection_ref.js";
+export type {
+  CollectionKind,
+  CollectionStatus,
+  CollectionItemStatus,
+  CreateCollectionRefInput,
+} from "./collection_ref.js";
+export {
+  musicDataPlatformCollectionSchema,
+} from "./collection_schema.js";
+export {
+  createCollectionRecords,
+} from "./collection_records.js";
+export type {
+  CollectionRecord,
+  CollectionItemRecord,
+  CollectionReadPort,
+  CreateCollectionRecordsInput,
+  GetCollectionInput,
+  GetCollectionByNameInput,
+  GetCollectionItemInput,
+  ListCollectionItemsInput,
+  ListCollectionsInput,
+} from "./collection_records.js";
+// The Collection write-boundary factory is intentionally NOT exported here: it
+// is reachable only through source_of_truth_write_commands, and the active-tree
+// barrel denylist enforces that.
+export type {
+  AddCollectionItemInput,
+  CollectionCommands,
+  CreateCollectionCommandsInput,
+  CreateCollectionInput,
+  DeleteCollectionInput,
+  MoveCollectionItemInput,
+  RemoveCollectionItemInput,
+  RenameCollectionInput,
+} from "./collection_commands.js";
+export {
+  createLibraryCollectionService,
+} from "./collection_service.js";
+export type {
+  CreateLibraryCollectionServiceInput,
+  LibraryCollectionService,
+  LibraryCollectionServiceState,
+} from "./collection_service.js";
+export {
   createOwnerCatalogProjectionCommands,
 } from "./owner_catalog_projection.js";
 export type {

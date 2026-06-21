@@ -9,6 +9,10 @@ import {
   type OwnerMaterialRelationCommands,
 } from "./owner_material_relation_commands.js";
 import {
+  createCollectionCommands,
+  type CollectionCommands,
+} from "./collection_commands.js";
+import {
   createProjectionMaintenanceCommands,
   type ProjectionInvalidationCommands,
   type ProjectionMaintenanceInvalidatedTarget,
@@ -36,6 +40,7 @@ export type MusicDataPlatformSourceOfTruthWriteCommands = {
   identity: IdentityWriteCommands;
   sourceLibrary: SourceLibraryCommands;
   ownerRelations: OwnerMaterialRelationCommands;
+  collections: CollectionCommands;
 };
 
 export function createMusicDataPlatformSourceOfTruthWriteCommands(
@@ -72,6 +77,11 @@ export function createMusicDataPlatformSourceOfTruthWriteCommands(
     projectionInvalidationCommands,
   });
   const ownerRelations = createOwnerMaterialRelationCommands({
+    db: input.db,
+    now: input.now,
+    projectionInvalidationCommands,
+  });
+  const collections = createCollectionCommands({
     db: input.db,
     now: input.now,
     projectionInvalidationCommands,
@@ -143,6 +153,32 @@ export function createMusicDataPlatformSourceOfTruthWriteCommands(
       removeOwnerMaterialRelation(commandInput) {
         assertWorkflowFacingOwnerScope(commandInput.ownerScope);
         return ownerRelations.removeOwnerMaterialRelation(commandInput);
+      },
+    },
+    collections: {
+      createCollection(commandInput) {
+        assertWorkflowFacingOwnerScope(commandInput.ownerScope);
+        return collections.createCollection(commandInput);
+      },
+      renameCollection(commandInput) {
+        assertWorkflowFacingOwnerScope(commandInput.ownerScope);
+        return collections.renameCollection(commandInput);
+      },
+      addCollectionItem(commandInput) {
+        assertWorkflowFacingOwnerScope(commandInput.ownerScope);
+        return collections.addCollectionItem(commandInput);
+      },
+      removeCollectionItem(commandInput) {
+        assertWorkflowFacingOwnerScope(commandInput.ownerScope);
+        return collections.removeCollectionItem(commandInput);
+      },
+      moveCollectionItem(commandInput) {
+        assertWorkflowFacingOwnerScope(commandInput.ownerScope);
+        return collections.moveCollectionItem(commandInput);
+      },
+      deleteCollection(commandInput) {
+        assertWorkflowFacingOwnerScope(commandInput.ownerScope);
+        return collections.deleteCollection(commandInput);
       },
     },
   };

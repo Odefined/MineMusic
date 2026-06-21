@@ -130,11 +130,17 @@ Server Host tool wiring (Slices 3/4). Shippable standalone via MDP command tests
   `collections` writer handle; wrap each method with `assertWorkflowFacingOwnerScope`
   (mirror the ownerRelations block, NOT identity).
 - MODIFIED `src/music_data_platform/projection_maintenance_commands.ts` — add
-  `collection_written` to `ProjectionSourceWrite`; dispatch case in
-  `planProjectionInvalidationTargets` mapping to `owner_catalog_collection` +
-  `owner_catalog_collection_material` targets; add both kinds to
+  `collection_written` to `ProjectionSourceWrite` (payload `{ownerScope,
+  collectionKind, collectionRef}` — scope-level, following the payload-driven
+  shape of `owner_relation_written`); dispatch case in
+  `planProjectionInvalidationTargets` mapping to a SINGLE
+  `owner_catalog_collection` (scope) target; register BOTH kinds
+  (`owner_catalog_collection` + `owner_catalog_collection_material`) in
   `ProjectionMaintenanceKind`, `ProjectionMaintenanceTargetInput`,
-  `assertProjectionMaintenanceKind`, parse/build helpers.
+  `assertProjectionMaintenanceKind`, and the parse/build helpers. The
+  material-scoped kind is registered here but NOT dirtied by any 24A writeKind;
+  it is wired to `material_record_written` via `materialScopedTargets` in 24B
+  (D6). See the writeKind→target note in Dependencies.
 - MODIFIED `src/music_data_platform/index.ts` — export types + schema; do NOT
   export `createCollectionCommands` (barrel denylist).
 - MODIFIED `src/server/music_data_platform_runtime_module.ts` — register
@@ -195,21 +201,40 @@ and `collection_service.ts` carry zero write tokens.
 **Verification.** `npm run typecheck`; `npm run build:test`;
 `npm run test:stage-core`; `npm test`; `git diff --check`;
 `git diff --name-only`. Confirm: active-tree passes with all registrations;
-postgres-schema initializes the two tables; `collection_written` dirties both
-projection kinds; the collection test passes create/add/move/remove/delete/
+postgres-schema initializes the two tables; `collection_written` dirties the
+`owner_catalog_collection` (scope) target (material-scoped kind registered but
+not dirtied by any 24A writeKind); the collection test passes create/add/move/remove/delete/
 kind_mismatch/reactivation/UNIQUE-collision/facade-owner-scope.
 
 **Stopping condition.** 5 writer files compile; the facade exposes `collections`
 with `assertWorkflowFacingOwnerScope` per method; `collection_written` dirties
-`owner_catalog_collection` + `owner_catalog_collection_material`; all guards
-pass; deferrals hold (NO rebuild producer, NO `materialScopedTargets`/filter
-change — those are 24B; NO agent tool, NO catalog scope variant — those are
-24C/24D).
+exactly the `owner_catalog_collection` (scope) target; both kinds are registered
+in the union/parse/build/assert (the material-scoped kind is registered but NOT
+dirtied by any 24A writeKind — it awaits 24B's `materialScopedTargets` wiring);
+all guards pass; deferrals hold (NO rebuild producer, NO
+`materialScopedTargets`/filter change — those are 24B; NO agent tool, NO
+catalog scope variant — those are 24C/24D).
 
-**Dependencies.** None (foundation slice). Open items to confirm at
-implementation (do NOT guess): `UNIQUE` shape settled as `(owner_scope, name)`;
-`collection_written` payload shape follows `owner_relation_written`
-(`projection_maintenance_commands.ts:56-61`).
+**Dependencies.** None (foundation slice). Settled at implementation (no longer
+open):
+
+- `UNIQUE` shape is `(owner_scope, name)` (D2 name-in-owner uniqueness).
+- `collection_written` payload is `{ownerScope, collectionKind, collectionRef}`
+  (scope-level; payload-driven like `owner_relation_written` at `:56-61`).
+- **writeKind→target mapping is scope-only.** `collection_written` dirties
+  exactly one `owner_catalog_collection` (scope) target. This corrects an
+  earlier loose wording ("dirties both kinds"): the material-scoped
+  `owner_catalog_collection_material` is NOT a target of `collection_written`.
+  Authority: D6 ("scope-level: Collection's own writes dirty this";
+  "material-scoped … must be added to `materialScopedTargets`") + the
+  source_library precedent (`source_library_item_written` and
+  `source_library_scope_written` each dirty exactly one kind,
+  `projection_maintenance_commands.ts:549-568`) + the payload-driven rule (a
+  scope-level `collectionRef` payload cannot yield per-material targets). The
+  24B scope-level rebuild (`rebuildCollectionEntries`) fully covers every
+  membership change (create/rename/add/remove/move/delete); the material-scoped
+  kind exists solely for material lifecycle changes
+  (`material_record_written`), wired in 24B.
 
 ## PR 24B — Slice 2: Collection projection producer
 

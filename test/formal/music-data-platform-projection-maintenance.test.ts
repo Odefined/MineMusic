@@ -31,16 +31,18 @@ function createOwnerRelationTestCommands(db: Parameters<typeof createOwnerMateri
     });
 }
 export type _createProjectionMaintenanceCommandsInputShape = Expect<Equal<keyof CreateProjectionMaintenanceCommandsInput, "db" | "now">>;
-export type _projectionMaintenanceKindShape = Expect<Equal<ProjectionMaintenanceKind, "owner_catalog_source_library" | "owner_catalog_source_library_material" | "owner_catalog_relation_material" | "material_text">>;
+export type _projectionMaintenanceKindShape = Expect<Equal<ProjectionMaintenanceKind, "owner_catalog_source_library" | "owner_catalog_source_library_material" | "owner_catalog_relation_material" | "owner_catalog_collection" | "owner_catalog_collection_material" | "material_text">>;
 export type _projectionMaintenanceTargetStatusShape = Expect<Equal<ProjectionMaintenanceTargetStatus, "dirty" | "failed">>;
 export type _projectionMaintenanceSourceLibraryTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"owner_catalog_source_library">, "projectionKind" | "ownerScope" | "libraryRef">>;
 export type _projectionMaintenanceSourceLibraryMaterialTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"owner_catalog_source_library_material">, "projectionKind" | "ownerScope" | "materialRef">>;
 export type _projectionMaintenanceRelationMaterialTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"owner_catalog_relation_material">, "projectionKind" | "ownerScope" | "materialRef">>;
 export type _projectionMaintenanceMaterialTextTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"material_text">, "projectionKind" | "materialRef">>;
+export type _projectionMaintenanceCollectionTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"owner_catalog_collection">, "projectionKind" | "ownerScope" | "collectionRef">>;
+export type _projectionMaintenanceCollectionMaterialTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"owner_catalog_collection_material">, "projectionKind" | "ownerScope" | "materialRef">>;
 export type _projectionMaintenanceTargetDirtyResultShape = Expect<Equal<keyof ProjectionMaintenanceTargetDirtyResult, "targetKey" | "dirtyGeneration">>;
 export type _projectionMaintenanceInvalidationInputShape = Expect<Equal<keyof ProjectionMaintenanceInvalidationInput, "writes">>;
 export type _projectionMaintenanceInvalidationResultShape = Expect<Equal<keyof ProjectionMaintenanceInvalidationResult, "writeCount" | "targetCount" | "invalidatedTargets">>;
-export type _projectionSourceWriteShape = Expect<Equal<ProjectionSourceWrite["writeKind"], "source_record_written" | "material_record_written" | "canonical_record_written" | "source_material_binding_written" | "source_library_item_written" | "source_library_scope_written" | "owner_relation_written">>;
+export type _projectionSourceWriteShape = Expect<Equal<ProjectionSourceWrite["writeKind"], "source_record_written" | "material_record_written" | "canonical_record_written" | "source_material_binding_written" | "source_library_item_written" | "source_library_scope_written" | "owner_relation_written" | "collection_written">>;
 export type _projectionMaintenanceCleanInputShape = Expect<Equal<keyof ProjectionMaintenanceCleanInput, "projectionKind" | "targetKey" | "expectedDirtyGeneration">>;
 export type _projectionMaintenanceCleanResultShape = Expect<Equal<keyof ProjectionMaintenanceCleanResult, "cleaned">>;
 export type _projectionMaintenanceFailedInputShape = Expect<Equal<keyof ProjectionMaintenanceFailedInput, "projectionKind" | "targetKey" | "expectedDirtyGeneration" | "failureCode" | "failureMessage">>;

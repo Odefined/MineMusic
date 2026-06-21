@@ -7,6 +7,11 @@ import {
   assertOwnerMaterialRelationKind,
   type OwnerMaterialRelationKind,
 } from "./owner_material_relation_ref.js";
+import {
+  assertCollectionKind,
+  assertCollectionRef,
+  type CollectionKind,
+} from "./collection_ref.js";
 import { DEFAULT_OWNER_SCOPE, assertOwnerScope } from "./owner_scope.js";
 import {
   assertMusicDataPlatformRefSafe,
@@ -18,6 +23,8 @@ export type ProjectionMaintenanceKind =
   | "owner_catalog_source_library"
   | "owner_catalog_source_library_material"
   | "owner_catalog_relation_material"
+  | "owner_catalog_collection"
+  | "owner_catalog_collection_material"
   | "material_text";
 
 export type ProjectionMaintenanceTargetStatus =
@@ -58,6 +65,12 @@ export type ProjectionSourceWrite =
       ownerScope: string;
       relationKind: OwnerMaterialRelationKind;
       materialRef: Ref;
+    }
+  | {
+      writeKind: "collection_written";
+      ownerScope: string;
+      collectionKind: CollectionKind;
+      collectionRef: Ref;
     };
 
 export type ProjectionMaintenanceInvalidationInput = {
@@ -104,6 +117,16 @@ export type ProjectionMaintenanceTargetInput =
     }
   | {
       projectionKind: "owner_catalog_relation_material";
+      ownerScope: string;
+      materialRef: Ref;
+    }
+  | {
+      projectionKind: "owner_catalog_collection";
+      ownerScope: string;
+      collectionRef: Ref;
+    }
+  | {
+      projectionKind: "owner_catalog_collection_material";
       ownerScope: string;
       materialRef: Ref;
     }
@@ -168,6 +191,11 @@ type RefPayload = {
 type OwnerCatalogSourceLibraryPayload = {
   ownerScope: string;
   libraryRef: RefPayload;
+};
+
+type OwnerCatalogCollectionPayload = {
+  ownerScope: string;
+  collectionRef: RefPayload;
 };
 
 type OwnerCatalogMaterialPayload = {
@@ -320,6 +348,8 @@ export function assertProjectionMaintenanceKind(
     value !== "owner_catalog_source_library" &&
     value !== "owner_catalog_source_library_material" &&
     value !== "owner_catalog_relation_material" &&
+    value !== "owner_catalog_collection" &&
+    value !== "owner_catalog_collection_material" &&
     value !== "material_text"
   ) {
     throw invalidProjectionMaintenanceKind(
@@ -358,8 +388,22 @@ export function parseProjectionMaintenanceTargetPayload(input: {
         libraryRef,
       };
     }
+    case "owner_catalog_collection": {
+      const payload = requireObjectPayload(parsed);
+      assertExactObjectKeys(payload, ["ownerScope", "collectionRef"]);
+      const ownerScope = requireStringField(payload.ownerScope, "ownerScope");
+      assertOwnerScope(ownerScope);
+      const collectionRef = refFromPayload(payload.collectionRef, "collectionRef");
+      assertCollectionRef(collectionRef);
+      return {
+        projectionKind: input.projectionKind,
+        ownerScope,
+        collectionRef,
+      };
+    }
     case "owner_catalog_source_library_material":
-    case "owner_catalog_relation_material": {
+    case "owner_catalog_relation_material":
+    case "owner_catalog_collection_material": {
       const payload = requireObjectPayload(parsed);
       assertExactObjectKeys(payload, ["ownerScope", "materialRef"]);
       const ownerScope = requireStringField(payload.ownerScope, "ownerScope");
@@ -414,8 +458,18 @@ function buildNormalizedTargetPayloadJson(input: ProjectionMaintenanceTargetInpu
       };
       return JSON.stringify(payload);
     }
+    case "owner_catalog_collection": {
+      assertOwnerScope(input.ownerScope);
+      assertCollectionRef(input.collectionRef);
+      const payload: OwnerCatalogCollectionPayload = {
+        ownerScope: input.ownerScope,
+        collectionRef: normalizedRefPayload(input.collectionRef),
+      };
+      return JSON.stringify(payload);
+    }
     case "owner_catalog_source_library_material":
-    case "owner_catalog_relation_material": {
+    case "owner_catalog_relation_material":
+    case "owner_catalog_collection_material": {
       assertOwnerScope(input.ownerScope);
       assertMaterialRef(input.materialRef);
       const payload: OwnerCatalogMaterialPayload = {
@@ -574,6 +628,20 @@ async function planProjectionInvalidationTargets(
         projectionKind: "owner_catalog_relation_material",
         ownerScope: write.ownerScope,
         materialRef: write.materialRef,
+      }];
+    case "collection_written":
+      // writeKind→target is scope-only (see plan Dependencies note): a
+      // collection edit dirties exactly one owner_catalog_collection (scope)
+      // target. The material-scoped owner_catalog_collection_material is NOT
+      // dirtied here — it is wired to material_record_written via
+      // materialScopedTargets in 24B (D6).
+      assertOwnerScope(write.ownerScope);
+      assertCollectionKind(write.collectionKind);
+      assertCollectionRef(write.collectionRef);
+      return [{
+        projectionKind: "owner_catalog_collection",
+        ownerScope: write.ownerScope,
+        collectionRef: write.collectionRef,
       }];
   }
 }
