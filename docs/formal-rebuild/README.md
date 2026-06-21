@@ -50,6 +50,7 @@ audit. It is a planning area, not a replacement for `ARCHITECTURE.md`,
 | `phase-21-postgres-background-work-localize-implementation-plan.md` | Active Phase 21 execution plan for destructive Postgres storage migration, Background Work v1 over `pg-boss`, and `localizeProviderSource` runtime wiring. |
 | `phase-22-search-core-metadata-lookup-refactor-implementation-plan.md` | Active Phase 22 plan for replacing lookup-time metadata/provider retrieval with Postgres-native Search Core metadata lookup. |
 | `phase-23-library-catalog-tools-implementation-plan.md` | Implemented Phase 23 execution plan for `library.catalog.*` list-scope, browse, seed-sample, and summary tools over the Music Data Platform owner catalog projection. |
+| `phase-24-collection-foundation.md` | Phase 24 decision record for the Collection fact family: product frame, identity, kind, ordering, soft-remove, projection integration, and slice skeleton; slice implementation plans pending. |
 | `../formal-project-glossary.md` | Formal target vocabulary and MVP-to-formal term mapping. |
 
 The root audit
