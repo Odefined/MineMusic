@@ -114,6 +114,10 @@ try {
         "library_relation_unfavorite",
         "library_relation_block",
         "library_relation_unblock",
+        "library_catalog_list_scopes",
+        "library_catalog_browse",
+        "library_catalog_sample",
+        "library_catalog_summary",
         "music_discovery_list_scopes",
         "music_discovery_lookup",
         "music_experience_present",
@@ -160,7 +164,7 @@ try {
         };
     };
     assert.equal(callResult.structuredContent.status, "ready");
-    assert.equal(callResult.structuredContent.interface.toolCount, 14);
+    assert.equal(callResult.structuredContent.interface.toolCount, 18);
     assert.equal(callResult.content.length, 1);
     assert.equal(callResult.content[0]?.type, "text");
     assert.equal(callResult.content[0]?.text.startsWith("Runtime ready"), true);

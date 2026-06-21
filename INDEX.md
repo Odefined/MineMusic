@@ -164,10 +164,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   windows, text-score reranking, and default `music.discovery.lookup` wiring
   through the Metadata Lookup adapter.
 - `docs/formal-rebuild/phase-23-library-catalog-tools-implementation-plan.md`:
-  draft Phase 23 plan for `library.catalog.list_scopes`,
-  `library.catalog.browse`, `library.catalog.sample`, and
-  `library.catalog.summary` over owner-visible Music Data Platform catalog
-  facts.
+  implemented Phase 23 plan for `library.catalog.*` scope listing, browse,
+  seed sampling, and summary over the Music Data Platform owner catalog
+  projection.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -319,8 +318,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/contracts/stage_interface.ts`: instrument/tool and Stage Interface
   contracts, including the Phase 16A Tool Declaration mandatory core,
   `StageToolRegistration`, cross-cutting Stage Tool context ports, declared
-  error vocabulary, and public Music Scope / Music Item Handle DTOs; imports
-  only the kernel.
+  error vocabulary, public Music Scope / Music Item Handle DTOs, and
+  `library.catalog.*` public contracts; imports only the kernel.
 - `src/contracts/generated/stage_interface_schemas.ts`: generated JSON Schema
   artifacts derived from TypeScript source for Stage Interface tool inputs and
   outputs; refreshed by `npm run generate:stage-interface-schemas`.
@@ -390,12 +389,20 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/server/config.ts`: Server Host default runtime composition config.
 - `src/server/music_data_platform_runtime_module.ts`: Server Host composition
   module for Storage, Music Data Platform schemas, the Stage Interface handle
-  registry schema, internal Library Import service wiring, Retrieval query
-  wiring, and Music Scope availability adapter.
+  and lookup-cursor registry schemas, internal Library Import service wiring,
+  Library Catalog read-port wiring, Retrieval query wiring, and Music Scope
+  availability adapter.
 - `src/server/library_import_runtime_module.ts`: Server Host shim for the
   MDP-owned Library Import Stage Adapter RuntimeModule, adapting Extension
   platform-library-provider descriptor metadata, source-library import service,
   and source-library status reads into narrow Library Import ports.
+- `src/server/library_relation_runtime_module.ts`: Server Host shim for the
+  MDP-owned Library Relation Stage Adapter RuntimeModule, adapting the
+  initialized library relation service into narrow relation control ports.
+- `src/server/library_catalog_runtime_module.ts`: Server Host shim for the
+  MDP-owned Library Catalog Stage Adapter RuntimeModule, adapting the catalog
+  read port, Material Projection, and source-library/relation scope availability
+  while excluding provider scopes.
 - `src/server/retrieval_provider_search_adapter.ts`: Server Host adapter from
   Extension Runtime source-provider search to the Music Intelligence Retrieval
   provider-search port.
@@ -459,6 +466,10 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   schema contribution and owner catalog SQL view contribution.
 - `src/music_data_platform/owner_catalog_records.ts`: internal owner catalog
   read port.
+- `src/music_data_platform/library_catalog_read.ts`: narrow Library Catalog read
+  port over `owner_material_catalog_view`, `owner_material_entries`, and
+  `material_records` for agent-facing catalog membership inspection. Public
+  catalog item descriptions are projected separately through Material Projection.
 - `src/music_data_platform/owner_catalog_projection.ts`: owner catalog rebuild
   commands for source-library and owner-relation projection scopes.
 - `src/music_data_platform/material_text_projection_schema.ts`: material text
@@ -521,9 +532,14 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/music_data_platform/stage_adapter/source_library_scope.ts`: public
   source-library scope id/description helper shared by import summaries and
   scope availability.
-- `src/music_data_platform/stage_adapter/index.ts`: MDP Library Import
-  Stage Adapter boundary and `library-import` RuntimeModule contribution for
-  the `library.import` instrument and all four import tools.
+- `src/music_data_platform/stage_adapter/catalog.ts`: MDP Library Catalog
+  Stage Adapter descriptors/handlers for `library.catalog.list_scopes`,
+  `.browse`, `.sample`, and `.summary`, including public item shaping,
+  catalog-scope resolution, browse cursors, seed sampling, summary time bands,
+  concentration signals, and membership signals.
+- `src/music_data_platform/stage_adapter/index.ts`: MDP Stage Adapter boundary
+  and RuntimeModule contributions for `library.import`, `library.relation`, and
+  `library.catalog` instruments/tools.
 - `src/music_data_platform/index.ts`: Music Data Platform public exports.
 
 The previous MVP runtime source and tests were removed from active tree and are

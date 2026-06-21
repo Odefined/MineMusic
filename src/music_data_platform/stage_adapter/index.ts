@@ -26,6 +26,22 @@ import {
 import type {
   LibraryRelationControlPort,
 } from "./relation_edit.js";
+import {
+  createLibraryCatalogBrowseRegistration,
+  createLibraryCatalogListScopesRegistration,
+  createLibraryCatalogSampleRegistration,
+  createLibraryCatalogSummaryRegistration,
+  libraryCatalogInstrument,
+} from "./catalog.js";
+import type {
+  LibraryCatalogScopeAvailabilityPort,
+} from "./catalog.js";
+import type {
+  LibraryCatalogReadPort,
+} from "../library_catalog_read.js";
+import type {
+  MaterialProjection,
+} from "../material_projection.js";
 
 export {
   createLibraryImportStartRegistration,
@@ -69,6 +85,24 @@ export type {
   LibraryRelationControlPort,
 } from "./relation_edit.js";
 export {
+  createLibraryCatalogBrowseRegistration,
+  createLibraryCatalogListScopesRegistration,
+  createLibraryCatalogSampleRegistration,
+  createLibraryCatalogSummaryRegistration,
+  libraryCatalogBrowseDescriptor,
+  libraryCatalogInstrument,
+  libraryCatalogListScopesDescriptor,
+  libraryCatalogSampleDescriptor,
+  libraryCatalogSummaryDescriptor,
+} from "./catalog.js";
+export type {
+  CreateLibraryCatalogRegistrationInput,
+  LibraryCatalogRelationScopeAvailability,
+  LibraryCatalogScopeAvailabilityPort,
+  LibraryCatalogScopeAvailabilitySnapshot,
+  LibraryCatalogSourceLibraryScopeAvailability,
+} from "./catalog.js";
+export {
   publicSourceLibraryScope,
   sourceLibraryKindScopeMetadata,
   sourceLibraryScopeId,
@@ -81,6 +115,12 @@ export type CreateLibraryImportRuntimeModuleInput = {
 
 export type CreateLibraryRelationRuntimeModuleInput = {
   control: LibraryRelationControlPort;
+};
+
+export type CreateLibraryCatalogRuntimeModuleInput = {
+  catalog: LibraryCatalogReadPort;
+  materialProjection: MaterialProjection;
+  scopeAvailability: LibraryCatalogScopeAvailabilityPort;
 };
 
 export function createLibraryImportRuntimeModule(
@@ -107,6 +147,32 @@ export function createLibraryImportRuntimeModule(
             createLibraryImportStatusRegistration({
               control: input.control,
             }),
+          ],
+        },
+      };
+    },
+  };
+}
+
+export function createLibraryCatalogRuntimeModule(
+  input: CreateLibraryCatalogRuntimeModuleInput,
+): RuntimeModule {
+  return {
+    descriptor: {
+      id: "library-catalog",
+      ownerArea: "music_data_platform",
+      label: "Library Catalog",
+    },
+    async initialize() {
+      return {
+        ok: true,
+        value: {
+          instruments: [libraryCatalogInstrument],
+          tools: [
+            createLibraryCatalogListScopesRegistration(input),
+            createLibraryCatalogBrowseRegistration(input),
+            createLibraryCatalogSampleRegistration(input),
+            createLibraryCatalogSummaryRegistration(input),
           ],
         },
       };

@@ -75,6 +75,7 @@ export type {
   CreateMaterialProjectionInput,
   MaterialProjection,
   ProjectMusicMaterialInput,
+  ProjectMusicMaterialsInput,
 } from "./material_projection.js";
 export type {
   BindMaterialToCanonicalInput,
@@ -152,11 +153,10 @@ export {
   createLibraryCatalogReadPort,
 } from "./library_catalog_read.js";
 export type {
-  CreateLibraryCatalogReadPortInput,
   LibraryCatalogMaterialKind,
   LibraryCatalogReadPort,
+  LibraryCatalogReadScope,
   LibraryCatalogRecord,
-  LibraryCatalogScope,
 } from "./library_catalog_read.js";
 export {
   createOwnerMaterialRelationRecords,

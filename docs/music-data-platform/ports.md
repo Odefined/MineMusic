@@ -1,7 +1,7 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority through implemented Phase 22
-> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, search metadata projection, projection maintenance, metadata lookup search workspace/result sets, Library Import stage adapter tools, and Library Relation stage adapter tools
+> Status: Current boundary authority through implemented Phase 23
+> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, search metadata projection, projection maintenance, metadata lookup search workspace/result sets, Library Import stage adapter tools, Library Relation stage adapter tools, and Library Catalog stage adapter tools
 
 Music Data Platform provides identity repositories, identity read/write
 boundaries, source-library repositories, source-library commands/read port,
@@ -13,8 +13,10 @@ commands/reads/runner, metadata lookup search workspace, schema contributions,
 runtime search result-set schema and material-candidate cache helpers, the
 Library Import stage-adapter RuntimeModule and
 metadata-only source-listing plus import drive/status tools, the Library
-Relation service/runtime module and relation get/edit tools, a material
-ref factory, a top-level source-of-truth write facade, and error types. It
+Relation service/runtime module and relation get/edit tools, the Library
+Catalog read port/runtime module and list-scope/browse/sample/summary tools, a
+material ref factory, a top-level source-of-truth write facade, and error
+types. It
 consumes generic Storage database ports and a
 narrow provider-library read port, but does not know concrete storage primitives or
 provider plugin implementations.
@@ -54,6 +56,9 @@ provider plugin implementations.
 | `createLibraryRelationService` | Server Host composition / MDP stage adapter | Workflow-facing relation service for reading current saved/favorite/blocked state and applying explicit save/unsave/favorite/unfavorite/block/unblock semantics through source-of-truth owner-relation commands. | `src/music_data_platform/owner_material_relation_service.ts` |
 | `createLibraryRelationRuntimeModule` | Server Host composition | MDP-owned Stage Adapter RuntimeModule for `library.relation.*`; contributes the `library.relation` instrument plus get/save/unsave/favorite/unfavorite/block/unblock tool registrations. | `src/music_data_platform/stage_adapter/index.ts` |
 | `createLibraryRelationGetRegistration` / `createLibraryRelationSaveRegistration` / `createLibraryRelationUnsaveRegistration` / `createLibraryRelationFavoriteRegistration` / `createLibraryRelationUnfavoriteRegistration` / `createLibraryRelationBlockRegistration` / `createLibraryRelationUnblockRegistration` | Server Host composition / Stage Core | Stage Interface registrations for compact agent-facing relation read/edit tools over a narrow relation control port. | `src/music_data_platform/stage_adapter/relation_edit.ts` |
+| `createLibraryCatalogReadPort` | Server Host composition / MDP stage adapter | Read owner-visible catalog membership for the library baseline, source-library scopes, and relation scopes from owner catalog projection plus material records. | `src/music_data_platform/library_catalog_read.ts` |
+| `createLibraryCatalogRuntimeModule` | Server Host composition | MDP-owned Stage Adapter RuntimeModule for `library.catalog.*`; contributes the `library.catalog` instrument plus list_scopes/browse/sample/summary tool registrations backed by catalog membership reads and Material Projection display. | `src/music_data_platform/stage_adapter/index.ts` |
+| `createLibraryCatalogListScopesRegistration` / `createLibraryCatalogBrowseRegistration` / `createLibraryCatalogSampleRegistration` / `createLibraryCatalogSummaryRegistration` | Server Host composition / Stage Core | Stage Interface registrations for compact read-only catalog inspection tools over narrow catalog read, Material Projection, and catalog-scope availability ports. | `src/music_data_platform/stage_adapter/catalog.ts` |
 | `createOwnerMaterialRelationCommands` | Internal commands/tests | Record and remove current-state material-scope owner relation facts. | `src/music_data_platform/owner_material_relation_commands.ts` |
 | `createOwnerMaterialRelationRecords` | Internal commands/tests/later policy phases | Read internal owner material relation rows with explicit status handling. | `src/music_data_platform/owner_material_relation_records.ts` |
 | `createOwnerCatalogProjectionCommands` | Internal commands/tests | Rebuild library-scope source-library projection plus material-scope source-library and owner-relation catalog entries through transaction-scoped SQL commands. | `src/music_data_platform/owner_catalog_projection.ts` |
@@ -82,7 +87,8 @@ provider plugin implementations.
 | `PlatformLibrarySourceListingPort` | Server Host composition, backed by Extension Runtime provider descriptors | Enumerate registered platform-library-provider descriptor metadata for `library.import.list_sources`. | `listPlatformLibrarySources`. | None. |
 | `LibraryImportControlPort` | Server Host composition, backed by `SourceLibraryImportService` and `SourceLibraryReadPort` | Start/continue import pages and read compact batch status for `library.import.*` tools. | `startImport`, `continueImport`, `getStatus`, `sourceLibraryScopeForBatch`. | None; durable writes stay inside `SourceLibraryImportService`. |
 | `LibraryRelationControlPort` | Server Host composition, backed by `createLibraryRelationService` | Read current relation state and apply compact relation edits for `library.relation.*` tools. | `getRelationState`. | None at the port surface; durable writes stay inside `LibraryRelationService.editRelation`. |
-| `RuntimeModule` | Stage Core | Contribute the `library-import` and `library-relation` runtime modules and their Stage Interface registrations from the Music Data Platform stage-adapter boundary. | Descriptor/initialize contract. | None. |
+| `LibraryCatalogScopeAvailabilityPort` | Server Host composition, backed by Music Scope availability without provider scopes | Resolve catalog-visible source-library and relation scopes for `library.catalog.*` tools. | `listCatalogScopes`. | None. |
+| `RuntimeModule` | Stage Core | Contribute the `library-import`, `library-relation`, and `library-catalog` runtime modules and their Stage Interface registrations from the Music Data Platform stage-adapter boundary. | Descriptor/initialize contract. | None. |
 
 ## Repository Ports
 
@@ -145,6 +151,7 @@ current `source_material_bindings` row for the same `sourceRef`.
 | `createOwnerMaterialRelationRecords({ db })` | database context | `getOwnerMaterialRelation(...)`, `listOwnerMaterialRelations(...)` | reads `owner_material_relations` |
 | `createOwnerCatalogProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSourceLibraryEntriesForLibrary({ ownerScope, libraryRef })`, `rebuildSourceLibraryEntriesForMaterial({ ownerScope, materialRef })`, and `rebuildOwnerRelationEntries({ ownerScope, materialRef })` | writes `owner_material_entries` only |
 | `createOwnerCatalogRecords({ db })` | database context | `listOwnerMaterialEntries(...)`, `listOwnerCatalogMaterials(...)` | reads `owner_material_entries` and `owner_material_catalog_view` |
+| `createLibraryCatalogReadPort({ db })` | database context | `listCatalogItems({ ownerScope, scope })` for library, source-library, and relation scopes | reads `owner_material_catalog_view`, `owner_material_entries`, and `material_records` |
 | `createMaterialTextProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildMaterialTextDocument({ materialRef })` and `rebuildMaterialTextDocuments({ materialRefs })` | writes `material_text_documents` and `material_text_fts` only |
 | `createMaterialTextProjectionRecords({ db })` | database context | `getMaterialTextDocument({ materialRef })`, `matchMaterialTextDocuments({ text, limit? })` | reads `material_text_documents` and `material_text_fts` |
 | `createSearchMetadataProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSearchMetadataDocument({ materialRef })` and `rebuildSearchMetadataDocuments({ materialRefs })` | writes `search_metadata_documents` only |
@@ -246,7 +253,7 @@ durable workflow visibility and lets the invariant error throw.
 | Forbidden dependency | Reason |
 | --- | --- |
 | Music Data Platform -> concrete storage adapter internals | Music Data Platform must depend on generic database contexts or narrow ports, not concrete adapter primitives. |
-| Music Data Platform -> Stage Interface | Stage Interface owns public tools/output projection. |
+| Music Data Platform -> Stage Interface outside `src/music_data_platform/stage_adapter/` | Stage Interface owns public tools/output projection; MDP may import Stage Interface contracts only inside its stage-adapter public projection boundary. |
 | Music Data Platform -> Extension/provider implementations | Providers produce source facts; they do not persist identity directly. Library Import consumes a narrow read port, not plugin code. |
 | Music Data Platform -> query/retrieval/presentation roots | Query and presentation are later boundaries. |
 | Stage Interface -> Music Data Platform storage row shapes | Agent-facing tools must not leak internal records. |

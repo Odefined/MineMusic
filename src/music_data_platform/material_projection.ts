@@ -15,7 +15,10 @@ import type {
 import type { MaterialRecord } from "../contracts/storage.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
-import { createIdentityRepositories } from "./identity_records.js";
+import {
+  createIdentityRepositories,
+  type SourceToMaterialBindingRecord,
+} from "./identity_records.js";
 import { assertMaterialRef, materialKindForSourceKind } from "./material_ref.js";
 
 export type CreateMaterialProjectionInput = {
@@ -25,10 +28,15 @@ export type CreateMaterialProjectionInput = {
 
 export type MaterialProjection = {
   projectMusicMaterial(input: ProjectMusicMaterialInput): Promise<MusicMaterial | undefined>;
+  projectMusicMaterials(input: ProjectMusicMaterialsInput): Promise<ReadonlyMap<string, MusicMaterial>>;
 };
 
 export type ProjectMusicMaterialInput = {
   materialRef: Ref;
+};
+
+export type ProjectMusicMaterialsInput = {
+  materialRefs: readonly Ref[];
 };
 
 export const DEFAULT_SOURCE_PREFERENCE_POLICY: SourcePreferencePolicy = {
@@ -65,8 +73,15 @@ export function createMaterialProjection(
 
   return {
     async projectMusicMaterial(projectInput) {
-      return projectMusicMaterial({
-        materialRef: projectInput.materialRef,
+      return (await projectMusicMaterials({
+        materialRefs: [projectInput.materialRef],
+        repositories,
+        sourcePreferencePolicy,
+      })).get(refKey(projectInput.materialRef));
+    },
+    async projectMusicMaterials(projectInput) {
+      return projectMusicMaterials({
+        materialRefs: projectInput.materialRefs,
         repositories,
         sourcePreferencePolicy,
       });
@@ -74,101 +89,222 @@ export function createMaterialProjection(
   };
 }
 
-async function projectMusicMaterial(input: {
-  materialRef: Ref;
+async function projectMusicMaterials(input: {
+  materialRefs: readonly Ref[];
   repositories: ReturnType<typeof createIdentityRepositories>;
   sourcePreferencePolicy: SourcePreferencePolicy;
-}): Promise<MusicMaterial | undefined> {
-  assertMaterialRef(input.materialRef);
+}): Promise<ReadonlyMap<string, MusicMaterial>> {
+  for (const materialRef of input.materialRefs) {
+    assertMaterialRef(materialRef);
+  }
+  const requestedRefs = uniqueRefs(input.materialRefs);
+  const projected = new Map<string, MusicMaterial>();
+  if (requestedRefs.length === 0) {
+    return projected;
+  }
 
-  const materialRecord = await input.repositories.materialRecords.get({
-    materialRef: input.materialRef,
+  const materialRecords = await materialRecordClosure({
+    materialRefs: requestedRefs,
+    repositories: input.repositories,
   });
+  const survivorByRequestedKey = new Map<string, MaterialRecord>();
+  const survivorRecordsByKey = new Map<string, MaterialRecord>();
 
-  if (materialRecord === undefined) {
-    return undefined;
+  for (const materialRef of requestedRefs) {
+    const survivor = survivorRecordForRef(materialRef, materialRecords);
+    if (survivor === undefined) {
+      continue;
+    }
+    const requestedKey = refKey(materialRef);
+    const survivorKey = refKey(survivor.entity.materialRef);
+    survivorByRequestedKey.set(requestedKey, survivor);
+    survivorRecordsByKey.set(survivorKey, survivor);
   }
 
-  if (materialRecord.mergedIntoMaterialRef !== undefined) {
-    return await projectMusicMaterial({
-      materialRef: materialRecord.mergedIntoMaterialRef,
-      repositories: input.repositories,
-      sourcePreferencePolicy: input.sourcePreferencePolicy,
-    });
-  }
-
-  const boundSources = await boundSourcesForMaterial({
-    materialRecord,
+  const boundSourcesByMaterialKey = await boundSourcesForMaterialRecords({
+    materialRecords: [...survivorRecordsByKey.values()],
     repositories: input.repositories,
   });
 
-  if (boundSources.length === 0) {
-    return undefined;
+  for (const materialRef of requestedRefs) {
+    const requestedKey = refKey(materialRef);
+    const survivor = survivorByRequestedKey.get(requestedKey);
+    if (survivor === undefined) {
+      continue;
+    }
+    const boundSources = boundSourcesByMaterialKey.get(refKey(survivor.entity.materialRef));
+    if (boundSources === undefined || boundSources.length === 0) {
+      continue;
+    }
+
+    projected.set(requestedKey, projectMaterialFromBoundSources({
+      materialRecord: survivor,
+      boundSources,
+      sourcePreferencePolicy: input.sourcePreferencePolicy,
+    }));
   }
 
-  for (const source of boundSources) {
+  return projected;
+}
+
+async function materialRecordClosure(input: {
+  materialRefs: readonly Ref[];
+  repositories: ReturnType<typeof createIdentityRepositories>;
+}): Promise<ReadonlyMap<string, MaterialRecord>> {
+  const records = new Map<string, MaterialRecord>();
+  const pending = new Map(input.materialRefs.map((materialRef) => [refKey(materialRef), materialRef]));
+
+  while (pending.size > 0) {
+    const batch = [...pending.values()];
+    pending.clear();
+    const loaded = await input.repositories.materialRecords.listByRefs({
+      materialRefs: batch,
+    });
+
+    for (const record of loaded) {
+      const materialRefKey = refKey(record.entity.materialRef);
+      if (records.has(materialRefKey)) {
+        continue;
+      }
+      records.set(materialRefKey, record);
+
+      if (record.mergedIntoMaterialRef !== undefined) {
+        const mergedRefKey = refKey(record.mergedIntoMaterialRef);
+        if (!records.has(mergedRefKey)) {
+          pending.set(mergedRefKey, record.mergedIntoMaterialRef);
+        }
+      }
+    }
+  }
+
+  return records;
+}
+
+function survivorRecordForRef(
+  materialRef: Ref,
+  records: ReadonlyMap<string, MaterialRecord>,
+): MaterialRecord | undefined {
+  let materialRefKey = refKey(materialRef);
+  const seen = new Set<string>();
+
+  for (;;) {
+    if (seen.has(materialRefKey)) {
+      throw new MusicDataPlatformError({
+        code: "music_data.material_ref_invalid",
+        message: "Material Projection encountered a material merge cycle.",
+      });
+    }
+    seen.add(materialRefKey);
+
+    const record = records.get(materialRefKey);
+    if (record === undefined) {
+      return undefined;
+    }
+    if (record.mergedIntoMaterialRef === undefined) {
+      return record;
+    }
+    materialRefKey = refKey(record.mergedIntoMaterialRef);
+  }
+}
+
+async function boundSourcesForMaterialRecords(input: {
+  materialRecords: readonly MaterialRecord[];
+  repositories: ReturnType<typeof createIdentityRepositories>;
+}): Promise<ReadonlyMap<string, readonly SourceEntity[]>> {
+  const output = new Map<string, readonly SourceEntity[]>();
+  if (input.materialRecords.length === 0) {
+    return output;
+  }
+
+  const bindings = await input.repositories.sourceMaterialBindings.listSourcesForMaterials({
+    materialRefs: input.materialRecords.map((record) => record.entity.materialRef),
+  });
+  const bindingsByMaterialKey = groupBindingsByMaterialKey(bindings);
+  const sourceRecords = await input.repositories.sourceRecords.listByRefs({
+    sourceRefs: uniqueRefs(input.materialRecords.flatMap((record) => record.entity.sourceRefs)),
+  });
+  const sourceRecordsByKey = new Map(sourceRecords.map((record) => [
+    refKey(record.entity.sourceRef),
+    record,
+  ]));
+
+  for (const materialRecord of input.materialRecords) {
+    const materialRefKey = refKey(materialRecord.entity.materialRef);
+    const materialBindings = bindingsByMaterialKey.get(materialRefKey) ?? [];
+    const bindingRefKeys = new Set(materialBindings.map((binding) => refKey(binding.sourceRef)));
+    const materialSourceRefKeys = materialRecord.entity.sourceRefs.map(refKey);
+
+    if (
+      materialBindings.length !== materialSourceRefKeys.length ||
+      materialSourceRefKeys.some((sourceRefKey) => !bindingRefKeys.has(sourceRefKey))
+    ) {
+      throw new MusicDataPlatformError({
+        code: "music_data.material_source_binding_invalid",
+        message: "Material sourceRefs must match current source-material bindings.",
+      });
+    }
+
+    const sources: SourceEntity[] = [];
+    for (const sourceRef of materialRecord.entity.sourceRefs) {
+      const sourceRecord = sourceRecordsByKey.get(refKey(sourceRef));
+      if (sourceRecord === undefined) {
+        throw new MusicDataPlatformError({
+          code: "music_data.source_not_found",
+          message: `Material bound source is missing a source record: ${refKey(sourceRef)}`,
+        });
+      }
+      sources.push(sourceRecord.entity);
+    }
+    output.set(materialRefKey, sources);
+  }
+
+  return output;
+}
+
+function projectMaterialFromBoundSources(input: {
+  materialRecord: MaterialRecord;
+  boundSources: readonly SourceEntity[];
+  sourcePreferencePolicy: SourcePreferencePolicy;
+}): MusicMaterial {
+  for (const source of input.boundSources) {
     assertSourceKindMatchesMaterial({
-      materialRecord,
+      materialRecord: input.materialRecord,
       source,
     });
   }
 
   const descriptiveSource = firstSourceForPurpose({
-    sources: boundSources,
+    sources: input.boundSources,
     policy: input.sourcePreferencePolicy,
     purpose: "descriptive_metadata",
   });
   const sourceNavigationSource = firstSourceWithNavigationUrl({
-    sources: boundSources,
+    sources: input.boundSources,
     policy: input.sourcePreferencePolicy,
     purpose: "source_navigation",
   });
 
   return musicMaterialFromPreferredSources({
-    materialRecord,
+    materialRecord: input.materialRecord,
     descriptiveSource,
     ...(sourceNavigationSource === undefined ? {} : { sourceNavigationSource }),
   });
 }
 
-async function boundSourcesForMaterial(input: {
-  materialRecord: MaterialRecord;
-  repositories: ReturnType<typeof createIdentityRepositories>;
-}): Promise<readonly SourceEntity[]> {
-  const bindings = await input.repositories.sourceMaterialBindings.listSourcesForMaterial({
-    materialRef: input.materialRecord.entity.materialRef,
-  });
-  const bindingRefKeys = new Set(bindings.map((binding) => refKey(binding.sourceRef)));
-  const materialSourceRefKeys = input.materialRecord.entity.sourceRefs.map(refKey);
-
-  if (
-    bindings.length !== materialSourceRefKeys.length ||
-    materialSourceRefKeys.some((sourceRefKey) => !bindingRefKeys.has(sourceRefKey))
-  ) {
-    throw new MusicDataPlatformError({
-      code: "music_data.material_source_binding_invalid",
-      message: "Material sourceRefs must match current source-material bindings.",
-    });
+function groupBindingsByMaterialKey(
+  bindings: readonly SourceToMaterialBindingRecord[],
+): ReadonlyMap<string, readonly SourceToMaterialBindingRecord[]> {
+  const grouped = new Map<string, SourceToMaterialBindingRecord[]>();
+  for (const binding of bindings) {
+    const materialRefKey = refKey(binding.materialRef);
+    grouped.set(materialRefKey, [...(grouped.get(materialRefKey) ?? []), binding]);
   }
 
-  const sources: SourceEntity[] = [];
+  return grouped;
+}
 
-  for (const sourceRef of input.materialRecord.entity.sourceRefs) {
-    const sourceRecord = await input.repositories.sourceRecords.get({
-      sourceRef,
-    });
-
-    if (sourceRecord === undefined) {
-      throw new MusicDataPlatformError({
-        code: "music_data.source_not_found",
-        message: `Material bound source is missing a source record: ${refKey(sourceRef)}`,
-      });
-    }
-
-    sources.push(sourceRecord.entity);
-  }
-
-  return sources;
+function uniqueRefs(refs: readonly Ref[]): readonly Ref[] {
+  return [...new Map(refs.map((ref) => [refKey(ref), ref])).values()];
 }
 
 function assertSourceKindMatchesMaterial(input: {

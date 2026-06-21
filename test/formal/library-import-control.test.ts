@@ -350,6 +350,9 @@ function musicDataPlatformModuleFor(input: {
         sourceLibraryRead() {
             return input.readPort;
         },
+        libraryCatalog() {
+            return undefined;
+        },
         libraryImportStart() {
             return input.startCommand as never;
         },

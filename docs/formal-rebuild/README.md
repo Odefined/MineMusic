@@ -49,7 +49,7 @@ audit. It is a planning area, not a replacement for `ARCHITECTURE.md`,
 | `phase-20-server-host-mcp-stdio-transport-implementation-plan.md` | Implemented Phase 20 execution plan for the MCP-over-stdio Server Host transport, production `StageToolContext` factory composition, MCP rendering/translation, cancellation, entrypoint wiring, guards, and smoke verification. |
 | `phase-21-postgres-background-work-localize-implementation-plan.md` | Active Phase 21 execution plan for destructive Postgres storage migration, Background Work v1 over `pg-boss`, and `localizeProviderSource` runtime wiring. |
 | `phase-22-search-core-metadata-lookup-refactor-implementation-plan.md` | Active Phase 22 plan for replacing lookup-time metadata/provider retrieval with Postgres-native Search Core metadata lookup. |
-| `phase-23-library-catalog-tools-implementation-plan.md` | Draft Phase 23 plan for `library.catalog.list_scopes`, `library.catalog.browse`, `library.catalog.sample`, and `library.catalog.summary` over owner-visible Music Data Platform catalog facts. |
+| `phase-23-library-catalog-tools-implementation-plan.md` | Implemented Phase 23 execution plan for `library.catalog.*` list-scope, browse, seed-sample, and summary tools over the Music Data Platform owner catalog projection. |
 | `../formal-project-glossary.md` | Formal target vocabulary and MVP-to-formal term mapping. |
 
 The root audit

@@ -106,6 +106,16 @@ documents. The old Retrieval read/mixed service modules and legacy
 The remaining Retrieval contracts, normalization, and cursor helpers are a
 compatibility surface used by the Stage lookup path; default lookup no longer
 uses the old material-text matched-token / field-priority ranking path.
+Phase 23 adds the MDP-owned `library.catalog.*` read-only tool surface over
+owner catalog membership plus Material Projection display. `library.catalog.list_scopes`
+lists only catalog-usable library/source-library/relation scopes and excludes
+provider scopes plus the aggregate `all` scope. `library.catalog.browse`
+returns compact public library items with optional cursor paging,
+`library.catalog.sample` returns deterministic seed-based samples, and
+`library.catalog.summary` returns four time-band evidence samples,
+kind-separated concentration signals, and library-baseline membership signals
+that distinguish imported source-library membership from MineMusic
+saved/favorite relation scopes.
 Phase 17 adds the internal Music Data Platform Candidate Commit owning command
 (ADR-0011), Material Projection (`materialRef` -> `MusicMaterial`), the Effect
 Boundary auto-pass widening for presentation-driven admission (ADR-0021), and
@@ -216,6 +226,9 @@ Accepted vocabulary includes:
 - `MusicScope`, `ListedMusicScope`, and `MusicScopeDescription` as the public
   scoped-music vocabulary used by `music.discovery.list_scopes` and future
   scoped music tools; descriptions are display metadata and not identity.
+- `Library Catalog` as the read-only agent-facing catalog inspection surface
+  over owner-visible MineMusic library/source-library/relation scopes, not a
+  top-level architecture area and not provider search.
 
 Phase 2 runtime vocabulary includes:
 
@@ -690,23 +703,33 @@ The active TypeScript tree is now a formal skeleton:
 - `src/music_data_platform/stage_adapter/source_library_scope.ts` owns the
   public source-library scope id/description mapping used by import summaries
   and music-scope availability;
-- `src/music_data_platform/stage_adapter/index.ts` owns the MDP Library Import
-  Stage Adapter subtree and contributes the `library-import` RuntimeModule,
-  the `library.import` instrument, and all four import tools.
+- `src/music_data_platform/stage_adapter/catalog.ts` owns the
+  `library.catalog.list_scopes`, `.browse`, `.sample`, and `.summary`
+  descriptors and handler factories for compact read-only catalog inspection;
+- `src/music_data_platform/stage_adapter/index.ts` owns the MDP Stage Adapter
+  subtree and contributes the `library-import`, `library-relation`, and
+  `library-catalog` RuntimeModules.
 - `src/server/library_import_runtime_module.ts` owns the Server Host shim that
   mounts the MDP Library Import RuntimeModule and adapts Extension
   platform-library-provider descriptor metadata, the import service, and the
   source-library status read port into narrow Library Import ports.
+- `src/server/library_catalog_runtime_module.ts` owns the Server Host shim that
+  mounts the MDP Library Catalog RuntimeModule and adapts the catalog read port
+  plus source-library/relation scope availability while excluding provider
+  scopes.
 
 The current runtime starts in `created`, initializes required runtime modules
 through Server Host, mounts a configured Extension runtime module by default,
 builds Stage Interface from module contributions, exposes
 `library.import.list_sources`, `library.import.start`,
 `library.import.continue`, `library.import.status`,
+`library.catalog.list_scopes`, `library.catalog.browse`,
+`library.catalog.sample`, `library.catalog.summary`,
 `music.discovery.list_scopes`, `music.discovery.lookup`,
 `music.experience.present`, and `stage.runtime.status`, and supports compact
 lifecycle snapshots. The default
-module graph includes the required `library-import` RuntimeModule. All runtime
+module graph includes the required `library-import`, `library-relation`, and
+`library-catalog` RuntimeModules. All runtime
 modules are required. The runtime does not
 support optional modules, dependency resolution, dynamic plugin loading, plugin
 dependencies, retry, reload, or restart.
@@ -726,10 +749,13 @@ retrieval ports plus Extension Runtime source-provider search. It exposes the
 four `library.import.*` Stage Interface tools: `list_sources` over
 platform-library-provider descriptor metadata, `start` / `continue` over the
 existing page-by-page import service, and `status` over the source-library
-batch read port. It also exposes the read-only `music.discovery.list_scopes`
-Stage Interface tool over local Music Scope availability metadata, and the
-text-driven `music.discovery.lookup` Stage Interface retrieval tool. It does
-not expose save, play, favorite, or standalone candidate-commit tools.
+batch read port. It exposes `library.relation.*` relation state/edit tools and
+the read-only `library.catalog.*` catalog inspection tools over owner catalog
+membership plus Material Projection display. It also exposes the read-only
+`music.discovery.list_scopes` Stage Interface tool over local Music Scope
+availability metadata, and the text-driven `music.discovery.lookup` Stage
+Interface retrieval tool. It does not expose play or standalone
+candidate-commit tools.
 
 The old MVP runtime roots, provider integrations, storage adapters, material
 flow, source grounding, collection service, library import runtime, Codex skill
@@ -804,8 +830,8 @@ restored as compatibility layers.
   `docs/music-data-platform/progress.md` are the current Music Data Platform
   area docs for identity, source-library import, owner material relation,
   owner catalog projection, material text projection, projection
-  maintenance core, runtime-integrated freshness closure, and the retrieval
-  read port.
+  maintenance core, runtime-integrated freshness closure, metadata lookup
+  search, and the Library Catalog stage adapter tools.
 - `docs/music-intelligence/README.md`, `docs/music-intelligence/design.md`,
   `docs/music-intelligence/ports.md`, and
   `docs/music-intelligence/progress.md` are the current Music Intelligence
@@ -866,6 +892,9 @@ restored as compatibility layers.
   PR 16B Public Handle Veil + HandleMintingPort registry + execution gate stub +
   global timeout, PR 16C `list_scopes`, and PR 16D `lookup`; PR16A, PR16B,
   PR16C, and PR16D are implemented in this tree.
+- `docs/formal-rebuild/phase-23-library-catalog-tools-implementation-plan.md`
+  records the implemented Phase 23 Library Catalog tool surface over the owner
+  catalog projection.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
@@ -888,7 +917,7 @@ vocabulary authority lives in
 
 Current formal state does not implement:
 
-- save, play, favorite, or standalone candidate-commit tools;
+- play or standalone candidate-commit tools;
 - generic provider platform/runtime;
 - provider account instances, login, cookies, OAuth, secrets, or reauth;
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
@@ -904,7 +933,9 @@ Current formal state does not implement:
 - recommendation, radio, memory, or effect runtime behavior;
 - handbook tools or music-domain tools beyond `library.import.list_sources`,
   `library.import.start`, `library.import.continue`,
-  `library.import.status`, `music.discovery.list_scopes`,
+  `library.import.status`, `library.catalog.list_scopes`,
+  `library.catalog.browse`, `library.catalog.sample`,
+  `library.catalog.summary`, `music.discovery.list_scopes`,
   `music.discovery.lookup`, `music.experience.present`, and the internal
   runtime status tool.
 
@@ -913,11 +944,12 @@ contracts.
 
 ## Verification Pointers
 
-Phase 18 verification for this state should include:
+Current-state verification should include:
 
 ```bash
 npm run typecheck
 npm run build:test
+node ./.tmp-test/test/formal/library-catalog-tools.test.js
 npm run test:stage-core
 npm test
 npm run smoke:ncm

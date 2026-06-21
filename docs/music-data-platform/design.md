@@ -1,7 +1,7 @@
 # Music Data Platform Design
 
-> Status: Current design authority through implemented Phase 22
-> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, search metadata projection, projection maintenance core, metadata lookup search workspace/result sets, and the Library Import stage adapter tools
+> Status: Current design authority through implemented Phase 23
+> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, search metadata projection, projection maintenance core, metadata lookup search workspace/result sets, and the Library Import / Library Relation / Library Catalog stage adapter tools
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Data Platform owns source/material/canonical identity records, current
@@ -16,11 +16,9 @@ for current projections. Phase 22 adds the Postgres-native metadata lookup
 search path: durable `search_metadata_documents`, runtime
 `search_result_sets` / `search_result_rows`, and a Music Data Platform
 metadata lookup workspace that owns SQL reranking, pagination, provider-hit
-dedupe/collapse, and unresolved material-candidate cache writes. Phase 18 adds
-the Music Data Platform `stage_adapter` tool
-surface for `library.import.list_sources`, `.start`, `.continue`, and
-`.status` over Extension platform-library-provider descriptors, the existing
-import service, and the source-library batch read port.
+dedupe/collapse, and unresolved material-candidate cache writes. The Music Data
+Platform `stage_adapter` subtree owns the MDP-backed public `library.import.*`,
+`library.relation.*`, and `library.catalog.*` tool surfaces.
 
 ## Core Concepts
 
@@ -49,6 +47,8 @@ import service, and the source-library batch read port.
 | `material_candidate_cache` | Runtime cache for validated provider material candidates. | Keyed by `material_candidate_ref_key`; cleanup never deletes a candidate still referenced by a non-expired result set. |
 | Metadata lookup search workspace | Music Data Platform boundary for metadata lookup local/provider search. | Builds first-page result sets from durable metadata documents plus unresolved provider candidates, reranks rows together, reuses result sets on cursor pages, and owns runtime result-set/cache writes. |
 | Library Import stage adapter | MDP-owned Stage Adapter boundary for the `library.import.*` public tool surface. | Phase 18 contributes the `library.import` instrument plus `list_sources`, `start`, `continue`, and `status`; write-capable tools delegate to the existing import service and expose only compact public summaries. |
+| Library Relation stage adapter | MDP-owned Stage Adapter boundary for the `library.relation.*` public tool surface. | Exposes get/save/unsave/favorite/unfavorite/block/unblock over durable library item handles and returns only current saved/favorite/blocked booleans. |
+| Library Catalog stage adapter | MDP-owned Stage Adapter boundary for the `library.catalog.*` public tool surface. | Exposes read-only list-scopes, browse, seed-sample, and summary tools over owner catalog projection plus Material Projection descriptions; excludes provider scopes, search-index documents, and raw catalog rows. |
 | `projection_maintenance_targets` | Current projection maintenance worklist. | One row per `projection_kind + target_key`; `status` is `dirty` or `failed` and `dirty_generation` is monotonic. |
 | Material ref factory | Shared factory for new MineMusic material refs. | Produces opaque `material:<kind>:m_<opaque>` refs; import code must not derive ids from source/provider/canonical text. |
 | Material-canonical binding | Current material-to-canonical confirmation. | Stored on `MaterialEntity.canonicalRef`; written only by `bindMaterialToCanonical` or unambiguous material merge inheritance. |
@@ -738,12 +738,14 @@ collections, rewrite projections, or touch presentation history.
 - Collection membership;
 - update baseline tables;
 - public owner-scoped query surfaces and query result shaping beyond the
-  internal retrieval read port;
+  implemented `library.catalog.*` surface and internal retrieval read port;
 - Collection source-of-truth writes and additional owner catalog producers
   beyond source-library and owner-relation;
 - Music Intelligence Retrieval service and ranking;
 - provider execution or provider config;
-- Stage Interface tools or public DTOs;
+- Stage Interface tools or public DTOs outside the MDP-owned
+  `library.import.*`, `library.relation.*`, and `library.catalog.*`
+  stage-adapter surfaces;
 - background scheduling or automatic rebuild orchestration;
 - canonical review/merge/split workflow;
 - direct source-canonical evidence model;

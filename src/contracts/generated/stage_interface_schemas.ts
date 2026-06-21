@@ -999,6 +999,1066 @@ export const musicListScopesOutputSchema = {
   }
 } as const satisfies JsonSchema;
 
+export const libraryCatalogListScopesInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "$ref": "#/definitions/LibraryCatalogScopeKind",
+      "description": "Optional filter: return only catalog-usable scopes of this kind. Omit for all catalog scopes."
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCatalogScopeKind": {
+      "type": "string",
+      "enum": [
+        "library",
+        "source_library",
+        "relation"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCatalogListScopesOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "scopes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ListedLibraryCatalogScope"
+      }
+    }
+  },
+  "required": [
+    "scopes"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "ListedLibraryCatalogScope": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library"
+            },
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "source_library",
+              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "relation",
+              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        }
+      ]
+    },
+    "MusicScopeDescription": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetKind": {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        "detailText": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ]
+    },
+    "MusicTargetKind": {
+      "type": "string",
+      "enum": [
+        "recording",
+        "album",
+        "artist"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCatalogBrowseInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "cursor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "$ref": "#/definitions/LibraryCatalogScopeInput",
+      "description": "Catalog population to browse. Omit for the MineMusic library baseline."
+    },
+    "sort": {
+      "$ref": "#/definitions/LibraryCatalogBrowseSort",
+      "description": "Sort order for the first page. Omit for newest-first time order."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCatalogScopeInput": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/LibraryCatalogScope"
+        },
+        {
+          "$ref": "#/definitions/ListedLibraryCatalogScope"
+        }
+      ]
+    },
+    "LibraryCatalogScope": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "source_library",
+              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "relation",
+              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ListedLibraryCatalogScope": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library"
+            },
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "source_library",
+              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "relation",
+              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        }
+      ]
+    },
+    "MusicScopeDescription": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetKind": {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        "detailText": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ]
+    },
+    "MusicTargetKind": {
+      "type": "string",
+      "enum": [
+        "recording",
+        "album",
+        "artist"
+      ]
+    },
+    "LibraryCatalogBrowseSort": {
+      "type": "string",
+      "enum": [
+        "time",
+        "dictionary"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCatalogBrowseOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/LibraryCatalogItem"
+      }
+    },
+    "nextCursor": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCatalogItem": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library",
+              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "description": {
+          "$ref": "#/definitions/PublicHandleDescription"
+        }
+      },
+      "required": [
+        "item",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "PublicHandleDescription": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "additionalProperties": false
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCatalogSampleInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "scope": {
+      "$ref": "#/definitions/LibraryCatalogScopeInput",
+      "description": "Catalog population to sample. Omit for the MineMusic library baseline."
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "seed": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "count",
+    "seed"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCatalogScopeInput": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/LibraryCatalogScope"
+        },
+        {
+          "$ref": "#/definitions/ListedLibraryCatalogScope"
+        }
+      ]
+    },
+    "LibraryCatalogScope": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "source_library",
+              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "relation",
+              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ListedLibraryCatalogScope": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library"
+            },
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "source_library",
+              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "relation",
+              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        }
+      ]
+    },
+    "MusicScopeDescription": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetKind": {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        "detailText": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ]
+    },
+    "MusicTargetKind": {
+      "type": "string",
+      "enum": [
+        "recording",
+        "album",
+        "artist"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCatalogSampleOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/LibraryCatalogItem"
+      }
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCatalogItem": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library",
+              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "description": {
+          "$ref": "#/definitions/PublicHandleDescription"
+        }
+      },
+      "required": [
+        "item",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "PublicHandleDescription": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "additionalProperties": false
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCatalogSummaryInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "scope": {
+      "$ref": "#/definitions/LibraryCatalogScopeInput",
+      "description": "Catalog population to summarize. Omit for the MineMusic library baseline."
+    },
+    "sampleCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    }
+  },
+  "required": [
+    "sampleCount"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCatalogScopeInput": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/LibraryCatalogScope"
+        },
+        {
+          "$ref": "#/definitions/ListedLibraryCatalogScope"
+        }
+      ]
+    },
+    "LibraryCatalogScope": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "source_library",
+              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "relation",
+              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ListedLibraryCatalogScope": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library"
+            },
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "source_library",
+              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "relation",
+              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        }
+      ]
+    },
+    "MusicScopeDescription": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetKind": {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        "detailText": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ]
+    },
+    "MusicTargetKind": {
+      "type": "string",
+      "enum": [
+        "recording",
+        "album",
+        "artist"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCatalogSummaryOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "sampleBands": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/LibraryCatalogSummarySampleBand"
+      }
+    },
+    "concentrationSignals": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/LibraryCatalogConcentrationSignal"
+      }
+    },
+    "membershipSignals": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/LibraryCatalogMembershipSignal"
+      }
+    }
+  },
+  "required": [
+    "sampleBands",
+    "concentrationSignals"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCatalogSummarySampleBand": {
+      "type": "object",
+      "properties": {
+        "band": {
+          "$ref": "#/definitions/LibraryCatalogSummaryTimeBand"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LibraryCatalogItem"
+          }
+        }
+      },
+      "required": [
+        "band",
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryCatalogSummaryTimeBand": {
+      "type": "string",
+      "enum": [
+        "earliest_25",
+        "25_50",
+        "50_75",
+        "latest_25"
+      ]
+    },
+    "LibraryCatalogItem": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library",
+              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "description": {
+          "$ref": "#/definitions/PublicHandleDescription"
+        }
+      },
+      "required": [
+        "item",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "PublicHandleDescription": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryCatalogConcentrationSignal": {
+      "type": "object",
+      "properties": {
+        "signalKind": {
+          "$ref": "#/definitions/LibraryCatalogConcentrationSignalKind"
+        },
+        "materialKind": {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "count": {
+          "type": "number"
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LibraryCatalogItem"
+          }
+        }
+      },
+      "required": [
+        "signalKind",
+        "materialKind",
+        "label",
+        "count",
+        "examples"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryCatalogConcentrationSignalKind": {
+      "type": "string",
+      "enum": [
+        "recording_artist",
+        "recording_album",
+        "album_artist",
+        "artist_item"
+      ]
+    },
+    "MusicTargetKind": {
+      "type": "string",
+      "enum": [
+        "recording",
+        "album",
+        "artist"
+      ]
+    },
+    "LibraryCatalogMembershipSignal": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "$ref": "#/definitions/MusicScopeDescription"
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "source_library",
+                  "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "description",
+                "id",
+                "kind"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "$ref": "#/definitions/MusicScopeDescription"
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "relation",
+                  "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "description",
+                "id",
+                "kind"
+              ]
+            }
+          ]
+        },
+        "count": {
+          "type": "number"
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LibraryCatalogItem"
+          }
+        }
+      },
+      "required": [
+        "scope",
+        "count",
+        "examples"
+      ],
+      "additionalProperties": false
+    },
+    "MusicScopeDescription": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetKind": {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        "detailText": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
 export const libraryImportListSourcesInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",

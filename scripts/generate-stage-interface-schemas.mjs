@@ -175,26 +175,7 @@ const NON_EMPTY_STRING_CONSTRAINT = { type: "string", minLength: 1 };
 // { type: "number" }. Lookup and library-import handlers enforce integer 1..100, so
 // surface that bound in the agent-facing schemas by overlaying every relevant `limit`.
 function applyToolLimitOverlay(schema) {
-  if (schema === null || typeof schema !== "object") {
-    return;
-  }
-  if (Array.isArray(schema)) {
-    for (const node of schema) {
-      applyToolLimitOverlay(node);
-    }
-    return;
-  }
-  if (
-    schema.properties !== undefined &&
-    typeof schema.properties.limit === "object" &&
-    schema.properties.limit !== null &&
-    schema.properties.limit.type === "number"
-  ) {
-    schema.properties.limit = { ...TOOL_LIMIT_CONSTRAINT };
-  }
-  for (const child of Object.values(schema)) {
-    applyToolLimitOverlay(child);
-  }
+  applyNumericPropertyOverlay(schema, "limit");
 }
 
 function applyNumericPropertyOverlay(schema, propertyName) {
@@ -249,6 +230,9 @@ const NON_EMPTY_SCOPE_DEFINITIONS = new Set([
   "MusicProviderScopeHandle",
   "MusicItemHandle",
   "ListedMusicScope",
+  "LibraryCatalogScope",
+  "ListedLibraryCatalogScope",
+  "LibraryCatalogScopeInput",
 ]);
 const NON_EMPTY_LIBRARY_IMPORT_BATCH_ID_DEFINITIONS = new Set([
   "LibraryImportStatusInput",
@@ -488,6 +472,13 @@ const generatedSchemas = schemaTargets.map((target) => {
   }
   if (target.exportName === "libraryCatalogBrowseInputSchema") {
     applyNonEmptyStringPropertyOverlay(schema, "cursor");
+  }
+  if (
+    target.exportName === "libraryCatalogBrowseOutputSchema" ||
+    target.exportName === "libraryCatalogSampleOutputSchema" ||
+    target.exportName === "libraryCatalogSummaryOutputSchema"
+  ) {
+    applyNonEmptyStringPropertyOverlay(schema, "id");
   }
   if (target.exportName === "musicDiscoveryLookupInputSchema") {
     applyMusicDiscoveryLookupObjectRootOverlay(schema);
