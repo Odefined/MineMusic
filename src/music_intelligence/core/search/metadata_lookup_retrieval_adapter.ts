@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type {
   ProviderMaterialCandidate,
   SourceEntity,
@@ -59,11 +61,12 @@ export function createMetadataLookupRetrievalQueryService(
         });
       }
 
+      const queryFingerprint = metadataLookupQueryFingerprint(normalized.query);
       const decodedCursor = normalized.cursor === undefined
         ? undefined
         : decodeRetrievalCursor({
           cursor: normalized.cursor,
-          expectedQueryFingerprint: normalized.fingerprint,
+          expectedQueryFingerprint: queryFingerprint,
         });
       const cursor = searchCursorInput(decodedCursor);
       const providerCandidates = cursor === undefined
@@ -84,7 +87,7 @@ export function createMetadataLookupRetrievalQueryService(
           ? {}
           : { durablePoolFilter: localRecall.durablePoolFilter }),
         limit: normalized.limit,
-        queryFingerprint: normalized.fingerprint,
+        queryFingerprint,
         ...(providerCandidates === undefined ? {} : { providerCandidates }),
         ...(cursor === undefined ? {} : { cursor }),
       });
@@ -96,7 +99,7 @@ export function createMetadataLookupRetrievalQueryService(
       const nextCursor = page.nextCursorPosition === undefined
         ? undefined
         : encodeRetrievalCursor({
-          queryFingerprint: normalized.fingerprint,
+          queryFingerprint,
           position: page.nextCursorPosition,
           resultSetId: page.resultSetId,
         });
@@ -115,6 +118,58 @@ export function createMetadataLookupRetrievalQueryService(
       };
     },
   };
+}
+
+const METADATA_LOOKUP_FINGERPRINT_VERSION = 1;
+const METADATA_LOOKUP_NORMALIZATION_VERSION = "search_metadata_normalization_v1";
+const METADATA_LOOKUP_INDEX_VERSION = "search_metadata_documents_v1";
+
+function metadataLookupQueryFingerprint(query: RetrievalEffectiveQuery): string {
+  const payload = {
+    version: METADATA_LOOKUP_FINGERPRINT_VERSION,
+    kind: "metadata_lookup",
+    ownerScope: query.ownerScope,
+    lookupText: query.text ?? null,
+    materialKind: query.materialKind ?? null,
+    searchScope: keyedMetadataLookupScope(query.pools),
+    rerankProfile: "relevance",
+    normalizationVersion: METADATA_LOOKUP_NORMALIZATION_VERSION,
+    indexVersion: METADATA_LOOKUP_INDEX_VERSION,
+  };
+
+  return `mlqf_${createHash("sha256").update(JSON.stringify(payload)).digest("base64url")}`;
+}
+
+function keyedMetadataLookupScope(pools: RetrievalPoolFilter | undefined): {
+  allOf: readonly string[];
+  anyOf: readonly string[];
+  noneOf: readonly string[];
+} {
+  return {
+    allOf: sortedPoolKeys(pools?.allOf),
+    anyOf: sortedPoolKeys(pools?.anyOf),
+    noneOf: sortedPoolKeys(pools?.noneOf),
+  };
+}
+
+function sortedPoolKeys(pools: readonly RetrievalPool[] | undefined): readonly string[] {
+  return (pools ?? [])
+    .map(metadataLookupPoolKey)
+    .sort(compareStrings);
+}
+
+function metadataLookupPoolKey(pool: RetrievalPool): string {
+  if (pool.kind === "local_catalog") {
+    return "local_catalog";
+  }
+
+  if (pool.kind === "provider_search") {
+    return pool.limit === undefined
+      ? `provider_search:${pool.providerId}`
+      : `provider_search:${pool.providerId}:${pool.limit}`;
+  }
+
+  return `${pool.kind}:${refKey(pool.ref)}`;
 }
 
 function searchCursorInput(
@@ -485,6 +540,18 @@ function sourceTargetKindsEqual(
   }
 
   return (left ?? []).every((value, index) => value === right?.[index]);
+}
+
+function compareStrings(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+
+  if (left > right) {
+    return 1;
+  }
+
+  return 0;
 }
 
 function searchPageError(status: Exclude<MusicDataPlatformMetadataLookupSearchPage["status"], "ok">): MusicIntelligenceError {

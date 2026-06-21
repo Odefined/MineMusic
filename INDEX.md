@@ -464,14 +464,17 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/music_data_platform/ref_validation.ts`: internal Music Data Platform
   ref/refKey validation helper that converts malformed external ref inputs
   into `MusicDataPlatformError`.
-- `src/music_data_platform/retrieval_read_model.ts`: internal retrieval read
-  port over owner catalog, pool algebra, text evidence/ranking, keyset
-  pagination, and coarse freshness.
-- `src/music_data_platform/retrieval_mixed_workspace.ts`: internal mixed
-  local/provider result-set workspace and material-candidate cache boundary.
-- `src/music_intelligence/core/retrieval/query_service.ts`: internal Retrieval
-  query service over Music Data Platform retrieval ports and provider-search
-  port wiring.
+- `src/music_data_platform/search_metadata_projection_schema.ts` and
+  `src/music_data_platform/search_metadata_projection_commands.ts`: durable
+  material metadata lookup document projection.
+- `src/music_data_platform/search_result_set_schema.ts`: metadata lookup
+  runtime result-set schema for `search_result_sets` and `search_result_rows`.
+- `src/music_data_platform/metadata_lookup_search_workspace.ts`: metadata
+  lookup local/provider result-set workspace and material-candidate cache
+  boundary.
+- `src/music_intelligence/core/search/metadata_lookup_retrieval_adapter.ts`:
+  internal Retrieval-compatible query service over the metadata lookup search
+  workspace and provider-search port wiring.
 - `src/music_intelligence/core/retrieval/query_normalization.ts`:
   Retrieval-owned input normalization and cursor fingerprint input construction.
 - `src/music_intelligence/core/retrieval/cursor.ts`: Retrieval-owned opaque cursor

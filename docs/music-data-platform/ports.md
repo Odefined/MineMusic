@@ -1,16 +1,17 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority through implemented Phase 19
-> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, retrieval read port, mixed retrieval result-set/cache workspace, Library Import stage adapter tools, and Library Relation stage adapter tools
+> Status: Current boundary authority through implemented Phase 22
+> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, search metadata projection, projection maintenance, metadata lookup search workspace/result sets, Library Import stage adapter tools, and Library Relation stage adapter tools
 
 Music Data Platform provides identity repositories, identity read/write
 boundaries, source-library repositories, source-library commands/read port,
 Library Import service, source-library and owner relation ref helpers, owner
 relation commands/read port, owner catalog
 projection commands/read port, material text projection commands/read port,
-projection maintenance commands/reads/runner, the retrieval read port, mixed
-retrieval workspace, schema contributions, runtime retrieval result-set
-records/cache helpers, the Library Import stage-adapter RuntimeModule and
+search metadata projection commands/read port, projection maintenance
+commands/reads/runner, metadata lookup search workspace, schema contributions,
+runtime search result-set schema and material-candidate cache helpers, the
+Library Import stage-adapter RuntimeModule and
 metadata-only source-listing plus import drive/status tools, the Library
 Relation service/runtime module and relation get/edit tools, a material
 ref factory, a top-level source-of-truth write facade, and error types. It
@@ -28,8 +29,10 @@ provider plugin implementations.
 | `musicDataPlatformOwnerRelationSchema` | Storage initialization callers | Creates `owner_material_relations`. | `src/music_data_platform/owner_material_relation_schema.ts` |
 | `musicDataPlatformOwnerCatalogViewSchema` | Storage initialization callers | Creates the final `owner_material_catalog_view`. | `src/music_data_platform/owner_catalog_schema.ts` |
 | `musicDataPlatformMaterialTextProjectionSchema` | Storage initialization callers | Creates `material_text_documents` and `material_text_fts`. | `src/music_data_platform/material_text_projection_schema.ts` |
+| `musicDataPlatformSearchMetadataProjectionSchema` | Storage initialization callers | Creates durable `search_metadata_documents` for material-level metadata lookup. | `src/music_data_platform/search_metadata_projection_schema.ts` |
 | `musicDataPlatformProjectionMaintenanceSchema` | Storage initialization callers | Creates `projection_maintenance_targets` and its pending-order index. | `src/music_data_platform/projection_maintenance_schema.ts` |
-| `musicDataPlatformRetrievalResultSetSchema` | Storage initialization callers | Creates runtime `retrieval_result_sets`, `retrieval_result_rows`, `retrieval_result_text_fts`, and `material_candidate_cache`. | `src/music_data_platform/retrieval_result_set_schema.ts` |
+| `musicDataPlatformSearchResultSetSchema` | Storage initialization callers | Creates runtime `search_result_sets` and `search_result_rows` for metadata lookup result windows; rows do not store duplicate `search_text` or `tsvector`. | `src/music_data_platform/search_result_set_schema.ts` |
+| `musicDataPlatformRetrievalResultSetSchema` | Storage initialization callers | Creates `material_candidate_cache` for unresolved provider candidate payload snapshots. | `src/music_data_platform/retrieval_result_set_schema.ts` |
 | `createIdentityRepositories` | Internal command/read/projection implementations and low-level tests | Low-level source/material/canonical/binding persistence. | `src/music_data_platform/identity_records.ts` |
 | `createIdentityReadPort` | Internal Music Data Platform callers/tests | Narrow identity reads needed by workflows without exposing repository write methods. | `src/music_data_platform/identity_read_model.ts` |
 | `createIdentityWriteCommands` | Internal Music Data Platform callers/tests | Invariant-preserving identity writes. | `src/music_data_platform/identity_write_model.ts` |
@@ -57,9 +60,10 @@ provider plugin implementations.
 | `createOwnerCatalogRecords` | Internal tests/later query phases | Read owner catalog entries/material rows through Music Data Platform-owned row shapes. | `src/music_data_platform/owner_catalog_records.ts` |
 | `createMaterialTextProjectionCommands` | Internal commands/tests/later query phases | Rebuild current material text documents and replacement FTS rows by explicit material ref. | `src/music_data_platform/material_text_projection_commands.ts` |
 | `createMaterialTextProjectionRecords` | Internal tests/later query phases | Read projected material text documents and run owner-neutral strict FTS probes. | `src/music_data_platform/material_text_projection_records.ts` |
-| `createMusicDataPlatformRetrievalReadPort` | Internal Music Intelligence retrieval/tests | Run owner-visible catalog query SQL with pool/text filtering, field-aware evidence/ranking, cursor validation, and coarse projection freshness. | `src/music_data_platform/retrieval_read_model.ts` |
-| `createMusicDataPlatformRetrievalWorkspace` | Internal Music Intelligence retrieval/tests | Build/read mixed local/provider result sets, rank through result-set FTS, upsert unresolved material candidates, collapse provider candidates already bound to active materials, and paginate with result-set cursors. | `src/music_data_platform/retrieval_mixed_workspace.ts` |
-| `createRetrievalResultSetRecords` | Internal mixed retrieval workspace/tests | Low-level runtime result-set rows, result-set FTS rows, material-candidate cache upserts, cache reads, and TTL cleanup helpers. | `src/music_data_platform/retrieval_result_set_records.ts` |
+| `createSearchMetadataProjectionCommands` | Internal commands/tests/query phases | Rebuild current material metadata lookup documents by explicit material ref. | `src/music_data_platform/search_metadata_projection_commands.ts` |
+| `createSearchMetadataProjectionRecords` | Internal tests/query phases | Read durable material metadata lookup documents. | `src/music_data_platform/search_metadata_projection_records.ts` |
+| `createMusicDataPlatformMetadataLookupSearchWorkspace` | Internal Music Intelligence retrieval/tests | Build/read metadata lookup result sets, rerank local/provider rows with Postgres text scoring, dedupe provider hits already bound to active materials, upsert unresolved material candidates, and paginate with result-set cursors. | `src/music_data_platform/metadata_lookup_search_workspace.ts` |
+| `createRetrievalResultSetRecords` | Internal metadata lookup workspace/tests | Low-level material-candidate cache upserts, cache reads, and TTL cleanup helpers. | `src/music_data_platform/retrieval_result_set_records.ts` |
 | `createProjectionMaintenanceCommands` | Internal commands/tests | Plan invalidation from typed write scopes, and mark typed projection targets dirty, clean, or failed by generation. | `src/music_data_platform/projection_maintenance_commands.ts` |
 | `createProjectionMaintenanceRecords` | Internal runner/tests | Read one target or list pending dirty/failed projection work. | `src/music_data_platform/projection_maintenance_records.ts` |
 | `createProjectionMaintenanceRunner` | Server Host scheduler helper/tests | Rebuild pending targets through owning projection commands and generation-aware completion. | `src/music_data_platform/projection_maintenance_runner.ts` |
@@ -94,9 +98,6 @@ Repositories are created with `db: MusicDatabaseContext`.
 | `SourceLibraryItemRepository` | `get`, `upsert` | Current membership only. Keyed by `libraryRef + sourceRefKey`; stores local `addedAt`, optional provider-side `providerAddedAt`, and import bookkeeping timestamps. |
 | `SourceLibraryImportBatchRepository` | `get`, `insert`, `upsert` | `insert` creates a new batch; `upsert` updates existing batch state and counters. |
 | `SourceLibraryImportItemOutcomeRepository` | `insert`, `listForBatch` | Per-candidate outcome rows; compact error fields only. |
-| `RetrievalResultSetRepository` | `get`, `insert` | Runtime result-set header persistence only. |
-| `RetrievalResultRowRepository` | `insertMany`, `listForResultSet` | Runtime mixed row persistence/readback for later SQL retrieval tests. |
-| `RetrievalResultTextFtsRepository` | `insertMany` | Result-set-scoped FTS corpus writes only. |
 | `MaterialCandidateCacheRepository` | `getByRefKey`, `upsert` | Runtime validated provider candidate cache keyed by `material_candidate_ref_key`. |
 
 Repositories do not start transactions, generate timestamps, return
@@ -146,9 +147,11 @@ current `source_material_bindings` row for the same `sourceRef`.
 | `createOwnerCatalogRecords({ db })` | database context | `listOwnerMaterialEntries(...)`, `listOwnerCatalogMaterials(...)` | reads `owner_material_entries` and `owner_material_catalog_view` |
 | `createMaterialTextProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildMaterialTextDocument({ materialRef })` and `rebuildMaterialTextDocuments({ materialRefs })` | writes `material_text_documents` and `material_text_fts` only |
 | `createMaterialTextProjectionRecords({ db })` | database context | `getMaterialTextDocument({ materialRef })`, `matchMaterialTextDocuments({ text, limit? })` | reads `material_text_documents` and `material_text_fts` |
-| `createMusicDataPlatformRetrievalReadPort({ db })` | database context | `searchOwnerCatalogMaterials(...)`, `getRetrievalFreshness({ ownerScope })` | reads `owner_material_catalog_view`, `owner_material_entries`, `material_records`, `material_text_documents`, `material_text_fts`, `source_libraries`, and `projection_maintenance_targets` only |
+| `createSearchMetadataProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSearchMetadataDocument({ materialRef })` and `rebuildSearchMetadataDocuments({ materialRefs })` | writes `search_metadata_documents` only |
+| `createSearchMetadataProjectionRecords({ db })` | database context | `getSearchMetadataDocument({ materialRef })` | reads `search_metadata_documents` |
+| `createMusicDataPlatformMetadataLookupSearchWorkspace({ database })` | root database | `searchMetadataLookupResultSet(...)` | reads owner catalog, material/source identity, `search_metadata_documents`, `search_result_sets`, `search_result_rows`, and `material_candidate_cache`; writes `search_result_sets`, `search_result_rows`, and `material_candidate_cache` only |
 | `createProjectionMaintenanceRecords({ db })` | database context | `getProjectionTarget(...)`, `listPendingProjectionTargets({ limit? })` | reads `projection_maintenance_targets` |
-| `createProjectionMaintenanceRunner({ database, now })` | root database plus timestamp | runner object with `runProjectionMaintenance({ limit? })` | reads `projection_maintenance_targets`; writes `projection_maintenance_targets`, `owner_material_entries`, and `material_text_*` through owning commands |
+| `createProjectionMaintenanceRunner({ database, now })` | root database plus timestamp | runner object with `runProjectionMaintenance({ limit? })` | reads `projection_maintenance_targets`; writes `projection_maintenance_targets`, `owner_material_entries`, `material_text_*`, and `search_metadata_documents` through owning commands |
 
 Projection commands are Music Data Platform-owned database commands.
 `rebuildSourceLibraryEntriesForLibrary(...)` rebuilds one source-library scope
@@ -174,23 +177,19 @@ Server Host scheduler helper and may consume only
 `createProjectionMaintenanceRunner(...)` from the Music Data Platform public
 barrel.
 
-`createMusicDataPlatformRetrievalReadPort({ db })` is the first query-ready
-Music Data Platform read boundary. It currently accepts only
-`DEFAULT_OWNER_SCOPE`, validates `source_library` and
-`owner_material_relation_pool` refs against current Music Data Platform truth,
-executes pool algebra, FTS-backed text filtering, field-aware ranking, and
-keyset pagination in SQL, exposes normalized display text plus matched
-pool/text evidence, and returns coarse dirty/failed freshness counts for
-current-owner owner-catalog targets plus global `material_text` targets.
-Missing material text projections are tolerated for no-text reads and simply
-cannot be recalled by text. The port does not rebuild projections or perform
-any writes.
+`createMusicDataPlatformMetadataLookupSearchWorkspace({ database })` is the
+current query-ready Music Data Platform search boundary for lookup metadata. It
+accepts only normalized text lookup, validates durable pool refs against
+current Music Data Platform truth, builds first-page result sets from durable
+`search_metadata_documents` plus unresolved provider candidates, collapses
+provider hits already bound to active materials into durable material rows,
+reranks all rows together with Postgres text scoring, and paginates from the
+stored result set. Cursor pages reuse `search_result_sets` /
+`search_result_rows` and do not call providers.
 
-This read port remains local and durable-only. Music Intelligence may accept
-typed Retrieval pools, but it must translate only durable local pools into this
-read port's ref-based `poolFilter`. Provider-aware `RetrievalPool` unions and
-`provider_search` pools are handled by Music Intelligence normalization plus
-the mixed retrieval workspace, not by this local read port.
+`search_result_rows` is a runtime row table, not a materialized document
+index. It stores row ids, compact text fields, evidence JSON, and score/order
+values; it does not persist duplicate `search_text` or `tsvector` columns.
 
 ## Library Import Service
 

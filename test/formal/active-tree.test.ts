@@ -823,6 +823,8 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intell
         "retrieval_result_sets",
         "retrieval_result_rows",
         "retrieval_result_text_fts",
+        "search_result_sets",
+        "search_result_rows",
         "material_candidate_cache",
         "material_candidate_ref_key",
     ]) {

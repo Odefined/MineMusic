@@ -265,7 +265,7 @@ export function createMusicDataPlatformMetadataLookupSearchWorkspace(
           db,
           resultSetId,
           queryFingerprint,
-          rowCount: descriptors.size,
+          rowCount: 0,
           expiresAt,
           createdAt: now,
         });
@@ -274,7 +274,6 @@ export function createMusicDataPlatformMetadataLookupSearchWorkspace(
           resultSetId,
           descriptors: [...descriptors.values()],
         });
-        await updateSearchResultRowVectors(db, resultSetId);
         await rerankSearchResultRows({
           db,
           resultSetId,
@@ -284,6 +283,10 @@ export function createMusicDataPlatformMetadataLookupSearchWorkspace(
           db,
           resultSetId,
           textQuery,
+        });
+        await refreshSearchResultSetRowCount({
+          db,
+          resultSetId,
         });
 
         return readExistingSearchResultSetPage({
@@ -570,35 +573,70 @@ function localMetadataWindowSql(
       d.version_text AS "versionText",
       d.alias_text AS "aliasText",
       d.search_text AS "searchText",
-      ${metadataScoreSql("d")} AS score_value,
-      -(${metadataScoreSql("d")}) AS score_sort_value,
+      ${metadataScoreSql("d", "indexed")} AS score_value,
+      -(${metadataScoreSql("d", "indexed")}) AS score_sort_value,
       jsonb_build_object('document', jsonb_build_object('fields', d.fields_json->'fields')) AS evidence_json
     FROM owner_material_catalog_view c
     JOIN material_records m
       ON m.ref_key = c.material_ref_key
     JOIN search_metadata_documents d
       ON d.material_ref_key = c.material_ref_key
-    WHERE (${metadataRecallSql("d")})
+    WHERE (${metadataRecallSql("d", "indexed")})
       AND ${whereClauses.map((clause) => `(${clause.trim()})`).join("\n      AND ")}
     ORDER BY score_sort_value ASC, c.material_ref_key ASC
     LIMIT ?
   `;
 }
 
-function metadataRecallSql(alias: string): string {
-  return `${alias}.search_vector @@ to_tsquery('simple', ?) OR ${alias}.search_text % ?`;
+function metadataRecallSql(alias: string, source: MetadataScoreSource): string {
+  return `${metadataVectorSql(alias, source)} @@ to_tsquery('simple', ?) OR ${metadataTextSql(alias, source)} % ?`;
 }
 
-function metadataScoreSql(alias: string): string {
+type MetadataScoreSource = "indexed" | "row_text";
+
+function metadataScoreSql(alias: string, source: MetadataScoreSource): string {
   return `
     (
-      ts_rank_cd(${alias}.search_vector, to_tsquery('simple', ?), 32) +
-      similarity(${alias}.search_text, ?) +
+      ts_rank_cd(${metadataVectorSql(alias, source)}, to_tsquery('simple', ?), 32) +
+      similarity(${metadataTextSql(alias, source)}, ?) +
       (0.20 * similarity(${alias}.title_text, ?)) +
       (0.12 * similarity(${alias}.artist_text, ?)) +
       (0.10 * similarity(${alias}.album_text, ?)) +
       (0.05 * similarity(${alias}.version_text, ?)) +
       (0.04 * similarity(${alias}.alias_text, ?))
+    )
+  `;
+}
+
+function metadataVectorSql(alias: string, source: MetadataScoreSource): string {
+  if (source === "indexed") {
+    return `${alias}.search_vector`;
+  }
+
+  return `
+    (
+      setweight(to_tsvector('simple', COALESCE(${alias}.title_text, '')), 'A') ||
+      setweight(to_tsvector('simple', COALESCE(${alias}.artist_text, '')), 'B') ||
+      setweight(to_tsvector('simple', COALESCE(${alias}.album_text, '')), 'B') ||
+      setweight(to_tsvector('simple', COALESCE(${alias}.version_text, '')), 'C') ||
+      setweight(to_tsvector('simple', COALESCE(${alias}.alias_text, '')), 'D')
+    )
+  `;
+}
+
+function metadataTextSql(alias: string, source: MetadataScoreSource): string {
+  if (source === "indexed") {
+    return `${alias}.search_text`;
+  }
+
+  return `
+    concat_ws(
+      E'\\n',
+      NULLIF(${alias}.title_text, ''),
+      NULLIF(${alias}.artist_text, ''),
+      NULLIF(${alias}.album_text, ''),
+      NULLIF(${alias}.version_text, ''),
+      NULLIF(${alias}.alias_text, '')
     )
   `;
 }
@@ -715,10 +753,9 @@ async function insertSearchResultRows(input: {
           artist_text,
           album_text,
           version_text,
-          alias_text,
-          search_text
+          alias_text
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?::jsonb, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?::jsonb, ?, ?, ?, ?, ?)
       `,
       [
         input.resultSetId,
@@ -734,29 +771,9 @@ async function insertSearchResultRows(input: {
         descriptor.albumText,
         descriptor.versionText,
         descriptor.aliasText,
-        descriptor.searchText,
       ],
     );
   }
-}
-
-async function updateSearchResultRowVectors(
-  db: MusicDatabaseContext,
-  resultSetId: string,
-): Promise<void> {
-  await db.run(
-    `
-      UPDATE search_result_rows
-      SET search_vector =
-        setweight(to_tsvector('simple', COALESCE(title_text, '')), 'A') ||
-        setweight(to_tsvector('simple', COALESCE(artist_text, '')), 'B') ||
-        setweight(to_tsvector('simple', COALESCE(album_text, '')), 'B') ||
-        setweight(to_tsvector('simple', COALESCE(version_text, '')), 'C') ||
-        setweight(to_tsvector('simple', COALESCE(alias_text, '')), 'D')
-      WHERE result_set_id = ?
-    `,
-    [resultSetId],
-  );
 }
 
 async function rerankSearchResultRows(input: {
@@ -771,10 +788,10 @@ async function rerankSearchResultRows(input: {
           result_set_id,
           row_kind,
           stable_ref_key,
-          ${metadataScoreSql("r")} AS score_value
+          ${metadataScoreSql("r", "row_text")} AS score_value
         FROM search_result_rows r
         WHERE r.result_set_id = ?
-          AND (${metadataRecallSql("r")})
+          AND (${metadataRecallSql("r", "row_text")})
       )
       UPDATE search_result_rows r
       SET score_value = ranked.score_value,
@@ -815,11 +832,32 @@ async function pruneUnmatchedSearchResultRows(input: {
     `
       DELETE FROM search_result_rows r
       WHERE r.result_set_id = ?
-        AND NOT (${metadataRecallSql("r")})
+        AND NOT (${metadataRecallSql("r", "row_text")})
     `,
     [
       input.resultSetId,
       ...metadataRecallParams(input.textQuery),
+    ],
+  );
+}
+
+async function refreshSearchResultSetRowCount(input: {
+  db: MusicDatabaseContext;
+  resultSetId: string;
+}): Promise<void> {
+  await input.db.run(
+    `
+      UPDATE search_result_sets
+      SET row_count = (
+        SELECT COUNT(*)
+        FROM search_result_rows
+        WHERE result_set_id = ?
+      )
+      WHERE result_set_id = ?
+    `,
+    [
+      input.resultSetId,
+      input.resultSetId,
     ],
   );
 }
@@ -881,7 +919,7 @@ function searchResultPageSql(
       r.album_text AS "albumText",
       r.version_text AS "versionText",
       r.alias_text AS "aliasText",
-      r.search_text AS "searchText",
+      ${metadataTextSql("r", "row_text")} AS "searchText",
       c.material_candidate_ref_key AS candidate_cache_ref_key,
       c.expires_at AS candidate_expires_at
     FROM search_result_rows r

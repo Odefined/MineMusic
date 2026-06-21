@@ -23,6 +23,7 @@ import {
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
 import type { MusicDatabase, MusicDatabaseTransactionContext } from "../../src/storage/index.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
+import { indexExists, tableColumns } from "./helpers/postgres-introspection.js";
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends
@@ -48,6 +49,24 @@ export type _musicDataPlatformMetadataLookupSearchWorkspaceShape =
   Expect<Equal<keyof MusicDataPlatformMetadataLookupSearchWorkspace, "searchMetadataLookupResultSet">>;
 
 const database = await initializedDatabase();
+assert.deepEqual(await tableColumns(database, "search_result_rows"), [
+  "result_set_id",
+  "row_kind",
+  "stable_ref_key",
+  "material_ref_key",
+  "material_candidate_ref_key",
+  "material_kind",
+  "row_kind_sort",
+  "score_value",
+  "score_sort_value",
+  "evidence_json",
+  "title_text",
+  "artist_text",
+  "album_text",
+  "version_text",
+  "alias_text",
+]);
+assert.equal(await indexExists(database, "search_result_rows_search_vector_idx"), false);
 const material = materialRef("recording", "m_night");
 const resolvedSource = sourceTrack("1001", "Night", {
   artistLabels: ["Durable Artist"],
@@ -96,6 +115,7 @@ if (noisePage.status === "ok") {
   assert.deepEqual(noisePage.rows.map((row) => row.kind), ["material_candidate"]);
   assert.equal(noisePage.rows[0]?.titleText, "noise song");
   assert.equal(JSON.stringify(noisePage.rows).includes(refKey(material)), false);
+  assert.equal(await searchResultSetRowCount(database, noisePage.resultSetId), 1);
 }
 
 const nightPage = await workspace.searchMetadataLookupResultSet({
@@ -116,6 +136,7 @@ if (nightPage.status === "ok") {
   assert.equal(nightPage.rows[0]?.artistText, "durable artist");
   assert.equal(nightPage.rows[0]?.rankScore.kind, "postgres_text_rank");
   assert.equal(JSON.stringify(nightPage.rows).includes("Provider Noise"), false);
+  assert.equal(await searchResultSetRowCount(database, nightPage.resultSetId), 1);
 }
 
 await database.close();
@@ -162,6 +183,26 @@ async function insertOwnerCatalogEntry(
       now,
     ],
   );
+}
+
+async function searchResultSetRowCount(
+  database: MusicDatabase,
+  resultSetId: string,
+): Promise<number> {
+  const row = await database.context().get<{ row_count: number }>(
+    `
+      SELECT row_count
+      FROM search_result_sets
+      WHERE result_set_id = ?
+    `,
+    [resultSetId],
+  );
+
+  if (row === undefined) {
+    throw new Error(`Missing search result set '${resultSetId}'.`);
+  }
+
+  return row.row_count;
 }
 
 function providerCandidate(sourceEntity: SourceEntity): ProviderMaterialCandidate {

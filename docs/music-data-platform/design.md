@@ -1,7 +1,7 @@
 # Music Data Platform Design
 
-> Status: Current design authority through implemented Phase 18D/E
-> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, projection maintenance core, retrieval read port, mixed retrieval result-set/cache workspace, and the Library Import stage adapter tools
+> Status: Current design authority through implemented Phase 22
+> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, search metadata projection, projection maintenance core, metadata lookup search workspace/result sets, and the Library Import stage adapter tools
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Data Platform owns source/material/canonical identity records, current
@@ -12,14 +12,12 @@ material-scope owner relation facts, the internal owner catalog
 projection/read-model foundation, the owner-neutral material text
 projection/FTS foundation built from those durable facts, and the
 projection-maintenance target table/runner that tracks explicit rebuild work
-for current projections. Phases 12A and 12B add the first query-ready
-Music Data Platform retrieval read port for owner-visible catalog search, SQL
-pool algebra, text-aware ranking, keyset pagination, and coarse freshness
-reads. Phase 15B adds the runtime retrieval result-set and material-candidate
-cache foundation. Phase 15C/15D use that foundation through a Music Data
-Platform mixed retrieval workspace that owns SQL ranking, pagination, resolved
-source candidate collapse, runtime result-set rows, and material-candidate
-cache writes. Phase 18 adds the Music Data Platform `stage_adapter` tool
+for current projections. Phase 22 adds the Postgres-native metadata lookup
+search path: durable `search_metadata_documents`, runtime
+`search_result_sets` / `search_result_rows`, and a Music Data Platform
+metadata lookup workspace that owns SQL reranking, pagination, provider-hit
+dedupe/collapse, and unresolved material-candidate cache writes. Phase 18 adds
+the Music Data Platform `stage_adapter` tool
 surface for `library.import.list_sources`, `.start`, `.continue`, and
 `.status` over Extension platform-library-provider descriptors, the existing
 import service, and the source-library batch read port.
@@ -44,13 +42,12 @@ import service, and the source-library batch read port.
 | `owner_material_catalog_view` | Owner catalog SQL read model. | Aggregates active positive entries by owner/material and excludes active material-scope blocked facts. |
 | `material_text_documents` | Current material-centered text document projection. | One row per active material ref; built only from current material/bound-source/confirmed-canonical facts. |
 | `material_text_fts` | Postgres full-text read model for projected material text. | Stores `title/artist/album/version/alias` text plus a `tsvector` search column; `search_text` remains a stored projection column on `material_text_documents`. |
-| Retrieval read port | Query-ready read boundary over owner catalog/material text/projection freshness. | Phase 12A/12B support owner-visible pool filtering, kind filtering, `stable` / `recently_added` / `text_relevance` ordering, SQL keyset pagination, matched pool/text evidence, and coarse freshness. |
+| `search_metadata_documents` | Durable material-level metadata lookup document. | One row per active material ref; stores normalized `title/artist/album/version/alias` fields, deduped field values, attribution JSON, `search_text`, and indexed `search_vector`. |
 | `materialCandidateRef` | Runtime material-facing handle for an unresolved provider candidate. | `material_candidate:provider_candidate:<opaque>` derived from `digest(refKey(sourceEntity.sourceRef))`; not durable material identity and not a source ref. |
-| `retrieval_result_sets` | Runtime mixed retrieval result-set header. | Stores query fingerprint, local result window metadata, and TTL; it does not store Stage Interface output. |
-| `retrieval_result_rows` | Runtime mixed retrieval row table. | Stores durable material rows and unresolved material-candidate rows for SQL ranking/pagination. |
-| `retrieval_result_text_fts` | Result-set-scoped FTS corpus. | Uses durable `material_text_documents` fields for material rows and provider candidate text only for unresolved material-candidate rows. |
+| `search_result_sets` | Runtime metadata lookup result-set header. | Stores metadata lookup query fingerprint, pruned row count, TTL, and creation time; it does not store Stage Interface output. |
+| `search_result_rows` | Runtime metadata lookup row table. | Stores durable material rows and unresolved material-candidate rows for SQL reranking/pagination, with compact text fields and evidence only; it does not persist duplicate `search_text` or `tsvector`. |
 | `material_candidate_cache` | Runtime cache for validated provider material candidates. | Keyed by `material_candidate_ref_key`; cleanup never deletes a candidate still referenced by a non-expired result set. |
-| Mixed retrieval workspace | Music Data Platform boundary for mixed local/provider retrieval. | Builds first-page result sets from local result windows plus provider candidates, reuses result sets on cursor pages, and owns runtime result-set/cache writes. |
+| Metadata lookup search workspace | Music Data Platform boundary for metadata lookup local/provider search. | Builds first-page result sets from durable metadata documents plus unresolved provider candidates, reranks rows together, reuses result sets on cursor pages, and owns runtime result-set/cache writes. |
 | Library Import stage adapter | MDP-owned Stage Adapter boundary for the `library.import.*` public tool surface. | Phase 18 contributes the `library.import` instrument plus `list_sources`, `start`, `continue`, and `status`; write-capable tools delegate to the existing import service and expose only compact public summaries. |
 | `projection_maintenance_targets` | Current projection maintenance worklist. | One row per `projection_kind + target_key`; `status` is `dirty` or `failed` and `dirty_generation` is monotonic. |
 | Material ref factory | Shared factory for new MineMusic material refs. | Produces opaque `material:<kind>:m_<opaque>` refs; import code must not derive ids from source/provider/canonical text. |
@@ -588,66 +585,45 @@ FTS probe over projected material text. It does not implement owner catalog
 pool logic, provider candidate search, query-hit shaping, ranking, or
 presentation output.
 
-## Retrieval Read Port
+## Metadata Lookup Search Workspace
 
-Phases 12A and 12B add the first query-ready internal Music Data Platform
-retrieval read port for later Music Intelligence Retrieval:
+Phase 22 replaces the old lookup-time material-text retrieval path with the
+current internal Music Data Platform metadata lookup search workspace:
 
 ```text
-createMusicDataPlatformRetrievalReadPort({ db })
-  -> searchOwnerCatalogMaterials(...)
-  -> getRetrievalFreshness(...)
+createMusicDataPlatformMetadataLookupSearchWorkspace({ database })
+  -> searchMetadataLookupResultSet(...)
 ```
 
-`searchOwnerCatalogMaterials(...)` is read-only. It does not rebuild
-projections, mark dirty targets, materialize provider candidates, or write any
-durable state.
+`searchMetadataLookupResultSet(...)` is the only boundary that builds and reads
+metadata lookup result sets. It owns the transaction that constructs a
+first-page result set, cleans expired result state, persists unresolved
+provider candidates, reranks rows, prunes unmatched rows, and then returns one
+page. Cursor pages validate result-set TTL and query fingerprint, then page
+only over the stored `search_result_rows`.
 
-The retrieval base set is `owner_material_catalog_view` for one owner scope.
-The port applies SQL-owned:
+The durable local base set is `owner_material_catalog_view` joined to
+`search_metadata_documents` for one owner scope. The workspace applies
+SQL-owned:
 
 - owner-visible blocked exclusion through the catalog view;
 - `materialKind` filtering;
 - pool algebra over `source_library` and `owner_material_relation_pool` refs;
-- prefix-OR FTS matching when effective text exists;
-- `stable`, `recently_added`, and `text_relevance` ordering;
-- SQL keyset pagination;
-- matched positive pool evidence per row;
-- matched text field/token evidence and distinct matched-token counting per row.
+- Postgres full-text and trigram recall over metadata lookup text;
+- Postgres text-rank reranking across local material rows and unresolved
+  provider candidates;
+- SQL keyset pagination over score, row kind, and stable ref key.
 
-Pool filters are validated against current Music Data Platform truth before the
-query runs. `source_library` pool refs must exist and belong to the requested
-owner scope. `owner_material_relation_pool` refs must match the requested
-owner scope and only support positive relation kinds currently projected into
-the owner catalog.
+Provider candidates are not separate ranking authority when they already point
+to an active bound source. A provider hit whose `sourceRef` is already bound to
+an active material collapses to the durable material metadata document; the
+provider payload is only a discovery path. Only unresolved provider hits create
+runtime material-candidate rows and `material_candidate_cache` entries.
 
-The read port currently supports only `DEFAULT_OWNER_SCOPE` and rejects:
-
-- non-default owner scopes;
-- `text_relevance` without effective query text;
-- `cursorPosition.order = text_relevance` when effective query text is absent;
-- malformed `text_relevance` cursor sort keys.
-
-When effective text is absent, the read port left-joins
-`material_text_documents` only to surface normalized projection text for
-display/debug follow-up. Missing text documents are tolerated and return empty
-strings. Returned text fields are the current normalized projection text, not
-raw provider casing.
-
-When effective text is present, query membership comes from
-`material_text_documents` plus `material_text_fts`. Missing material text
-projections do not crash the query; they simply cannot be recalled by text.
-`matchedTextFields` and `matchedTextTokensByField` expose field-aware token
-evidence, `matchedTokenCount` counts distinct matched query tokens, and
-`rankScore` is exposed only for `order = text_relevance`.
-
-`getRetrievalFreshness({ ownerScope })` is a coarse read over
-`projection_maintenance_targets`. It counts:
-
-- current-owner `owner_catalog_*` dirty/failed targets;
-- global `material_text` dirty/failed targets.
-
-It does not rebuild anything and does not compute per-material freshness.
+`search_result_rows` stores row identity, compact normalized text fields,
+evidence JSON, and score/order values. It intentionally does not store a
+complete `search_text` document or a persisted `tsvector`; reranking on stored
+pages derives those expressions from the compact row text fields.
 
 ## Projection Maintenance Core
 

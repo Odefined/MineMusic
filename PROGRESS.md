@@ -1286,16 +1286,24 @@ Search Core path:
   lookup path.
 - Music Data Platform now owns `search_result_sets` and `search_result_rows`
   for metadata lookup result windows, Postgres text-score reranking, and
-  local/provider mixed recall.
+  local/provider mixed recall. Result rows store row identity, compact text
+  fields, evidence, and scores only; they do not persist duplicate
+  `search_text` or `tsvector` columns, and `row_count` reflects rows after
+  pruning.
 - Music Intelligence now exposes a Metadata Lookup adapter behind the existing
   lookup query port used by `music.discovery.lookup`; default Server Host
-  wiring uses this adapter.
+  wiring uses this adapter. The adapter uses metadata-lookup `mlqf_` result-set
+  fingerprints and reuses cursor result sets without calling providers again.
 - Provider search hits already bound to an active material rerank from the
   durable material metadata search document only. Unresolved provider hits
   become runtime metadata lookup candidate documents.
+- The old Retrieval read/mixed service modules and old `retrieval_result_*`
+  result-set tables are no longer active; `material_candidate_cache` remains
+  as the runtime unresolved-provider payload cache.
 - Focused tests cover search metadata projection, resolved-provider dedupe,
-  unresolved runtime candidates, schema contributions, active-tree guards,
-  lookup/server wiring, and projection-maintenance integration.
+  unresolved runtime candidates, result-row schema shape, real Metadata Lookup
+  adapter + MDP workspace integration, schema contributions, active-tree
+  guards, lookup/server wiring, and projection-maintenance integration.
 
 ## Next Formal Milestones
 

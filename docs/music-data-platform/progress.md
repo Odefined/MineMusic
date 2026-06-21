@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 18D/E Library Import drive tools and Server Host wiring
+> Status: Implemented through Phase 22 metadata lookup search
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -127,9 +127,14 @@
   owner-neutral FTS probes.
 - `src/music_data_platform/projection_maintenance_schema.ts` contributes
   `projection_maintenance_targets` plus a pending-order index.
-- `src/music_data_platform/retrieval_result_set_schema.ts` contributes
-  runtime `retrieval_result_sets`, `retrieval_result_rows`,
-  `retrieval_result_text_fts`, and `material_candidate_cache`.
+- `src/music_data_platform/search_metadata_projection_schema.ts` contributes
+  durable `search_metadata_documents` for material-level metadata lookup.
+- `src/music_data_platform/search_result_set_schema.ts` contributes runtime
+  `search_result_sets` and `search_result_rows` for metadata lookup result
+  windows; rows do not store duplicate `search_text` or `tsvector` columns.
+- `src/music_data_platform/retrieval_result_set_schema.ts` now contributes
+  `material_candidate_cache` for unresolved provider candidate payload
+  snapshots.
 - `src/music_data_platform/projection_maintenance_commands.ts` implements
   typed invalidation/dirty/clean/failed projection maintenance commands with
   deterministic `pmt_` target keys and generation-aware completion.
@@ -142,18 +147,17 @@
 - `src/music_data_platform/ref_validation.ts` now owns Music Data Platform
   internal ref/refKey input hardening so malformed external refs become
   `MusicDataPlatformError` instead of leaking contracts-layer `Error`.
-- `src/music_data_platform/retrieval_read_model.ts` implements the query-ready
-  Music Data Platform retrieval read port for owner-visible catalog queries,
-  text integration, and coarse projection freshness reads.
+- `src/music_data_platform/search_metadata_projection_commands.ts` implements
+  command-owned rebuild of durable material metadata lookup documents from
+  material, bound-source, canonical, and alias facts.
 - `src/music_data_platform/retrieval_result_set_records.ts` implements the
-  low-level runtime result-set/cache persistence boundary for result-set
-  headers, mixed rows, result-set FTS rows, material candidate cache upserts,
+  low-level material-candidate cache persistence boundary for cache upserts,
   cache reads by `material_candidate_ref_key`, and TTL cleanup.
-- `src/music_data_platform/retrieval_mixed_workspace.ts` implements the
-  Music Data Platform-owned mixed retrieval workspace for local result windows,
-  provider candidates, SQL ranking, result-set cursor pages, resolved-source
-  candidate collapse, material-candidate cache upserts, and runtime result-set
-  writes.
+- `src/music_data_platform/metadata_lookup_search_workspace.ts` implements the
+  Music Data Platform-owned metadata lookup workspace for local metadata
+  windows, unresolved provider candidates, Postgres text reranking, result-set
+  cursor pages, resolved-source candidate collapse, material-candidate cache
+  upserts, and runtime search result-set writes.
 - `src/music_data_platform/source_of_truth_write_commands.ts` implements the
   workflow-facing source-of-truth write facade for identity, source-library,
   and owner relation writes, and currently rejects non-default owner scopes on
@@ -300,6 +304,11 @@
   material kind filtering, missing text tolerance, prefix-OR text recall,
   operator-safe query construction, field-aware ranking, text evidence,
   text keyset pagination, validation errors, and coarse freshness reads.
+- Phase 22 tests cover search metadata schema/projection shape, field-local
+  dedupe, attribution JSON, metadata lookup result-set row schema, absence of
+  result-row `search_text` / `tsvector` storage, provider-hit collapse to
+  durable material metadata, unresolved candidate cache writes, Postgres text
+  reranking, cursor paging, and pruned `row_count`.
 - focused ref-validation tests cover malformed ref/refKey inputs plus
   area-specific validator codes for material, source-library, owner-relation,
   and owner-scope boundaries.

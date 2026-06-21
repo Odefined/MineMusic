@@ -43,14 +43,13 @@ source-library command boundary and library-scope owner catalog invalidation.
 Phase 15A starts provider-search pool retrieval by migrating internal
 Retrieval input from removed `poolFilter` bare refs to typed `pools`, replacing
 the active cursor payload with version 2, and validating provider-search pool
-shape. Phase 15B adds the Music Data Platform-owned runtime result-set and
-material-candidate cache foundation: `retrieval_result_sets`,
-`retrieval_result_rows`, result-set-scoped `retrieval_result_text_fts`,
-`material_candidate_cache`, deterministic `material_candidate` refs, TTL
-cleanup helpers, and active-tree guards preventing Music Intelligence from
-writing runtime result-set/cache tables directly. Phase 15C adds the
-Music Data Platform mixed local/provider retrieval workspace for SQL-owned
-ranking and pagination. Phase 15D wires Music Intelligence Retrieval to
+shape. Phase 15B added the first Music Data Platform-owned runtime result-set
+and material-candidate cache foundation. Phase 22 later retires the old
+`retrieval_result_*` active result-set tables and keeps only
+`material_candidate_cache` from that foundation for unresolved provider
+candidate snapshots. Phase 15C added the first mixed local/provider retrieval
+workspace for SQL-owned ranking and pagination. Phase 15D wires Music
+Intelligence Retrieval to
 Source Provider Slot search through a narrow async provider-search port,
 Server Host adapter, provider-result validation, provider-search error mapping,
 cursor result-set reuse, and opt-in NCM mixed-retrieval smoke coverage.
@@ -95,14 +94,18 @@ maintenance now rebuilds this new index alongside the preserved legacy
 `material_text_*` projection when a material-scoped projection target is
 processed. Music Data Platform also owns `search_result_sets` /
 `search_result_rows` for metadata lookup result windows, text-score reranking,
-and provider/local mixed recall. Server Host now wires
+and provider/local mixed recall. Result rows store row identity, compact text
+fields, evidence, and scores only; they do not persist a duplicate
+`search_text` document or `tsvector`. Server Host now wires
 `music.discovery.lookup` through the new Metadata Lookup Search adapter: a
 provider hit already bound to an active material is only a discovery path to
 that material and is reranked from the durable material metadata document;
 only unresolved provider hits become runtime metadata lookup candidate
-documents. The old Retrieval modules and legacy result-set tables remain in
-the tree for follow-up migration and tests, but default lookup no longer uses
-the old material-text matched-token / field-priority ranking path.
+documents. The old Retrieval read/mixed service modules and legacy
+`retrieval_result_*` result-set tables have been removed from the active tree.
+The remaining Retrieval contracts, normalization, and cursor helpers are a
+compatibility surface used by the Stage lookup path; default lookup no longer
+uses the old material-text matched-token / field-priority ranking path.
 Phase 17 adds the internal Music Data Platform Candidate Commit owning command
 (ADR-0011), Material Projection (`materialRef` -> `MusicMaterial`), the Effect
 Boundary auto-pass widening for presentation-driven admission (ADR-0021), and
@@ -434,30 +437,32 @@ Phase 10 material text projection vocabulary includes:
 - strict owner-neutral conjunctive FTS matching over projected
   `title/artist/album/version/alias` text.
 
-Phase 12 retrieval-read vocabulary includes:
+Current metadata lookup vocabulary includes:
 
-- `createMusicDataPlatformRetrievalReadPort({ db })`;
-- `MusicDataPlatformRetrievalReadPort` with
-  `searchOwnerCatalogMaterials(...)` and `getRetrievalFreshness(...)`;
-- `MusicDataPlatformRetrievalSearchInput`,
-  `MusicDataPlatformRetrievalSearchPage`, and
-  `MusicDataPlatformRetrievalMaterialRow`;
-- `RetrievalReadCursorPosition` for `stable`, `recently_added`, and
-  `text_relevance` positions;
-- `RetrievalFreshness` as coarse dirty/failed projection state for retrieval
-  callers;
-- `music_data.retrieval_read_invalid` for Music Data Platform retrieval
-  read-port validation.
+- `musicDataPlatformSearchMetadataProjectionSchema` and
+  `createSearchMetadataProjectionCommands({ db, now })` for durable
+  material-level metadata lookup documents;
+- `musicDataPlatformSearchResultSetSchema` for `search_result_sets` and
+  `search_result_rows`;
+- `createMusicDataPlatformMetadataLookupSearchWorkspace({ database })` with
+  `searchMetadataLookupResultSet(...)`;
+- `MusicDataPlatformMetadataLookupSearchInput`,
+  `MusicDataPlatformMetadataLookupSearchPage`, and
+  `MusicDataPlatformMetadataLookupSearchRow`;
+- `MetadataLookupSearchCursorPosition` for Postgres text-rank cursor pages;
+- `material_candidate_cache` for unresolved provider candidate payloads only;
+- `music_data.metadata_lookup_search_invalid` for Music Data Platform
+  metadata lookup validation.
 
-Phase 12C Music Intelligence Retrieval vocabulary includes:
+Current Music Intelligence Retrieval compatibility vocabulary includes:
 
-- `createRetrievalQueryService({ readPort })`;
+- `createMetadataLookupRetrievalQueryService({ searchWorkspace, providerSearch? })`;
 - `RetrievalQueryService.query(input)`;
 - `RetrievalQueryInput`, `RetrievalQueryResult`, and `RetrievalQueryHit`;
 - `RetrievalPoolFilter` with `allOf`, `anyOf`, and `noneOf`;
-- opaque versioned Retrieval cursors with query fingerprints;
-- `MusicIntelligenceError` with retrieval query, cursor, cursor mismatch, and
-  retrieval result invariant codes.
+- opaque versioned Retrieval cursors with metadata-lookup query fingerprints;
+- `MusicIntelligenceError` with retrieval query, cursor, cursor mismatch,
+  provider-search, and result invariant codes.
 
 Phase 13 runtime-orchestrated Projection Maintenance vocabulary includes:
 
@@ -494,13 +499,14 @@ Phase 15 provider-search pool retrieval vocabulary includes:
   both local-only and mixed retrieval;
 - `material_candidate:<provider_candidate>:<opaque>` refs derived only from
   `digest(refKey(sourceEntity.sourceRef))`;
-- `retrieval_result_sets`, `retrieval_result_rows`, and
-  `retrieval_result_text_fts` as TTL-backed runtime result-set state for mixed
-  SQL ranking and pagination;
-- `material_candidate_cache` as the runtime cache for validated provider
-  material candidates keyed by `material_candidate_ref_key`;
-- runtime result-set/cache writes belong to the Music Data Platform
-  retrieval-result-set boundary, not Music Intelligence or Stage Interface.
+- `search_result_sets` and `search_result_rows` as TTL-backed metadata lookup
+  result-set state for mixed SQL ranking and pagination;
+- `material_candidate_cache` as the runtime cache for validated unresolved
+  provider material candidates keyed by `material_candidate_ref_key`;
+- provider hits already bound to active materials collapse to durable material
+  rows before ranking;
+- runtime result-set/cache writes belong to the Music Data Platform metadata
+  lookup/search result-set boundary, not Music Intelligence or Stage Interface.
 
 ## Deleted Formal v1 Surfaces
 
@@ -643,12 +649,14 @@ The active TypeScript tree is now a formal skeleton:
   internal material text read port;
 - `src/music_data_platform/material_text_projection_commands.ts` owns
   command-owned material text rebuilds;
-- `src/music_data_platform/retrieval_read_model.ts` owns the internal
-  query-ready Music Data Platform retrieval read port for owner-visible
-  catalog search, text evidence/ranking, and coarse freshness;
-- `src/music_data_platform/retrieval_mixed_workspace.ts` owns mixed
-  local/provider result-set construction, SQL ranking/pagination, and runtime
-  material-candidate cache writes;
+- `src/music_data_platform/search_metadata_projection_schema.ts` and
+  `src/music_data_platform/search_metadata_projection_commands.ts` own the
+  durable material metadata lookup projection;
+- `src/music_data_platform/search_result_set_schema.ts` owns the metadata
+  lookup runtime result-set schema;
+- `src/music_data_platform/metadata_lookup_search_workspace.ts` owns metadata
+  lookup result-set construction, SQL reranking/pagination, provider-candidate
+  dedupe/collapse, and runtime material-candidate cache writes;
 - `src/music_data_platform/index.ts` owns Music Data Platform public exports;
 - `src/music_intelligence/errors.ts` owns Music Intelligence area errors;
 - `src/music_intelligence/core/retrieval/contracts.ts` owns Retrieval query
@@ -657,9 +665,9 @@ The active TypeScript tree is now a formal skeleton:
   effective query normalization and fingerprint inputs;
 - `src/music_intelligence/core/retrieval/cursor.ts` owns opaque cursor
   encode/decode;
-- `src/music_intelligence/core/retrieval/query_service.ts` owns the internal
-  async Retrieval query service over Music Data Platform retrieval ports and
-  provider-search port wiring;
+- `src/music_intelligence/core/search/metadata_lookup_retrieval_adapter.ts`
+  owns the internal Retrieval-compatible query service over the Music Data
+  Platform metadata lookup search workspace and provider-search port wiring;
 - `src/music_intelligence/stage_adapter/scope_availability.ts` owns the narrow
   Music Scope availability port and in-memory test adapter used by Stage
   Adapter handlers;

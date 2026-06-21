@@ -36,8 +36,6 @@ export const musicDataPlatformSearchResultSetSchema: MusicDatabaseSchemaContribu
         album_text TEXT NOT NULL,
         version_text TEXT NOT NULL,
         alias_text TEXT NOT NULL,
-        search_text TEXT NOT NULL,
-        search_vector tsvector NOT NULL DEFAULT ''::tsvector,
         PRIMARY KEY(result_set_id, row_kind, stable_ref_key),
         FOREIGN KEY(result_set_id) REFERENCES search_result_sets(result_set_id),
         FOREIGN KEY(material_ref_key) REFERENCES material_records(ref_key),
@@ -66,11 +64,6 @@ export const musicDataPlatformSearchResultSetSchema: MusicDatabaseSchemaContribu
     await context.run(`
       CREATE INDEX IF NOT EXISTS search_result_rows_candidate_ref_key_idx
       ON search_result_rows(material_candidate_ref_key)
-    `);
-
-    await context.run(`
-      CREATE INDEX IF NOT EXISTS search_result_rows_search_vector_idx
-      ON search_result_rows USING GIN(search_vector)
     `);
   },
 };

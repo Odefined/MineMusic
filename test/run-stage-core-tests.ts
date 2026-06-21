@@ -28,6 +28,7 @@ const testModules = [
     "./formal/music-data-platform-projection-maintenance.test.js",
     "./formal/music-data-platform-retrieval-result-set.test.js",
     "./formal/music-data-platform-metadata-lookup-search.test.js",
+    "./formal/music-intelligence-metadata-lookup-search.test.js",
     "./formal/music-data-platform-candidate-commit.test.js",
     "./formal/music-data-platform-localize-provider-source.test.js",
     "./formal/server-projection-maintenance-scheduler.test.js",
