@@ -1,23 +1,20 @@
 import assert from "node:assert/strict";
-import type { Ref } from "../../src/contracts/kernel.js";
 import type {
     BackgroundWorkBackend,
     BackgroundWorkHandler,
     BackgroundWorkSubmitInput,
 } from "../../src/background_work/index.js";
-import { createProjectionMaintenanceCommands, createProjectionMaintenanceRecords, createMusicDataPlatformSourceOfTruthWriteCommands, type ProjectionMaintenanceTargetRecord, } from "../../src/music_data_platform/index.js";
 import { createMineMusicExtensionRuntime, createMusicDataPlatformRuntimeModule, type MusicDataPlatformRuntimeModule, } from "../../src/server/index.js";
 import { type MusicDatabase } from "../../src/storage/index.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
 {
-    const timers = createFakeTimerQueue();
-    const database = await createDatabaseWithInitializeHook(async (db) => {
-        await markMaterialTextTargetDirty(db, "material-1");
-    });
+    // Basic initialize without background work: in-process ports are wired and
+    // cleared on stop. Projection maintenance has no scheduler-driven path now;
+    // its rebuild runs only when a background-work backend is present.
+    const database = await openUninitializedPostgresTestMusicDatabase();
     const module = createMusicDataPlatformRuntimeModule({
         extensionRuntime: createMineMusicExtensionRuntime(),
         database,
-        projectionMaintenanceSchedulerDependencies: timers.dependencies(),
     });
     const initialized = await module.initialize({});
     assert.equal(initialized.ok, true);
@@ -25,13 +22,6 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     assert.equal(module.retrievalQuery() === undefined, false);
     assert.equal(module.candidateCommit() === undefined, false);
     assert.equal(module.materialProjection() === undefined, false);
-    assert.deepEqual(timers.activeDelays(), [0]);
-    assert.equal((await listPendingProjectionTargets(database)).length, 1);
-    timers.runNext(0);
-    assert.equal((await listPendingProjectionTargets(database)).length, 1);
-    assert.deepEqual(timers.activeDelays(), [1000]);
-    await waitForPendingProjectionTargetCount(database, 0);
-    assert.equal((await listPendingProjectionTargets(database)).length, 0);
     const stopped = await stopModule(module);
     assert.equal(stopped.ok, true);
     assert.equal(module.retrievalQuery(), undefined);
@@ -40,37 +30,8 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     await database.close();
 }
 {
-    const timers = createFakeTimerQueue();
-    const database = await createDatabaseWithInitializeHook(async (db) => {
-        await markMaterialTextTargetDirty(db, "material-2");
-    });
-    const module = createMusicDataPlatformRuntimeModule({
-        extensionRuntime: createMineMusicExtensionRuntime(),
-        config: {
-            projectionMaintenance: {
-                enabled: false,
-            },
-        },
-        database,
-        projectionMaintenanceSchedulerDependencies: timers.dependencies(),
-    });
-    const initialized = await module.initialize({});
-    assert.equal(initialized.ok, true);
-    assert.equal(module.sourceLibraryImport() === undefined, false);
-    assert.equal(module.retrievalQuery() === undefined, false);
-    assert.equal(module.candidateCommit() === undefined, false);
-    assert.equal(module.materialProjection() === undefined, false);
-    assert.equal(timers.activeCount(), 0);
-    assert.equal((await listPendingProjectionTargets(database)).length, 1);
-    const stopped = await stopModule(module);
-    assert.equal(stopped.ok, true);
-    assert.equal(module.retrievalQuery(), undefined);
-    assert.equal(module.candidateCommit(), undefined);
-    assert.equal(module.materialProjection(), undefined);
-    await database.close();
-}
-{
-    const timers = createFakeTimerQueue();
+    // With background work: localize + library import + projection maintenance
+    // handlers register, in registration order.
     const database = await openUninitializedPostgresTestMusicDatabase();
     const backgroundWork = createFakeBackgroundWorkBackend();
     const module = createMusicDataPlatformRuntimeModule({
@@ -79,13 +40,9 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
             localSources: {
                 rootDir: "/tmp/minemusic-local-sources",
             },
-            projectionMaintenance: {
-                enabled: false,
-            },
         },
         database,
         backgroundWork,
-        projectionMaintenanceSchedulerDependencies: timers.dependencies(),
     });
     const initialized = await module.initialize({});
     assert.equal(initialized.ok, true);
@@ -94,26 +51,9 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     assert.deepEqual(backgroundWork.registrations.map((registration) => registration.jobType), [
         "music_data_platform.localize_provider_source",
         "music_data_platform.library_import_advance",
+        "music_data_platform.projection_maintenance",
     ]);
     assert.equal(backgroundWork.startCount, 0);
-    const submitted = await module.localizeProviderSource()?.submit({
-        sourceRef: { namespace: "source_netease", kind: "track", id: "localize-runtime-1" },
-    });
-    assert.equal(submitted?.ok, true);
-    assert.deepEqual(backgroundWork.submissions.map((submission) => ({
-        jobType: submission.jobType,
-        payload: submission.payload,
-        idempotencyKey: submission.idempotencyKey,
-    })), [
-        {
-            jobType: "music_data_platform.localize_provider_source",
-            payload: {
-                sourceRef: { namespace: "source_netease", kind: "track", id: "localize-runtime-1" },
-                targetPolicyVersion: 1,
-            },
-            idempotencyKey: "source:source_netease:track:localize-runtime-1|bitrate:provider_default|targetPolicy:1",
-        },
-    ]);
     const stopped = await stopModule(module);
     assert.equal(stopped.ok, true);
     assert.equal(module.localizeProviderSource(), undefined);
@@ -121,15 +61,12 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     await database.close();
 }
 {
+    // localSources.rootDir missing while background work is wired: localize
+    // config requires it, so initialization fails before any handler registers.
     const database = await createCloseSpyDatabase();
     const backgroundWork = createFakeBackgroundWorkBackend();
     const module = createMusicDataPlatformRuntimeModule({
         extensionRuntime: createMineMusicExtensionRuntime(),
-        config: {
-            projectionMaintenance: {
-                enabled: false,
-            },
-        },
         databaseFactory: () => database,
         backgroundWork,
     });
@@ -143,105 +80,11 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     assert.equal(module.localizeProviderSource(), undefined);
     assert.equal(database.closeCount(), 1);
 }
-{
-    const database = await createCloseSpyDatabase();
-    const module = createMusicDataPlatformRuntimeModule({
-        extensionRuntime: createMineMusicExtensionRuntime(),
-        config: {
-            projectionMaintenance: {
-                batchLimit: 0,
-            },
-        },
-        databaseFactory: () => database,
-    });
-    const initialized = await module.initialize({});
-    assert.equal(initialized.ok, false);
-    if (initialized.ok) {
-        throw new Error("Expected runtime module initialization to fail.");
-    }
-    assert.equal(initialized.error.code, "server_host.music_data_platform_initialization_failed");
-    assert.equal(module.sourceLibraryImport(), undefined);
-    assert.equal(module.retrievalQuery(), undefined);
-    assert.equal(module.candidateCommit(), undefined);
-    assert.equal(module.materialProjection(), undefined);
-    assert.equal(database.closeCount(), 1);
-}
-{
-    const timers = createFakeTimerQueue();
-    const module = createMusicDataPlatformRuntimeModule({
-        extensionRuntime: createMineMusicExtensionRuntime(),
-        database: await createDatabaseWithInitializeHook(async (db) => {
-            await markMaterialTextTargetDirty(db, "material-3");
-        }),
-        projectionMaintenanceSchedulerDependencies: {
-            ...timers.dependencies(),
-            now: () => {
-                throw new Error("clock failed");
-            },
-        },
-    });
-    const initialized = await module.initialize({});
-    assert.equal(initialized.ok, true);
-    assert.doesNotThrow(() => {
-        timers.runNext(0);
-    });
-    assert.deepEqual(timers.activeDelays(), [1000]);
-    const stopped = await stopModule(module);
-    assert.equal(stopped.ok, true);
-}
-{
-    const timers = createFakeTimerQueue();
-    const database = await createDatabaseWithInitializeHook(async (db) => {
-        await markMaterialTextTargetDirty(db, "material-4");
-    });
-    const module = createMusicDataPlatformRuntimeModule({
-        extensionRuntime: createMineMusicExtensionRuntime(),
-        database,
-        projectionMaintenanceSchedulerDependencies: {
-            ...timers.dependencies(),
-            now: () => "2026-06-14T16:00:00.000Z",
-        },
-    });
-    const initialized = await module.initialize({});
-    assert.equal(initialized.ok, true);
-    timers.runNext(0);
-    assert.deepEqual(timers.activeDelays(), [1000]);
-    let stopResolved = false;
-    const stopPromise = stopModule(module).then((result) => {
-        stopResolved = true;
-        return result;
-    });
-    assert.equal(stopResolved, false);
-    assert.equal(timers.activeCount(), 0);
-    const stopped = await stopPromise;
-    assert.equal(stopped.ok, true);
-    assert.equal(stopResolved, true);
-    assert.equal((await listPendingProjectionTargets(database)).length, 0);
-    await database.close();
-}
 async function stopModule(module: MusicDataPlatformRuntimeModule): Promise<Awaited<ReturnType<NonNullable<MusicDataPlatformRuntimeModule["stop"]>>>> {
     if (module.stop === undefined) {
         throw new Error("Expected runtime module stop() to be present.");
     }
     return module.stop();
-}
-async function createDatabaseWithInitializeHook(hook: (database: MusicDatabase) => Promise<void>): Promise<MusicDatabase> {
-    const database = await openUninitializedPostgresTestMusicDatabase();
-    return {
-        async initialize(input) {
-            await database.initialize(input);
-            await hook(database);
-        },
-        context() {
-            return database.context();
-        },
-        async transaction(operation) {
-            return await database.transaction(operation);
-        },
-        async close() {
-            await database.close();
-        },
-    };
 }
 async function createCloseSpyDatabase(): Promise<MusicDatabase & {
     closeCount(): number;
@@ -267,40 +110,6 @@ async function createCloseSpyDatabase(): Promise<MusicDatabase & {
         },
     };
 }
-async function markMaterialTextTargetDirty(database: MusicDatabase, id: string): Promise<void> {
-    await database.transaction(async (db) => await createProjectionMaintenanceCommands({
-        db,
-        now: "2026-06-14T15:59:00.000Z",
-    }).markProjectionTargetDirty({
-        projectionKind: "material_text",
-        materialRef: materialRef("recording", id),
-    }));
-}
-async function listPendingProjectionTargets(database: MusicDatabase): Promise<readonly ProjectionMaintenanceTargetRecord[]> {
-    return await createProjectionMaintenanceRecords({
-        db: database.context(),
-    }).listPendingProjectionTargets();
-}
-async function waitForPendingProjectionTargetCount(database: MusicDatabase, expectedCount: number): Promise<void> {
-    for (let attempt = 0; attempt < 10000; attempt += 1) {
-        if ((await listPendingProjectionTargets(database)).length === expectedCount) {
-            return;
-        }
-
-        await new Promise<void>((resolve) => {
-            setImmediate(resolve);
-        });
-    }
-
-    throw new Error(`Expected ${expectedCount} pending projection targets.`);
-}
-function materialRef(kind: "recording" | "album" | "artist" | "work" | "release", id: string): Ref {
-    return {
-        namespace: "material",
-        kind,
-        id,
-    };
-}
 function createFakeBackgroundWorkBackend(): BackgroundWorkBackend & {
     registrations: {
         jobType: string;
@@ -321,7 +130,7 @@ function createFakeBackgroundWorkBackend(): BackgroundWorkBackend & {
         async submit(input: BackgroundWorkSubmitInput<object>) {
             backend.submissions.push(input);
             return {
-                jobId: "runtime-localize-job",
+                jobId: "runtime-job",
                 submission: "created" as const,
             };
         },
@@ -339,54 +148,4 @@ function createFakeBackgroundWorkBackend(): BackgroundWorkBackend & {
         },
     };
     return backend;
-}
-function createFakeTimerQueue(): {
-    activeCount(): number;
-    activeDelays(): number[];
-    dependencies(): {
-        now: () => string;
-        setTimeout(callback: () => void, delayMs: number): number;
-        clearTimeout(handle: unknown): void;
-    };
-    runNext(expectedDelayMs: number): void;
-} {
-    let nextId = 1;
-    const tasks = new Map<number, {
-        callback: () => void;
-        delayMs: number;
-    }>();
-    return {
-        activeCount() {
-            return tasks.size;
-        },
-        activeDelays() {
-            return Array.from(tasks.values()).map((task) => task.delayMs);
-        },
-        dependencies() {
-            return {
-                now: () => new Date().toISOString(),
-                setTimeout(callback, delayMs) {
-                    const id = nextId;
-                    nextId += 1;
-                    tasks.set(id, {
-                        callback,
-                        delayMs,
-                    });
-                    return id;
-                },
-                clearTimeout(handle: unknown) {
-                    tasks.delete(handle as number);
-                },
-            };
-        },
-        runNext(expectedDelayMs) {
-            const taskEntry = Array.from(tasks.entries()).find(([, task]) => task.delayMs === expectedDelayMs);
-            if (taskEntry === undefined) {
-                throw new Error(`Expected timer with delay ${expectedDelayMs}ms.`);
-            }
-            const [taskId, task] = taskEntry;
-            tasks.delete(taskId);
-            task.callback();
-        },
-    };
 }

@@ -38,7 +38,7 @@ export type _projectionMaintenanceRelationMaterialTargetInputShape = Expect<Equa
 export type _projectionMaintenanceMaterialTextTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"material_text">, "projectionKind" | "materialRef">>;
 export type _projectionMaintenanceTargetDirtyResultShape = Expect<Equal<keyof ProjectionMaintenanceTargetDirtyResult, "targetKey" | "dirtyGeneration">>;
 export type _projectionMaintenanceInvalidationInputShape = Expect<Equal<keyof ProjectionMaintenanceInvalidationInput, "writes">>;
-export type _projectionMaintenanceInvalidationResultShape = Expect<Equal<keyof ProjectionMaintenanceInvalidationResult, "writeCount" | "targetCount">>;
+export type _projectionMaintenanceInvalidationResultShape = Expect<Equal<keyof ProjectionMaintenanceInvalidationResult, "writeCount" | "targetCount" | "invalidatedTargets">>;
 export type _projectionSourceWriteShape = Expect<Equal<ProjectionSourceWrite["writeKind"], "source_record_written" | "material_record_written" | "canonical_record_written" | "source_material_binding_written" | "source_library_item_written" | "source_library_scope_written" | "owner_relation_written">>;
 export type _projectionMaintenanceCleanInputShape = Expect<Equal<keyof ProjectionMaintenanceCleanInput, "projectionKind" | "targetKey" | "expectedDirtyGeneration">>;
 export type _projectionMaintenanceCleanResultShape = Expect<Equal<keyof ProjectionMaintenanceCleanResult, "cleaned">>;
@@ -46,7 +46,7 @@ export type _projectionMaintenanceFailedInputShape = Expect<Equal<keyof Projecti
 export type _projectionMaintenanceFailedResultShape = Expect<Equal<keyof ProjectionMaintenanceFailedResult, "failed">>;
 export type _projectionMaintenanceCommandsShape = Expect<Equal<keyof ProjectionMaintenanceCommands, "markProjectionInvalidated" | "markProjectionTargetDirty" | "markProjectionClean" | "markProjectionFailed">>;
 export type _projectionInvalidationCommandsShape = Expect<Equal<keyof ProjectionInvalidationCommands, "markProjectionInvalidated">>;
-export type _createSourceOfTruthWriteCommandsInputShape = Expect<Equal<keyof CreateMusicDataPlatformSourceOfTruthWriteCommandsInput, "db" | "now">>;
+export type _createSourceOfTruthWriteCommandsInputShape = Expect<Equal<keyof CreateMusicDataPlatformSourceOfTruthWriteCommandsInput, "db" | "now" | "accumulateInvalidatedTargets">>;
 export type _createProjectionMaintenanceRecordsInputShape = Expect<Equal<keyof CreateProjectionMaintenanceRecordsInput, "db">>;
 export type _getProjectionTargetInputShape = Expect<Equal<keyof GetProjectionTargetInput, "projectionKind" | "targetKey">>;
 export type _listPendingProjectionTargetsInputShape = Expect<Equal<keyof ListPendingProjectionTargetsInput, "limit">>;
@@ -319,7 +319,7 @@ await plannerDatabase.transaction(async (db) => {
         firstImportedAt: "2026-06-13T12:17:45.000Z",
     });
 });
-assert.deepEqual(await plannerDatabase.transaction(async (db) => await createProjectionMaintenanceCommands({
+const plannerInvalidation = await plannerDatabase.transaction(async (db) => await createProjectionMaintenanceCommands({
     db,
     now: "2026-06-13T12:18:00.000Z",
 }).markProjectionInvalidated({
@@ -349,7 +349,10 @@ assert.deepEqual(await plannerDatabase.transaction(async (db) => await createPro
             materialRef: plannerBoundMaterialRef,
         },
     ],
-})), { writeCount: 5, targetCount: 5 });
+}));
+assert.equal(plannerInvalidation.writeCount, 5);
+assert.equal(plannerInvalidation.targetCount, 5);
+assert.equal(plannerInvalidation.invalidatedTargets.length, 5);
 assert.deepEqual(await summarizePendingTargets(plannerDatabase), [
     {
         projectionKind: "material_text",

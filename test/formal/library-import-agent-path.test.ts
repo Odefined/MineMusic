@@ -25,9 +25,6 @@ const musicDataPlatformModule = createMusicDataPlatformRuntimeModule({
         localSources: {
             rootDir: "/tmp/minemusic-library-import-agent-path-local-sources",
         },
-        projectionMaintenance: {
-            enabled: false,
-        },
     },
 });
 const initializedMdp = await musicDataPlatformModule.initialize({});
@@ -148,9 +145,6 @@ await database.close();
         config: {
             localSources: {
                 rootDir: "/tmp/minemusic-library-import-write-failure-agent-path-local-sources",
-            },
-            projectionMaintenance: {
-                enabled: false,
             },
         },
     });

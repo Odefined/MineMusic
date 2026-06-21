@@ -113,7 +113,7 @@ export function createProjectionMaintenanceRunner(
   };
 }
 
-async function dispatchProjectionTarget(input: {
+export async function dispatchProjectionTarget(input: {
   target: ProjectionMaintenanceTargetRecord;
   ownerCatalogProjectionCommands: ReturnType<typeof createOwnerCatalogProjectionCommands>;
   materialTextProjectionCommands: ReturnType<typeof createMaterialTextProjectionCommands>;
@@ -154,7 +154,7 @@ async function dispatchProjectionTarget(input: {
   }
 }
 
-function compactProjectionMaintenanceFailure(
+export function compactProjectionMaintenanceFailure(
   error: unknown,
   projectionKind: ProjectionMaintenanceKind,
 ): {

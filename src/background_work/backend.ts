@@ -5,6 +5,12 @@ export type BackgroundWorkSubmitInput<Payload extends object = Record<string, un
   payload: Payload;
   idempotencyKey?: string;
   runAfter?: Date;
+  // pg-boss retry policy. When omitted, pg-boss applies its queue/constructor
+  // defaults. Carried so domain callers can declare per-job retry without
+  // re-implementing a retry loop (ADR-0027).
+  retryLimit?: number;
+  retryDelay?: number;
+  retryBackoff?: boolean;
 };
 
 export type BackgroundWorkSubmitResult = {
@@ -17,6 +23,11 @@ export type BackgroundWorkJob<Payload extends object = Record<string, unknown>> 
   jobType: string;
   payload: Payload;
   signal: AbortSignal;
+  // Present when the backend runs workers with metadata (pg-boss
+  // `includeMetadata`). Handlers that need to distinguish a final attempt from
+  // a retriable one read these; handlers that do not simply ignore them.
+  retryCount?: number;
+  retryLimit?: number;
 };
 
 export type BackgroundWorkHandler<Payload extends object = Record<string, unknown>> = (

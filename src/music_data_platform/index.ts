@@ -272,6 +272,7 @@ export type {
   ProjectionInvalidationCommands,
   ProjectionMaintenanceInvalidationInput,
   ProjectionMaintenanceInvalidationResult,
+  ProjectionMaintenanceInvalidatedTarget,
   ProjectionMaintenanceFailedInput,
   ProjectionMaintenanceFailedResult,
   ProjectionMaintenanceKind,
@@ -290,11 +291,25 @@ export type {
 } from "./projection_maintenance_runner.js";
 export {
   createMusicDataPlatformSourceOfTruthWriteCommands,
+  runSourceOfTruthWrite,
 } from "./source_of_truth_write_commands.js";
 export type {
   CreateMusicDataPlatformSourceOfTruthWriteCommandsInput,
   MusicDataPlatformSourceOfTruthWriteCommands,
+  RunSourceOfTruthWriteFn,
+  RunSourceOfTruthWriteInput,
 } from "./source_of_truth_write_commands.js";
+export type {
+  ProjectionMaintenanceDispatcher,
+} from "./projection_maintenance_dispatcher.js";
+export {
+  createProjectionMaintenanceJobHandler,
+  PROJECTION_MAINTENANCE_JOB_TYPE,
+} from "./projection_maintenance_job.js";
+export type {
+  CreateProjectionMaintenanceJobHandlerInput,
+  ProjectionMaintenanceJobPayload,
+} from "./projection_maintenance_job.js";
 export {
   createLocalizeProviderSourceCommand,
   localizeProviderSourceIdempotencyKey,

@@ -31,11 +31,6 @@ else {
                 url: databaseUrl,
                 schema: databaseSchema,
             },
-            projectionMaintenance: {
-                enabled: true,
-                intervalMs: 100,
-                batchLimit: 1000,
-            },
             sourceLibraryImport: {
                 defaultLimit: limit,
             },
