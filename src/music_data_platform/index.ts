@@ -235,12 +235,15 @@ export {
   createOwnerCatalogProjectionCommands,
 } from "./owner_catalog_projection.js";
 export type {
+  CollectionEntryProjectionSummary,
   CreateOwnerCatalogProjectionCommandsInput,
   OwnerCatalogProjectionCommands,
   OwnerRelationEntryProjectionSummary,
+  RebuildCollectionEntriesInput,
   RebuildOwnerRelationEntriesInput,
   RebuildSourceLibraryEntriesForLibraryInput,
   RebuildSourceLibraryEntriesForMaterialInput,
+  ResolveCollectionRefsForMaterialInput,
   SourceLibraryEntryProjectionSummary,
 } from "./owner_catalog_projection.js";
 export {

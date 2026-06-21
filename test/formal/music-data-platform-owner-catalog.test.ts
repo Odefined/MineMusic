@@ -18,7 +18,7 @@ function createIdentityTestCommands(db: Parameters<typeof createIdentityWriteCom
 }
 export type _ownerMaterialEntryRecordShape = Expect<Equal<keyof OwnerMaterialEntryRecord, "entryKey" | "ownerScope" | "entryKind" | "entryRefKey" | "materialRefKey" | "visibilityRole" | "active" | "provenanceJson" | "createdAt" | "updatedAt">>;
 export type _ownerCatalogMaterialRecordShape = Expect<Equal<keyof OwnerCatalogMaterialRecord, "ownerScope" | "materialRefKey" | "positiveEntryCount" | "updatedAt" | "recentlyAddedAt" | "provenanceJson">>;
-export type _ownerCatalogProjectionCommandsShape = Expect<Equal<keyof OwnerCatalogProjectionCommands, "rebuildSourceLibraryEntriesForLibrary" | "rebuildSourceLibraryEntriesForMaterial" | "rebuildOwnerRelationEntries">>;
+export type _ownerCatalogProjectionCommandsShape = Expect<Equal<keyof OwnerCatalogProjectionCommands, "rebuildSourceLibraryEntriesForLibrary" | "rebuildSourceLibraryEntriesForMaterial" | "rebuildOwnerRelationEntries" | "rebuildCollectionEntries" | "resolveCollectionRefsForMaterial">>;
 export type _rebuildSourceLibraryEntriesForLibraryInputShape = Expect<Equal<keyof RebuildSourceLibraryEntriesForLibraryInput, "ownerScope" | "libraryRef">>;
 export type _rebuildSourceLibraryEntriesForMaterialInputShape = Expect<Equal<keyof RebuildSourceLibraryEntriesForMaterialInput, "ownerScope" | "materialRef">>;
 export type _rebuildOwnerRelationEntriesInputShape = Expect<Equal<keyof RebuildOwnerRelationEntriesInput, "ownerScope" | "materialRef">>;

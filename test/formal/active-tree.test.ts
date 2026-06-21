@@ -933,6 +933,7 @@ for (const file of activeFiles) {
         ".rebuildSourceLibraryEntriesForLibrary(",
         ".rebuildSourceLibraryEntriesForMaterial(",
         ".rebuildOwnerRelationEntries(",
+        ".rebuildCollectionEntries(",
         ".rebuildMaterialTextDocument(",
         ".rebuildMaterialTextDocuments(",
         ".rebuildSearchMetadataDocument(",

@@ -595,8 +595,14 @@ async function planProjectionInvalidationTargets(
       }
 
       return Array.from(uniqueMaterialRefs.values()).flatMap((materialRef) =>
-        materialScopedTargets(DEFAULT_OWNER_SCOPE, materialRef).filter((target) =>
-          target.projectionKind !== "owner_catalog_relation_material"
+        // D6: Collection membership keys on material_ref_key and is indifferent
+        // to which source a material is bound to, so a source-material binding
+        // change must NOT dirty collection entries (the lifecycle invariant
+        // owns that via material_record_written, which is unfiltered below).
+        materialScopedTargets(DEFAULT_OWNER_SCOPE, materialRef).filter(
+          (target) =>
+            target.projectionKind !== "owner_catalog_relation_material" &&
+            target.projectionKind !== "owner_catalog_collection_material",
         )
       );
     }
@@ -659,6 +665,14 @@ function materialScopedTargets(
     },
     {
       projectionKind: "owner_catalog_relation_material",
+      ownerScope,
+      materialRef,
+    },
+    // D6: a material lifecycle change (material_record_written) must re-dirty
+    // every collection entry pointing at it, so the collection material-scoped
+    // target is part of the standard material-scoped set.
+    {
+      projectionKind: "owner_catalog_collection_material",
       ownerScope,
       materialRef,
     },

@@ -402,6 +402,11 @@ assert.deepEqual(await summarizePendingTargets(facadeMaterialDatabase), [
         dirtyGeneration: 1,
     },
     {
+        projectionKind: "owner_catalog_collection_material",
+        targetPayloadJson: ownerMaterialPayloadJson(DEFAULT_OWNER_SCOPE, facadeMaterialRef),
+        dirtyGeneration: 1,
+    },
+    {
         projectionKind: "owner_catalog_relation_material",
         targetPayloadJson: ownerMaterialPayloadJson(DEFAULT_OWNER_SCOPE, facadeMaterialRef),
         dirtyGeneration: 1,

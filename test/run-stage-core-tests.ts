@@ -22,6 +22,7 @@ const testModules = [
     "./formal/music-data-platform-source-library.test.js",
     "./formal/music-data-platform-owner-relations.test.js",
     "./formal/music-data-platform-collection.test.js",
+    "./formal/projection-maintenance-collection.test.js",
     "./formal/music-data-platform-owner-catalog.test.js",
     "./formal/music-data-platform-material-projection.test.js",
     "./formal/music-data-platform-material-text-projection.test.js",
