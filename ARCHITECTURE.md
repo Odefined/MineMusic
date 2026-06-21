@@ -46,17 +46,19 @@ old MVP flows.
 
 ## Top-Level Areas
 
-Formal v1 has nine top-level architecture areas:
+Formal v1 has eleven top-level architecture areas:
 
 | Area | Owns | Does Not Own |
 | --- | --- | --- |
 | Server Host | Process startup/shutdown, server-level config loading, MCP/HTTP/stdio or future host transports, host adapter lifecycle, and keeping one composed Stage Runtime alive. | Stage Runtime graph composition, tool semantics, domain facts, provider semantics, or final music judgement. |
 | Stage Interface | Agent-facing workspace boundary: Instrument Catalog, Tool Registry, Handbook, tool schemas, validation, compact public outputs, dispatch glue, and session-aware availability. | Music facts, provider internals, domain ownership, storage semantics, or final music judgement. |
 | Stage Core | Stage Runtime graph assembly, capability wiring, repository/provider/plugin wiring, initialization, readiness, and runtime lifecycle. | Process/transport hosting, plugin semantics, music domain facts, or agent-facing tool language. |
+| Agent Runtime | Embedded MineMusic agent semantics: main/radio actor lifecycle, agent run/message/work state, context assembly, interrupt/steer/cancel handling, stale-result coordination, sanitized agent work/event translation, and the MineMusic-owned agent engine interface. | Pi concrete engine implementation details, Stage Interface tool contracts, music facts, playback/radio truth, recommendation judgement, Effect policy, provider semantics, process transports, or runtime graph composition. |
+| Workbench Interface | Shared Web and embedded-agent workspace interaction interface: Workspace Interaction State, Workspace Protocol, public card/action views, snapshot/replay, user action adaptation, and product-level work/card projections assembled from owning areas. | Music facts, playback/queue/radio truth, agent run/message/work state, durable music outcomes, Effect decisions, provider state, Web component implementation, process transports, or runtime graph composition. |
 | Extension | Plugin System, Capability Slots, provider/plugin manifests, adapter lifecycle metadata, and replaceability semantics. | Runtime graph composition, music facts, material identity, owner facts, query/present workflow, or final presentation. |
 | Music Data Platform | Source/material/canonical identity, storage records, bindings, owner-scoped fact families, library import/update persistence, projections, and canonical maintenance. | Provider integration, plugin semantics, Stage Interface schemas, query/present orchestration, Memory, or Effect execution. |
 | Music Intelligence | Search, Retrieval compatibility, and Knowledge capabilities for discovery, comparison, attributed evidence, ranking evidence, and reasoning support. | Durable facts, long-term Memory, final recommendation judgement, material identity, or external effects. |
-| Music Experience | Radio mode behavior, queue/now-playing intent, presented recommendation history, play/open/skip events, feedback binding, pacing, dedupe, and external action intent. | Retrieval, Music Data Platform writes outside explicit ports, long-term Memory, effect execution, or effect permission policy. |
+| Music Experience | Live and consequential music interaction behavior: playback, queue, radio mode, now-playing intent, radio pacing, recommendation batches, presented recommendations, play/open/skip events, feedback binding, dedupe, external action intent, and listening outcomes/history. | Workbench interaction state, Agent Runtime state, Retrieval, Music Data Platform writes outside explicit ports, long-term Memory, effect execution, or effect permission policy. |
 | Memory | Long-term user/music relationship state, taste memory, preference/rule memory, contextual preferences, and evidence-backed memory proposals. | Material identity, owner relation source-of-truth, Retrieval, Knowledge, or external effects. |
 | Effect Boundary | Permission, approval, effect proposal/decision, side-effect audit, and execution policy. | Provider capability declaration, domain facts, recommendation judgement, or normal query/presentation output. |
 
@@ -69,6 +71,7 @@ not become a catch-all bounded context.
 These names are not top-level formal areas:
 
 - `Stage` as a generic bounded context;
+- `Session Context` as a top-level area;
 - `Music Library` or `Library` as a top-level area;
 - `Owner Context`;
 - `Source Provider Platform`;
@@ -98,6 +101,27 @@ enabled adapters, shared provider dependencies, config, auth, cache, rate
 limits, storage handles, and capability ports. Stage Core does not own plugin
 semantics.
 
+Agent Runtime owns MineMusic's embedded agent semantics. It manages main/radio
+agent actor lifecycle, agent run/message/work state, context assembly,
+interrupt/steer/cancel handling, stale-result coordination, sanitized work/event
+translation, and the MineMusic-owned agent engine interface. Pi or any future
+agent library is a concrete engine adapter behind Agent Runtime, not a top-level
+area and not the owner of MineMusic agent semantics.
+
+Workbench Interface owns the shared Web and embedded-agent workspace
+interaction interface. It owns Workspace Interaction State, Workspace Protocol,
+public card/action views, workspace snapshots, event replay, user action
+adaptation into area-owned commands, and product-level work/card projections
+assembled from owning areas. Web UI is a host/client surface that consumes this
+boundary; it is not the owner of workspace protocol or business state.
+
+Session Context is an Agent Runtime-owned, agent-facing context view. Agent
+Runtime assembles it from Workbench Interface state/projections and
+area-owned public projections such as Music Experience, Music Data Platform,
+Music Intelligence, Memory, and Effect proposal summaries. Session Context is
+not a top-level area and does not own workspace interaction state,
+playback/queue/radio truth, durable facts, or agent run/work state.
+
 Background Work is runtime infrastructure owned through Stage Core / Server
 Host composition, not a top-level formal area and not a generic workflow layer.
 Owning areas register typed job handlers through a MineMusic-owned
@@ -116,7 +140,7 @@ workflows, `library.` for owner library-management workflows, and `stage.` for
 runtime/system tools. A namespace prefix is agent-facing language, not a
 top-level formal area or durable-state owner. The `library.import.*` surface is
 therefore a Stage Interface public surface owned by Music Data Platform through
-its `stage_adapter` boundary, not evidence for a tenth architecture area.
+its `stage_adapter` boundary, not evidence for a Library top-level area.
 
 The Phase 16A Tool Framework skeleton makes a tool declaration a static public
 descriptor plus a runtime handler registration. The descriptor carries the
@@ -368,19 +392,20 @@ read-oriented, provider-attributed music knowledge search/lookup/evidence.
 Neither writes durable material identity, canonical identity, owner facts,
 Memory, or presentation output.
 
-Music Experience owns behavior and state for the active music experience:
-radio mode, queue/now-playing intent, presented recommendations, play/open/skip
-events, feedback binding, pacing, dedupe, and external action intent. The
-Phase 17 `music.experience.present` consumption tool renders a `MusicCard` and,
-for a candidate handle, implicitly invokes the Music Data Platform Candidate
-Commit owning command (ADR-0011) to admit the item to the library before
-presentation; presented recommendation history remains a later Music Experience
-concern.
+Music Experience owns live and consequential music interaction behavior for
+the active music experience: playback, queue, radio mode, now-playing intent,
+radio pacing, recommendation batches, presented recommendation history,
+play/open/skip events, feedback binding, dedupe, external action intent, and
+listening outcomes/history. The Phase 17
+`music.experience.present` consumption tool renders a `MusicCard` and, for a
+candidate handle, implicitly invokes the Music Data Platform Candidate Commit
+owning command (ADR-0011) to admit the item to the library before presentation;
+presented recommendation history remains a later Music Experience concern.
 
-Radio Mode has two state levels. Live queue/candidate/pacing state belongs in
-Session Context. Consequential listening session history, presented
-recommendation events, play/open/skip events, and feedback bindings belong in
-Music Experience durable state.
+Radio Mode state belongs in Music Experience. Session Context may include a
+compact agent-readable summary of current radio mode, current item, queue
+summary, recent skips, active direction, and relevant area revisions, but that
+summary is not the source of truth.
 
 Memory is independent long-term user/music relationship state. It may target
 material/source/version refs and may be informed by events and owner

@@ -63,6 +63,80 @@ module.
 
 Current code mapping: `src/stage_core/index.ts`.
 
+### Agent Runtime
+
+Formal top-level area for running MineMusic's embedded music agents.
+
+Agent Runtime owns:
+
+- main and radio agent actor lifecycle.
+- agent run, message, and work state.
+- agent context assembly from public workspace state.
+- interrupt, steering, cancellation, and stale-result coordination for agent
+  work.
+- sanitized agent work and event translation for product surfaces.
+- the MineMusic-owned agent engine interface used by concrete engine adapters.
+
+Agent Runtime does not own music facts, Stage Interface tool contracts,
+playback or radio truth, recommendation judgement, Effect policy, provider
+semantics, process transports, or runtime graph composition.
+
+Agent Runtime is not a Stage Core submodule. Stage Core assembles and runs it
+through lifecycle wiring; Agent Runtime owns agent semantics.
+
+_Avoid_: Pi adapter, Web transport, Stage Core lifecycle, Music Experience
+state machine, recommendation engine, generic workflow layer.
+
+### Workbench Interface
+
+Formal top-level area for the shared Web and embedded-agent workspace
+interaction interface.
+
+Workbench Interface owns:
+
+- Workspace Interaction State: session identity, selected object, expanded,
+  visible, and dismissed card interaction state, workspace focus, attention
+  posture, and reconnectable interaction revision.
+- Workspace Protocol: public workspace snapshots, command envelopes, event
+  envelopes, sequence/replay, and public card/action views.
+- user action routing into area-owned commands.
+- product-level work and card projections assembled from owning areas.
+
+Workbench Interface does not own music facts, agent thread/message/work state,
+long-term Memory, Music Data Platform facts, provider state,
+playback/queue/radio truth, recommendation judgement, Effect decisions,
+process transports, Web component implementation, or runtime graph composition.
+
+Agent Runtime reads Workbench Interface state and projections when assembling
+Session Context. Workspace snapshots and events still require every field and
+payload to have an owning area.
+
+_Avoid_: browser-only UI store, global workspace database, Music Experience
+state, Agent Runtime state, provider/session cache.
+
+### Session Context
+
+Agent Runtime-owned context view assembled for embedded MineMusic agents.
+
+Session Context names the agent-readable context contract: current
+task/posture, active instruments, current listening mode, session-local
+constraints, recent choices/exclusions, intent epoch, area slice revisions, and
+selected workspace focus as read from Workbench Interface.
+
+Session Context does not own the underlying Workbench Interface state/protocol,
+agent run/message/work state, long-term Memory, Music Data Platform facts,
+owner facts, provider state, playback/queue/radio truth, recommendation
+judgement, presentation-only UI state, Effect policy, process transports, or
+runtime graph composition.
+
+Agent Runtime owns and consumes Session Context. Workbench Interface is the
+shared current-state and protocol owner; Session Context is the agent-facing
+view over that state plus area-owned projections.
+
+_Avoid_: formal top-level area, unified workspace state owner, Workspace
+Session, Stage Core state, Music Experience durable state, generic session
+store.
+
 ### Background Work Backend
 
 Runtime infrastructure for durable asynchronous work execution.
@@ -612,13 +686,15 @@ Small LLM-facing modules used by Stage Interface.
 
 Current Stage Modules:
 
-- Session Context: session identity, session state, `StageVibe`, active
-  instruments, and memory summaries exposed as context.
 - Instrument Catalog: available instruments and tool descriptors.
 - Handbook: rendered instrument and tool reference.
 
-Current code mapping: `src/stage/index.ts` exports `createSessionContext`
-through `SessionContextPort`.
+Do not classify Session Context as a Stage Module in new work. Historical notes
+may use that older framing, but current formal work treats Session Context as
+an Agent Runtime-owned context view.
+
+Historical notes may mention `src/stage/index.ts` and `SessionContextPort`.
+Do not use that mapping for new formal work.
 
 ### Core Capabilities
 

@@ -149,6 +149,16 @@ export type {
   OwnerMaterialEntryVisibilityRole,
 } from "./owner_catalog_records.js";
 export {
+  createLibraryCatalogReadPort,
+} from "./library_catalog_read.js";
+export type {
+  CreateLibraryCatalogReadPortInput,
+  LibraryCatalogMaterialKind,
+  LibraryCatalogReadPort,
+  LibraryCatalogRecord,
+  LibraryCatalogScope,
+} from "./library_catalog_read.js";
+export {
   createOwnerMaterialRelationRecords,
 } from "./owner_material_relation_records.js";
 export type {

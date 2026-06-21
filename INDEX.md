@@ -163,6 +163,11 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   slice has landed material-level `search_metadata_documents`, Search result
   windows, text-score reranking, and default `music.discovery.lookup` wiring
   through the Metadata Lookup adapter.
+- `docs/formal-rebuild/phase-23-library-catalog-tools-implementation-plan.md`:
+  draft Phase 23 plan for `library.catalog.list_scopes`,
+  `library.catalog.browse`, `library.catalog.sample`, and
+  `library.catalog.summary` over owner-visible Music Data Platform catalog
+  facts.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -265,6 +270,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   localized audio uses content-addressed canonical Local Source paths.
 - `docs/adr/0029-library-import-uses-chained-background-work-jobs.md`:
   library import drives multi-page provider reads as chained Background Work jobs.
+- `docs/adr/0030-agent-runtime-and-workbench-interface-are-top-level-areas.md`:
+  Agent Runtime and Workbench Interface are formal top-level areas; Session
+  Context is an Agent Runtime-owned context view.
 
 ## Pre-Formal ADR Evidence
 

@@ -297,6 +297,113 @@ export type MusicListScopesOutput = {
   scopes: readonly ListedMusicScope[];
 };
 
+export type LibraryCatalogScopeKind =
+  | "library"
+  | "source_library"
+  | "relation";
+
+export type LibraryCatalogScope =
+  | { kind: "library" }
+  | Extract<MusicLibraryScopeHandle, { kind: "source_library" | "relation" }>;
+
+export type ListedLibraryCatalogScope =
+  | ({ kind: "library"; description: MusicScopeDescription })
+  | (Extract<MusicLibraryScopeHandle, { kind: "source_library" | "relation" }> & {
+    description: MusicScopeDescription;
+  });
+
+export type LibraryCatalogScopeInput =
+  | LibraryCatalogScope
+  | ListedLibraryCatalogScope;
+
+export type LibraryCatalogItem = {
+  /** Durable owner-visible MineMusic library item. */
+  item: Extract<MusicItemHandle, { kind: "library" }>;
+  /** Compact public item description. */
+  description: PublicHandleDescription;
+};
+
+export type LibraryCatalogListScopesInput = {
+  /** Optional filter: return only catalog scopes of this kind. */
+  kind?: LibraryCatalogScopeKind;
+};
+
+export type LibraryCatalogListScopesOutput = {
+  scopes: readonly ListedLibraryCatalogScope[];
+};
+
+export type LibraryCatalogBrowseSort = "time" | "dictionary";
+
+export type LibraryCatalogBrowseInput = {
+  /** Catalog scope to browse. Omit for the library baseline. */
+  scope?: LibraryCatalogScopeInput;
+  /** Sort order for a first-page browse. Omit for newest-first time order. */
+  sort?: LibraryCatalogBrowseSort;
+  /** Opaque cursor returned by a previous browse page. Cursor pages must not pass scope or sort. */
+  cursor?: string;
+  /** Max items to return (1..100). */
+  limit?: number;
+};
+
+export type LibraryCatalogBrowseOutput = {
+  items: readonly LibraryCatalogItem[];
+  nextCursor?: string;
+};
+
+export type LibraryCatalogSampleInput = {
+  /** Catalog scope to sample. Omit for the library baseline. */
+  scope?: LibraryCatalogScopeInput;
+  /** Number of items to sample (1..100). */
+  count: number;
+  /** Explicit caller-provided deterministic seed. */
+  seed: string;
+};
+
+export type LibraryCatalogSampleOutput = {
+  items: readonly LibraryCatalogItem[];
+};
+
+export type LibraryCatalogSummaryInput = {
+  /** Catalog scope to summarize. Omit for the library baseline. */
+  scope?: LibraryCatalogScopeInput;
+  /** Number of evidence sample items to spread across time bands (1..100). */
+  sampleCount: number;
+};
+
+export type LibraryCatalogSummaryTimeBand =
+  | "earliest_25"
+  | "25_50"
+  | "50_75"
+  | "latest_25";
+
+export type LibraryCatalogSummarySampleBand = {
+  band: LibraryCatalogSummaryTimeBand;
+  items: readonly LibraryCatalogItem[];
+};
+
+export type LibraryCatalogConcentrationSignal = {
+  description: PublicHandleDescription;
+  count: number;
+  examples: readonly LibraryCatalogItem[];
+};
+
+export type LibraryCatalogMembershipSignal = {
+  scope: Exclude<ListedLibraryCatalogScope, { kind: "library" }>;
+  count: number;
+  examples: readonly LibraryCatalogItem[];
+};
+
+export type LibraryCatalogSummaryOutput = {
+  samples: readonly LibraryCatalogSummarySampleBand[];
+  membershipSignals?: readonly LibraryCatalogMembershipSignal[];
+  concentrationSignals: {
+    recordingArtists: readonly LibraryCatalogConcentrationSignal[];
+    recordingAlbums: readonly LibraryCatalogConcentrationSignal[];
+    albumArtists: readonly LibraryCatalogConcentrationSignal[];
+    artistItems: readonly LibraryCatalogConcentrationSignal[];
+  };
+};
+
 export type LibraryImportListSourcesInput = Record<string, never>;
 
 export type LibraryImportLibraryKind =

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted; extended by ADR-0030.
 
 ## Context
 
@@ -68,7 +68,9 @@ approval, audit, and side-effect execution policy.
 
 ## Consequences
 
-- Root architecture and future area docs use the nine-area taxonomy.
+- Root architecture and future area docs use the top-level area taxonomy.
+  ADR-0030 extends the initial nine-area taxonomy with Agent Runtime and
+  Workbench Interface.
 - Existing MVP area names remain evidence until rewritten by their owning
   formal phase.
 - Stage Interface tool/instrument grouping does not define internal bounded

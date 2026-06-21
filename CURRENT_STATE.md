@@ -147,8 +147,8 @@ inventory; they are preserved by git history and archive docs only.
 - Old code is preserved by git history and optional snapshot tag or branch, not
   by copying old modules into active-tree archive folders.
 - Formal top-level architecture areas are Server Host, Stage Interface, Stage
-  Core, Extension, Music Data Platform, Music Intelligence, Music Experience,
-  Memory, and Effect Boundary.
+  Core, Agent Runtime, Workbench Interface, Extension, Music Data Platform,
+  Music Intelligence, Music Experience, Memory, and Effect Boundary.
 - Public Agent Protocol top-level namespaces are `music.`, `library.`, and
   `stage.`; namespace prefixes are not top-level architecture areas.
 - Stage is a product metaphor and naming root, not a top-level bounded context.
@@ -744,8 +744,11 @@ restored as compatibility layers.
   MVP-to-formal term mapping.
 - `docs/adr/0004-same-repo-formal-rebuild.md` records the same-repo rebuild
   posture and no-compatibility decision.
-- `docs/adr/0005-formal-top-level-architecture-areas.md` records the nine
-  formal top-level areas.
+- `docs/adr/0005-formal-top-level-architecture-areas.md` records the initial
+  formal top-level area model.
+- `docs/adr/0030-agent-runtime-and-workbench-interface-are-top-level-areas.md`
+  records Agent Runtime and Workbench Interface as formal top-level areas, with
+  Session Context as an Agent Runtime-owned context view.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection
