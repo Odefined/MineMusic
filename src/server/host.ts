@@ -29,6 +29,9 @@ import {
 import {
   createLibraryRelationServerRuntimeModule,
 } from "./library_relation_runtime_module.js";
+import {
+  createLibraryCatalogServerRuntimeModule,
+} from "./library_catalog_runtime_module.js";
 import { createStageToolContextAssembly } from "./stage_tool_context_assembly.js";
 import type { StageToolContextFactory } from "../stage_interface/index.js";
 import type { SourceLibraryImportService } from "../music_data_platform/index.js";
@@ -125,6 +128,12 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       : createLibraryRelationServerRuntimeModule({
           musicDataPlatformModule,
         });
+  const libraryCatalogModule: RuntimeModule | undefined =
+    musicDataPlatformModule === undefined
+      ? undefined
+      : createLibraryCatalogServerRuntimeModule({
+          musicDataPlatformModule,
+        });
   const backgroundWorkModule: RuntimeModule | undefined = backgroundWork === undefined
     ? undefined
     : createBackgroundWorkRuntimeModule({ backgroundWork });
@@ -137,6 +146,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       ...(backgroundWorkModule === undefined ? [] : [backgroundWorkModule]),
       ...(libraryImportModule === undefined ? [] : [libraryImportModule]),
       ...(libraryRelationModule === undefined ? [] : [libraryRelationModule]),
+      ...(libraryCatalogModule === undefined ? [] : [libraryCatalogModule]),
       ...(musicDiscoveryModule === undefined ? [] : [musicDiscoveryModule]),
       ...(musicExperienceModule === undefined ? [] : [musicExperienceModule]),
     ],

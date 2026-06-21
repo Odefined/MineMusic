@@ -62,6 +62,46 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
+    exportName: "libraryCatalogListScopesInputSchema",
+    typeName: "LibraryCatalogListScopesInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCatalogListScopesOutputSchema",
+    typeName: "LibraryCatalogListScopesOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCatalogBrowseInputSchema",
+    typeName: "LibraryCatalogBrowseInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCatalogBrowseOutputSchema",
+    typeName: "LibraryCatalogBrowseOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCatalogSampleInputSchema",
+    typeName: "LibraryCatalogSampleInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCatalogSampleOutputSchema",
+    typeName: "LibraryCatalogSampleOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCatalogSummaryInputSchema",
+    typeName: "LibraryCatalogSummaryInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCatalogSummaryOutputSchema",
+    typeName: "LibraryCatalogSummaryOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
     exportName: "libraryImportListSourcesInputSchema",
     typeName: "LibraryImportListSourcesInput",
     sourcePath: "src/contracts/stage_interface.ts",
@@ -135,25 +175,53 @@ const NON_EMPTY_STRING_CONSTRAINT = { type: "string", minLength: 1 };
 // { type: "number" }. Lookup and library-import handlers enforce integer 1..100, so
 // surface that bound in the agent-facing schemas by overlaying every relevant `limit`.
 function applyToolLimitOverlay(schema) {
+  applyNumericPropertyOverlay(schema, "limit");
+}
+
+function applyNumericPropertyOverlay(schema, propertyName) {
   if (schema === null || typeof schema !== "object") {
     return;
   }
   if (Array.isArray(schema)) {
     for (const node of schema) {
-      applyToolLimitOverlay(node);
+      applyNumericPropertyOverlay(node, propertyName);
     }
     return;
   }
   if (
     schema.properties !== undefined &&
-    typeof schema.properties.limit === "object" &&
-    schema.properties.limit !== null &&
-    schema.properties.limit.type === "number"
+    typeof schema.properties[propertyName] === "object" &&
+    schema.properties[propertyName] !== null &&
+    schema.properties[propertyName].type === "number"
   ) {
-    schema.properties.limit = { ...TOOL_LIMIT_CONSTRAINT };
+    schema.properties[propertyName] = { ...TOOL_LIMIT_CONSTRAINT };
   }
   for (const child of Object.values(schema)) {
-    applyToolLimitOverlay(child);
+    applyNumericPropertyOverlay(child, propertyName);
+  }
+}
+
+function applyNonEmptyStringPropertyOverlay(schema, propertyName) {
+  if (schema === null || typeof schema !== "object") {
+    return;
+  }
+  if (Array.isArray(schema)) {
+    for (const node of schema) {
+      applyNonEmptyStringPropertyOverlay(node, propertyName);
+    }
+    return;
+  }
+  if (
+    schema.properties !== undefined &&
+    typeof schema.properties[propertyName] === "object" &&
+    schema.properties[propertyName] !== null &&
+    schema.properties[propertyName].type === "string" &&
+    schema.properties[propertyName].minLength === undefined
+  ) {
+    schema.properties[propertyName] = { ...NON_EMPTY_STRING_CONSTRAINT };
+  }
+  for (const child of Object.values(schema)) {
+    applyNonEmptyStringPropertyOverlay(child, propertyName);
   }
 }
 
@@ -162,6 +230,9 @@ const NON_EMPTY_SCOPE_DEFINITIONS = new Set([
   "MusicProviderScopeHandle",
   "MusicItemHandle",
   "ListedMusicScope",
+  "LibraryCatalogScope",
+  "ListedLibraryCatalogScope",
+  "LibraryCatalogScopeInput",
 ]);
 const NON_EMPTY_LIBRARY_IMPORT_BATCH_ID_DEFINITIONS = new Set([
   "LibraryImportStatusInput",
@@ -387,9 +458,27 @@ const generatedSchemas = schemaTargets.map((target) => {
   const schema = generatorFor(target.sourcePath).createSchema(target.typeName);
   if (
     target.exportName === "musicDiscoveryLookupInputSchema" ||
-    target.exportName === "libraryImportStartInputSchema"
+    target.exportName === "libraryImportStartInputSchema" ||
+    target.exportName === "libraryCatalogBrowseInputSchema"
   ) {
     applyToolLimitOverlay(schema);
+  }
+  if (target.exportName === "libraryCatalogSampleInputSchema") {
+    applyNumericPropertyOverlay(schema, "count");
+    applyNonEmptyStringPropertyOverlay(schema, "seed");
+  }
+  if (target.exportName === "libraryCatalogSummaryInputSchema") {
+    applyNumericPropertyOverlay(schema, "sampleCount");
+  }
+  if (target.exportName === "libraryCatalogBrowseInputSchema") {
+    applyNonEmptyStringPropertyOverlay(schema, "cursor");
+  }
+  if (
+    target.exportName === "libraryCatalogBrowseOutputSchema" ||
+    target.exportName === "libraryCatalogSampleOutputSchema" ||
+    target.exportName === "libraryCatalogSummaryOutputSchema"
+  ) {
+    applyNonEmptyStringPropertyOverlay(schema, "id");
   }
   if (target.exportName === "musicDiscoveryLookupInputSchema") {
     applyMusicDiscoveryLookupObjectRootOverlay(schema);

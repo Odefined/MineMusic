@@ -43,6 +43,7 @@ assert.deepEqual(host.snapshot().modules.map((module) => module.id), [
     "background-work",
     "library-import",
     "library-relation",
+    "library-catalog",
     "music-discovery",
     "music-experience",
     "runtime-status",
@@ -91,6 +92,11 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
         status: "initialized",
     },
     {
+        id: "library-catalog",
+        ownerArea: "music_data_platform",
+        status: "initialized",
+    },
+    {
         id: "music-discovery",
         ownerArea: "music_intelligence",
         status: "initialized",
@@ -117,6 +123,10 @@ assert.deepEqual(host.snapshot().interfaceContract.tools.map((tool) => tool.name
     "library.relation.unfavorite",
     "library.relation.block",
     "library.relation.unblock",
+    "library.catalog.list_scopes",
+    "library.catalog.browse",
+    "library.catalog.sample",
+    "library.catalog.summary",
     "music.discovery.list_scopes",
     "music.discovery.lookup",
     "music.experience.present",
@@ -168,6 +178,11 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     },
     {
         id: "library-relation",
+        ownerArea: "music_data_platform",
+        status: "stopped",
+    },
+    {
+        id: "library-catalog",
         ownerArea: "music_data_platform",
         status: "stopped",
     },

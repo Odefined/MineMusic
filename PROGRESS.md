@@ -1305,6 +1305,37 @@ Search Core path:
   adapter + MDP workspace integration, schema contributions, active-tree
   guards, lookup/server wiring, and projection-maintenance integration.
 
+## 2026-06-21: Phase 23 Library Catalog Tools
+
+Phase 23 adds the first agent-facing catalog inspection surface over the
+MineMusic owner catalog projection:
+
+- `library.catalog.list_scopes` is contributed by Music Data Platform through
+  `src/music_data_platform/stage_adapter/catalog.ts` and lists only
+  catalog-usable `library`, `source_library`, and `relation` scopes.
+  Provider scopes and the aggregate `all` scope are excluded.
+- `library.catalog.browse` returns compact public library item handles plus
+  descriptions, supports newest-first time order and dictionary order, caps
+  `limit` at 100, and stores cursor replay through the existing Stage
+  Interface `LookupCursorStore`.
+- `library.catalog.sample` requires a caller-provided `seed` and `count` capped
+  at 100; same owner library state, scope, count, and seed select the same
+  materials.
+- `library.catalog.summary` requires `sampleCount` capped at 100 and returns
+  four time-band evidence samples, kind-separated concentration signals, and
+  `scope: library` membership signals grouped by selectable source-library and
+  relation scopes.
+- `src/music_data_platform/library_catalog_read.ts` adds the narrow read port
+  over `owner_material_catalog_view`, `owner_material_entries`, and
+  `search_metadata_documents`; it reads only catalog projection/search metadata
+  and performs no writes.
+- `src/server/library_catalog_runtime_module.ts` wires the default Server Host
+  to the MDP catalog read port plus source-library/relation scope availability
+  while excluding provider scopes from the catalog surface.
+- Focused tests cover list-scope output, browse ordering/cursors, deterministic
+  sampling, summary time bands, kind-separated concentration counts,
+  library-only membership signals, and server module registration.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

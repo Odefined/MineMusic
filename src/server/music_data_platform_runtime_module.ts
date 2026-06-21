@@ -22,6 +22,7 @@ import {
   createSourceLibraryReadPort,
   createLibraryImportStartCommand,
   createLibraryImportJobHandler,
+  createLibraryCatalogReadPort,
   LOCALIZE_PROVIDER_SOURCE_JOB_TYPE,
   LIBRARY_IMPORT_ADVANCE_JOB_TYPE,
   musicDataPlatformIdentitySchema,
@@ -45,6 +46,7 @@ import {
   type SourceLibraryImportService,
   type SourceLibraryReadPort,
   type LibraryImportStartCommand,
+  type LibraryCatalogReadPort,
 } from "../music_data_platform/index.js";
 import { createRetrievalResultSetRecords } from "../music_data_platform/retrieval_result_set_records.js";
 import { createDownloadCommands, type DownloadCommands, type DownloadSourceProvider } from "../music_data_platform/download_commands.js";
@@ -97,6 +99,7 @@ const LIBRARY_IMPORT_RETRY = { limit: 3, backoffMs: 1000 };
 export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   sourceLibraryImport(): SourceLibraryImportService | undefined;
   sourceLibraryRead(): SourceLibraryReadPort | undefined;
+  libraryCatalog(): LibraryCatalogReadPort | undefined;
   libraryImportStart(): LibraryImportStartCommand | undefined;
   retrievalQuery(): RetrievalQueryService | undefined;
   musicScopeAvailability(): MusicScopeAvailabilityPort | undefined;
@@ -126,6 +129,7 @@ export function createMusicDataPlatformRuntimeModule(
   let database: MusicDatabase | undefined;
   let sourceLibraryImportService: SourceLibraryImportService | undefined;
   let sourceLibraryReadPort: SourceLibraryReadPort | undefined;
+  let libraryCatalogReadPort: LibraryCatalogReadPort | undefined;
   let libraryImportStartCommand: LibraryImportStartCommand | undefined;
   let retrievalQueryService: RetrievalQueryService | undefined;
   let musicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
@@ -174,6 +178,9 @@ export function createMusicDataPlatformRuntimeModule(
         });
         const materialRefFactory = input.materialRefFactory ?? createMaterialRefFactory();
         sourceLibraryReadPort = createSourceLibraryReadPort({
+          db: database.context(),
+        });
+        libraryCatalogReadPort = createLibraryCatalogReadPort({
           db: database.context(),
         });
         sourceLibraryImportService = createSourceLibraryImportService({
@@ -311,6 +318,7 @@ export function createMusicDataPlatformRuntimeModule(
         candidateCommitCommand = undefined;
         sourceLibraryImportService = undefined;
         sourceLibraryReadPort = undefined;
+        libraryCatalogReadPort = undefined;
         libraryImportStartCommand = undefined;
         retrievalQueryService = undefined;
         downloadCommand = undefined;
@@ -344,6 +352,7 @@ export function createMusicDataPlatformRuntimeModule(
         candidateCommitCommand = undefined;
         sourceLibraryImportService = undefined;
         sourceLibraryReadPort = undefined;
+        libraryCatalogReadPort = undefined;
         libraryImportStartCommand = undefined;
         retrievalQueryService = undefined;
         downloadCommand = undefined;
@@ -372,6 +381,9 @@ export function createMusicDataPlatformRuntimeModule(
     },
     sourceLibraryRead() {
       return sourceLibraryReadPort;
+    },
+    libraryCatalog() {
+      return libraryCatalogReadPort;
     },
     libraryImportStart() {
       return libraryImportStartCommand;

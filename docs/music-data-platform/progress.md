@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 22 metadata lookup search
+> Status: Implemented through Phase 23 library catalog tools
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -181,6 +181,20 @@
   edits flow through source-of-truth owner-relation commands, return only
   saved/favorite/blocked booleans, and preserve blocked-vs-positive mutual
   exclusion plus saved/favorite independence.
+- `src/music_data_platform/library_catalog_read.ts` implements the narrow
+  Library Catalog read port over `owner_material_catalog_view`,
+  `owner_material_entries`, and `search_metadata_documents` for library,
+  source-library, and relation scopes.
+- `src/music_data_platform/stage_adapter/catalog.ts` contributes the
+  MDP-owned `library.catalog` instrument and the read-only
+  `library.catalog.list_scopes`, `.browse`, `.sample`, and `.summary` tools.
+  The tools return public library handles plus descriptions only, exclude
+  provider scopes and `all`, reuse the Stage Interface cursor veil for browse
+  pages, and do not write durable user state.
+- Library Catalog summary now exposes four time-band evidence samples,
+  kind-separated concentration signals, and `scope: library` membership
+  signals that distinguish imported source-library membership from MineMusic
+  saved/favorite relation scopes.
 - `source_library_items` no longer store `last_seen_at`; unchanged repeated
   imports keep batch/outcome bookkeeping, do not rewrite the item row, and do
   not emit `source_library_item_written`; conservative identity writes may
@@ -330,6 +344,7 @@ Verification commands for this implementation:
 ```text
 npm run typecheck     # passed
 npm run build:test    # passed
+node ./.tmp-test/test/formal/library-catalog-tools.test.js # passed
 npm run test:stage-core # passed
 npm test              # passed
 npm run smoke:ncm:library # skipped unless MINEMUSIC_LIVE_NCM_LIBRARY=1
@@ -345,7 +360,8 @@ Out of the current Music Data Platform implementation:
 - Collection membership and Collection source-of-truth writes;
 - provider execution and provider config;
 - update baseline tables;
-- public owner-scoped query surfaces and presentation;
+- public owner-scoped query surfaces beyond `library.catalog.*` and
+  presentation;
 - multi-process worker coordination, scheduler wake signals, retry backoff,
   and public maintenance controls;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction

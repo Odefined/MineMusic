@@ -1,7 +1,7 @@
 # Music Data Platform
 
-> Status: Current area documentation for implemented Phase 14
-> Scope: Identity write model, source-library import, owner material relation, owner catalog projection, material text projection, and projection maintenance wiring
+> Status: Current area documentation through implemented Phase 23
+> Scope: Identity write model, source-library import, owner material relation, owner catalog projection, material/search metadata projections, projection maintenance, metadata lookup search, and MDP-owned library stage-adapter tools
 
 Music Data Platform owns formal music data truth. The implemented slices cover
 source/material/canonical identity records, current source-to-material binding
@@ -11,20 +11,21 @@ opaque material ref creation, the internal Library Import application service,
 material-scope owner relation facts, the internal owner catalog
 projection/read-model foundation, the owner-neutral material text
 projection/FTS foundation, the internal projection maintenance core for
-typed dirty/failed targets plus explicit rebuild dispatch, and a top-level
+typed dirty/failed targets plus explicit rebuild dispatch, a top-level
 source-of-truth write facade that wires durable writes into projection
-invalidation planning.
+invalidation planning, metadata lookup search result windows, and the
+MDP-owned `library.import.*`, `library.relation.*`, and `library.catalog.*`
+stage-adapter tool surfaces.
 
 This area does not yet implement Collection membership, Library Update
-baseline tables, local pool query, owner-scoped/public query, provider
-execution, Stage Interface tools, canonical review/merge workflow, Memory, or
-Music Experience.
+baseline tables, provider execution, canonical review/merge workflow, Memory,
+or Music Experience.
 
 ## Documents
 
 | Document | Purpose |
 | --- | --- |
-| `design.md` | Current identity, source-library, owner relation, owner catalog, and material text projection design authority. |
+| `design.md` | Current identity, source-library, owner relation, owner catalog, projection, metadata lookup, and MDP stage-adapter design authority. |
 | `ports.md` | Provided/consumed ports, forbidden dependencies, and guards. |
 | `progress.md` | Implementation state, verification evidence, and remaining gaps. |
 
@@ -50,7 +51,13 @@ src/music_data_platform/owner_material_relation_records.ts
 src/music_data_platform/owner_material_relation_commands.ts
 src/music_data_platform/owner_catalog_schema.ts
 src/music_data_platform/owner_catalog_records.ts
+src/music_data_platform/library_catalog_read.ts
 src/music_data_platform/owner_catalog_projection.ts
+src/music_data_platform/search_metadata_projection_schema.ts
+src/music_data_platform/search_metadata_projection_records.ts
+src/music_data_platform/search_metadata_projection_commands.ts
+src/music_data_platform/search_result_set_schema.ts
+src/music_data_platform/metadata_lookup_search_workspace.ts
 src/music_data_platform/material_text_projection_schema.ts
 src/music_data_platform/material_text_normalization.ts
 src/music_data_platform/material_text_projection_records.ts
@@ -59,6 +66,7 @@ src/music_data_platform/projection_maintenance_schema.ts
 src/music_data_platform/projection_maintenance_records.ts
 src/music_data_platform/projection_maintenance_commands.ts
 src/music_data_platform/projection_maintenance_runner.ts
+src/music_data_platform/stage_adapter/
 src/music_data_platform/index.ts
 ```
 
@@ -72,3 +80,4 @@ Formal phase specs:
 - `docs/formal-rebuild/phase-11-projection-maintenance-foundation.md`
 - `docs/formal-rebuild/phase-14-source-library-update-reconciliation.md`
 - `docs/formal-rebuild/phase-14-source-library-update-reconciliation-implementation-plan.md`
+- `docs/formal-rebuild/phase-23-library-catalog-tools-implementation-plan.md`

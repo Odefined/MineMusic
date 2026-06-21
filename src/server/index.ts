@@ -31,6 +31,12 @@ export {
   createLibraryRelationServerRuntimeModule,
 } from "./library_relation_runtime_module.js";
 export {
+  createLibraryCatalogServerRuntimeModule,
+} from "./library_catalog_runtime_module.js";
+export type {
+  CreateLibraryCatalogServerRuntimeModuleInput,
+} from "./library_catalog_runtime_module.js";
+export {
   createExtensionRuntimeRetrievalProviderSearchPort,
 } from "./retrieval_provider_search_adapter.js";
 export type {
