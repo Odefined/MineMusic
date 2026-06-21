@@ -75,7 +75,8 @@ Allowed reads:
 
 - `owner_material_catalog_view`;
 - `owner_material_entries`;
-- `search_metadata_documents`;
+- `material_records` for catalog material kind;
+- Material Projection for public item descriptions and summary signal fields;
 - existing source-library and owner-relation scope availability metadata.
 
 Allowed writes:
@@ -99,11 +100,12 @@ Forbidden:
 - `scripts/generate-stage-interface-schemas.mjs` generates schemas and overlays
   structural bounds for `limit`, `count`, `sampleCount`, `cursor`, and `seed`.
 - `src/music_data_platform/library_catalog_read.ts` provides the narrow read
-  port from owner catalog projection plus search metadata.
+  port from owner catalog projection plus material records.
 - `src/music_data_platform/stage_adapter/catalog.ts` owns descriptors,
   handlers, public item shaping, scope resolution, browse cursor replay,
   deterministic seed sampling, summary time bands, concentration signals, and
-  membership signals.
+  membership signals. Public item descriptions and concentration signal fields
+  come from Material Projection, not the search metadata index.
 - `src/server/library_catalog_runtime_module.ts` adapts the initialized Music
   Data Platform runtime ports into the catalog RuntimeModule.
 

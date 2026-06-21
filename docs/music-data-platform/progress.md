@@ -183,11 +183,13 @@
   exclusion plus saved/favorite independence.
 - `src/music_data_platform/library_catalog_read.ts` implements the narrow
   Library Catalog read port over `owner_material_catalog_view`,
-  `owner_material_entries`, and `search_metadata_documents` for library,
-  source-library, and relation scopes.
+  `owner_material_entries`, and `material_records` for library, source-library,
+  and relation scopes.
 - `src/music_data_platform/stage_adapter/catalog.ts` contributes the
   MDP-owned `library.catalog` instrument and the read-only
-  `library.catalog.list_scopes`, `.browse`, `.sample`, and `.summary` tools.
+  `library.catalog.list_scopes`, `.browse`, `.sample`, and `.summary` tools;
+  public item descriptions and summary signal fields come from Material
+  Projection, not search metadata.
   The tools return public library handles plus descriptions only, exclude
   provider scopes and `all`, reuse the Stage Interface cursor veil for browse
   pages, and do not write durable user state.

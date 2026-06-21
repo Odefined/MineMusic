@@ -23,6 +23,24 @@ export function createLibraryCatalogServerRuntimeModule(
         return port.listCatalogItems(readInput);
       },
     },
+    materialProjection: {
+      projectMusicMaterial(projectInput) {
+        const port = input.musicDataPlatformModule.materialProjection();
+        if (port === undefined) {
+          throw new Error("Material Projection is not initialized.");
+        }
+
+        return port.projectMusicMaterial(projectInput);
+      },
+      projectMusicMaterials(projectInput) {
+        const port = input.musicDataPlatformModule.materialProjection();
+        if (port === undefined) {
+          throw new Error("Material Projection is not initialized.");
+        }
+
+        return port.projectMusicMaterials(projectInput);
+      },
+    },
     scopeAvailability: createServerLibraryCatalogScopeAvailability(input.musicDataPlatformModule),
   });
 }

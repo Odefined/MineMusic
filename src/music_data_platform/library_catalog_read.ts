@@ -16,10 +16,6 @@ export type LibraryCatalogRecord = {
   materialRefKey: string;
   materialKind: LibraryCatalogMaterialKind;
   recentlyAddedAt: string;
-  titleText: string;
-  artistText: string;
-  albumText: string;
-  versionText: string;
 };
 
 export type LibraryCatalogReadPort = {
@@ -33,10 +29,6 @@ type LibraryCatalogRow = {
   material_ref_key: string;
   material_kind: MaterialEntityKind;
   recently_added_at: string;
-  title_text: string;
-  artist_text: string;
-  album_text: string;
-  version_text: string;
 };
 
 export function createLibraryCatalogReadPort(input: {
@@ -71,21 +63,17 @@ function catalogSql(scope: LibraryCatalogReadScope): string {
         )
       `;
   const materialKindFilter = scope.kind === "library"
-    ? ""
-    : "AND d.material_kind = ?";
+    ? "AND m.kind IN ('recording', 'album', 'artist')"
+    : "AND m.kind = ?";
 
   return `
     SELECT
       c.material_ref_key,
-      d.material_kind,
-      c.recently_added_at,
-      d.title_text,
-      d.artist_text,
-      d.album_text,
-      d.version_text
+      m.kind AS material_kind,
+      c.recently_added_at
     FROM owner_material_catalog_view c
-    JOIN search_metadata_documents d
-      ON d.material_ref_key = c.material_ref_key
+    JOIN material_records m
+      ON m.ref_key = c.material_ref_key
     WHERE c.owner_scope = ?
       ${scopeFilter}
       ${materialKindFilter}
@@ -128,7 +116,7 @@ function recordFromRow(row: LibraryCatalogRow): LibraryCatalogRecord {
   }
   assertMaterialRef(materialRef);
   if (materialRef.kind !== row.material_kind) {
-    throw new Error("Catalog material ref kind does not match search metadata material kind.");
+    throw new Error("Catalog material ref kind does not match material record kind.");
   }
 
   return {
@@ -136,10 +124,6 @@ function recordFromRow(row: LibraryCatalogRow): LibraryCatalogRecord {
     materialRefKey: row.material_ref_key,
     materialKind: row.material_kind,
     recentlyAddedAt: row.recently_added_at,
-    titleText: row.title_text,
-    artistText: row.artist_text,
-    albumText: row.album_text,
-    versionText: row.version_text,
   };
 }
 

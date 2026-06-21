@@ -107,7 +107,7 @@ The remaining Retrieval contracts, normalization, and cursor helpers are a
 compatibility surface used by the Stage lookup path; default lookup no longer
 uses the old material-text matched-token / field-priority ranking path.
 Phase 23 adds the MDP-owned `library.catalog.*` read-only tool surface over
-the owner catalog projection and search metadata. `library.catalog.list_scopes`
+owner catalog membership plus Material Projection display. `library.catalog.list_scopes`
 lists only catalog-usable library/source-library/relation scopes and excludes
 provider scopes plus the aggregate `all` scope. `library.catalog.browse`
 returns compact public library items with optional cursor paging,
@@ -751,7 +751,7 @@ platform-library-provider descriptor metadata, `start` / `continue` over the
 existing page-by-page import service, and `status` over the source-library
 batch read port. It exposes `library.relation.*` relation state/edit tools and
 the read-only `library.catalog.*` catalog inspection tools over owner catalog
-projection and search metadata. It also exposes the read-only
+membership plus Material Projection display. It also exposes the read-only
 `music.discovery.list_scopes` Stage Interface tool over local Music Scope
 availability metadata, and the text-driven `music.discovery.lookup` Stage
 Interface retrieval tool. It does not expose play or standalone

@@ -1327,8 +1327,9 @@ MineMusic owner catalog projection:
   relation scopes.
 - `src/music_data_platform/library_catalog_read.ts` adds the narrow read port
   over `owner_material_catalog_view`, `owner_material_entries`, and
-  `search_metadata_documents`; it reads only catalog projection/search metadata
-  and performs no writes.
+  `material_records`; it reads only catalog membership/material kind data and
+  performs no writes. Public catalog descriptions and summary signal fields come
+  from Material Projection, not search metadata.
 - `src/server/library_catalog_runtime_module.ts` wires the default Server Host
   to the MDP catalog read port plus source-library/relation scope availability
   while excluding provider scopes from the catalog surface.

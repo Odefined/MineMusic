@@ -511,6 +511,9 @@ function stubMaterialProjection(): MaterialProjection {
         async projectMusicMaterial() {
             return undefined;
         },
+        async projectMusicMaterials() {
+            return new Map();
+        },
     };
 }
 function candidateHandlesFor(input: {

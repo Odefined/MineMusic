@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
-import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
+import { refKey, type Ref, type Result, type StageError } from "../../src/contracts/kernel.js";
+import type { MusicMaterial, SourceTrack } from "../../src/contracts/music_data_platform.js";
 import type {
   LibraryCatalogBrowseOutput,
   LibraryCatalogSampleOutput,
@@ -11,7 +12,18 @@ import type {
   LibraryCatalogReadPort,
   LibraryCatalogRecord,
   LibraryCatalogReadScope,
+  MaterialProjection,
 } from "../../src/music_data_platform/index.js";
+import {
+  createLibraryCatalogReadPort,
+  createMaterialProjection,
+  DEFAULT_OWNER_SCOPE,
+  musicDataPlatformIdentitySchema,
+  musicDataPlatformOwnerCatalogEntriesSchema,
+  musicDataPlatformOwnerCatalogViewSchema,
+  musicDataPlatformOwnerRelationSchema,
+} from "../../src/music_data_platform/index.js";
+import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
 import {
   createLibraryCatalogRuntimeModule,
   libraryCatalogInstrument,
@@ -19,11 +31,14 @@ import {
 } from "../../src/music_data_platform/stage_adapter/index.js";
 import { createLibraryCatalogServerRuntimeModule, type MusicDataPlatformRuntimeModule } from "../../src/server/index.js";
 import { createStageInterface } from "../../src/stage_interface/index.js";
+import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
+import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 const sourceLibraryRef = ref("source_library", "saved_source_track", "src_liked_recordings");
 const favoritePoolRef = ref("owner_material_relation_pool", "favorite", "favorite_pool");
 const favoriteAlbumPoolRef = ref("owner_material_relation_pool", "favorite", "favorite_album_pool");
 
+const projectedMaterials = new Map<string, MusicMaterial>();
 const records = [
   catalogRecord("recording", "rec_a", "2026-01-01T00:00:00.000Z", "A One", "Artist A", "Album X"),
   catalogRecord("recording", "rec_b", "2026-01-02T00:00:00.000Z", "B Two", "Artist B", "Album X"),
@@ -34,6 +49,20 @@ const records = [
   catalogRecord("artist", "art_a", "2026-01-07T00:00:00.000Z", "Artist A"),
   catalogRecord("artist", "art_c", "2026-01-08T00:00:00.000Z", "Artist C"),
 ] satisfies readonly LibraryCatalogRecord[];
+
+const materialProjection: MaterialProjection = {
+  async projectMusicMaterial(input) {
+    return projectedMaterials.get(refKey(input.materialRef));
+  },
+  async projectMusicMaterials(input) {
+    return new Map(input.materialRefs.flatMap((materialRef) => {
+      const materialRefKey = refKey(materialRef);
+      const material = projectedMaterials.get(materialRefKey);
+
+      return material === undefined ? [] : [[materialRefKey, material] as const];
+    }));
+  },
+};
 
 const catalog: LibraryCatalogReadPort = {
   async listCatalogItems(input) {
@@ -97,6 +126,7 @@ const scopeAvailability: LibraryCatalogScopeAvailabilityPort = {
 
 const runtimeModule = createLibraryCatalogRuntimeModule({
   catalog,
+  materialProjection,
   scopeAvailability,
 });
 const initialized = await runtimeModule.initialize({});
@@ -324,11 +354,30 @@ if (initialized.ok) {
       ["C Three - Artist A", "D Four - Artist C"],
     );
   }
+
+  const oneItemSummary = await stageInterface.dispatch(context, {
+    toolName: "library.catalog.summary",
+    payload: {
+      scope: {
+        kind: "relation",
+        id: "favorite_album_scope",
+      },
+      sampleCount: 1,
+    },
+  });
+  assert.equal(oneItemSummary.ok, true);
+  if (oneItemSummary.ok) {
+    assert.deepEqual(
+      (oneItemSummary.value.result as LibraryCatalogSummaryOutput).sampleBands.flatMap((band) => labels(band.items)),
+      ["Album X - Artist A"],
+    );
+  }
 }
 
 const serverModule = createLibraryCatalogServerRuntimeModule({
   musicDataPlatformModule: fakeMusicDataPlatformModule({
     catalog,
+    materialProjection,
     scopeAvailability,
   }),
 });
@@ -344,6 +393,89 @@ if (initializedServerModule.ok) {
       "library.catalog.summary",
     ],
   );
+}
+
+{
+  const database = await openUninitializedPostgresTestMusicDatabase();
+  await database.initialize({
+    schemas: [
+      musicDataPlatformIdentitySchema,
+      musicDataPlatformOwnerCatalogEntriesSchema,
+      musicDataPlatformOwnerRelationSchema,
+      musicDataPlatformOwnerCatalogViewSchema,
+    ],
+  });
+  const materialRef = ref("material", "recording", "catalog_without_search_metadata");
+  const source = sourceTrack("catalog_without_search_metadata", "Projection Display Song", {
+    artistLabels: ["Projection Artist"],
+    albumLabel: "Projection Album",
+  });
+
+  await database.transaction(async (db) => {
+    const identity = createIdentityWriteCommands({
+      db,
+      now: "2026-06-21T01:00:00.000Z",
+      projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+    });
+    await identity.upsertSourceRecord({ entity: source });
+    await identity.upsertMaterialRecord({ materialRef, kind: "recording" });
+    await identity.bindSourceToMaterial({
+      sourceRef: source.sourceRef,
+      materialRef,
+    });
+    await db.run(
+      `
+        INSERT INTO owner_material_entries (
+          entry_key,
+          owner_scope,
+          entry_kind,
+          entry_ref_key,
+          material_ref_key,
+          visibility_role,
+          active,
+          provenance_json,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        "entry_catalog_without_search_metadata",
+        DEFAULT_OWNER_SCOPE,
+        "source_library",
+        "source_library:saved_source_track:catalog_sql_guard",
+        refKey(materialRef),
+        "positive",
+        1,
+        JSON.stringify({ lastAddedAt: "2026-06-21T00:59:00.000Z" }),
+        "2026-06-21T01:00:00.000Z",
+        "2026-06-21T01:00:00.000Z",
+      ],
+    );
+  });
+
+  const catalogRecords = await createLibraryCatalogReadPort({
+    db: database.context(),
+  }).listCatalogItems({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    scope: { kind: "library" },
+  });
+  assert.deepEqual(catalogRecords.map((record) => ({
+    materialRefKey: record.materialRefKey,
+    materialKind: record.materialKind,
+    recentlyAddedAt: record.recentlyAddedAt,
+  })), [
+    {
+      materialRefKey: refKey(materialRef),
+      materialKind: "recording",
+      recentlyAddedAt: "2026-06-21T00:59:00.000Z",
+    },
+  ]);
+  assert.equal(await createMaterialProjection({
+    db: database.context(),
+  }).projectMusicMaterial({ materialRef }).then((material) =>
+    material?.kind === "recording" ? material.title : undefined), "Projection Display Song");
+  await database.close();
 }
 
 function labels(items: readonly { description: { label: string } }[]): readonly string[] {
@@ -437,15 +569,79 @@ function catalogRecord(
   albumText = "",
 ): LibraryCatalogRecord {
   const materialRef = ref("material", kind, id);
-  return {
+  const materialRefKey = refKey(materialRef);
+  projectedMaterials.set(materialRefKey, musicMaterial({
+    kind,
     materialRef,
-    materialRefKey: `material:${kind}:${id}`,
-    materialKind: kind,
-    recentlyAddedAt,
     titleText,
     artistText,
     albumText,
-    versionText: "",
+  }));
+
+  return {
+    materialRef,
+    materialRefKey,
+    materialKind: kind,
+    recentlyAddedAt,
+  };
+}
+
+function musicMaterial(input: {
+  kind: LibraryCatalogRecord["materialKind"];
+  materialRef: Ref;
+  titleText: string;
+  artistText: string;
+  albumText: string;
+}): MusicMaterial {
+  switch (input.kind) {
+    case "recording":
+      return {
+        kind: "recording",
+        materialRef: input.materialRef,
+        title: input.titleText,
+        artistLabels: input.artistText.length === 0 ? [] : [input.artistText],
+        ...(input.albumText.length === 0 ? {} : { albumLabel: input.albumText }),
+        sourceNavigationLinks: [],
+        availability: "unknown",
+      };
+    case "album":
+      return {
+        kind: "album",
+        materialRef: input.materialRef,
+        title: input.titleText,
+        ...(input.artistText.length === 0 ? {} : { artistLabels: [input.artistText] }),
+        sourceNavigationLinks: [],
+        availability: "unknown",
+      };
+    case "artist":
+      return {
+        kind: "artist",
+        materialRef: input.materialRef,
+        name: input.titleText,
+        sourceNavigationLinks: [],
+        availability: "unknown",
+      };
+  }
+}
+
+function sourceTrack(
+  id: string,
+  title: string,
+  input: Partial<Omit<SourceTrack, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "title">> = {},
+): SourceTrack {
+  return {
+    kind: "track",
+    sourceRef: {
+      namespace: "source_netease",
+      kind: "track",
+      id,
+    },
+    origin: "provider",
+    providerId: "netease",
+    providerEntityId: id,
+    label: title,
+    title,
+    ...input,
   };
 }
 
@@ -455,6 +651,7 @@ function ref(namespace: string, kind: string, id: string): Ref {
 
 function fakeMusicDataPlatformModule(input: {
   catalog: LibraryCatalogReadPort;
+  materialProjection: MaterialProjection;
   scopeAvailability: LibraryCatalogScopeAvailabilityPort;
 }): MusicDataPlatformRuntimeModule {
   return {
@@ -511,7 +708,7 @@ function fakeMusicDataPlatformModule(input: {
       return undefined;
     },
     materialProjection() {
-      return undefined;
+      return input.materialProjection;
     },
     libraryRelation() {
       return undefined;

@@ -24,6 +24,7 @@ export type IdentityRepositories = {
 export type SourceRecordRepository = {
   upsert(record: SourceRecord): Promise<SourceRecord>;
   get(input: { sourceRef: Ref }): Promise<SourceRecord | undefined>;
+  listByRefs(input: { sourceRefs: readonly Ref[] }): Promise<readonly SourceRecord[]>;
   findByProviderIdentity(input: {
     providerId: string;
     providerEntityId: string;
@@ -38,6 +39,7 @@ export type SourceRecordRepository = {
 export type MaterialRecordRepository = {
   upsert(record: MaterialRecord): Promise<MaterialRecord>;
   get(input: { materialRef: Ref }): Promise<MaterialRecord | undefined>;
+  listByRefs(input: { materialRefs: readonly Ref[] }): Promise<readonly MaterialRecord[]>;
   findActiveByCanonicalRef(input: { canonicalRef: Ref }): Promise<MaterialRecord | undefined>;
 };
 
@@ -50,6 +52,7 @@ export type SourceToMaterialBindingRepository = {
   upsertCurrentBinding(record: SourceToMaterialBindingRecord): Promise<SourceToMaterialBindingRecord>;
   findMaterialForSource(input: { sourceRef: Ref }): Promise<SourceToMaterialBindingRecord | undefined>;
   listSourcesForMaterial(input: { materialRef: Ref }): Promise<readonly SourceToMaterialBindingRecord[]>;
+  listSourcesForMaterials(input: { materialRefs: readonly Ref[] }): Promise<readonly SourceToMaterialBindingRecord[]>;
   deleteBindingForSource(input: { sourceRef: Ref }): Promise<SourceToMaterialBindingRecord | undefined>;
 };
 
@@ -148,6 +151,21 @@ export function createIdentityRepositories(
 
       return row === undefined ? undefined : sourceRecordFromRow(row);
     },
+    async listByRefs(input) {
+      const refKeys = uniqueRefKeys(input.sourceRefs);
+      if (refKeys.length === 0) {
+        return [];
+      }
+
+      return (await db.all<SourceRecordRow>(
+        `
+          SELECT * FROM source_records
+          WHERE ref_key IN (${placeholdersFor(refKeys)})
+          ORDER BY ref_key ASC
+        `,
+        refKeys,
+      )).map(sourceRecordFromRow);
+    },
     async findByProviderIdentity(input) {
       const row = await db.get<SourceRecordRow>(
         `
@@ -230,6 +248,21 @@ export function createIdentityRepositories(
       );
 
       return row === undefined ? undefined : materialRecordFromRow(row);
+    },
+    async listByRefs(input) {
+      const refKeys = uniqueRefKeys(input.materialRefs);
+      if (refKeys.length === 0) {
+        return [];
+      }
+
+      return (await db.all<MaterialRecordRow>(
+        `
+          SELECT * FROM material_records
+          WHERE ref_key IN (${placeholdersFor(refKeys)})
+          ORDER BY ref_key ASC
+        `,
+        refKeys,
+      )).map(materialRecordFromRow);
     },
     async findActiveByCanonicalRef(input) {
       const row = await db.get<MaterialRecordRow>(
@@ -341,6 +374,21 @@ export function createIdentityRepositories(
         [refKey(input.materialRef)],
       )).map(sourceMaterialBindingFromRow);
     },
+    async listSourcesForMaterials(input) {
+      const refKeys = uniqueRefKeys(input.materialRefs);
+      if (refKeys.length === 0) {
+        return [];
+      }
+
+      return (await db.all<SourceToMaterialBindingRow>(
+        `
+          SELECT * FROM source_material_bindings
+          WHERE material_ref_key IN (${placeholdersFor(refKeys)})
+          ORDER BY material_ref_key ASC, source_ref_key ASC
+        `,
+        refKeys,
+      )).map(sourceMaterialBindingFromRow);
+    },
     async deleteBindingForSource(input) {
       const existing = await sourceMaterialBindings.findMaterialForSource(input);
 
@@ -379,6 +427,18 @@ function sourceRecordFromRow(row: SourceRecordRow): SourceRecord {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function uniqueRefKeys(refs: readonly Ref[]): readonly string[] {
+  return [...new Set(refs.map(refKey))];
+}
+
+function placeholdersFor(values: readonly unknown[]): string {
+  if (values.length === 0) {
+    throw new Error("SQL placeholder list cannot be empty.");
+  }
+
+  return values.map(() => "?").join(", ");
 }
 
 // Read-boundary integrity guard. source_records rows are written only through

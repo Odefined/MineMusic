@@ -398,8 +398,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   initialized library relation service into narrow relation control ports.
 - `src/server/library_catalog_runtime_module.ts`: Server Host shim for the
   MDP-owned Library Catalog Stage Adapter RuntimeModule, adapting the catalog
-  read port and source-library/relation scope availability while excluding
-  provider scopes.
+  read port, Material Projection, and source-library/relation scope availability
+  while excluding provider scopes.
 - `src/server/retrieval_provider_search_adapter.ts`: Server Host adapter from
   Extension Runtime source-provider search to the Music Intelligence Retrieval
   provider-search port.
@@ -465,7 +465,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   read port.
 - `src/music_data_platform/library_catalog_read.ts`: narrow Library Catalog read
   port over `owner_material_catalog_view`, `owner_material_entries`, and
-  `search_metadata_documents` for agent-facing catalog inspection.
+  `material_records` for agent-facing catalog membership inspection. Public
+  catalog item descriptions are projected separately through Material Projection.
 - `src/music_data_platform/owner_catalog_projection.ts`: owner catalog rebuild
   commands for source-library and owner-relation projection scopes.
 - `src/music_data_platform/material_text_projection_schema.ts`: material text

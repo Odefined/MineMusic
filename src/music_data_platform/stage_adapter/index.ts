@@ -39,6 +39,9 @@ import type {
 import type {
   LibraryCatalogReadPort,
 } from "../library_catalog_read.js";
+import type {
+  MaterialProjection,
+} from "../material_projection.js";
 
 export {
   createLibraryImportStartRegistration,
@@ -116,6 +119,7 @@ export type CreateLibraryRelationRuntimeModuleInput = {
 
 export type CreateLibraryCatalogRuntimeModuleInput = {
   catalog: LibraryCatalogReadPort;
+  materialProjection: MaterialProjection;
   scopeAvailability: LibraryCatalogScopeAvailabilityPort;
 };
 

@@ -53,5 +53,14 @@ function lazyMaterialProjection(
 
       return port.projectMusicMaterial(projectInput);
     },
+    projectMusicMaterials(projectInput) {
+      const port = module.materialProjection();
+
+      if (port === undefined) {
+        throw new Error("Material Projection is not initialized.");
+      }
+
+      return port.projectMusicMaterials(projectInput);
+    },
   };
 }

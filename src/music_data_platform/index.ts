@@ -75,6 +75,7 @@ export type {
   CreateMaterialProjectionInput,
   MaterialProjection,
   ProjectMusicMaterialInput,
+  ProjectMusicMaterialsInput,
 } from "./material_projection.js";
 export type {
   BindMaterialToCanonicalInput,

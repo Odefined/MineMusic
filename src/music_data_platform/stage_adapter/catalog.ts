@@ -8,6 +8,7 @@ import {
   relationMusicScopeDescription,
   sourceLibraryMusicScopeDescription,
 } from "../../contracts/public_music_description.js";
+import type { MusicMaterial } from "../../contracts/music_data_platform.js";
 import {
   libraryCatalogBrowseInputSchema,
   libraryCatalogBrowseOutputSchema,
@@ -48,6 +49,7 @@ import type {
   LibraryCatalogRecord,
   LibraryCatalogReadScope,
 } from "../library_catalog_read.js";
+import type { MaterialProjection } from "../material_projection.js";
 
 export type LibraryCatalogSourceLibraryScopeAvailability = {
   id: string;
@@ -79,6 +81,7 @@ export type LibraryCatalogScopeAvailabilityPort = {
 
 export type CreateLibraryCatalogRegistrationInput = {
   catalog: LibraryCatalogReadPort;
+  materialProjection: MaterialProjection;
   scopeAvailability: LibraryCatalogScopeAvailabilityPort;
 };
 
@@ -358,18 +361,29 @@ async function handleLibraryCatalogBrowse(
     return resolved;
   }
 
-  const records = sortCatalogRecords(
-    await ports.catalog.listCatalogItems({
-      ownerScope: ctx.ownerScope,
-      scope: resolved.value.scope,
-    }),
-    resolved.value.sort,
-  );
-  const page = records.slice(resolved.value.offset, resolved.value.offset + limit);
+  const records = await ports.catalog.listCatalogItems({
+    ownerScope: ctx.ownerScope,
+    scope: resolved.value.scope,
+  });
+  const projectedRecords = resolved.value.sort === "dictionary"
+    ? sortProjectedCatalogRecords(
+        await projectCatalogRecords(records, ports.materialProjection),
+      )
+    : await projectCatalogRecords(
+        sortCatalogRecords(records, resolved.value.sort)
+          .slice(resolved.value.offset, resolved.value.offset + limit),
+        ports.materialProjection,
+      );
+  const page = resolved.value.sort === "dictionary"
+    ? projectedRecords.slice(resolved.value.offset, resolved.value.offset + limit)
+    : projectedRecords;
+  const totalLength = resolved.value.sort === "dictionary"
+    ? projectedRecords.length
+    : records.length;
   const nextOffset = resolved.value.offset + page.length;
   const output: LibraryCatalogBrowseOutput = {
     items: await publicItems(ctx, page),
-    ...(nextOffset < records.length
+    ...(nextOffset < totalLength
       ? {
           nextCursor: await ctx.lookupCursors.register({
             ownerScope: ctx.ownerScope,
@@ -413,7 +427,7 @@ async function handleLibraryCatalogSample(
   return {
     ok: true,
     value: {
-      items: await publicItems(ctx, sampled),
+      items: await publicItems(ctx, await projectCatalogRecords(sampled, ports.materialProjection)),
     },
   };
 }
@@ -437,10 +451,11 @@ async function handleLibraryCatalogSummary(
     }),
     "time_ascending",
   );
-  const sampleBands = await summarySampleBands(ctx, records, input.sampleCount);
+  const projectedRecords = await projectCatalogRecords(records, ports.materialProjection);
+  const sampleBands = await summarySampleBands(ctx, projectedRecords, input.sampleCount);
   const output: LibraryCatalogSummaryOutput = {
     sampleBands,
-    concentrationSignals: await concentrationSignals(ctx, records),
+    concentrationSignals: await concentrationSignals(ctx, projectedRecords),
     ...(resolved.value.listed.kind === "library"
       ? {
           membershipSignals: await membershipSignals(ctx, ports, resolved.value.availability),
@@ -741,7 +756,7 @@ function deserializeScope(scope: SerializableCatalogScope): Result<LibraryCatalo
 
 function sortCatalogRecords(
   records: readonly LibraryCatalogRecord[],
-  sort: LibraryCatalogBrowseSort | "time_ascending",
+  sort: Exclude<LibraryCatalogBrowseSort, "dictionary"> | "time_ascending",
 ): readonly LibraryCatalogRecord[] {
   return [...records].sort((left, right) => {
     switch (sort) {
@@ -751,37 +766,93 @@ function sortCatalogRecords(
       case "time_ascending":
         return compareStableText(left.recentlyAddedAt, right.recentlyAddedAt) ||
           compareStableText(left.materialRefKey, right.materialRefKey);
-      case "dictionary":
-        return compareStableText(publicDescription(left).label, publicDescription(right).label) ||
-          compareStableText(left.materialRefKey, right.materialRefKey);
     }
   });
 }
 
+type ProjectedLibraryCatalogRecord = LibraryCatalogRecord & {
+  material: MusicMaterial;
+  description: PublicHandleDescription;
+};
+
+async function projectCatalogRecords(
+  records: readonly LibraryCatalogRecord[],
+  materialProjection: MaterialProjection,
+): Promise<readonly ProjectedLibraryCatalogRecord[]> {
+  const projectedMaterials = await materialProjection.projectMusicMaterials({
+    materialRefs: records.map((record) => record.materialRef),
+  });
+
+  return records.map((record) => {
+    const material = projectedMaterials.get(record.materialRefKey);
+    if (material === undefined) {
+      throw new Error(`Library catalog material cannot be projected: ${record.materialRefKey}.`);
+    }
+    if (material.kind !== record.materialKind) {
+      throw new Error("Library catalog material kind does not match projected material kind.");
+    }
+
+    return {
+      ...record,
+      material,
+      description: publicDescriptionFromMaterial(material),
+    };
+  });
+}
+
+function sortProjectedCatalogRecords(
+  records: readonly ProjectedLibraryCatalogRecord[],
+): readonly ProjectedLibraryCatalogRecord[] {
+  return [...records].sort((left, right) =>
+    compareStableText(left.description.label, right.description.label) ||
+    compareStableText(left.materialRefKey, right.materialRefKey));
+}
+
 async function summarySampleBands(
   ctx: StageToolContext,
-  records: readonly LibraryCatalogRecord[],
+  records: readonly ProjectedLibraryCatalogRecord[],
   sampleCount: number,
 ): Promise<readonly LibraryCatalogSummarySampleBand[]> {
-  const quotas = evenQuotas(sampleCount, SUMMARY_BANDS.length);
+  const slices = summaryBandSlices(records);
+  const quotas = evenAvailableQuotas(
+    slices.map((slice) => slice.records.length),
+    Math.min(sampleCount, records.length),
+  );
+  const selectedArtists = new Set<string>();
   const bands: LibraryCatalogSummarySampleBand[] = [];
 
-  for (let index = 0; index < SUMMARY_BANDS.length; index += 1) {
-    const start = Math.floor((records.length * index) / SUMMARY_BANDS.length);
-    const end = Math.floor((records.length * (index + 1)) / SUMMARY_BANDS.length);
-    const band = SUMMARY_BANDS[index];
+  for (let index = 0; index < slices.length; index += 1) {
+    const slice = slices[index];
     const quota = quotas[index];
-    if (band === undefined || quota === undefined) {
+    if (slice === undefined || quota === undefined) {
       throw new Error("Summary band quota invariant failed.");
     }
-    const bandRecords = records.slice(start, end);
     bands.push({
-      band,
-      items: await publicItems(ctx, stratifiedArtistSample(bandRecords, quota)),
+      band: slice.band,
+      items: await publicItems(ctx, stratifiedArtistSample(slice.records, quota, selectedArtists)),
     });
   }
 
   return bands;
+}
+
+type SummaryBandSlice = {
+  band: LibraryCatalogSummaryTimeBand;
+  records: readonly ProjectedLibraryCatalogRecord[];
+};
+
+function summaryBandSlices(
+  records: readonly ProjectedLibraryCatalogRecord[],
+): readonly SummaryBandSlice[] {
+  return SUMMARY_BANDS.map((band, index) => {
+    const start = Math.floor((records.length * index) / SUMMARY_BANDS.length);
+    const end = Math.floor((records.length * (index + 1)) / SUMMARY_BANDS.length);
+
+    return {
+      band,
+      records: records.slice(start, end),
+    };
+  });
 }
 
 const SUMMARY_BANDS: readonly LibraryCatalogSummaryTimeBand[] = [
@@ -791,27 +862,48 @@ const SUMMARY_BANDS: readonly LibraryCatalogSummaryTimeBand[] = [
   "latest_25",
 ];
 
-function evenQuotas(total: number, bucketCount: number): readonly number[] {
-  const base = Math.floor(total / bucketCount);
-  const remainder = total % bucketCount;
+function evenAvailableQuotas(
+  capacities: readonly number[],
+  total: number,
+): readonly number[] {
+  const quotas = capacities.map(() => 0);
+  const target = Math.min(total, capacities.reduce((sum, capacity) => sum + capacity, 0));
 
-  return Array.from({ length: bucketCount }, (_value, index) =>
-    base + (index < remainder ? 1 : 0));
+  for (let assigned = 0; assigned < target; assigned += 1) {
+    let selectedIndex: number | undefined;
+    for (let index = 0; index < capacities.length; index += 1) {
+      if ((quotas[index] ?? 0) >= (capacities[index] ?? 0)) {
+        continue;
+      }
+      if (selectedIndex === undefined || (quotas[index] ?? 0) < (quotas[selectedIndex] ?? 0)) {
+        selectedIndex = index;
+      }
+    }
+    if (selectedIndex === undefined) {
+      throw new Error("Summary band quota capacity invariant failed.");
+    }
+    quotas[selectedIndex] = (quotas[selectedIndex] ?? 0) + 1;
+  }
+
+  return quotas;
 }
 
 function stratifiedArtistSample(
-  records: readonly LibraryCatalogRecord[],
+  records: readonly ProjectedLibraryCatalogRecord[],
   count: number,
-): readonly LibraryCatalogRecord[] {
+  selectedArtists: Set<string>,
+): readonly ProjectedLibraryCatalogRecord[] {
   if (count <= 0 || records.length === 0) {
     return [];
   }
   if (count >= records.length) {
+    for (const record of records) {
+      rememberArtist(record, selectedArtists);
+    }
     return records;
   }
 
-  const selected: LibraryCatalogRecord[] = [];
-  const selectedArtists = new Set<string>();
+  const selected: ProjectedLibraryCatalogRecord[] = [];
 
   for (let index = 0; index < count; index += 1) {
     const start = Math.floor((records.length * index) / count);
@@ -826,10 +918,7 @@ function stratifiedArtistSample(
     }
 
     selected.push(preferred);
-    const artistKey = artistDedupeKey(preferred);
-    if (artistKey !== undefined) {
-      selectedArtists.add(artistKey);
-    }
+    rememberArtist(preferred, selectedArtists);
   }
 
   return selected;
@@ -837,28 +926,36 @@ function stratifiedArtistSample(
 
 async function concentrationSignals(
   ctx: StageToolContext,
-  records: readonly LibraryCatalogRecord[],
+  records: readonly ProjectedLibraryCatalogRecord[],
 ): Promise<readonly LibraryCatalogConcentrationSignal[]> {
   const groups = [
     buildSignalGroups(records, {
       signalKind: "recording_artist",
       materialKind: "recording",
-      values: (record) => fieldValues(record.artistText),
+      values: (record) => record.material.kind === "recording"
+        ? labelValues(record.material.artistLabels)
+        : [],
     }),
     buildSignalGroups(records, {
       signalKind: "recording_album",
       materialKind: "recording",
-      values: (record) => fieldValues(record.albumText),
+      values: (record) => record.material.kind === "recording"
+        ? optionalLabelValues(record.material.albumLabel)
+        : [],
     }),
     buildSignalGroups(records, {
       signalKind: "album_artist",
       materialKind: "album",
-      values: (record) => fieldValues(record.artistText),
+      values: (record) => record.material.kind === "album"
+        ? labelValues(record.material.artistLabels)
+        : [],
     }),
     buildSignalGroups(records, {
       signalKind: "artist_item",
       materialKind: "artist",
-      values: (record) => [publicDescription(record).label],
+      values: (record) => record.material.kind === "artist"
+        ? [record.material.name]
+        : [],
     }),
   ];
 
@@ -882,18 +979,18 @@ type SignalGroup = {
   signalKind: LibraryCatalogConcentrationSignal["signalKind"];
   materialKind: LibraryCatalogMaterialKind;
   label: string;
-  records: readonly LibraryCatalogRecord[];
+  records: readonly ProjectedLibraryCatalogRecord[];
 };
 
-function buildSignalGroups(inputRecords: readonly LibraryCatalogRecord[], input: {
+function buildSignalGroups(inputRecords: readonly ProjectedLibraryCatalogRecord[], input: {
   signalKind: LibraryCatalogConcentrationSignal["signalKind"];
   materialKind: LibraryCatalogMaterialKind;
-  values(record: LibraryCatalogRecord): readonly string[];
+  values(record: ProjectedLibraryCatalogRecord): readonly string[];
 }): readonly SignalGroup[] {
-  const byLabel = new Map<string, LibraryCatalogRecord[]>();
+  const byLabel = new Map<string, ProjectedLibraryCatalogRecord[]>();
 
   for (const record of inputRecords) {
-    if (record.materialKind !== input.materialKind) {
+    if (record.material.kind !== input.materialKind) {
       continue;
     }
     for (const value of input.values(record)) {
@@ -953,7 +1050,10 @@ async function membershipSignals(
     signals.push({
       scope: scope.listed,
       count: new Set(records.map((record) => record.materialRefKey)).size,
-      examples: await publicItems(ctx, records.slice(0, 5)),
+      examples: await publicItems(
+        ctx,
+        await projectCatalogRecords(records.slice(0, 5), ports.materialProjection),
+      ),
     });
   }
 
@@ -962,7 +1062,7 @@ async function membershipSignals(
 
 async function publicItems(
   ctx: StageToolContext,
-  records: readonly LibraryCatalogRecord[],
+  records: readonly ProjectedLibraryCatalogRecord[],
 ): Promise<readonly LibraryCatalogItem[]> {
   const items: LibraryCatalogItem[] = [];
 
@@ -974,32 +1074,50 @@ async function publicItems(
           ownerScope: ctx.ownerScope,
           handleKind: "library",
           internalAnchor: {
-            materialRef: record.materialRefKey,
+            materialRef: refKey(record.material.materialRef),
           },
         }),
       },
-      description: publicDescription(record),
+      description: record.description,
     });
   }
 
   return items;
 }
 
-function publicDescription(record: LibraryCatalogRecord): PublicHandleDescription {
-  const title = firstFieldValue(record.titleText);
-  const artistsText = firstFieldValue(record.artistText);
-  const album = firstFieldValue(record.albumText);
-  const versionText = firstFieldValue(record.versionText);
-
-  return {
-    label: musicLookupItemLabel({
-      handle: { kind: "library" },
-      ...(title === undefined ? {} : { title }),
-      ...(artistsText === undefined ? {} : { artistsText }),
-      ...(album === undefined ? {} : { album }),
-      ...(versionText === undefined ? {} : { versionText }),
-    }),
-  };
+function publicDescriptionFromMaterial(material: MusicMaterial): PublicHandleDescription {
+  switch (material.kind) {
+    case "recording": {
+      const artistsText = artistsTextForLabels(material.artistLabels);
+      return {
+        label: musicLookupItemLabel({
+          handle: { kind: "library" },
+          title: material.title,
+          ...(artistsText === undefined ? {} : { artistsText }),
+          ...(material.albumLabel === undefined ? {} : { album: material.albumLabel }),
+          ...(material.versionInfo?.label === undefined ? {} : { versionText: material.versionInfo.label }),
+        }),
+      };
+    }
+    case "album": {
+      const artistsText = artistsTextForLabels(material.artistLabels);
+      return {
+        label: musicLookupItemLabel({
+          handle: { kind: "library" },
+          title: material.title,
+          ...(artistsText === undefined ? {} : { artistsText }),
+          ...(material.versionInfo?.label === undefined ? {} : { versionText: material.versionInfo.label }),
+        }),
+      };
+    }
+    case "artist":
+      return {
+        label: musicLookupItemLabel({
+          handle: { kind: "library" },
+          title: material.name,
+        }),
+      };
+  }
 }
 
 function sampleKey(seed: string, record: LibraryCatalogRecord): string {
@@ -1010,16 +1128,35 @@ function sampleKey(seed: string, record: LibraryCatalogRecord): string {
     .digest("base64url");
 }
 
-function fieldValues(text: string): readonly string[] {
-  return [...new Set(text.split("\n").map((part) => part.trim()).filter((part) => part.length > 0))];
+function labelValues(values: readonly string[] | undefined): readonly string[] {
+  return [...new Set((values ?? []).map((value) => value.trim()).filter((value) => value.length > 0))];
 }
 
-function firstFieldValue(text: string): string | undefined {
-  return fieldValues(text)[0];
+function optionalLabelValues(value: string | undefined): readonly string[] {
+  return labelValues(value === undefined ? [] : [value]);
 }
 
-function artistDedupeKey(record: LibraryCatalogRecord): string | undefined {
-  return firstFieldValue(record.artistText) ?? (record.materialKind === "artist" ? publicDescription(record).label : undefined);
+function artistsTextForLabels(labels: readonly string[] | undefined): string | undefined {
+  const values = labelValues(labels);
+
+  return values.length === 0 ? undefined : values.join(", ");
+}
+
+function rememberArtist(record: ProjectedLibraryCatalogRecord, selectedArtists: Set<string>): void {
+  const artistKey = artistDedupeKey(record);
+  if (artistKey !== undefined) {
+    selectedArtists.add(artistKey);
+  }
+}
+
+function artistDedupeKey(record: ProjectedLibraryCatalogRecord): string | undefined {
+  switch (record.material.kind) {
+    case "recording":
+    case "album":
+      return labelValues(record.material.artistLabels)[0];
+    case "artist":
+      return record.material.name;
+  }
 }
 
 function compareStableText(left: string, right: string): number {
