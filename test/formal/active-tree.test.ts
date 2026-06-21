@@ -928,7 +928,6 @@ assert.deepEqual(projectionRebuildCallFailures, []);
 const projectionMaintenanceRunnerFactoryAllowedFiles = new Set([
     "src/music_data_platform/index.ts",
     "src/music_data_platform/projection_maintenance_runner.ts",
-    "src/server/projection_maintenance_scheduler.ts",
 ]);
 const projectionMaintenanceRunnerFactoryFailures: string[] = [];
 for (const file of activeFiles) {

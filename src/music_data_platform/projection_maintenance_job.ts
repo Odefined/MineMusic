@@ -69,6 +69,14 @@ export function createProjectionMaintenanceJobHandler(
       return;
     }
 
+    // Stale job: the target was re-dirtied after this job was submitted, so the
+    // generation it carries no longer matches the current row. A newer job was
+    // submitted for the new generation and will rebuild it — this one no-ops
+    // rather than doing a redundant rebuild or deleting a newer dirty cycle.
+    if (target.dirtyGeneration !== payload.expectedDirtyGeneration) {
+      return;
+    }
+
     try {
       await input.database.transaction(async (db) => {
         const now = input.now();
@@ -82,7 +90,7 @@ export function createProjectionMaintenanceJobHandler(
         await createProjectionMaintenanceCommands({ db, now }).markProjectionClean({
           projectionKind: payload.projectionKind,
           targetKey: payload.targetKey,
-          expectedDirtyGeneration: target.dirtyGeneration,
+          expectedDirtyGeneration: payload.expectedDirtyGeneration,
         });
       });
     } catch (error) {
@@ -99,7 +107,7 @@ export function createProjectionMaintenanceJobHandler(
         }).markProjectionFailed({
           projectionKind: payload.projectionKind,
           targetKey: payload.targetKey,
-          expectedDirtyGeneration: target.dirtyGeneration,
+          expectedDirtyGeneration: payload.expectedDirtyGeneration,
           failureCode: failure.failureCode,
           failureMessage: failure.failureMessage,
         });

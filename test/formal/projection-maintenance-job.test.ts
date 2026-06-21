@@ -219,3 +219,38 @@ function signal(): AbortSignal {
   assert.equal(record?.status, "dirty");
   await database.close();
 }
+
+// Stale generation: a job submitted against gen=1 no-ops when the target has
+// since been re-dirtied to gen=2; the row stays dirty for the newer job rather
+// than being deleted or rebuilt under the wrong generation.
+{
+  const database = await initializedDatabase();
+  const materialRef = recordingRef("job-stale");
+  const firstDirty = await database.transaction(async (db) => await createProjectionMaintenanceCommands({ db, now: "2026-06-21T00:00:00.000Z" }).markProjectionTargetDirty({
+    projectionKind: "material_text",
+    materialRef,
+  }));
+  const secondDirty = await database.transaction(async (db) => await createProjectionMaintenanceCommands({ db, now: "2026-06-21T00:00:01.000Z" }).markProjectionTargetDirty({
+    projectionKind: "material_text",
+    materialRef,
+  }));
+  assert.equal(secondDirty.dirtyGeneration, 2);
+  const handler = createProjectionMaintenanceJobHandler({
+    database,
+    now: () => "2026-06-21T00:00:02.000Z",
+    retryLimit: 3,
+  });
+  await handler({
+    jobId: "j-stale",
+    jobType: PROJECTION_MAINTENANCE_JOB_TYPE,
+    payload: { projectionKind: "material_text", targetKey: firstDirty.targetKey, expectedDirtyGeneration: 1 },
+    signal: signal(),
+  });
+  const record = await createProjectionMaintenanceRecords({ db: database.context() }).getProjectionTarget({
+    projectionKind: "material_text",
+    targetKey: firstDirty.targetKey,
+  });
+  assert.equal(record?.status, "dirty");
+  assert.equal(record?.dirtyGeneration, 2);
+  await database.close();
+}

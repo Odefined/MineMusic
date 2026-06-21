@@ -80,6 +80,47 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     assert.equal(module.localizeProviderSource(), undefined);
     assert.equal(database.closeCount(), 1);
 }
+{
+    // Event-driven submit: a source-of-truth write (createLocalSource, scenario A
+    // self-build) dirties projection targets; the dispatcher adapter submits one
+    // rebuild job per target, carrying the shared retry policy and the
+    // targetKey:updatedAt idempotency key.
+    const database = await openUninitializedPostgresTestMusicDatabase();
+    const backgroundWork = createFakeBackgroundWorkBackend();
+    const module = createMusicDataPlatformRuntimeModule({
+        extensionRuntime: createMineMusicExtensionRuntime(),
+        config: {
+            localSources: {
+                rootDir: "/tmp/minemusic-local-sources",
+            },
+        },
+        database,
+        backgroundWork,
+    });
+    const initialized = await module.initialize({});
+    assert.equal(initialized.ok, true);
+
+    const result = await module.localSource()?.createLocalSource({
+        md5: "0123456789abcdef0123456789abcdef",
+        kind: "track",
+        filePath: "/tmp/minemusic-local-sources/t2.mp3",
+        descriptiveMetadata: { label: "T2 Label", title: "T2 Title" },
+    });
+    assert.equal(result?.ok, true);
+
+    assert.equal(backgroundWork.submissions.length > 0, true);
+    for (const submission of backgroundWork.submissions) {
+        assert.equal(submission.jobType, "music_data_platform.projection_maintenance");
+        // M1: dispatcher and handler share one PROJECTION_MAINTENANCE_RETRY_LIMIT.
+        assert.equal(submission.retryLimit, 3);
+        assert.equal(submission.retryBackoff, true);
+        assert.match(submission.idempotencyKey ?? "", /^pmt_[0-9a-f]+:.+$/);
+    }
+
+    const stopped = await stopModule(module);
+    assert.equal(stopped.ok, true);
+    await database.close();
+}
 async function stopModule(module: MusicDataPlatformRuntimeModule): Promise<Awaited<ReturnType<NonNullable<MusicDataPlatformRuntimeModule["stop"]>>>> {
     if (module.stop === undefined) {
         throw new Error("Expected runtime module stop() to be present.");
