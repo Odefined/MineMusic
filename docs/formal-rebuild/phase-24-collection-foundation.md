@@ -5,8 +5,9 @@
 > Owner: Music Data Platform.
 > Spec authority: This is a planning and decision record, not global architecture
 > authority. Architecture facts live in `ARCHITECTURE.md`, `ADR-0007`, the formal
-> glossary, and `ADR-0031`..`ADR-0036`. Slice implementation plans (files, guards,
-> verification, stopping conditions) will get their own slice-specific specs.
+> glossary, and `ADR-0031`..`ADR-0036`. The slice implementation plan (files,
+> guards, verification, stopping conditions) is deferred to a single
+> `phase-24-collection-foundation-implementation-plan.md`.
 
 ## Why This Document
 
@@ -34,19 +35,19 @@ The read side is pre-disposed:
   glossary `Library Catalog`).
 
 This document records the decisions settled by a grilling pass. Only grilled
-decisions are recorded as locked. Slice implementation plans are deferred to
-slice-specific specs.
+decisions are recorded as locked. The slice implementation plan is deferred to
+a single `phase-24-collection-foundation-implementation-plan.md`.
 
-Structural note: unlike phases 8/9, Phase 24 ships its foundation as a single
-decision record rather than a paired `phase-N-foundation.md` +
-`phase-N-...-implementation-plan.md`. Slice-specific implementation plans
-(`phase-24-collection-foundation-slice-N-implementation-plan.md`) will be
-created per slice, mirroring the implementation-plan half of the phase-8/9
-split. This decision record therefore intentionally owns only the locked
-decisions, invariants, deferrals, and the slice skeleton; the full
-phase-document section set (non-goals, allowed reads/writes, forbidden
-writes/imports, guards, verification, acceptance, stopping condition) is owned
-by each slice's implementation plan, not duplicated here.
+Structural note: like phases 8/9, Phase 24 pairs a foundation decision record
+(this file) with one implementation plan
+(`phase-24-collection-foundation-implementation-plan.md`). That implementation
+plan carries the four v1 slices as PR 24A/24B/24C/24D (24E deferred), mirroring
+the internal PR-A/B/C/D split used by phases 11-18 — not one file per slice.
+This decision record therefore intentionally owns only the locked decisions,
+invariants, deferrals, and the slice skeleton; the full phase-document section
+set (non-goals, allowed reads/writes, forbidden writes/imports, guards,
+verification, acceptance, stopping condition) is owned by the implementation
+plan, not duplicated here.
 
 ## Decision Status Convention
 
@@ -329,8 +330,10 @@ re-litigated:
 ## Slice Skeleton
 
 Ordering is enforced: writer → projection → catalog scope → tools. Each slice
-gets its own implementation spec (files, allowed reads/writes, guards,
-verification, stopping condition).
+maps to a PR (24A/24B/24C/24D; 24E deferred) within the single implementation
+plan (`phase-24-collection-foundation-implementation-plan.md`), which owns the
+files, allowed reads/writes, guards, verification, and stopping condition per
+PR.
 
 - **Slice 1 — Collection fact table + write boundary.** `collections` +
   `collection_items` schema; the 5-file writer (`collection_ref` / `schema` /
