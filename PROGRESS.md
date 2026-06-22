@@ -1403,6 +1403,11 @@ stage-core suite EXIT 0):
 
 ## Next Formal Milestones
 
+The Agent-Native Workbench PRD sequencing (Phase A in-process loop → Phase B
+Radio + concurrency → Phase C AG-UI Web boundary) is locked in
+`docs/formal-rebuild/agent-native-workbench-roadmap.md`. The loose area list
+below is background scope, not an execution order.
+
 ### Later Formal Phases
 
 Later phases should rewrite area docs and code only when the owning boundary is

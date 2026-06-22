@@ -122,6 +122,21 @@ Music Intelligence, Memory, and Effect proposal summaries. Session Context is
 not a top-level area and does not own workspace interaction state,
 playback/queue/radio truth, durable facts, or agent run/work state.
 
+The Web boundary serializes Workspace Snapshot/Events as an AG-UI profile;
+embedded agents read the in-process read model directly (ADR-0031). That AG-UI
+`state` is download-only; upstream writes go through typed Workbench actions, not
+an AG-UI state round-trip, and authority placement is split by multi-writer
+contention rather than durability (ADR-0036). Radio Agent
+is a peer actor of Main Agent within Agent Runtime, coordinating through typed
+messages (ADR-0032). User-agent
+concurrency uses ownership serialization, the per-area Agent Work Basis, and Pi
+cancellation; there is no global intent epoch (ADR-0033). Agent-generated cards
+use fixed components shaped for A2UI, with A2UI as the declarative format rather
+than a private Card IR (ADR-0034). Agent Runtime owns Speech Level policy
+(Silent/Notify/Speak); Workbench Action Adapter assigns each user action's
+Signal Class at entry (cleanup, playback behavior, session steering, or explicit
+preference) so interface cleanup never reaches Memory as taste.
+
 Background Work is runtime infrastructure owned through Stage Core / Server
 Host composition, not a top-level formal area and not a generic workflow layer.
 Owning areas register typed job handlers through a MineMusic-owned
