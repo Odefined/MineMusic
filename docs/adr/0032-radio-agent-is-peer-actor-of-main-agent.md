@@ -2,7 +2,14 @@
 
 ## Status
 
-Accepted
+Amended. The load-bearing decision stands — Radio is a **peer actor** of Main
+within Agent Runtime (not a subprocess, handoff, or blocking subroutine). Two
+mechanism details in Decision/Consequences below were later superseded and are
+marked inline: the "continuous (hours-long) loop" framing (→ discrete
+re-prompted runs, PB2/ADR-0037) and the "Radio directives" typed-message kind
+(→ steering routed through owned radio truth, PB5; channel reserved for
+Radio→Main notify/speak). Read the superseded passages through the Refinements
+section at the end.
 
 ## Context
 

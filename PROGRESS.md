@@ -1433,3 +1433,14 @@ in scope. Known later areas include:
 Each later phase should keep old MVP code/docs as evidence only and should not
 add compatibility layers unless a new accepted ADR explicitly allows an
 exception.
+
+### Tracked follow-up refactors
+
+- **Item-handle currency → `material` (ADR-0040, GitHub issue #113).** The
+  agent-facing item-handle currency unifies to a single `material` kind and the
+  `library` item-handle kind is retired; `present` stops claiming library
+  admission. The decision is recorded (ADR-0040); the boundary-affecting code
+  change (public `MusicItemHandle` contract + handle-registry `handle_kind` +
+  downstream relation/collection/catalog tools + a DB migration, plus extracting
+  `ResolveDurableMusicItem` and re-examining `present`'s coarse
+  `durableUserStateWrite` bit / `ownerCurationWrite` marker) lands as its own PR.

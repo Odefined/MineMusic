@@ -35,8 +35,17 @@ does not replace the LLM. Supervisor responsibilities:
 - **Selection stays agentic**: what to append, which tools to use, how many — the
   Radio agent decides. "Several tracks per turn, not one per inference" is
   turn/prompt design (batch append in one turn), not determinism.
-- **Lifecycle + endurance**: start/stop, cancellation, restart-on-failure, and
-  the endurance strategy (ADR-0032's load-bearing risk). Continuity is layered
+- **Lifecycle + endurance**: start/stop, cancellation, and the endurance
+  strategy (ADR-0032's load-bearing risk). **Recoverable execution
+  (restart-on-failure, retry/backoff, delayed run, idempotent submission) is
+  reused from Background Work (ADR-0025/0027) via its MineMusic-owned port, not
+  re-implemented in the supervisor.** What the supervisor *keeps* is the
+  domain-specific part Background Work cannot supply: the pacing decision (read
+  queue depth, low-watermark judgement, when to wake) and the single-flight lock
+  (see PB1a). The split: Background Work owns recoverable-execution mechanics;
+  the supervisor owns pacing + single-flight; Agent Runtime owns the Radio run
+  itself (prompt, context, lifecycle). See PB1a for why single-flight stays in
+  the supervisor rather than reusing a pg-boss singleton. Continuity is layered
   (ADR-0037): the transcript is the chain-of-thought *soul*, persisted across
   runs (compacted) and lossy; the durable radio-truth *floor* (commanded
   direction + evolved posture) guarantees direction does not reset when the
@@ -93,6 +102,33 @@ The numbers (`low = 5`, `high = 10`, hint `5`) are the starting operating point,
 tunable in implementation; the load-bearing decisions are single-flight
 non-reentrancy, low-as-sole-wake-line, and batch-size-stays-agentic.
 
+**Single-flight lives in the supervisor (in-process), not as a reused pg-boss
+singleton.** A second external review proposed making the whole refill a
+Background Work job keyed by a pg-boss `singletonKey`. We reuse Background Work
+for *recoverable execution* (retry/restart/lifecycle/idempotent submit — PB1),
+but the single-flight lock stays an in-process supervisor flag, for three
+reasons grounded in the actual port and harness:
+- **Semantics differ.** Single-flight means "while a run is *in flight* (a
+  seconds-to-tens-of-seconds LLM turn), do not start another, however low depth
+  goes." pg-boss `singleton` semantics are *enqueue-time de-duplication*, and the
+  MineMusic-owned Background Work port (ADR-0027) deliberately exposes only
+  `idempotencyKey`, not `singletonKey` — using it would first require widening the
+  port and verifying pg-boss's active-job singleton behaviour first-hand.
+- **Harness testability.** Phase B's correctness harness is deterministic and
+  in-process and does **not** run a pg-boss runtime (the Two-Layer harness, below;
+  PB3 correctness is proven by direct command-layer calls). A single-flight flag
+  is a pure in-process state machine, directly testable; a pg-boss-backed lock
+  would drag a job runtime into the pacing tests.
+- **Cohesion + no premature multi-process cost.** Single-flight (`refilling`
+  flag + wake gate) is the same decision loop as the low-watermark read; they
+  belong together in the supervisor. The Radio supervisor is a single in-process
+  actor (ADR-0032), so an in-process lock suffices.
+
+Deferred: if Radio is ever deployed as multiple supervisor instances, single-
+flight must coordinate across processes — at that point promote it into the
+Background Work port (its Postgres-backed job state is exactly the cross-process
+coordinator), not before.
+
 ### PB2 — Radio runs as discrete re-prompted runs, not a long-lived loop
 
 Between triggers the Radio agent is idle (no live loop). Each trigger — pacing
@@ -134,6 +170,64 @@ This refines ADR-0033 from "per-area revision" to "per-area, per-concern
 revision," consistent with its stated intent (avoid voiding unrelated work; it
 rejected the global intent epoch for the same coarseness reason). Recorded in
 ADR-0037 (with the commanded/posture split); also note against ADR-0033.
+
+**Concern set (the third concern: `radio-session`).** Phase B carries three
+per-concern revisions for the radio path: **radio-direction** (motif/active
+variations, bumped by Main steering), **queue** (bumped by every queue
+mutation), and **radio-session** (an autoplay enable/disable generation, bumped
+only when the user turns Radio off/on). The third closes a real gap: turning
+Radio *off* (and, separately, clearing the queue) changes *neither* direction
+*nor* — for the off case — anything a refill's basis previously watched, so an
+in-flight refill committed after the user stopped Radio would slip through. A
+refill's basis is therefore `{radio-direction, radio-session}` (it watches
+neither queue ordering — PB3's reorder exemption — nor anything else). Turning
+Radio off bumps `radio-session` → the in-flight refill voids (and the cascade,
+PB9, aborts it, since abort-set = void-set). Clearing the queue bumps **only**
+the queue revision, which a refill's basis ignores, so clearing-and-refilling is
+the natural "wipe these, give me fresh ones" gesture — clear does **not** mean
+stop. Do not conflate "user reordered" (queue), "user stopped Radio"
+(radio-session), and "user changed direction" (radio-direction): three distinct
+concerns, three distinct effects on an in-flight refill.
+
+**Commit mechanism: compare-and-swap, not "an owning command serializes by
+itself."** A command does not become serialized merely because all writes flow
+through one owning application service: two concurrent commands can each read
+revision N, each judge their basis fresh, and each write N+1. The commit-time
+basis check is therefore a **single-statement compare-and-swap** on the
+per-concern revision, which makes check-and-write atomic without a held lock:
+
+```sql
+UPDATE <area>_truth
+   SET <fields>, <concern>_revision = <concern>_revision + 1
+ WHERE workspace_id = :id
+   AND <concern>_revision = :basis_<concern>      -- repeat per checked concern
+```
+
+Zero rows affected ⇒ `voided_stale`. This is why a Radio run holds **no lock**
+across its (seconds-to-tens-of-seconds) LLM turn: it captures the basis at turn
+start and the CAS resolves the race at commit. `SELECT ... FOR UPDATE` is
+rejected (it would either hold a row lock across the LLM turn or degrade to "read
+basis early, CAS at commit" with an extra lock); an in-process actor mailbox is
+rejected (it is per-process, while revisions/CAS live in storage and survive the
+Phase C / future multi-process boundary).
+
+**The checked set is not the bumped set.** Each command declares which concerns
+it *checks* (its CAS predicate) — which may exclude the concern it *bumps*. A
+Radio refill **checks** `{radio-direction, radio-session}` and **bumps** `queue`
+(its append gives others a fresh queue basis), but does **not** check `queue`.
+That is exactly why a user reorder (which bumps `queue`) does not void the
+refill: the refill never put `queue` in its CAS predicate. This "checked set ≠
+bumped set" rule is the precise CAS form of PB3's per-concern basis.
+
+**Naming: `CommandPreconditionSet`, not "version vector."** The tuple a command
+checks is a set of independent CAS preconditions — `{ radioDirectionRevision?,
+queueRevision?, radioSessionRevision?, playbackRevision? }` — **not** a version
+vector. There is no distributed causality and no merge of concurrent histories;
+each entry is a standalone equality precondition. Call it a
+`CommandPreconditionSet` (a set of `ConcernRevision` assertions, per the
+roadmap's shared-primitive note); reserve "Agent Work Basis" for the
+agent-facing snapshot of those revisions carried in Session Context. Note
+against ADR-0033.
 
 ### PB4 — Three-layer item model; queue holds durable material refs
 
@@ -195,12 +289,31 @@ with provenance — silent, no card. Radio uses it for batch refill; Main uses i
 for silent enqueue; `present` remains the with-card path. **`queue.append`
 *replaces* Phase A's `queue.add` (it does not coexist):** Phase A's single-handle
 `queue.add` is the batch-of-1 special case, so B generalizes the one tool in
-place rather than adding a second. No raw agent-facing commit
-primitive is exposed; the append result reports which material refs were appended
-and their provenance, preserving traceability without a separate commit tool.
-Rationale: matches present's existing encapsulation; "several per turn, not one
-per inference" wants minimal calls per refill; agency lives in selection, not in
-commit/append plumbing.
+place rather than adding a second. No raw agent-facing commit primitive is
+exposed; the append result reports the **minted public `material` handles** (per
+ADR-0040's unified item-handle currency) and their provenance — **never raw
+material refs** (returning an internal storage ref would violate the Public
+Handle Veil / Agent-Facing Output rule). Per-item handles (not just a count) are
+returned because a caller may later need to reference an appended item (Main's
+"move the third one I just added"); an unused handle costs nothing, a handle
+never returned cannot be recovered. Rationale: matches present's existing
+encapsulation; "several per turn, not one per inference" wants minimal calls per
+refill; agency lives in selection, not in commit/append plumbing.
+
+**Cross-context write boundary is two-step and non-atomic — by design, not a
+saga.** `queue.append` performs two writes in different owners: a Music Data
+Platform candidate→material commit, then a Music Experience queue append. These
+do **not** share one transaction and do **not** need a saga/outbox/compensation,
+because `commitCandidate` is idempotent (a re-commit returns the existing binding
+with `created:false`) and a committed-but-not-appended material is a **benign
+orphan** — exactly PB4's legal "durable material not in the catalog/library"
+intermediate state: invisible to the user, safe to retry (re-running
+`queue.append` re-commits to the same material and appends). This is the pattern
+`present` already uses (commit, then present; no rollback on partial failure).
+The shared "resolve a candidate-or-material handle to a current material via
+idempotent commit" step is extracted as a reusable capability (working name
+`ResolveDurableMusicItem`) when `queue.append` lands as its second real caller —
+not earlier (present is the only caller today). See ADR-0040 and issue #113.
 
 ### PB7 — Radio→Main is a notify signal under Speech Level, not an imperative speak
 

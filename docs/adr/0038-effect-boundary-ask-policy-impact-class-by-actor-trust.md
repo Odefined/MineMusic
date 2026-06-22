@@ -61,11 +61,23 @@ This is **not** the cascade intent-priority (ADR-0037/PB9 `user > Main > Radio`,
 which is a preemption order). Trust is an autonomy-authorization semantics: who
 originated the action, and is there in-the-moment user intent behind it.
 
-- **user-intent-backed** — the user directly, or Main acting on an explicit
-  user request in conversation. The user is present.
+- **user-intent-backed** — Main acting within a run causally triggered by a real
+  inbound user message. The user is present.
 - **autonomous-within-grant** — Radio (or any actor) acting on standing
   authority with no immediate user request. Autoplay refill is Radio's granted
   job.
+
+**Trust basis is derived at the boundary, never self-reported by the agent.**
+The trust value is **not** a tool-call parameter the model fills in — if it
+were, an autonomous run could label itself `user-intent-backed` and skip `ask`
+on a high-impact effect. Instead the Effect Boundary derives it from the
+*actor + run provenance* it already holds: a Main run carries an unforgeable
+causal link to the inbound user message that triggered it (an
+`issuedFromUserActionId`-style provenance the runtime stamps, not the model);
+a Radio run has no such trigger and is autonomous by construction. The agent
+cannot promote itself. (This is the one load-bearing element borrowed from a
+proposed fuller authorization model — see the note in Consequences — taken in
+its minimal causal-provenance form, not as a full grant object.)
 
 ### Decision table (6 cells)
 
@@ -93,18 +105,73 @@ raise-to-conversation. This matches the industry allow/deny override layer and
 keeps "what is categorically forbidden" inspectable apart from "what needs
 confirmation."
 
+### The gate constrains the agent only; user direct manipulation does not pass through it
+
+The Effect Boundary exists to constrain an **untrusted reasoning agent**; it does
+**not** apply to the user (the same rationale the Public Handle Veil records,
+phase-C). A user's direct manipulation (a Workbench action) is therefore *not*
+routed through the impact × trust table:
+
+- **Danger is a frontend responsibility.** A genuinely dangerous direct action is
+  either not offered by the UI at all, or guarded by a UI-side secondary
+  confirmation. It is not the agent effect-gate's job to second-guess the user.
+- **Concurrency staleness is OCC, not "rejection."** A direct action that loses a
+  race fails as `voided_stale` and the client rolls back to authoritative state
+  (ADR-0036 optimistic-UI seam) — this is concurrency coordination, not a
+  security/permission denial.
+
+So there is **no** "user action denied by the gate, then escalated" path. The
+two right-hand cells (`ask`, `raise-to-conversation`) are reached only by an
+**agent** effect.
+
+### User override: "ask before source-of-truth edits" (the allow/deny override layer)
+
+The industry allow/deny override layer (named in Context, but missing from the
+table) lands as a single user setting: **ask before source-of-truth edits**.
+When on, it **upgrades** the `local-bounded × user-intent-backed` cell from
+`allow` to `ask` for tools that change the user's library curation. It is
+strictly a *tightening* control — it can only make the gate ask **more**, never
+less. The dangerous opposite direction (auto-accept / "YOLO" — turning `ask`
+cells into `allow`) is **not** this setting; if ever built it is a separate,
+explicitly opt-in advanced mode (ADR-0038 already rejects auto-pass-by-default),
+so one toggle can never *remove* a safety stop.
+
+Its scope is defined by a tool self-declared marker, **`ownerCurationWrite`** —
+"changes the user's library curation / durable personal state" (saved / favorite
+/ blocked / collection membership; open to future tools such as rating or
+playlist edits, which declare the marker themselves). This is *not* the existing
+coarse `durableUserStateWrite` side-effect bit: `present` writes durable
+**material identity** but does **not** curate the library (ADR-0040), so it does
+**not** carry `ownerCurationWrite`; neither do queue `append` (runtime state) nor
+playback. Only curation writes fall under the toggle. The marker is an open,
+tool-declared classification consumed at the boundary — same pattern as the
+per-tool impact class — so a new curation tool opts in by declaring it, with no
+change to the toggle logic. (Because the gate constrains the agent only, this
+toggle governs **the agent's** curation writes — "ask me before the agent
+changes my library," not before the user changes their own.)
+
 ### One Proposal Unit lifecycle, regardless of entry path
 
 `raise-to-conversation` is **not a new mechanism**: it is exactly CONTEXT.md's
 existing conversation-side Proposal Unit ("high-impact confirmations are raised as
-Proposal Units to the conversation side," ADR-0032). All three paths that create a
-Proposal Unit — (1) `ask` park (user-intent-backed), (2) `raise-to-conversation`
-(autonomous), and (3) a user direct-manipulation rejection that escalates
-(ADR-0036 optimistic-rollback seam) — produce the **same** unit with the **same**
-lifecycle, owned by the **Effect Boundary**: `pending → confirmed | rejected |
-expired | voided_stale`, with basis re-check on resume (CONTEXT.md `Proposal
-Unit`; phase-C PC1). Entry path affects only the trigger and confirmation timing,
-never the unit's shape or owner.
+Proposal Units to the conversation side," ADR-0032). A Proposal Unit has exactly
+**two** sources, both **agent** effects — (1) `ask` park (user-intent-backed),
+(2) `raise-to-conversation` (autonomous) — producing the **same** unit with the
+**same** lifecycle, owned by the **Effect Boundary**: `pending → confirmed |
+rejected | expired | voided_stale`, with basis re-check on resume (CONTEXT.md
+`Proposal Unit`; phase-C PC1). Entry path affects only the trigger and
+confirmation timing, never the unit's shape or owner.
+
+A user's **failed direct manipulation is not a third source.** Failure/rejection
+and pending-approval are different lifecycles (a rejected user action is not a
+parked command awaiting agent confirmation), and — per "the gate constrains the
+agent only" above — a user action never passes through the gate to be rejected by
+it in the first place. A user direct action that fails is an OCC rollback owned by
+the Workbench surface (ADR-0036), not a Proposal Unit. A user action whose *content*
+is high-impact (e.g. a spend the user themselves initiates) is handled by the
+frontend's own secondary-confirmation, not by minting an agent Proposal Unit. This
+de-conflates ADR-0038 from ADR-0036: the earlier "rejection that escalates"
+wording is withdrawn.
 
 This park → human-confirm → resume-with-precondition-recheck loop is the
 established **human-in-the-loop interrupt** pattern (LangGraph `interrupt()` +
@@ -138,6 +205,13 @@ unit lives and *who* confirms, not the interrupt loop itself.
   high-impact intent (instead of a Proposal Unit).** Rejected — the
   raise-to-conversation path already lands in the same Proposal Unit machinery;
   a second channel duplicates the confirm/resume/basis-recheck loop.
+- **Trust basis as a self-reported tool-call parameter.** Rejected — an
+  autonomous run could label itself `user-intent-backed` to skip `ask`; trust
+  must be derived at the boundary from unforgeable run provenance.
+- **A failed user direct action escalating into a Proposal Unit.** Rejected —
+  failure/rejection and pending-approval are different lifecycles, and the gate
+  does not apply to the user at all (danger → frontend, staleness → OCC
+  rollback). Folding them into one unit conflated ADR-0036 and ADR-0038.
 
 ## Consequences
 
@@ -160,3 +234,27 @@ unit lives and *who* confirms, not the interrupt loop itself.
 - The `external` / `irreversible` split and any per-tool double-confirm are
   deferred until a concrete need (consistent with the project's "don't build the
   full vocabulary early" posture).
+- Trust basis is derived at the boundary from actor + run provenance (an
+  `issuedFromUserActionId`-style stamp), never a self-reported tool parameter, so
+  an autonomous run cannot promote itself to `user-intent-backed`.
+- A user setting **ask before source-of-truth edits** upgrades the
+  `local-bounded × user-intent-backed` cell to `ask` for tools declaring the
+  open, tool-self-declared **`ownerCurationWrite`** marker (library curation /
+  durable personal state). It only tightens. `present` (material identity, not
+  curation — ADR-0040), `append` (runtime state), and playback do not carry the
+  marker; `present`'s coarse `durableUserStateWrite` bit is re-examined under
+  ADR-0040 / issue #113.
+- The Effect Boundary constrains the agent only. User direct manipulation is not
+  gated: danger is a frontend responsibility (no-offer / UI secondary confirm),
+  staleness is OCC rollback (ADR-0036). A Proposal Unit has exactly two sources
+  (`ask` park, `raise-to-conversation`), both agent effects; the earlier
+  "user rejection escalates to a Proposal Unit" path is withdrawn.
+- A fuller authorization model (a structured `EffectDescriptor` over
+  state-effect / resource-scope / reversibility / data-egress / destructiveness /
+  monetary cost, combined with a first-class `AuthorizationGrant` carrying
+  principal, allowed effects, scope, limits, provenance, and expiry) was proposed
+  in review. It is **not** built now — it is the opposite of this ADR's
+  "don't build the full vocabulary early" posture — but is recorded as the
+  graduation path if per-tool obligations outgrow the 3×2 heuristic. Only its
+  unforgeable causal-provenance idea is adopted now (the trust-basis derivation
+  above).

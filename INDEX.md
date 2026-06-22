@@ -328,6 +328,13 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   an explicit engine-semantics list, not abstracted away. pi is justified as
   *inherited + audited-sufficient + shape-fit* (audit @0.79.10), not by a
   fabricated head-to-head ranking; dominant risk is version churn (pin + re-audit).
+- `docs/adr/0040-item-handle-currency-is-material-retire-library-item-kind.md`:
+  the agent-facing item-handle currency unifies to a single `material` kind; the
+  `library` *item-handle* kind is retired (the `library` *scope* baseline is
+  unchanged). `present` durable-materializes and returns a `material` handle — it
+  does not claim library admission (which stays explicit, PB4). Decision recorded
+  this cycle; the boundary-affecting code refactor (contracts + handle registry
+  `handle_kind` + downstream tools + migration) is tracked in GitHub issue #113.
 
 ## Pre-Formal ADR Evidence
 

@@ -18,8 +18,20 @@ the lowest-cost moment to decide.
 Industry has converged on AG-UI (CopilotKit) as a standard agent-to-UI
 event/state protocol: `StateSnapshot`, `StateDelta` (RFC 6902 JSON Patch),
 `MessagesSnapshot`, plus lifecycle/tool/activity events, an interrupt outcome,
-and `parentRunId` branching. A private equivalent would re-implement solved
-snapshot/delta/resync and sequence/replay semantics.
+and `parentRunId` branching. Adopting its snapshot/delta serialization
+*primitives* avoids hand-rolling JSON-Patch state transfer and yields
+off-the-shelf-compatible clients.
+
+Scope note (added after review): AG-UI supplies the event/state *primitives*, not
+a complete workspace-consistency protocol. MineMusic still defines its own
+download-only profile, upstream action envelope, per-workspace transport
+sequence, gap detection, resnapshot, and multi-tab handling (ADR-0036). What is
+adopted is therefore an **AG-UI profile** — **MineMusic AG-UI Profile v1** — that
+*uses* AG-UI's snapshot/delta/JSON-Patch primitives, not a claim that AG-UI
+already solves MineMusic's full sequence/replay/resync semantics. The profile
+declares a capability/profile id, its custom event/metadata fields, the upstream
+action extension, the sequence baseline, gap recovery, and unsupported-profile
+rejection, pinned by AG-UI compatibility fixtures.
 
 ## Decision
 

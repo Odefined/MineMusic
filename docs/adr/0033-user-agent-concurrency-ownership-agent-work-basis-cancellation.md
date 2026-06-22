@@ -72,10 +72,25 @@ that avoids wasted work; (1) minimizes conflicts at the source.
   revisions each owning command declares it checks. This is consistent with this
   ADR's stated intent (avoid voiding unrelated work; it already rejected the
   global intent epoch for the same coarseness reason). Treat "per-area revision"
-  here and in ADR-0036 as "per-area, per-concern revision." (In industry terms the
-  per-concern tuple is a small **version-vector** — one independent counter per
-  concern, compared component-wise — rather than a single scalar revision; the
-  global intent epoch this ADR rejected is the degenerate single-scalar case.)
+  here and in ADR-0036 as "per-area, per-concern revision." The tuple a command
+  checks is a **`CommandPreconditionSet`** — a set of independent compare-and-swap
+  preconditions, one equality assertion per checked concern — **not** a version
+  vector: there is no distributed causality and no merge of concurrent histories,
+  so the "version vector" framing an earlier draft used is withdrawn as
+  misleading. Each entry is a standalone `ConcernRevision` (the roadmap's shared
+  monotonic primitive). The global intent epoch this ADR rejected is the
+  degenerate single-scalar case.
+- **Commit serialization is compare-and-swap, not transaction-implicit (PB3).**
+  An owning command does not serialize concurrent writers merely by routing all
+  writes through one application service; the commit-time basis check is a
+  single-statement CAS on the per-concern revision (zero rows affected ⇒
+  `voided_stale`), so a long-running agent turn holds no lock. A command's
+  **checked** concern set may exclude the concern it **bumps** (a Radio refill
+  checks radio-direction/radio-session but bumps queue, so a user reorder does
+  not void it). A third concern, **radio-session** (autoplay enable/disable
+  generation), is added in PB3 so that stopping Radio voids an in-flight refill
+  while clearing the queue (queue-concern only) does not. See PB3 for the SQL
+  form and rationale.
 - **Cross-actor cancellation cascade is specified in PB9.** The Agent-Runtime-
   owned cascade noted above is detailed in Phase B PB9: trigger face equals the
   OCC void set (per-concern), priority-directed (`user > Main > Radio`), and

@@ -132,7 +132,10 @@ messages (ADR-0032). User-agent
 concurrency uses ownership serialization, the per-area Agent Work Basis, and Pi
 cancellation; there is no global intent epoch (ADR-0033). Agent-generated cards
 use fixed components shaped for A2UI, with A2UI as the declarative format rather
-than a private Card IR (ADR-0034). Agent Runtime owns Speech Level policy
+than a private Card IR (ADR-0034). The agent-facing item-handle currency is a
+single `material` kind; the `library` item-handle kind is retired (the `library`
+scope baseline is unchanged), so a durable material is not implicitly a library
+item — library admission stays explicit (ADR-0040). Agent Runtime owns Speech Level policy
 (Silent/Notify/Speak); Workbench Action Adapter assigns each user action's
 Signal Class at entry (cleanup, playback behavior, session steering, or explicit
 preference) so interface cleanup never reaches Memory as taste.

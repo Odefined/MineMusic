@@ -116,7 +116,8 @@ satisfying the write-boundary hard rule (no direct writes outside the command).
 - Owner: Music Experience (extends the existing `music_experience` area /
   RuntimeModule).
 - New code _(proposed names)_: queue/playback truth store (in-memory or minimal
-  SQLite); an owning command (e.g. `enqueue` / `playNow`) that serializes writes;
+  SQLite); an owning command (e.g. `enqueue` / `playNow`) that owns the write
+  boundary (commit-time CAS serialization is Phase B — see A3 deep dive);
   a public projection exposing current queue + now-playing; agent-facing
   tool registrations (e.g. `music.experience.queue.add`,
   `music.experience.playback.play`) contributed through
@@ -243,11 +244,21 @@ since Phase 21.
 
 - **Command boundary.** Queue/playback mutations go through an owning
   `MusicExperienceQueueCommand` _(proposed: `enqueue`, `playNow`,
-  `removeFromQueue`)_ that serializes writes via `database.transaction`. It does
-  **not** use Music Data Platform's `runSourceOfTruthWrite` facade — that facade
-  is for source-of-truth writes that trigger material/catalog projection
-  invalidation. Queue/playback is Music Experience runtime state on a separate
-  write path. This keeps the two areas' write boundaries distinct.
+  `removeFromQueue`)_. It does **not** use Music Data Platform's
+  `runSourceOfTruthWrite` facade — that facade is for source-of-truth writes that
+  trigger material/catalog projection invalidation. Queue/playback is Music
+  Experience runtime state on a separate write path. This keeps the two areas'
+  write boundaries distinct.
+
+  A `database.transaction` makes each command *atomic*; it does **not** by itself
+  *serialize* concurrent commands (two concurrent transactions can each read
+  revision N and each write N+1). Serialization of contended writers is the
+  commit-time concern, handled in Phase B by a compare-and-swap on the per-concern
+  revision (`UPDATE ... SET <concern>_revision = <concern>_revision + 1 WHERE
+  <concern>_revision = :basis`; zero rows ⇒ `voided_stale`; see PB3). A3 has a
+  single writer, so the CAS is latent — but the command is shaped for it now (the
+  revision column lands in A3, below), so Phase B adds the predicate without a
+  rewrite. A3 does not claim "the transaction serializes writers."
 
 - **Truth store + write boundary.** A new schema contribution adds the
   queue/playback tables; a narrow repository over `MusicDatabaseContext` is the

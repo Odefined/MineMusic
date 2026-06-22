@@ -23,9 +23,11 @@ The three Web-boundary seams were grilled and recorded in ADR-0036 "Web-Boundary
 Seam Resolutions"; this spec does not restate them. In build terms:
 
 - C1 — grow the Phase-A read-model seam into the full Workspace Snapshot (more
-  area slices + Workspace Protocol/Events) and add the download-only AG-UI
-  projection (`StateSnapshot`/`StateDelta`). Inbound `RunAgentInput.state` is
-  dropped at entry (ADR-0036).
+  area slices + Workspace Protocol/Events) and add the download-only projection
+  under **MineMusic AG-UI Profile v1** (ADR-0031), using AG-UI's
+  `StateSnapshot`/`StateDelta` primitives with the profile's own capability id,
+  sequence baseline, and gap recovery. Inbound `RunAgentInput.state` is dropped
+  at entry (ADR-0036).
 - C2 — upstream `WorkbenchActionEnvelope` → Workbench Action Adapter → owning
   command, with a correlated `WorkbenchActionResult`; optimistic prediction is a
   temporary visual bridge; Workbench surface owns user-action rejection feedback
@@ -43,12 +45,18 @@ handles), **not** the agent veil (which exists to constrain an untrusted
 reasoning agent and does not apply to the user). Two different rationales, and
 the Consensus already names a "Web vs agent DTO split."
 
-(In industry terms the Public Handle Veil is an **object-capability** scheme: an
-unguessable opaque id whose mere possession authorizes action on the referenced
-object — "possession of it allows…" in phase-15's words — minted/resolved through
-an owner-scoped registry rather than exposing the internal anchor. Naming it as
-ocap, not a new mechanism; the same minting infrastructure serves both surfaces
-below.)
+(Naming correction, after review: the Public Handle is **not** an object
+capability. A bearer/object-capability is authorized by *mere possession*; but
+handle resolution requires `ownerScope + handleKind + publicId` and validates the
+caller against the owner — possession alone authorizes nothing. So it is an
+**opaque public object reference (`PublicObjectRef`) plus contextual
+authorization**, not a bearer capability. Every action re-validates principal,
+owner, workspace, handle kind, allowed operation, and lifecycle; the opaque id is
+only a non-enumerable reference, not a grant. This distinction must be preserved
+so no later code assumes "holding a handle ⇒ may perform any action on it." If
+genuine delegation is ever needed, that is a separate, explicitly minted
+scoped/expiring `ActionCapabilityToken` — not the everyday handle. The same
+minting infrastructure serves both surfaces below.)
 
 Reuse, precisely:
 
@@ -104,8 +112,9 @@ for surfaces the agent genuinely composes (Choose, info/analysis cards).
 ### Determined by existing authority (implement, no fork)
 
 - A2UI rendering: Static generative UI, fixed catalog (Confirm/Choose/Apply
-  To/Open + Functional cards Radio/Recommendations/Library), A2UI-shaped schema,
-  `updateDataModel` for incremental updates (ADR-0034).
+  To/Open + Functional cards Radio/Recommendations/Library), MineMusic-owned card
+  DTO mapped to A2UI by a version-pinned serializer (ADR-0034),
+  `updateDataModel` for incremental updates.
 - Functional cards are Workspace-Snapshot projection-derived (Workbench renders
   from area state), not agent-authored.
 - Agent-composed Action cards (Choose/Apply To/Open): agent → A2UI Stage Tool →
@@ -122,8 +131,8 @@ for surfaces the agent genuinely composes (Choose, info/analysis cards).
 - Playback output-device authority: separate Music Experience ↔ Web player
   follow-up (ADR-0036).
 - Open-ended/Declarative A2UI generation beyond the fixed catalog: future
-  graduation path is preserved by the A2UI-shaped schema (ADR-0034), not built in
-  v1.
+  graduation path is preserved by the MineMusic-owned card DTO + version-pinned
+  A2UI serializer (ADR-0034), not built in v1.
 
 ## Open (implementation)
 
