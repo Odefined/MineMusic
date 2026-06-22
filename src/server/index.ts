@@ -33,6 +33,9 @@ export {
 export {
   createLibraryCatalogServerRuntimeModule,
 } from "./library_catalog_runtime_module.js";
+export {
+  createLibraryCollectionServerRuntimeModule,
+} from "./library_collection_runtime_module.js";
 export type {
   CreateLibraryCatalogServerRuntimeModuleInput,
 } from "./library_catalog_runtime_module.js";

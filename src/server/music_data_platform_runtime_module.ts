@@ -6,10 +6,12 @@ import {
   sourceLibraryKindScopeMetadata,
   sourceLibraryScopeId,
 } from "../music_data_platform/stage_adapter/source_library_scope.js";
+import { collectionScopeId } from "../music_data_platform/stage_adapter/collection_scope.js";
 import { DEFAULT_OWNER_SCOPE } from "../music_data_platform/owner_scope.js";
 import {
   createCandidateCommitCommand,
   createLibraryRelationService,
+  createLibraryCollectionService,
   createLocalizeProviderSourceCommand,
   createLocalizeProviderSourceJobHandler,
   createMaterialRefFactory,
@@ -39,6 +41,7 @@ import {
   musicDataPlatformSourceLibrarySchema,
   type CandidateCommitCommand,
   type LibraryRelationService,
+  type LibraryCollectionService,
   type LocalizeProviderSourceCommand,
   type MaterialRefFactory,
   type MaterialProjection,
@@ -117,6 +120,7 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   candidateCommit(): CandidateCommitCommand | undefined;
   materialProjection(): MaterialProjection | undefined;
   libraryRelation(): LibraryRelationService | undefined;
+  libraryCollection(): LibraryCollectionService | undefined;
   handleMinting(): HandleMintingPort | undefined;
   lookupCursorStore(): LookupCursorStore | undefined;
   download(): DownloadCommands | undefined;
@@ -146,6 +150,7 @@ export function createMusicDataPlatformRuntimeModule(
   let candidateCommitCommand: CandidateCommitCommand | undefined;
   let materialProjection: MaterialProjection | undefined;
   let libraryRelationService: LibraryRelationService | undefined;
+  let libraryCollectionService: LibraryCollectionService | undefined;
   let handleMintingPort: HandleMintingPort | undefined;
   let lookupCursorStore: LookupCursorStore | undefined;
   let downloadCommand: DownloadCommands | undefined;
@@ -286,6 +291,12 @@ export function createMusicDataPlatformRuntimeModule(
             ? {}
             : { projectionMaintenanceDispatcher }),
         });
+        libraryCollectionService = createLibraryCollectionService({
+          database,
+          ...(projectionMaintenanceDispatcher === undefined
+            ? {}
+            : { projectionMaintenanceDispatcher }),
+        });
         retrievalQueryService = createMetadataLookupRetrievalQueryService({
           searchWorkspace: createMusicDataPlatformMetadataLookupSearchWorkspace({
             database,
@@ -337,6 +348,7 @@ export function createMusicDataPlatformRuntimeModule(
         musicScopeAvailabilityPort = undefined;
         materialProjection = undefined;
         libraryRelationService = undefined;
+        libraryCollectionService = undefined;
         candidateCommitCommand = undefined;
         sourceLibraryImportService = undefined;
         sourceLibraryReadPort = undefined;
@@ -368,6 +380,7 @@ export function createMusicDataPlatformRuntimeModule(
         musicScopeAvailabilityPort = undefined;
         materialProjection = undefined;
         libraryRelationService = undefined;
+        libraryCollectionService = undefined;
         candidateCommitCommand = undefined;
         sourceLibraryImportService = undefined;
         sourceLibraryReadPort = undefined;
@@ -421,6 +434,9 @@ export function createMusicDataPlatformRuntimeModule(
     },
     libraryRelation() {
       return libraryRelationService;
+    },
+    libraryCollection() {
+      return libraryCollectionService;
     },
     handleMinting() {
       return handleMintingPort;
@@ -582,12 +598,6 @@ function relationScopeId(input: {
   );
 }
 
-function collectionScopeId(collectionRefKey: string): string {
-  // collectionRefKey is unique per Collection (randomUUID-derived, D2), so it
-  // alone is a stable anchor for the opaque scope id.
-  return opaqueScopeId("collection", collectionRefKey);
-}
-
 function collectionScopeAvailability(collection: CollectionRecord): MusicCollectionScopeAvailability {
   const targetKind = catalogTargetKindForCollection(collection.collectionKind);
   return {
@@ -611,7 +621,7 @@ function isCatalogVisibleCollectionKind(kind: CollectionKind): boolean {
   return catalogTargetKindForCollection(kind) !== undefined || kind === "mixed";
 }
 
-function opaqueScopeId(prefix: "relation" | "collection", anchor: string): string {
+function opaqueScopeId(prefix: "relation", anchor: string): string {
   // PR16C runs without the PR16B handle registry; keep these ids opaque until
   // registry-backed scope mint/resolve replaces this composition seam.
   return `${prefix}_${createHash("sha256").update(anchor).digest("base64url").slice(0, 22)}`;

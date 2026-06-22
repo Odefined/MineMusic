@@ -32,6 +32,9 @@ import {
 import {
   createLibraryCatalogServerRuntimeModule,
 } from "./library_catalog_runtime_module.js";
+import {
+  createLibraryCollectionServerRuntimeModule,
+} from "./library_collection_runtime_module.js";
 import { createStageToolContextAssembly } from "./stage_tool_context_assembly.js";
 import type { StageToolContextFactory } from "../stage_interface/index.js";
 import type { SourceLibraryImportService } from "../music_data_platform/index.js";
@@ -134,6 +137,12 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       : createLibraryCatalogServerRuntimeModule({
           musicDataPlatformModule,
         });
+  const libraryCollectionModule: RuntimeModule | undefined =
+    musicDataPlatformModule === undefined
+      ? undefined
+      : createLibraryCollectionServerRuntimeModule({
+          musicDataPlatformModule,
+        });
   const backgroundWorkModule: RuntimeModule | undefined = backgroundWork === undefined
     ? undefined
     : createBackgroundWorkRuntimeModule({ backgroundWork });
@@ -147,6 +156,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       ...(libraryImportModule === undefined ? [] : [libraryImportModule]),
       ...(libraryRelationModule === undefined ? [] : [libraryRelationModule]),
       ...(libraryCatalogModule === undefined ? [] : [libraryCatalogModule]),
+      ...(libraryCollectionModule === undefined ? [] : [libraryCollectionModule]),
       ...(musicDiscoveryModule === undefined ? [] : [musicDiscoveryModule]),
       ...(musicExperienceModule === undefined ? [] : [musicExperienceModule]),
     ],

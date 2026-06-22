@@ -720,6 +720,9 @@ function fakeMusicDataPlatformModule(input: {
     libraryRelation() {
       return undefined;
     },
+    libraryCollection() {
+      return undefined;
+    },
     handleMinting() {
       return undefined;
     },

@@ -118,6 +118,13 @@ try {
         "library_catalog_browse",
         "library_catalog_sample",
         "library_catalog_summary",
+        "library_collection_get",
+        "library_collection_create",
+        "library_collection_rename",
+        "library_collection_add",
+        "library_collection_remove",
+        "library_collection_move",
+        "library_collection_delete",
         "music_discovery_list_scopes",
         "music_discovery_lookup",
         "music_experience_present",
@@ -164,7 +171,7 @@ try {
         };
     };
     assert.equal(callResult.structuredContent.status, "ready");
-    assert.equal(callResult.structuredContent.interface.toolCount, 18);
+    assert.equal(callResult.structuredContent.interface.toolCount, 25);
     assert.equal(callResult.content.length, 1);
     assert.equal(callResult.content[0]?.type, "text");
     assert.equal(callResult.content[0]?.text.startsWith("Runtime ready"), true);

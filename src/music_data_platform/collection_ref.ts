@@ -3,17 +3,12 @@ import { randomUUID } from "node:crypto";
 import type { Ref } from "../contracts/kernel.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertMusicDataPlatformRefSafe } from "./ref_validation.js";
+import type { CollectionKind } from "../contracts/music_data_platform.js";
 
-// `collection_kind` admits any single material kind or `mixed` (D3). `mixed` is
-// Collection-only; it is not a MaterialEntityKind, so this union is distinct
-// from `MaterialEntityKind` in contracts/music_data_platform.ts.
-export type CollectionKind =
-  | "recording"
-  | "album"
-  | "artist"
-  | "work"
-  | "release"
-  | "mixed";
+// `collection_kind` admits any single material kind or `mixed` (D3). The
+// CollectionKind union is owned by contracts/music_data_platform.ts (shared
+// with the Stage Interface); re-exported here for the collection writer.
+export type { CollectionKind };
 
 export type CollectionStatus =
   | "active"

@@ -45,7 +45,9 @@ export function createLibraryCatalogServerRuntimeModule(
   });
 }
 
-function createServerLibraryCatalogScopeAvailability(
+// Shared by the catalog read module and the collection edit module: both need
+// to resolve collection scope ids to refs and to read the catalog scope list.
+export function createServerLibraryCatalogScopeAvailability(
   musicDataPlatformModule: MusicDataPlatformRuntimeModule,
 ): LibraryCatalogScopeAvailabilityPort {
   return {

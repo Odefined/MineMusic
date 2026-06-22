@@ -27,6 +27,20 @@ import type {
   LibraryRelationControlPort,
 } from "./relation_edit.js";
 import {
+  createLibraryCollectionAddRegistration,
+  createLibraryCollectionCreateRegistration,
+  createLibraryCollectionDeleteRegistration,
+  createLibraryCollectionGetRegistration,
+  createLibraryCollectionMoveRegistration,
+  createLibraryCollectionRemoveRegistration,
+  createLibraryCollectionRenameRegistration,
+  libraryCollectionInstrument,
+} from "./collection_edit.js";
+import type {
+  CreateLibraryCollectionRegistrationInput,
+  LibraryCollectionControlPort,
+} from "./collection_edit.js";
+import {
   createLibraryCatalogBrowseRegistration,
   createLibraryCatalogListScopesRegistration,
   createLibraryCatalogSampleRegistration,
@@ -84,6 +98,27 @@ export type {
   CreateLibraryRelationRegistrationInput,
   LibraryRelationControlPort,
 } from "./relation_edit.js";
+export {
+  createLibraryCollectionAddRegistration,
+  createLibraryCollectionCreateRegistration,
+  createLibraryCollectionDeleteRegistration,
+  createLibraryCollectionGetRegistration,
+  createLibraryCollectionMoveRegistration,
+  createLibraryCollectionRemoveRegistration,
+  createLibraryCollectionRenameRegistration,
+  libraryCollectionAddDescriptor,
+  libraryCollectionCreateDescriptor,
+  libraryCollectionDeleteDescriptor,
+  libraryCollectionGetDescriptor,
+  libraryCollectionInstrument,
+  libraryCollectionMoveDescriptor,
+  libraryCollectionRemoveDescriptor,
+  libraryCollectionRenameDescriptor,
+} from "./collection_edit.js";
+export type {
+  CreateLibraryCollectionRegistrationInput,
+  LibraryCollectionControlPort,
+} from "./collection_edit.js";
 export {
   createLibraryCatalogBrowseRegistration,
   createLibraryCatalogListScopesRegistration,
@@ -216,6 +251,35 @@ export function createLibraryRelationRuntimeModule(
             createLibraryRelationUnblockRegistration({
               control: input.control,
             }),
+          ],
+        },
+      };
+    },
+  };
+}
+
+export function createLibraryCollectionRuntimeModule(
+  input: CreateLibraryCollectionRegistrationInput,
+): RuntimeModule {
+  return {
+    descriptor: {
+      id: "library-collection",
+      ownerArea: "music_data_platform",
+      label: "Library Collection",
+    },
+    async initialize() {
+      return {
+        ok: true,
+        value: {
+          instruments: [libraryCollectionInstrument],
+          tools: [
+            createLibraryCollectionGetRegistration(input),
+            createLibraryCollectionCreateRegistration(input),
+            createLibraryCollectionRenameRegistration(input),
+            createLibraryCollectionAddRegistration(input),
+            createLibraryCollectionRemoveRegistration(input),
+            createLibraryCollectionMoveRegistration(input),
+            createLibraryCollectionDeleteRegistration(input),
           ],
         },
       };

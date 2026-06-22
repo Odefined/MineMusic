@@ -184,6 +184,13 @@ export type MaterialEntityKind =
 
 export type CanonicalEntityKind = MaterialEntityKind;
 
+// A Collection's kind: any single material kind, or `mixed` (multiple kinds).
+// `mixed` is Collection-only (not a MaterialEntityKind), so this union extends
+// MaterialEntityKind rather than aliasing it. Lives in contracts so the
+// Stage Interface (library.collection.create input / state output) can share
+// the exact domain vocabulary the writer owns.
+export type CollectionKind = MaterialEntityKind | "mixed";
+
 export type MaterialLifecycleStatus =
   | "active"
   | "merged"
