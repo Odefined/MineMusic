@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { Ref, Result, StageError } from "../../contracts/kernel.js";
 import { parseRefKey, refKey } from "../../contracts/kernel.js";
 import {
+  collectionMusicScopeDescription,
   libraryMusicScopeDescription,
   musicLookupItemLabel,
   relationMusicScopeDescription,
@@ -68,9 +69,18 @@ export type LibraryCatalogRelationScopeAvailability = {
   detailText?: string;
 };
 
+export type LibraryCatalogCollectionScopeAvailability = {
+  id: string;
+  ref: Ref;
+  collectionName: string;
+  targetKind?: MusicTargetKind;
+  detailText?: string;
+};
+
 export type LibraryCatalogScopeAvailabilitySnapshot = {
   sourceLibraries: readonly LibraryCatalogSourceLibraryScopeAvailability[];
   relations: readonly LibraryCatalogRelationScopeAvailability[];
+  collections: readonly LibraryCatalogCollectionScopeAvailability[];
 };
 
 export type LibraryCatalogScopeAvailabilityPort = {
@@ -341,6 +351,9 @@ async function handleLibraryCatalogListScopes(
   if (input.kind === undefined || input.kind === "relation") {
     scopes.push(...availability.value.relations.map(listRelationScope));
   }
+  if (input.kind === undefined || input.kind === "collection") {
+    scopes.push(...availability.value.collections.map(listCollectionScope));
+  }
 
   return {
     ok: true,
@@ -365,12 +378,18 @@ async function handleLibraryCatalogBrowse(
     ownerScope: ctx.ownerScope,
     scope: resolved.value.scope,
   });
+  // D4: a Collection's native order is its item position (catalogSql already
+  // ORDER BY ci.position); browse preserves it instead of re-sorting by
+  // recently_added_at like the library/relation baselines.
+  const timeOrderedRecords = resolved.value.scope.kind === "collection"
+    ? records
+    : sortCatalogRecords(records, "time");
   const projectedRecords = resolved.value.sort === "dictionary"
     ? sortProjectedCatalogRecords(
         await projectCatalogRecords(records, ports.materialProjection),
       )
     : await projectCatalogRecords(
-        sortCatalogRecords(records, resolved.value.sort)
+        timeOrderedRecords
           .slice(resolved.value.offset, resolved.value.offset + limit),
         ports.materialProjection,
       );
@@ -593,6 +612,23 @@ function resolveListedScope(
         },
       };
     }
+    case "collection": {
+      const collection = availability.collections.find((scope) => scope.id === input.id);
+      if (collection === undefined) {
+        return scopeNotFound("Collection catalog scope id was not found.");
+      }
+      return {
+        ok: true,
+        value: {
+          scope: {
+            kind: "collection",
+            ref: collection.ref,
+            ...(collection.targetKind === undefined ? {} : { targetKind: collection.targetKind }),
+          },
+          listed: listCollectionScope(collection),
+        },
+      };
+    }
   }
 }
 
@@ -632,6 +668,20 @@ function listRelationScope(
   };
 }
 
+function listCollectionScope(
+  scope: LibraryCatalogCollectionScopeAvailability,
+): ListedLibraryCatalogScope {
+  return {
+    kind: "collection",
+    id: scope.id,
+    description: collectionMusicScopeDescription({
+      collectionName: scope.collectionName,
+      ...(scope.targetKind === undefined ? {} : { targetKind: scope.targetKind }),
+      ...(scope.detailText === undefined ? {} : { detailText: scope.detailText }),
+    }),
+  };
+}
+
 function serializableScope(scope: LibraryCatalogReadScope): SerializableCatalogScope {
   switch (scope.kind) {
     case "library":
@@ -648,13 +698,20 @@ function serializableScope(scope: LibraryCatalogReadScope): SerializableCatalogS
         refKey: refKey(scope.ref),
         materialKind: scope.materialKind,
       };
+    case "collection":
+      return {
+        kind: "collection",
+        refKey: refKey(scope.ref),
+        ...(scope.targetKind === undefined ? {} : { targetKind: scope.targetKind }),
+      };
   }
 }
 
 type SerializableCatalogScope =
   | { kind: "library" }
   | { kind: "source_library"; refKey: string; materialKind: LibraryCatalogMaterialKind }
-  | { kind: "relation"; refKey: string; materialKind: LibraryCatalogMaterialKind };
+  | { kind: "relation"; refKey: string; materialKind: LibraryCatalogMaterialKind }
+  | { kind: "collection"; refKey: string; targetKind?: LibraryCatalogMaterialKind };
 
 function deserializeBrowseCursor(
   internalCursor: string,
@@ -714,6 +771,10 @@ function isSerializableScope(value: unknown): value is SerializableCatalogScope 
     return typeof record.refKey === "string" &&
       isLibraryCatalogMaterialKind(record.materialKind);
   }
+  if (record.kind === "collection") {
+    return typeof record.refKey === "string" &&
+      (record.targetKind === undefined || isLibraryCatalogMaterialKind(record.targetKind));
+  }
   return record.kind === "relation" &&
     typeof record.refKey === "string" &&
     isLibraryCatalogMaterialKind(record.materialKind);
@@ -748,6 +809,20 @@ function deserializeScope(scope: SerializableCatalogScope): Result<LibraryCatalo
           kind: "relation",
           ref,
           materialKind: scope.materialKind,
+        },
+      };
+    }
+    case "collection": {
+      const ref = parseRefKey(scope.refKey);
+      if (ref === undefined) {
+        return invalidCursor("Collection catalog cursor scope is invalid.");
+      }
+      return {
+        ok: true,
+        value: {
+          kind: "collection",
+          ref,
+          ...(scope.targetKind === undefined ? {} : { targetKind: scope.targetKind }),
         },
       };
     }
@@ -1038,6 +1113,14 @@ async function membershipSignals(
         kind: "relation" as const,
         ref: scope.ref,
         materialKind: scope.targetKind,
+      },
+    })),
+    ...availability.collections.map((scope) => ({
+      listed: listCollectionScope(scope) as Exclude<ListedLibraryCatalogScope, { kind: "library" }>,
+      readScope: {
+        kind: "collection" as const,
+        ref: scope.ref,
+        ...(scope.targetKind === undefined ? {} : { targetKind: scope.targetKind }),
       },
     })),
   ];

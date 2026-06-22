@@ -9,7 +9,11 @@ export type LibraryCatalogMaterialKind = Extract<MaterialEntityKind, "recording"
 export type LibraryCatalogReadScope =
   | { kind: "library" }
   | { kind: "source_library"; ref: Ref; materialKind: LibraryCatalogMaterialKind }
-  | { kind: "relation"; ref: Ref; materialKind: LibraryCatalogMaterialKind };
+  | { kind: "relation"; ref: Ref; materialKind: LibraryCatalogMaterialKind }
+  // `targetKind` set => single-kind Collection filtered to that kind; omitted =>
+  // mixed Collection using the library baseline. Work/release Collections never
+  // reach the read port (D7 catalog-invisible), so no CollectionKind is needed.
+  | { kind: "collection"; ref: Ref; targetKind?: LibraryCatalogMaterialKind };
 
 export type LibraryCatalogRecord = {
   materialRef: Ref;
@@ -48,6 +52,44 @@ export function createLibraryCatalogReadPort(input: {
 }
 
 function catalogSql(scope: LibraryCatalogReadScope): string {
+  if (scope.kind === "collection") {
+    // D4: a Collection is ordered by its own item position, overriding the
+    // catalog's recently_added_at baseline. The position comes from
+    // collection_items (active membership); the EXISTS entry_kind='collection'
+    // clause keeps the read consistent with the projection surface.
+    const materialKindFilter = scope.targetKind === undefined
+      ? "AND m.kind IN ('recording', 'album', 'artist')"
+      : "AND m.kind = ?";
+
+    return `
+      SELECT
+        c.material_ref_key,
+        m.kind AS material_kind,
+        c.recently_added_at
+      FROM owner_material_catalog_view c
+      JOIN material_records m
+        ON m.ref_key = c.material_ref_key
+      JOIN collection_items ci
+        ON ci.material_ref_key = c.material_ref_key
+        AND ci.owner_scope = c.owner_scope
+        AND ci.collection_ref_key = ?
+        AND ci.status = 'active'
+      WHERE c.owner_scope = ?
+        AND EXISTS (
+          SELECT 1
+          FROM owner_material_entries e
+          WHERE e.owner_scope = c.owner_scope
+            AND e.material_ref_key = c.material_ref_key
+            AND e.entry_kind = 'collection'
+            AND e.entry_ref_key = ?
+            AND e.visibility_role = 'positive'
+            AND e.active = 1
+        )
+        ${materialKindFilter}
+      ORDER BY ci.position ASC, c.material_ref_key ASC
+    `;
+  }
+
   const scopeFilter = scope.kind === "library"
     ? ""
     : `
@@ -101,6 +143,13 @@ function catalogParameters(
         "owner_relation",
         refKey(scope.ref),
         scope.materialKind,
+      ];
+    case "collection":
+      return [
+        refKey(scope.ref),
+        ownerScope,
+        refKey(scope.ref),
+        ...(scope.targetKind === undefined ? [] : [scope.targetKind]),
       ];
   }
 }

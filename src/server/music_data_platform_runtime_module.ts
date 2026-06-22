@@ -23,6 +23,7 @@ import {
   createLibraryImportStartCommand,
   createLibraryImportJobHandler,
   createLibraryCatalogReadPort,
+  createCollectionRecords,
   LOCALIZE_PROVIDER_SOURCE_JOB_TYPE,
   LIBRARY_IMPORT_ADVANCE_JOB_TYPE,
   musicDataPlatformIdentitySchema,
@@ -48,6 +49,8 @@ import {
   type SourceLibraryReadPort,
   type LibraryImportStartCommand,
   type LibraryCatalogReadPort,
+  type CollectionKind,
+  type CollectionRecord,
 } from "../music_data_platform/index.js";
 import { createRetrievalResultSetRecords } from "../music_data_platform/retrieval_result_set_records.js";
 import { createDownloadCommands, type DownloadCommands, type DownloadSourceProvider } from "../music_data_platform/download_commands.js";
@@ -60,6 +63,7 @@ import {
   type RetrievalQueryService,
 } from "../music_intelligence/index.js";
 import type {
+  MusicCollectionScopeAvailability,
   MusicScopeAvailabilityPort,
   MusicScopeAvailabilitySnapshot,
 } from "../music_intelligence/stage_adapter/index.js";
@@ -71,7 +75,7 @@ import {
 } from "../stage_interface/handle_minting.js";
 import { createStageInterfaceHandleRegistryRecords } from "../stage_interface/handle_registry_records.js";
 import { createLookupCursorStore, DEFAULT_LOOKUP_CURSOR_TTL_MS } from "../stage_interface/lookup_cursor_store.js";
-import type { HandleMintingPort, LookupCursorStore } from "../contracts/stage_interface.js";
+import type { HandleMintingPort, LookupCursorStore, MusicTargetKind } from "../contracts/stage_interface.js";
 import {
   type MusicDatabase,
   type MusicDatabaseContext,
@@ -472,16 +476,16 @@ function createMusicScopeAvailabilityPort(input: {
 }): MusicScopeAvailabilityPort {
   const sourceLibraryRead = createSourceLibraryReadPort({ db: input.db });
   const ownerRelationRead = createOwnerMaterialRelationRecords({ db: input.db });
+  const collectionRead = createCollectionRecords({ db: input.db });
 
   return {
     async listAvailableMusicScopes(readInput) {
       const providerNames = providerDisplayNames(input.extensionRuntime);
-      const sourceLibraries = await sourceLibraryRead.listSourceLibraries({
-        ownerScope: readInput.ownerScope,
-      });
-      const relationSummaries = await ownerRelationRead.listOwnerRelationScopeSummaries({
-        ownerScope: readInput.ownerScope,
-      });
+      const [sourceLibraries, relationSummaries, collections] = await Promise.all([
+        sourceLibraryRead.listSourceLibraries({ ownerScope: readInput.ownerScope }),
+        ownerRelationRead.listOwnerRelationScopeSummaries({ ownerScope: readInput.ownerScope }),
+        collectionRead.listCollections({ ownerScope: readInput.ownerScope }),
+      ]);
 
       const snapshot: MusicScopeAvailabilitySnapshot = {
         sourceLibraries: sourceLibraries
@@ -511,6 +515,12 @@ function createMusicScopeAvailabilityPort(input: {
             providerName: registration.provider.descriptor.label,
             targetKinds: ["recording", "album", "artist"],
           })),
+        // D7: work/release Collections are catalog-invisible, so only
+        // single-kind (recording/album/artist) and mixed Collections surface as
+        // catalog scopes. listCollections already defaults to status='active'.
+        collections: collections
+          .filter((collection) => isCatalogVisibleCollectionKind(collection.collectionKind))
+          .map(collectionScopeAvailability),
       };
 
       return {
@@ -572,7 +582,36 @@ function relationScopeId(input: {
   );
 }
 
-function opaqueScopeId(prefix: "relation", anchor: string): string {
+function collectionScopeId(collectionRefKey: string): string {
+  // collectionRefKey is unique per Collection (randomUUID-derived, D2), so it
+  // alone is a stable anchor for the opaque scope id.
+  return opaqueScopeId("collection", collectionRefKey);
+}
+
+function collectionScopeAvailability(collection: CollectionRecord): MusicCollectionScopeAvailability {
+  const targetKind = catalogTargetKindForCollection(collection.collectionKind);
+  return {
+    id: collectionScopeId(collection.collectionRefKey),
+    ref: collection.collectionRef,
+    collectionName: collection.name,
+    ...(targetKind === undefined ? {} : { targetKind }),
+  };
+}
+
+function catalogTargetKindForCollection(kind: CollectionKind): MusicTargetKind | undefined {
+  if (kind === "recording" || kind === "album" || kind === "artist") {
+    return kind;
+  }
+  return undefined;
+}
+
+// D7: a Collection is catalog-visible when it has a catalog target kind, or is
+// mixed (library baseline); work/release never reach the catalog scope list.
+function isCatalogVisibleCollectionKind(kind: CollectionKind): boolean {
+  return catalogTargetKindForCollection(kind) !== undefined || kind === "mixed";
+}
+
+function opaqueScopeId(prefix: "relation" | "collection", anchor: string): string {
   // PR16C runs without the PR16B handle registry; keep these ids opaque until
   // registry-backed scope mint/resolve replaces this composition seam.
   return `${prefix}_${createHash("sha256").update(anchor).digest("base64url").slice(0, 22)}`;

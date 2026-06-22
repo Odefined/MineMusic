@@ -38,6 +38,7 @@ const scopeAvailability = createInMemoryMusicScopeAvailabilityPort({
             targetKinds: ["recording"],
         },
     ],
+    collections: [],
 });
 const queryCalls: RetrievalQueryInput[] = [];
 const mintedAnchors: unknown[] = [];
@@ -364,6 +365,7 @@ const budgetInterface = createStageInterface({
                     providerScope("provider_4"),
                     providerScope("provider_5"),
                 ],
+                collections: [],
             }),
         }),
     ],

@@ -76,6 +76,7 @@ function createServerLibraryCatalogScopeAvailability(
         value: {
           sourceLibraries: available.value.sourceLibraries,
           relations: available.value.relations,
+          collections: available.value.collections,
         },
       };
     },

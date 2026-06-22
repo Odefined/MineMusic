@@ -88,6 +88,25 @@ export function relationMusicScopeDescription(input: {
   });
 }
 
+export function collectionMusicScopeDescription(input: {
+  collectionName: string;
+  targetKind?: MusicTargetKind;
+  detailText?: string;
+}): MusicScopeDescription {
+  const collectionName = cleanLabelPart(input.collectionName);
+  const label = collectionName === undefined
+    ? "Collection"
+    : input.targetKind === undefined
+      ? collectionName
+      : `${collectionName} ${labelForMusicTargetKind(input.targetKind)}`;
+
+  return scopeDescription({
+    label,
+    ...(input.targetKind === undefined ? {} : { targetKind: input.targetKind }),
+    ...(input.detailText === undefined ? {} : { detailText: input.detailText }),
+  });
+}
+
 export function providerMusicScopeDescription(input: {
   providerName?: string;
   detailText?: string;

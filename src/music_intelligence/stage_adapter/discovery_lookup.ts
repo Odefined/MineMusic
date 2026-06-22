@@ -37,6 +37,11 @@ import type {
 } from "./scope_availability.js";
 import { scopeAvailabilityFailed } from "./scope_availability.js";
 
+// Collection is a catalog-browse scope, not a discovery lookup source. This
+// message is contract-bound — discovery.lookup never supports collection scopes.
+const COLLECTION_NOT_SUPPORTED_BY_LOOKUP =
+  "Collection scopes are not supported by music.discovery.lookup; use library.catalog.browse with a collection scope instead.";
+
 export type CreateMusicDiscoveryLookupRegistrationInput = {
   retrievalQuery: RetrievalQueryService;
   scopeAvailability: MusicScopeAvailabilityPort;
@@ -582,6 +587,10 @@ function resolveConcreteLookupScope(input: {
     }
     case "all":
       return invalidInput("The all scope must be resolved before concrete scope dispatch.");
+    case "collection":
+      // Collection is a catalog-browse scope (library.catalog), not a discovery
+      // lookup source; discovery.lookup searches providers/relations/libraries.
+      return invalidInput(COLLECTION_NOT_SUPPORTED_BY_LOOKUP);
   }
 }
 
@@ -688,6 +697,8 @@ function normalizeLookupScope(value: MusicScope): Result<MusicScope> {
           providerId: value.providerId,
         },
       };
+    case "collection":
+      return invalidInput(COLLECTION_NOT_SUPPORTED_BY_LOOKUP);
     default:
       return assertNever(value);
   }
@@ -701,6 +712,8 @@ function musicScopeIdentityKey(scope: MusicScope): string {
     case "source_library":
     case "relation":
       return `${scope.kind}:${scope.id}`;
+    case "collection":
+      return `collection:${scope.id}`;
     case "provider":
       return `provider:${scope.providerId}`;
   }

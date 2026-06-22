@@ -255,6 +255,12 @@ export type MusicLibraryScopeHandle =
     kind: "relation";
     /** Opaque scope id from list_scopes; pass it back unchanged. */
     id: string;
+  }
+  | {
+    /** "collection": a durable user-named Collection scope (opaque id from list_scopes). */
+    kind: "collection";
+    /** Opaque scope id from list_scopes; pass it back unchanged. */
+    id: string;
   };
 
 export type MusicProviderScopeHandle = {
@@ -300,17 +306,20 @@ export type MusicListScopesOutput = {
 export type LibraryCatalogScopeKind =
   | "library"
   | "source_library"
-  | "relation";
+  | "relation"
+  | "collection";
 
 export type LibraryCatalogScope =
   | { kind: "library" }
   | Extract<MusicLibraryScopeHandle, { kind: "source_library" }>
-  | Extract<MusicLibraryScopeHandle, { kind: "relation" }>;
+  | Extract<MusicLibraryScopeHandle, { kind: "relation" }>
+  | Extract<MusicLibraryScopeHandle, { kind: "collection" }>;
 
 export type ListedLibraryCatalogScope =
   | ({ kind: "library"; description: MusicScopeDescription })
   | (Extract<MusicLibraryScopeHandle, { kind: "source_library" }> & { description: MusicScopeDescription })
-  | (Extract<MusicLibraryScopeHandle, { kind: "relation" }> & { description: MusicScopeDescription });
+  | (Extract<MusicLibraryScopeHandle, { kind: "relation" }> & { description: MusicScopeDescription })
+  | (Extract<MusicLibraryScopeHandle, { kind: "collection" }> & { description: MusicScopeDescription });
 
 export type LibraryCatalogListScopesInput = {
   /** Optional filter: return only catalog-usable scopes of this kind. Omit for all catalog scopes. */
