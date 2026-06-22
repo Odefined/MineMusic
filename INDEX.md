@@ -167,6 +167,15 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   implemented Phase 23 plan for `library.catalog.*` scope listing, browse,
   seed sampling, and summary over the Music Data Platform owner catalog
   projection.
+- `docs/formal-rebuild/phase-24-collection-foundation.md`: Phase 24 planning
+  and decision record for the formal Collection (D1-D9 decisions and
+  invariants); slices 24A/24B/24C/24D are implemented and Slice 5 (per-area
+  OCC + Web) is deferred to Phase B/C.
+- `docs/formal-rebuild/phase-24-collection-foundation-implementation-plan.md`:
+  implemented Phase 24 execution plan split into PR 24A Collection fact table +
+  write boundary, PR 24B projection producer, PR 24C `library.catalog
+  { kind:"collection" }` read scope, and PR 24D `library.collection.*` agent
+  tools; PR24A, PR24B, PR24C, and PR24D are implemented.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
