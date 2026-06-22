@@ -1,5 +1,4 @@
 import type { Ref, Result } from "../../contracts/kernel.js";
-import { parseRefKey } from "../../contracts/kernel.js";
 import {
   libraryRelationItemInputSchema,
   libraryRelationStateOutputSchema,
@@ -17,6 +16,7 @@ import {
   isMusicDataPlatformError,
   type LibraryRelationEdit,
 } from "../index.js";
+import { resolveLibraryMaterialRef, stageEditFail } from "./library_handle_resolution.js";
 
 export type LibraryRelationControlPort = {
   getRelationState(input: {
@@ -308,7 +308,7 @@ async function handleLibraryRelation(
   control: LibraryRelationControlPort,
 ): Promise<Result<LibraryRelationStateOutput>> {
   const input = payload as LibraryRelationItemInput;
-  const materialRefResult = await materialRefFromLibraryHandle(ctx, input.item.id);
+  const materialRefResult = await resolveLibraryMaterialRef(ctx, input.item.id, "Retry with item as a durable library MusicItemHandle. Present candidate items first with music.experience.present.");
 
   if (!materialRefResult.ok) {
     return materialRefResult;
@@ -339,66 +339,13 @@ async function handleLibraryRelation(
   }
 }
 
-async function materialRefFromLibraryHandle(
-  ctx: StageToolContext,
-  publicId: string,
-): Promise<Result<Ref>> {
-  const resolved = await ctx.handleMinting.resolve({
-    ownerScope: ctx.ownerScope,
-    handleKind: "library",
-    publicId,
-  });
-
-  if (resolved === undefined) {
-    return fail({
-      code: "item_not_found",
-      message: "Library item handle is unknown or no longer available.",
-      retryable: true,
-      suggestedFix: "Retry with a current library item handle, or look up and present the item again.",
-    });
-  }
-
-  const materialRef = refFromResolvedAnchor(resolved);
-
-  if (materialRef === undefined || !isLibraryMaterialRef(materialRef)) {
-    return invalidInput("Library item handle did not resolve to a valid library material.");
-  }
-
-  return {
-    ok: true,
-    value: materialRef,
-  };
-}
-
-function refFromResolvedAnchor(anchor: unknown): Ref | undefined {
-  if (!isRecord(anchor)) {
-    return undefined;
-  }
-
-  const value = anchor.materialRef;
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  return parseRefKey(value);
-}
-
-function isLibraryMaterialRef(ref: Ref): boolean {
-  return ref.namespace === "material" &&
-    (
-      ref.kind === "recording" ||
-      ref.kind === "album" ||
-      ref.kind === "artist"
-    );
-}
-
 function publicRelationError(
   error: { code: string },
   edit: LibraryRelationEdit | "get",
 ): Result<never> {
   switch (error.code) {
     case "music_data.material_not_found":
-      return fail({
+      return stageEditFail({
         code: "item_not_found",
         message: "Library relation item was not found.",
         retryable: true,
@@ -406,7 +353,7 @@ function publicRelationError(
       });
     case "music_data.material_not_writable":
       if (edit === "get") {
-        return fail({
+        return stageEditFail({
           code: "item_not_found",
           message: "Library relation item was not found.",
           retryable: true,
@@ -414,14 +361,14 @@ function publicRelationError(
         });
       }
 
-      return fail({
+      return stageEditFail({
         code: "item_not_writable",
         message: "Library relation item cannot receive relation edits.",
         retryable: false,
         suggestedFix: "Retry with an active library item.",
       });
     case "music_data.owner_scope_unsupported":
-      return fail({
+      return stageEditFail({
         code: "owner_scope_unsupported",
         message: "Library relation operations currently support only the local owner scope.",
         retryable: false,
@@ -437,32 +384,10 @@ function publicRelationError(
 }
 
 function invalidInput(message: string): Result<never> {
-  return fail({
+  return stageEditFail({
     code: "invalid_input",
     message,
     retryable: false,
     suggestedFix: "Retry with item as a durable library MusicItemHandle. Present candidate items first with music.experience.present.",
   });
-}
-
-function fail(input: {
-  code: string;
-  message: string;
-  retryable: boolean;
-  suggestedFix: string;
-}): Result<never> {
-  return {
-    ok: false,
-    error: {
-      code: input.code,
-      message: input.message,
-      area: "music_data_platform",
-      retryable: input.retryable,
-      suggestedFix: input.suggestedFix,
-    },
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

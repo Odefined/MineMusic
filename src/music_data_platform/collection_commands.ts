@@ -3,6 +3,7 @@ import type { MaterialEntityKind } from "../contracts/music_data_platform.js";
 import type { MusicDatabaseTransactionContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertMaterialRef } from "./material_ref.js";
+import { requireActiveMaterialRecord } from "./material_records_read.js";
 import {
   assertCollectionKind,
   assertCollectionName,
@@ -78,16 +79,6 @@ export type CollectionCommands = {
   deleteCollection(input: DeleteCollectionInput): Promise<CollectionRecord>;
 };
 
-type MaterialLifecycleRow = {
-  ref_key: string;
-  kind: MaterialEntityKind;
-  lifecycle_status: string;
-};
-
-type MaxPositionRow = {
-  max_position: number | null;
-};
-
 export function createCollectionCommands(
   input: CreateCollectionCommandsInput,
 ): CollectionCommands {
@@ -144,7 +135,7 @@ export function createCollectionCommands(
         ],
       );
 
-      const record = requireCollectionRecord(
+      const record = assertCollectionRecordReturned(
         await records.getCollection({
           ownerScope: commandInput.ownerScope,
           collectionRef,
@@ -202,7 +193,7 @@ export function createCollectionCommands(
         );
       }
 
-      const record = requireCollectionRecord(
+      const record = assertCollectionRecordReturned(
         await records.getCollection({
           ownerScope: commandInput.ownerScope,
           collectionRef: commandInput.collectionRef,
@@ -236,7 +227,7 @@ export function createCollectionCommands(
         });
       }
 
-      const material = await requireActiveMaterial(input.db, commandInput.materialRef);
+      const material = await requireActiveMaterialRecord(input.db, commandInput.materialRef);
       // D3: single-kind collections reject a disagreeing material kind as
       // kind_mismatch; `mixed` admits any material kind.
       assertMembershipKind(collection.collectionKind, material.kind);
@@ -244,20 +235,8 @@ export function createCollectionCommands(
       const materialRefKey = refKey(commandInput.materialRef);
       const collectionRefKey = refKey(commandInput.collectionRef);
 
-      // D4: add appends at max(active position) + 1.
-      const maxRow = await input.db.get<MaxPositionRow>(
-        `
-          SELECT MAX(position) AS max_position
-          FROM collection_items
-          WHERE collection_ref_key = ?
-            AND status = 'active'
-        `,
-        [collectionRefKey],
-      );
-      const nextPosition = (maxRow?.max_position ?? 0) + 1;
-
-      // D5: ON CONFLICT flips a removed item back to active (idempotent
-      // membership) rather than creating a duplicate row.
+      // D4: add appends at max(active position) + 1. A single INSERT...SELECT
+      // makes position assignment atomic within the write transaction.
       await input.db.run(
         `
           INSERT INTO collection_items (
@@ -270,7 +249,12 @@ export function createCollectionCommands(
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
+          SELECT ?, ?, ?, ?,
+                 COALESCE(MAX(position), 0) + 1,
+                 'active', ?, ?
+          FROM collection_items
+          WHERE collection_ref_key = ?
+            AND status = 'active'
           ON CONFLICT(collection_ref_key, material_ref_key) DO UPDATE SET
             material_ref_json = excluded.material_ref_json,
             owner_scope = excluded.owner_scope,
@@ -283,13 +267,13 @@ export function createCollectionCommands(
           materialRefKey,
           JSON.stringify(commandInput.materialRef),
           commandInput.ownerScope,
-          nextPosition,
           input.now,
           input.now,
+          collectionRefKey,
         ],
       );
 
-      const record = requireCollectionItemRecord(
+      const record = assertCollectionItemRecordReturned(
         await records.getCollectionItem({
           ownerScope: commandInput.ownerScope,
           collectionRef: commandInput.collectionRef,
@@ -335,7 +319,7 @@ export function createCollectionCommands(
         [input.now, existing.collectionRefKey, existing.materialRefKey],
       );
 
-      const record = requireCollectionItemRecord(
+      const record = assertCollectionItemRecordReturned(
         await records.getCollectionItem({
           ownerScope: commandInput.ownerScope,
           collectionRef: commandInput.collectionRef,
@@ -406,22 +390,25 @@ export function createCollectionCommands(
       reordered.splice(toIndex, 0, movedItem);
 
       const collectionRefKey = collection.collectionRefKey;
-      for (let index = 0; index < reordered.length; index++) {
-        const item = reordered[index]!;
-        await input.db.run(
-          `
-            UPDATE collection_items
-            SET position = ?,
-                updated_at = ?
-            WHERE collection_ref_key = ?
-              AND material_ref_key = ?
-              AND status = 'active'
-          `,
-          [index + 1, input.now, collectionRefKey, item.materialRefKey],
-        );
-      }
+      const positionAssignments = reordered
+        .map((item, index) => `(${index + 1}, ?)`)
+        .join(", ");
+      // D4: rewrite all active items to consecutive 1..N in one set-based
+      // statement (ARCHITECTURE prefers this over a row-by-row TS loop).
+      await input.db.run(
+        `
+          UPDATE collection_items
+          SET position = v.position,
+              updated_at = ?
+          FROM (VALUES ${positionAssignments}) AS v(position, material_ref_key)
+          WHERE collection_items.collection_ref_key = ?
+            AND collection_items.material_ref_key = v.material_ref_key
+            AND collection_items.status = 'active'
+        `,
+        [input.now, ...reordered.map((item) => item.materialRefKey), collectionRefKey],
+      );
 
-      const record = requireCollectionItemRecord(
+      const record = assertCollectionItemRecordReturned(
         await records.getCollectionItem({
           ownerScope: commandInput.ownerScope,
           collectionRef: commandInput.collectionRef,
@@ -465,7 +452,7 @@ export function createCollectionCommands(
         [input.now, existing.collectionRefKey],
       );
 
-      const record = requireCollectionRecord(
+      const record = assertCollectionRecordReturned(
         await records.getCollection({
           ownerScope: commandInput.ownerScope,
           collectionRef: commandInput.collectionRef,
@@ -520,36 +507,6 @@ function assertMembershipKind(
   }
 }
 
-async function requireActiveMaterial(
-  db: MusicDatabaseTransactionContext,
-  materialRef: Ref,
-): Promise<{ kind: MaterialEntityKind }> {
-  const row = await db.get<MaterialLifecycleRow>(
-    `
-      SELECT ref_key, kind, lifecycle_status
-      FROM material_records
-      WHERE ref_key = ?
-    `,
-    [refKey(materialRef)],
-  );
-
-  if (row === undefined) {
-    throw new MusicDataPlatformError({
-      code: "music_data.material_not_found",
-      message: "Collection item target material record was not found.",
-    });
-  }
-
-  if (row.lifecycle_status !== "active") {
-    throw new MusicDataPlatformError({
-      code: "music_data.material_not_writable",
-      message: "Collection item target material record must be active.",
-    });
-  }
-
-  return { kind: row.kind };
-}
-
 function requireCollectionRecord(
   record: CollectionRecord | undefined,
   message: string,
@@ -575,5 +532,25 @@ function requireCollectionItemRecord(
     });
   }
 
+  return record;
+}
+
+function assertCollectionRecordReturned(
+  record: CollectionRecord | undefined,
+  message: string,
+): CollectionRecord {
+  if (record === undefined) {
+    throw new Error(message);
+  }
+  return record;
+}
+
+function assertCollectionItemRecordReturned(
+  record: CollectionItemRecord | undefined,
+  message: string,
+): CollectionItemRecord {
+  if (record === undefined) {
+    throw new Error(message);
+  }
   return record;
 }

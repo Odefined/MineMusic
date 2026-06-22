@@ -1,8 +1,8 @@
 import { refKey, type Ref } from "../contracts/kernel.js";
-import type { MaterialEntityKind } from "../contracts/music_data_platform.js";
 import type { MusicDatabaseTransactionContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertMaterialRef } from "./material_ref.js";
+import { requireActiveMaterialRecord } from "./material_records_read.js";
 import {
   createOwnerMaterialRelationRecords,
   type OwnerMaterialRelationRecord,
@@ -47,12 +47,6 @@ export type OwnerMaterialRelationCommands = {
   ): Promise<OwnerMaterialRelationRecord>;
 };
 
-type MaterialLifecycleRow = {
-  ref_key: string;
-  kind: MaterialEntityKind;
-  lifecycle_status: string;
-};
-
 export function createOwnerMaterialRelationCommands(
   input: CreateOwnerMaterialRelationCommandsInput,
 ): OwnerMaterialRelationCommands {
@@ -65,7 +59,7 @@ export function createOwnerMaterialRelationCommands(
       assertOwnerMaterialRelationKind(commandInput.relationKind);
       assertOwnerMaterialRelationOrigin(commandInput.origin);
       assertRelationNote(commandInput.note);
-      await requireActiveMaterial(input.db, commandInput.materialRef);
+      await requireActiveMaterialRecord(input.db, commandInput.materialRef);
 
       const relationRef = createOwnerMaterialRelationRef({
         ownerScope: commandInput.ownerScope,
@@ -138,7 +132,7 @@ export function createOwnerMaterialRelationCommands(
       assertOwnerScope(commandInput.ownerScope);
       assertMaterialRef(commandInput.materialRef);
       assertOwnerMaterialRelationKind(commandInput.relationKind);
-      await requireActiveMaterial(input.db, commandInput.materialRef);
+      await requireActiveMaterialRecord(input.db, commandInput.materialRef);
 
       const existing = await records.getOwnerMaterialRelation({
         ownerScope: commandInput.ownerScope,
@@ -186,34 +180,6 @@ export function createOwnerMaterialRelationCommands(
       return record;
     },
   };
-}
-
-async function requireActiveMaterial(
-  db: MusicDatabaseTransactionContext,
-  materialRef: Ref,
-): Promise<void> {
-  const row = await db.get<MaterialLifecycleRow>(
-    `
-      SELECT ref_key, kind, lifecycle_status
-      FROM material_records
-      WHERE ref_key = ?
-    `,
-    [refKey(materialRef)],
-  );
-
-  if (row === undefined) {
-    throw new MusicDataPlatformError({
-      code: "music_data.material_not_found",
-      message: "Owner material relation target material record was not found.",
-    });
-  }
-
-  if (row.lifecycle_status !== "active") {
-    throw new MusicDataPlatformError({
-      code: "music_data.material_not_writable",
-      message: "Owner material relation target material record must be active.",
-    });
-  }
 }
 
 function assertRelationNote(note: string | undefined): void {

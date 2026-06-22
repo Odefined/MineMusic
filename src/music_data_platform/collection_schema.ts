@@ -14,8 +14,7 @@ export const musicDataPlatformCollectionSchema: MusicDatabaseSchemaContribution 
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         CHECK (collection_kind IN ('recording', 'album', 'artist', 'work', 'release', 'mixed')),
-        CHECK (status IN ('active', 'removed', 'archived')),
-        UNIQUE (owner_scope, name)
+        CHECK (status IN ('active', 'removed', 'archived'))
       )
     `);
 
@@ -54,6 +53,15 @@ export const musicDataPlatformCollectionSchema: MusicDatabaseSchemaContribution 
     await context.run(`
       CREATE UNIQUE INDEX IF NOT EXISTS collection_items_active_membership_idx
       ON collection_items(collection_ref_key, material_ref_key)
+      WHERE status = 'active'
+    `);
+
+    // D5: a soft-deleted collection releases its name for reuse. The partial
+    // unique index scopes name uniqueness to active collections only, mirroring
+    // collection_items_active_membership_idx.
+    await context.run(`
+      CREATE UNIQUE INDEX IF NOT EXISTS collections_active_name_idx
+      ON collections(owner_scope, name)
       WHERE status = 'active'
     `);
   },

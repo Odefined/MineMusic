@@ -1373,6 +1373,34 @@ Work Basis OCC + Web) remains deferred to Phase B/C.
   never-member remove + kind_mismatch, schema generation, active-tree guards,
   the server-entrypoint (25 tools), and server-host module wiring.
 
+### Phase 24 Audit Hardening (2026-06-22)
+
+A `/code-auditor` review of the Phase 24 diff surfaced two High and five Medium
+findings; all were fixed in one pass and re-verified (`typecheck` EXIT 0, full
+stage-core suite EXIT 0):
+
+- H1: soft-deleted Collection no longer holds its name. `collections_active_name_idx`
+  is a partial-unique index `WHERE status='active'`, and `getCollectionByName`
+  filters active, so deleting a Collection releases its name for reuse (mirrors
+  the `collection_items` active-membership index). A delete→recreate-same-name
+  regression test was added.
+- H2: a scope-availability read failure now surfaces as the declared
+  `scope_availability_failed` code (not `collection_not_found`), aligning
+  `library.collection.*` with the `library.catalog.*` precedent.
+- M1: `require*Record` (pre-check, declared not-found) is split from
+  `assert*Returned` (write-after re-read, plain `throw`) so broken invariants
+  fail loudly instead of becoming retryable agent errors.
+- M3 / L1: `moveCollectionItem` and `addCollectionItem` are now single set-based
+  statements (`UPDATE...FROM (VALUES)`; `INSERT...SELECT COALESCE(MAX(position),0)+1`
+  scoped to `status='active'`), per ARCHITECTURE's set-maintenance preference.
+- M4 / M5: shared helpers `stage_adapter/library_handle_resolution.ts` and
+  `material_records_read.ts` replace duplicated handle-resolution / material-
+  lifecycle code across the collection and relation editors/commands.
+- L2 / L3 / L4: GET descriptor errors narrowed; default error throw keeps
+  `cause`; `parseStoredRef` adapts `JSON.parse`.
+- M2: spec D9 tightened — idempotent `remove` is for an already-soft-removed
+  member; a never-member surfaces as `item_not_found`.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

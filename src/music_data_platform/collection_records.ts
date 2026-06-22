@@ -137,6 +137,7 @@ export function createCollectionRecords(
           SELECT * FROM collections
           WHERE owner_scope = ?
             AND name = ?
+            AND status = 'active'
         `,
         [readInput.ownerScope, readInput.name],
       );
@@ -237,7 +238,16 @@ function collectionItemFromRow(row: CollectionItemRow): CollectionItemRecord {
 }
 
 function parseStoredRef(json: string, storedRefKey: string): Ref {
-  const parsed = JSON.parse(json) as Ref;
+  let parsed: Ref;
+  try {
+    parsed = JSON.parse(json) as Ref;
+  } catch (cause) {
+    throw new MusicDataPlatformError({
+      code: "music_data.record_ref_key_mismatch",
+      message: "Stored ref JSON could not be parsed.",
+      cause: cause instanceof Error ? cause : undefined,
+    });
+  }
   const parsedRefKey = musicDataPlatformRefKey({
     ref: parsed,
     fieldName: "storedRef",

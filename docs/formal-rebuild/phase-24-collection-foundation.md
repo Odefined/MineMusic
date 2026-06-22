@@ -235,9 +235,11 @@ one-action-per-tool (no generic `set`), mirroring `library.relation.*`:
 - `library.collection.move`
 - `library.collection.delete`
 
-Each edit returns the post-edit collection state; `remove` of an already-absent
-item is idempotent at the agent boundary (succeeds, reports unchanged state),
-mirroring `library.relation.unsave`. Outputs are compact and follow the Public
+Each edit returns the post-edit collection state. `remove` is idempotent for an
+already-soft-removed member (succeeds, reports unchanged state), mirroring
+`library.relation.unsave`. Removing an item that was never a member surfaces as
+`item_not_found` (the handle did not resolve to a current member) — this is not
+the idempotent case. Outputs are compact and follow the Public
 Handle Veil: no `materialRef`, no `collection_ref_key`, no `position`, no raw
 rows in agent-facing output. `library.collection.get` returns compact per-item
 public handles (label + availability); the Slice 4 open question is

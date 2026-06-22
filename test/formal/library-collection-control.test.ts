@@ -71,7 +71,7 @@ assert.equal("collectionDrivenByUserRequest" in libraryCollectionGetDescriptor.i
 assert.deepEqual(libraryCollectionGetDescriptor.errors.map((error) => error.code), [
   "invalid_input",
   "collection_not_found",
-  "item_not_found",
+  "scope_availability_failed",
   "owner_scope_unsupported",
 ]);
 for (const descriptor of collectionDescriptors.slice(1)) {
@@ -83,8 +83,9 @@ for (const descriptor of collectionDescriptors.slice(1)) {
   assert.deepEqual(descriptor.errors.map((error) => error.code), [
     "invalid_input",
     "collection_not_found",
-    "item_not_found",
+    "scope_availability_failed",
     "owner_scope_unsupported",
+    "item_not_found",
     "collection_name_taken",
     "item_not_writable",
   ]);
@@ -270,6 +271,22 @@ if (initializedServerModule.ok) {
   // Veil: every state output across the loop is free of internal anchors.
   // (Asserted per-call above for create; the shared output shape guarantees the rest.)
 
+  // H1 regression: deleting a collection releases its name for reuse
+  // (partial-unique index WHERE status='active').
+  const recycleCreated = await dispatch("library.collection.create", {
+    collectionKind: "recording",
+    name: "Recycle Name",
+  });
+  const recycleScopeId = recycleCreated.collection.scope.id;
+  await dispatch("library.collection.delete", {
+    collection: { kind: "collection", id: recycleScopeId },
+  });
+  const recreated = await dispatch("library.collection.create", {
+    collectionKind: "recording",
+    name: "Recycle Name",
+  });
+  assert.notEqual(recreated.collection.scope.id, recycleScopeId);
+
   // Error path: an unknown collection scope id yields collection_not_found.
   const notFound = await stageInterface.dispatch(createContext(), {
     toolName: "library.collection.get",
@@ -281,9 +298,16 @@ if (initializedServerModule.ok) {
   }
 
   // Error path: create with a duplicate name yields collection_name_taken.
+  // The earlier "Renamed Collection" was soft-deleted (afterDelete), so under D5
+  // its name is released; seed a fresh active collection here to exercise the
+  // active-name collision.
+  await dispatch("library.collection.create", {
+    collectionKind: "recording",
+    name: "Taken Name",
+  });
   const dupCreate = await stageInterface.dispatch(createContext(), {
     toolName: "library.collection.create",
-    payload: { collectionKind: "recording", name: "Renamed Collection" },
+    payload: { collectionKind: "recording", name: "Taken Name" },
   });
   assert.equal(dupCreate.ok, false);
   if (!dupCreate.ok) {

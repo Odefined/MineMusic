@@ -1,5 +1,5 @@
 import type { Ref, Result } from "../../contracts/kernel.js";
-import { parseRefKey, refKey } from "../../contracts/kernel.js";
+import { refKey } from "../../contracts/kernel.js";
 import {
   libraryCollectionCreateInputSchema,
   libraryCollectionDeleteInputSchema,
@@ -31,6 +31,7 @@ import {
 } from "../index.js";
 import type { LibraryCatalogScopeAvailabilityPort } from "./catalog.js";
 import { collectionScopeId } from "./collection_scope.js";
+import { resolveLibraryMaterialRef, stageEditFail } from "./library_handle_resolution.js";
 
 // D9: the agent addresses a Collection by its catalog scope handle
 // ({ kind:"collection", id }) from library.catalog.list_scopes. The handler
@@ -124,7 +125,7 @@ const editInvocationPolicy = {
   collectionDrivenByUserRequest: true,
 } as const;
 
-const readErrors = [
+const getErrors = [
   {
     code: "invalid_input",
     retryable: false,
@@ -136,9 +137,9 @@ const readErrors = [
     suggestedFixTemplate: "Retry with a current collection scope handle from library.catalog.list_scopes.",
   },
   {
-    code: "item_not_found",
+    code: "scope_availability_failed",
     retryable: true,
-    suggestedFixTemplate: "Retry with a current library item handle, or look up and present the item again.",
+    suggestedFixTemplate: "Retry later, or call library.catalog.list_scopes to inspect available collection scopes.",
   },
   {
     code: "owner_scope_unsupported",
@@ -148,7 +149,12 @@ const readErrors = [
 ] as const;
 
 const editErrors = [
-  ...readErrors,
+  ...getErrors,
+  {
+    code: "item_not_found",
+    retryable: true,
+    suggestedFixTemplate: "Retry with a current library item handle, or look up and present the item again.",
+  },
   {
     code: "collection_name_taken",
     retryable: false,
@@ -200,7 +206,7 @@ function readDescriptor(input: {
     invocationPolicy: readOnlyInvocationPolicy,
     inputSchema: input.inputSchema,
     ...stateOutputSchema,
-    errors: readErrors,
+    errors: getErrors,
     resultSummary: stateSummary,
   };
 }
@@ -483,7 +489,7 @@ async function handleItemEdit(
   if (!resolvedCollection.ok) {
     return resolvedCollection;
   }
-  const materialRefResult = await materialRefFromLibraryHandle(ctx, input.item.id);
+  const materialRefResult = await resolveLibraryMaterialRef(ctx, input.item.id, "Retry with a catalog-visible collection scope handle from library.catalog.list_scopes and a durable library item handle.");
   if (!materialRefResult.ok) {
     return materialRefResult;
   }
@@ -513,7 +519,7 @@ async function resolveCollectionRef(
   }
   const collection = availability.value.collections.find((scope) => scope.id === scopeId);
   if (collection === undefined) {
-    return fail({
+    return stageEditFail({
       code: "collection_not_found",
       message: "Library collection scope handle was not found.",
       retryable: true,
@@ -564,56 +570,13 @@ function libraryCollectionKind(kind: CollectionKind): LibraryCollectionState["co
   throw new Error(`Catalog-invisible collection kind reached agent state output: ${kind}.`);
 }
 
-async function materialRefFromLibraryHandle(
-  ctx: StageToolContext,
-  publicId: string,
-): Promise<Result<Ref>> {
-  const resolved = await ctx.handleMinting.resolve({
-    ownerScope: ctx.ownerScope,
-    handleKind: "library",
-    publicId,
-  });
-
-  if (resolved === undefined) {
-    return fail({
-      code: "item_not_found",
-      message: "Library item handle is unknown or no longer available.",
-      retryable: true,
-      suggestedFix: "Retry with a current library item handle, or look up and present the item again.",
-    });
-  }
-
-  const materialRef = refFromResolvedAnchor(resolved);
-  if (materialRef === undefined || !isLibraryMaterialRef(materialRef)) {
-    return invalidInput("Library item handle did not resolve to a valid library material.");
-  }
-
-  return { ok: true, value: materialRef };
-}
-
-function refFromResolvedAnchor(anchor: unknown): Ref | undefined {
-  if (!isRecord(anchor)) {
-    return undefined;
-  }
-  const value = anchor.materialRef;
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  return parseRefKey(value);
-}
-
-function isLibraryMaterialRef(ref: Ref): boolean {
-  return ref.namespace === "material" &&
-    (ref.kind === "recording" || ref.kind === "album" || ref.kind === "artist");
-}
-
 function publicCollectionError(error: unknown): Result<never> {
   if (!isMusicDataPlatformError(error)) {
     throw error;
   }
   switch (error.code) {
     case "music_data.collection_not_found":
-      return fail({
+      return stageEditFail({
         code: "collection_not_found",
         message: "Library collection was not found.",
         retryable: true,
@@ -621,28 +584,28 @@ function publicCollectionError(error: unknown): Result<never> {
       });
     case "music_data.collection_item_not_found":
     case "music_data.material_not_found":
-      return fail({
+      return stageEditFail({
         code: "item_not_found",
         message: "Library collection item was not found.",
         retryable: true,
         suggestedFix: "Retry with a current library item handle, or look up and present the item again.",
       });
     case "music_data.material_not_writable":
-      return fail({
+      return stageEditFail({
         code: "item_not_writable",
         message: "Library collection item cannot receive edits.",
         retryable: false,
         suggestedFix: "Retry with an active library item.",
       });
     case "music_data.collection_name_taken":
-      return fail({
+      return stageEditFail({
         code: "collection_name_taken",
         message: "Library collection name is already taken.",
         retryable: false,
         suggestedFix: "Retry with a different collection name.",
       });
     case "music_data.owner_scope_unsupported":
-      return fail({
+      return stageEditFail({
         code: "owner_scope_unsupported",
         message: "Library collection operations currently support only the local owner scope.",
         retryable: false,
@@ -656,13 +619,16 @@ function publicCollectionError(error: unknown): Result<never> {
     case "music_data.material_ref_invalid":
       return invalidInput("Library collection request is invalid.");
     default:
-      throw new Error(`library.collection received unsupported Music Data Platform error code: ${error.code}`);
+      throw new Error(
+        `library.collection received unsupported Music Data Platform error code: ${error.code}`,
+        { cause: error },
+      );
   }
 }
 
 function scopeAvailabilityFailedAsResult(): Result<never> {
-  return fail({
-    code: "collection_not_found",
+  return stageEditFail({
+    code: "scope_availability_failed",
     message: "Library collection scope availability could not be read.",
     retryable: true,
     suggestedFix: "Retry later, or call library.catalog.list_scopes to inspect available collection scopes.",
@@ -670,32 +636,10 @@ function scopeAvailabilityFailedAsResult(): Result<never> {
 }
 
 function invalidInput(message: string): Result<never> {
-  return fail({
+  return stageEditFail({
     code: "invalid_input",
     message,
     retryable: false,
     suggestedFix: "Retry with a catalog-visible collection scope handle from library.catalog.list_scopes and a durable library item handle.",
   });
-}
-
-function fail(input: {
-  code: string;
-  message: string;
-  retryable: boolean;
-  suggestedFix: string;
-}): Result<never> {
-  return {
-    ok: false,
-    error: {
-      code: input.code,
-      message: input.message,
-      area: "music_data_platform",
-      retryable: input.retryable,
-      suggestedFix: input.suggestedFix,
-    },
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
