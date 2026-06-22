@@ -188,6 +188,19 @@ if (initializedServerModule.ok) {
     [itemHandleA, itemHandleB],
   );
 
+  // Re-adding an already-active member is a no-op (D5 idempotent membership):
+  // the member stays in place — it is NOT relocated to the end and leaves no
+  // position gap. (ON CONFLICT ... WHERE status='removed' guards this.)
+  const reAddActive = await dispatch("library.collection.add", {
+    collection: { kind: "collection", id: collectionScopeId },
+    item: { kind: "library", id: itemHandleA },
+  });
+  assert.equal(reAddActive.collection.itemCount, 2);
+  assert.deepEqual(
+    reAddActive.items.map((i) => i.item.id),
+    [itemHandleA, itemHandleB],
+  );
+
   // get reads the fact table (Invariant 3): returns current members in position order.
   const got = await dispatch("library.collection.get", {
     collection: { kind: "collection", id: collectionScopeId },

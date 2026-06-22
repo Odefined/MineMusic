@@ -236,7 +236,10 @@ export function createCollectionCommands(
       const collectionRefKey = refKey(commandInput.collectionRef);
 
       // D4: add appends at max(active position) + 1. A single INSERT...SELECT
-      // makes position assignment atomic within the write transaction.
+      // makes position assignment atomic within the write transaction. D5: the
+      // ON CONFLICT clause reactivates a soft-removed member at the appended
+      // position; its WHERE status='removed' makes a repeat add of an
+      // already-active member a true no-op (no relocation, no position gap).
       await input.db.run(
         `
           INSERT INTO collection_items (
@@ -261,6 +264,7 @@ export function createCollectionCommands(
             position = excluded.position,
             status = 'active',
             updated_at = excluded.updated_at
+          WHERE collection_items.status = 'removed'
         `,
         [
           collectionRefKey,

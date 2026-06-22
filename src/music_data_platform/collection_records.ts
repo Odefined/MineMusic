@@ -237,7 +237,7 @@ function collectionItemFromRow(row: CollectionItemRow): CollectionItemRecord {
   };
 }
 
-function parseStoredRef(json: string, storedRefKey: string): Ref {
+export function parseStoredRef(json: string, storedRefKey: string): Ref {
   let parsed: Ref;
   try {
     parsed = JSON.parse(json) as Ref;

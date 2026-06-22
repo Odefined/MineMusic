@@ -7,6 +7,7 @@ import {
   type OwnerRelationEntryKind,
 } from "./owner_material_relation_ref.js";
 import { assertCollectionRef } from "./collection_ref.js";
+import { parseStoredRef } from "./collection_records.js";
 import { assertOwnerScope } from "./owner_scope.js";
 import { assertSourceLibraryRef } from "./source_library_ref.js";
 
@@ -566,9 +567,12 @@ export function createOwnerCatalogProjectionCommands(
     async resolveCollectionRefsForMaterial(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
       assertMaterialRef(commandInput.materialRef);
-      const rows = await input.db.all<{ collection_ref_json: string }>(
+      const rows = await input.db.all<{
+        collection_ref_key: string;
+        collection_ref_json: string;
+      }>(
         `
-          SELECT DISTINCT c.collection_ref_json
+          SELECT DISTINCT c.collection_ref_key, c.collection_ref_json
           FROM collections c
           JOIN collection_items i
             ON i.collection_ref_key = c.collection_ref_key
@@ -579,11 +583,10 @@ export function createOwnerCatalogProjectionCommands(
         `,
         [commandInput.ownerScope, refKey(commandInput.materialRef)],
       );
-      return rows.map((row) => {
-        const parsed = JSON.parse(row.collection_ref_json) as Ref;
-        assertCollectionRef(parsed);
-        return parsed;
-      });
+      // parseStoredRef round-trips the stored JSON AND asserts the parsed ref
+      // key matches the stored key — a malformed row throws and is recorded as
+      // a failed rebuild target, matching collection_records' own read contract.
+      return rows.map((row) => parseStoredRef(row.collection_ref_json, row.collection_ref_key));
     },
   };
 }

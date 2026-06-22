@@ -211,6 +211,18 @@ blind spot. Such Collections remain readable via `library.collection.get` (fact
 layer, not catalog). This is accepted as a catalog-side limitation, not a
 Collection-side limitation.
 
+> **Implementation note (24D scope):** the "remain readable via
+> `library.collection.get`" sentence is a future-facing semantic, not a Phase A
+> reachable path. The agent `create` input is `LibraryCollectionKind =
+> recording|album|artist|mixed` (no work/release), and every `get`/edit tool
+> resolves the collection via catalog scope availability, which the composition
+> root filters to catalog-visible kinds. So in Phase A an agent can neither
+> create nor address a work/release Collection; the only code paths that handle
+> work/release kinds are the command/projection layers, reachable by a future
+> second writer. Exposing them to the agent needs both (a) widening the create
+> kind and (b) resolving collection refs independently of catalog availability.
+> Tracked as a follow-up, not a v1 gap.
+
 ### D8. Cursor (read side) — [code-forced]
 
 Collection browse cursors follow the source_library/relation peers: the
