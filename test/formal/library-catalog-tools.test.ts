@@ -87,6 +87,11 @@ const catalog: LibraryCatalogReadPort = {
           return false;
         });
         }
+      case "collection":
+        // The Collection scope is exercised end-to-end by a dedicated DB-backed
+        // integration test (library-catalog-collection-scope.test.ts); this mock
+        // returns an empty set so the existing unit assertions are unaffected.
+        return [];
     }
   },
 };
@@ -119,6 +124,7 @@ const scopeAvailability: LibraryCatalogScopeAvailabilityPort = {
             targetKind: "album",
           },
         ],
+        collections: [],
       },
     };
   },
@@ -692,6 +698,7 @@ function fakeMusicDataPlatformModule(input: {
             value: {
               sourceLibraries: result.value.sourceLibraries,
               relations: result.value.relations,
+              collections: result.value.collections,
               providers: [
                 {
                   providerId: "netease",
@@ -711,6 +718,9 @@ function fakeMusicDataPlatformModule(input: {
       return input.materialProjection;
     },
     libraryRelation() {
+      return undefined;
+    },
+    libraryCollection() {
       return undefined;
     },
     handleMinting() {

@@ -143,6 +143,30 @@ export async function dispatchProjectionTarget(input: {
         materialRef: payload.materialRef,
       });
       return;
+    case "owner_catalog_collection":
+      await input.ownerCatalogProjectionCommands.rebuildCollectionEntries({
+        ownerScope: payload.ownerScope,
+        collectionRef: payload.collectionRef,
+      });
+      return;
+    case "owner_catalog_collection_material": {
+      // D6: a material lifecycle change dirties every collection that
+      // currently includes it; resolve the owning collections and rebuild each
+      // at scope level. resolveCollectionRefsForMaterial is owned by the
+      // producer so materialScopedTargets stays a pure (ownerScope, materialRef)
+      // function.
+      const owningCollections = await input.ownerCatalogProjectionCommands.resolveCollectionRefsForMaterial({
+        ownerScope: payload.ownerScope,
+        materialRef: payload.materialRef,
+      });
+      for (const collectionRef of owningCollections) {
+        await input.ownerCatalogProjectionCommands.rebuildCollectionEntries({
+          ownerScope: payload.ownerScope,
+          collectionRef,
+        });
+      }
+      return;
+    }
     case "material_text":
       await input.materialTextProjectionCommands.rebuildMaterialTextDocument({
         materialRef: payload.materialRef,
@@ -151,6 +175,18 @@ export async function dispatchProjectionTarget(input: {
         materialRef: payload.materialRef,
       });
       return;
+    default:
+      // A registered ProjectionMaintenanceKind without a rebuild case must fail
+      // loudly (ADR-0035): the runner catches this and marks the target
+      // `failed` rather than silently cleaning it. This keeps a dirty target
+      // visible (and re-dirtied on the next write) until its rebuild case lands,
+      // instead of masking staleness as a clean-without-work. The switch is
+      // exhaustive over the union so this branch is unreachable at the type
+      // level; it exists as a runtime guard against a future kind landing in
+      // the DB without a matching case here.
+      throw new Error(
+        "Unhandled projection maintenance target kind; no rebuild case is registered.",
+      );
   }
 }
 

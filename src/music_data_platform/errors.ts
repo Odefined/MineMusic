@@ -47,7 +47,14 @@ export type MusicDataPlatformErrorCode =
   | "music_data.material_not_found"
   | "music_data.source_not_found"
   | "music_data.canonical_not_found"
-  | "music_data.canonical_not_bindable";
+  | "music_data.canonical_not_bindable"
+  | "music_data.collection_ref_invalid"
+  | "music_data.collection_invalid"
+  | "music_data.collection_not_found"
+  | "music_data.collection_owner_scope_mismatch"
+  | "music_data.collection_kind_mismatch"
+  | "music_data.collection_name_taken"
+  | "music_data.collection_item_not_found";
 
 export type CreateMusicDataPlatformErrorInput = {
   code: MusicDataPlatformErrorCode;

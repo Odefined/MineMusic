@@ -142,6 +142,41 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
+    exportName: "libraryCollectionCreateInputSchema",
+    typeName: "LibraryCollectionCreateInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCollectionGetInputSchema",
+    typeName: "LibraryCollectionGetInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCollectionRenameInputSchema",
+    typeName: "LibraryCollectionRenameInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCollectionItemInputSchema",
+    typeName: "LibraryCollectionItemInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCollectionMoveInputSchema",
+    typeName: "LibraryCollectionMoveInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCollectionDeleteInputSchema",
+    typeName: "LibraryCollectionDeleteInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryCollectionStateOutputSchema",
+    typeName: "LibraryCollectionStateOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
     exportName: "musicDiscoveryLookupOutputSchema",
     typeName: "MusicDiscoveryLookupOutput",
     sourcePath: "src/contracts/stage_interface.ts",

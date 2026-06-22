@@ -895,6 +895,16 @@ restored as compatibility layers.
 - `docs/formal-rebuild/phase-23-library-catalog-tools-implementation-plan.md`
   records the implemented Phase 23 Library Catalog tool surface over the owner
   catalog projection.
+- `docs/formal-rebuild/phase-24-collection-foundation.md` is the Phase 24
+  planning and decision record for the formal Collection (D1-D9 decisions and
+  invariants); slices 24A/24B/24C/24D are implemented and Slice 5 (per-area OCC
+  + Web) is deferred to Phase B/C.
+- `docs/formal-rebuild/phase-24-collection-foundation-implementation-plan.md`
+  records the implemented Phase 24 execution plan split into PR 24A Collection
+  fact table + write boundary, PR 24B projection producer, PR 24C
+  `library.catalog { kind:"collection" }` read scope, and PR 24D
+  `library.collection.*` agent tools; PR24A, PR24B, PR24C, and PR24D are
+  implemented in this tree.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
@@ -925,9 +935,11 @@ Current formal state does not implement:
 - HTTP transport (MCP-over-stdio shipped in Phase 20; HTTP/CLI/Web UI remain);
 - public Stage Interface localize tool surface;
 - presentation history beyond the immediate `music.experience.present` output;
-- update baselines, collection, additional owner catalog producers,
-  wrong-version, not-playable, bad-match, feedback/correction facts, signals,
-  or recording-to-work relation workflows;
+- update baselines, the Collection per-area Agent Work Basis OCC + Web surface
+  (Phase 24 Slice 5; the Collection fact table, projection, catalog scope, and
+  `library.collection.*` tools are implemented), additional owner catalog
+  producers, wrong-version, not-playable, bad-match, feedback/correction facts,
+  signals, or recording-to-work relation workflows;
 - advanced scheduler wake/backoff policy, multi-worker coordination, or
   synchronous import-path projection refresh;
 - recommendation, radio, memory, or effect runtime behavior;

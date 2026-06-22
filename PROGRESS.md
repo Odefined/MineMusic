@@ -1337,6 +1337,70 @@ MineMusic owner catalog projection:
   sampling, summary time bands, kind-separated concentration counts,
   library-only membership signals, and server module registration.
 
+## 2026-06-22: Phase 24 Collection Foundation
+
+Phase 24 builds the only owner-scoped Music Data Platform write capability that
+was not yet implemented: the narrow formal Collection — a user-named organizing
+container over materials. Slices 1-4 are implemented; Slice 5 (per-area Agent
+Work Basis OCC + Web) remains deferred to Phase B/C.
+
+- `collections` and `collection_items` are owner-scoped soft-remove fact tables
+  (D5: `status` active|removed, partial-unique `WHERE status='active'` so
+  re-adding a removed item flips it back to active); `material_ref_key` is
+  immutable post-admission (Invariant 1); block does not remove membership
+  (Invariant 2). The 5-file writer (schema/ref/records/commands/service) writes
+  only through `runSourceOfTruthWrite`.
+- Projection Maintenance grows two Collection kinds:
+  `owner_catalog_collection` (scope-level, dirtied by every Collection write)
+  and `owner_catalog_collection_material` (material-scoped, wired to
+  `material_record_written` so a material lifecycle change rebuilds every
+  Collection it belongs to).
+- `library.catalog { kind:"collection" }` is a read-only catalog scope variant:
+  browse/sample/summary/list_scopes address a Collection by its catalog scope
+  handle with position-ordered rows (D4 overrides the recently_added baseline);
+  work/release Collections are catalog-invisible (D7) and never reach the
+  catalog scope list.
+- `library.collection.*` adds the seven agent edit tools (get/create/rename/add/
+  remove/move/delete) over the fact table, behind the D9 Public Handle Veil
+  (opaque scope handle, minted library item handles; no collectionRef /
+  materialRef / position leak). The six durable-write tools carry a
+  `collectionDrivenByUserRequest` Effect Boundary auto-pass flag; `get` is
+  read-only.
+- `collection_ref` / `collectionRefKey` join the Public Handle Veil denylist.
+- Focused tests cover the fact-table behavior (D2/D3/D4/D5), both projection
+  kinds, the catalog collection scope (position / single / mixed / D7 invisible),
+  the agent edit loop with exact-key-set veil + descriptor/gate contract +
+  never-member remove + kind_mismatch, schema generation, active-tree guards,
+  the server-entrypoint (25 tools), and server-host module wiring.
+
+### Phase 24 Audit Hardening (2026-06-22)
+
+A `/code-auditor` review of the Phase 24 diff surfaced two High and five Medium
+findings; all were fixed in one pass and re-verified (`typecheck` EXIT 0, full
+stage-core suite EXIT 0):
+
+- H1: soft-deleted Collection no longer holds its name. `collections_active_name_idx`
+  is a partial-unique index `WHERE status='active'`, and `getCollectionByName`
+  filters active, so deleting a Collection releases its name for reuse (mirrors
+  the `collection_items` active-membership index). A delete→recreate-same-name
+  regression test was added.
+- H2: a scope-availability read failure now surfaces as the declared
+  `scope_availability_failed` code (not `collection_not_found`), aligning
+  `library.collection.*` with the `library.catalog.*` precedent.
+- M1: `require*Record` (pre-check, declared not-found) is split from
+  `assert*Returned` (write-after re-read, plain `throw`) so broken invariants
+  fail loudly instead of becoming retryable agent errors.
+- M3 / L1: `moveCollectionItem` and `addCollectionItem` are now single set-based
+  statements (`UPDATE...FROM (VALUES)`; `INSERT...SELECT COALESCE(MAX(position),0)+1`
+  scoped to `status='active'`), per ARCHITECTURE's set-maintenance preference.
+- M4 / M5: shared helpers `stage_adapter/library_handle_resolution.ts` and
+  `material_records_read.ts` replace duplicated handle-resolution / material-
+  lifecycle code across the collection and relation editors/commands.
+- L2 / L3 / L4: GET descriptor errors narrowed; default error throw keeps
+  `cause`; `parseStoredRef` adapts `JSON.parse`.
+- M2: spec D9 tightened — idempotent `remove` is for an already-soft-removed
+  member; a never-member surfaces as `item_not_found`.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -1350,8 +1414,8 @@ in scope. Known later areas include:
   plugin;
 - Server Host transports and richer Stage Core runtime composition after area
   boundaries stabilize;
-- Music Data Platform Collection writes and later owner catalog producers such
-  as signals/problem facts;
+- Music Data Platform owner catalog producers beyond Collection (Collection
+  writes themselves landed in Phase 24), such as signals/problem facts;
 - Library Update baselines;
 - canonical maintenance workflow;
 - Music Intelligence Knowledge;

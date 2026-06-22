@@ -230,6 +230,25 @@ export const musicScopeSchema = {
             "id"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "collection",
+              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
         }
       ]
     },
@@ -686,6 +705,25 @@ export const musicDiscoveryLookupInputSchema = {
             "id"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "collection",
+              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
         }
       ]
     },
@@ -761,6 +799,29 @@ export const musicDiscoveryLookupInputSchema = {
               "type": "string",
               "const": "relation",
               "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "collection",
+              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
             },
             "id": {
               "type": "string",
@@ -941,6 +1002,29 @@ export const musicListScopesOutputSchema = {
             "description": {
               "$ref": "#/definitions/MusicScopeDescription"
             },
+            "kind": {
+              "type": "string",
+              "const": "collection",
+              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
             "targetKinds": {
               "$ref": "#/definitions/NonEmptyMusicTargetKinds"
             },
@@ -1015,7 +1099,8 @@ export const libraryCatalogListScopesInputSchema = {
       "enum": [
         "library",
         "source_library",
-        "relation"
+        "relation",
+        "collection"
       ]
     }
   }
@@ -1090,6 +1175,29 @@ export const libraryCatalogListScopesOutputSchema = {
               "type": "string",
               "const": "relation",
               "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "collection",
+              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
             },
             "id": {
               "type": "string",
@@ -1219,6 +1327,25 @@ export const libraryCatalogBrowseInputSchema = {
             "id"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "collection",
+              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
         }
       ]
     },
@@ -1275,6 +1402,29 @@ export const libraryCatalogBrowseInputSchema = {
               "type": "string",
               "const": "relation",
               "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "collection",
+              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
             },
             "id": {
               "type": "string",
@@ -1477,6 +1627,25 @@ export const libraryCatalogSampleInputSchema = {
             "id"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "collection",
+              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
         }
       ]
     },
@@ -1533,6 +1702,29 @@ export const libraryCatalogSampleInputSchema = {
               "type": "string",
               "const": "relation",
               "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "collection",
+              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
             },
             "id": {
               "type": "string",
@@ -1720,6 +1912,25 @@ export const libraryCatalogSummaryInputSchema = {
             "id"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "collection",
+              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
         }
       ]
     },
@@ -1776,6 +1987,29 @@ export const libraryCatalogSummaryInputSchema = {
               "type": "string",
               "const": "relation",
               "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "collection",
+              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
             },
             "id": {
               "type": "string",
@@ -2007,6 +2241,29 @@ export const libraryCatalogSummaryOutputSchema = {
                   "type": "string",
                   "const": "relation",
                   "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "description",
+                "id",
+                "kind"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "$ref": "#/definitions/MusicScopeDescription"
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "collection",
+                  "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
                 },
                 "id": {
                   "type": "string",
@@ -2529,6 +2786,391 @@ export const libraryRelationStateOutputSchema = {
         "saved",
         "favorite",
         "blocked"
+      ],
+      "additionalProperties": false
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCollectionCreateInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "collectionKind": {
+      "$ref": "#/definitions/LibraryCollectionKind"
+    },
+    "name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "collectionKind",
+    "name"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCollectionKind": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        {
+          "type": "string",
+          "const": "mixed"
+        }
+      ]
+    },
+    "MusicTargetKind": {
+      "type": "string",
+      "enum": [
+        "recording",
+        "album",
+        "artist"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCollectionGetInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "collection": {
+      "$ref": "#/definitions/LibraryCollectionScopeHandle"
+    }
+  },
+  "required": [
+    "collection"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCollectionScopeHandle": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "collection",
+          "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
+        },
+        "id": {
+          "type": "string",
+          "description": "Opaque scope id from list_scopes; pass it back unchanged."
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCollectionRenameInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "collection": {
+      "$ref": "#/definitions/LibraryCollectionScopeHandle"
+    },
+    "name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "collection",
+    "name"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCollectionScopeHandle": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "collection",
+          "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
+        },
+        "id": {
+          "type": "string",
+          "description": "Opaque scope id from list_scopes; pass it back unchanged."
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCollectionItemInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "collection": {
+      "$ref": "#/definitions/LibraryCollectionScopeHandle"
+    },
+    "item": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "library",
+          "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+        },
+        "id": {
+          "type": "string",
+          "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "collection",
+    "item"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCollectionScopeHandle": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "collection",
+          "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
+        },
+        "id": {
+          "type": "string",
+          "description": "Opaque scope id from list_scopes; pass it back unchanged."
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCollectionMoveInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "collection": {
+      "$ref": "#/definitions/LibraryCollectionScopeHandle"
+    },
+    "item": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "library",
+          "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+        },
+        "id": {
+          "type": "string",
+          "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "toPosition": {
+      "type": "number",
+      "description": "1-based target position; the writer rebalances to consecutive integers (D4)."
+    }
+  },
+  "required": [
+    "collection",
+    "item",
+    "toPosition"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCollectionScopeHandle": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "collection",
+          "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
+        },
+        "id": {
+          "type": "string",
+          "description": "Opaque scope id from list_scopes; pass it back unchanged."
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCollectionDeleteInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "collection": {
+      "$ref": "#/definitions/LibraryCollectionScopeHandle"
+    }
+  },
+  "required": [
+    "collection"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCollectionScopeHandle": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "collection",
+          "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
+        },
+        "id": {
+          "type": "string",
+          "description": "Opaque scope id from list_scopes; pass it back unchanged."
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryCollectionStateOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "collection": {
+      "$ref": "#/definitions/LibraryCollectionState"
+    }
+  },
+  "required": [
+    "collection"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "LibraryCollectionState": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "$ref": "#/definitions/LibraryCollectionScopeHandle"
+            },
+            "name": {
+              "type": "string"
+            },
+            "collectionKind": {
+              "$ref": "#/definitions/LibraryCollectionKind"
+            },
+            "itemCount": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "scope",
+            "name",
+            "collectionKind",
+            "itemCount"
+          ],
+          "additionalProperties": false
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LibraryCollectionStateItem"
+          }
+        }
+      },
+      "required": [
+        "collection",
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryCollectionScopeHandle": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "collection",
+          "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
+        },
+        "id": {
+          "type": "string",
+          "description": "Opaque scope id from list_scopes; pass it back unchanged."
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryCollectionKind": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        {
+          "type": "string",
+          "const": "mixed"
+        }
+      ]
+    },
+    "MusicTargetKind": {
+      "type": "string",
+      "enum": [
+        "recording",
+        "album",
+        "artist"
+      ]
+    },
+    "LibraryCollectionStateItem": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library",
+              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+            },
+            "id": {
+              "type": "string",
+              "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "item"
       ],
       "additionalProperties": false
     }

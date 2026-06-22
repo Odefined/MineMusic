@@ -39,6 +39,7 @@ export type ToolInvocationPolicy = {
   admissionDrivenByPresentation?: boolean;
   intakeDrivenByUserRequest?: boolean;
   ownerRelationDrivenByUserRequest?: boolean;
+  collectionDrivenByUserRequest?: boolean;
   maxCallsPerTurn?: number;
 };
 
@@ -205,6 +206,12 @@ export type PublicDisplayLink = {
 
 export type MusicTargetKind = "recording" | "album" | "artist";
 
+// Catalog-visible collection kinds an agent may create/address: any single
+// catalog target kind, or "mixed". Work/release collections are catalog-
+// invisible (D7) and carry no agent scope id, so they are not agent-addressable
+// in 24D. This is the agent-facing subset of the domain CollectionKind.
+export type LibraryCollectionKind = MusicTargetKind | "mixed";
+
 export type MusicAvailability =
   | "playable"
   | "restricted"
@@ -255,6 +262,12 @@ export type MusicLibraryScopeHandle =
     kind: "relation";
     /** Opaque scope id from list_scopes; pass it back unchanged. */
     id: string;
+  }
+  | {
+    /** "collection": a durable user-named Collection scope (opaque id from list_scopes). */
+    kind: "collection";
+    /** Opaque scope id from list_scopes; pass it back unchanged. */
+    id: string;
   };
 
 export type MusicProviderScopeHandle = {
@@ -300,17 +313,20 @@ export type MusicListScopesOutput = {
 export type LibraryCatalogScopeKind =
   | "library"
   | "source_library"
-  | "relation";
+  | "relation"
+  | "collection";
 
 export type LibraryCatalogScope =
   | { kind: "library" }
   | Extract<MusicLibraryScopeHandle, { kind: "source_library" }>
-  | Extract<MusicLibraryScopeHandle, { kind: "relation" }>;
+  | Extract<MusicLibraryScopeHandle, { kind: "relation" }>
+  | Extract<MusicLibraryScopeHandle, { kind: "collection" }>;
 
 export type ListedLibraryCatalogScope =
   | ({ kind: "library"; description: MusicScopeDescription })
   | (Extract<MusicLibraryScopeHandle, { kind: "source_library" }> & { description: MusicScopeDescription })
-  | (Extract<MusicLibraryScopeHandle, { kind: "relation" }> & { description: MusicScopeDescription });
+  | (Extract<MusicLibraryScopeHandle, { kind: "relation" }> & { description: MusicScopeDescription })
+  | (Extract<MusicLibraryScopeHandle, { kind: "collection" }> & { description: MusicScopeDescription });
 
 export type LibraryCatalogListScopesInput = {
   /** Optional filter: return only catalog-usable scopes of this kind. Omit for all catalog scopes. */
@@ -501,6 +517,61 @@ export type LibraryRelationState = {
 export type LibraryRelationStateOutput = {
   /** Current relation state for the item. */
   relations: LibraryRelationState;
+};
+
+// library.collection.* — a Collection is addressed by its catalog scope handle
+// ({ kind:"collection", id } from library.catalog.list_scopes). Item-targeting
+// tools (add/remove/move) take a library item handle. State output veils
+// collectionRef/materialRef/position (D9): the scope handle is opaque, items
+// carry minted library handles, and order is conveyed by list position.
+export type LibraryCollectionScopeHandle = Extract<MusicLibraryScopeHandle, { kind: "collection" }>;
+
+export type LibraryCollectionCreateInput = {
+  collectionKind: LibraryCollectionKind;
+  name: string;
+};
+
+export type LibraryCollectionGetInput = {
+  collection: LibraryCollectionScopeHandle;
+};
+
+export type LibraryCollectionRenameInput = {
+  collection: LibraryCollectionScopeHandle;
+  name: string;
+};
+
+export type LibraryCollectionItemInput = {
+  collection: LibraryCollectionScopeHandle;
+  item: Extract<MusicItemHandle, { kind: "library" }>;
+};
+
+export type LibraryCollectionMoveInput = {
+  collection: LibraryCollectionScopeHandle;
+  item: Extract<MusicItemHandle, { kind: "library" }>;
+  /** 1-based target position; the writer rebalances to consecutive integers (D4). */
+  toPosition: number;
+};
+
+export type LibraryCollectionDeleteInput = {
+  collection: LibraryCollectionScopeHandle;
+};
+
+export type LibraryCollectionStateItem = {
+  item: Extract<MusicItemHandle, { kind: "library" }>;
+};
+
+export type LibraryCollectionState = {
+  collection: {
+    scope: LibraryCollectionScopeHandle;
+    name: string;
+    collectionKind: LibraryCollectionKind;
+    itemCount: number;
+  };
+  items: readonly LibraryCollectionStateItem[];
+};
+
+export type LibraryCollectionStateOutput = {
+  collection: LibraryCollectionState;
 };
 
 export type MusicDiscoveryLookupInput =

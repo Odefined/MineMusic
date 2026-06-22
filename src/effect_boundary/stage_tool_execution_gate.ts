@@ -126,6 +126,18 @@ function decide(
     };
   }
 
+  if (
+    descriptor.invocationPolicy.defaultDecision === "auto" &&
+    descriptor.sideEffect.durableUserStateWrite === true &&
+    descriptor.invocationPolicy.collectionDrivenByUserRequest === true
+  ) {
+    return {
+      decision: "allow",
+      auditLevel: "metadata",
+      internalReason: "auto owner-scoped collection edit",
+    };
+  }
+
   return {
     decision: "ask",
     auditLevel: "metadata",

@@ -16,6 +16,7 @@ export {
   emptyMusicScopeAvailabilitySnapshot,
 } from "./scope_availability.js";
 export type {
+  MusicCollectionScopeAvailability,
   MusicProviderScopeAvailability,
   MusicRelationScopeAvailability,
   MusicScopeAvailabilityPort,

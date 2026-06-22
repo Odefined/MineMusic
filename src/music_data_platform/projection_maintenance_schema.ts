@@ -19,6 +19,8 @@ export const musicDataPlatformProjectionMaintenanceSchema: MusicDatabaseSchemaCo
           'owner_catalog_source_library',
           'owner_catalog_source_library_material',
           'owner_catalog_relation_material',
+          'owner_catalog_collection',
+          'owner_catalog_collection_material',
           'material_text'
         )),
         CHECK (status IN ('dirty', 'failed')),

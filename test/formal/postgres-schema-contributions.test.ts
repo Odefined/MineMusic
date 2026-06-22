@@ -3,6 +3,7 @@ import { musicDataPlatformIdentitySchema, } from "../../src/music_data_platform/
 import { musicDataPlatformMaterialTextProjectionSchema, } from "../../src/music_data_platform/material_text_projection_schema.js";
 import { musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, } from "../../src/music_data_platform/owner_catalog_schema.js";
 import { musicDataPlatformOwnerRelationSchema, } from "../../src/music_data_platform/owner_material_relation_schema.js";
+import { musicDataPlatformCollectionSchema, } from "../../src/music_data_platform/collection_schema.js";
 import { musicDataPlatformProjectionMaintenanceSchema, } from "../../src/music_data_platform/projection_maintenance_schema.js";
 import { musicDataPlatformRetrievalResultSetSchema, } from "../../src/music_data_platform/retrieval_result_set_schema.js";
 import { musicDataPlatformSearchMetadataProjectionSchema, } from "../../src/music_data_platform/search_metadata_projection_schema.js";
@@ -21,6 +22,7 @@ await database.initialize({
         musicDataPlatformSourceLibrarySchema,
         musicDataPlatformOwnerCatalogEntriesSchema,
         musicDataPlatformOwnerRelationSchema,
+        musicDataPlatformCollectionSchema,
         musicDataPlatformOwnerCatalogViewSchema,
         musicDataPlatformMaterialTextProjectionSchema,
         musicDataPlatformSearchMetadataProjectionSchema,
@@ -87,5 +89,27 @@ const ownerCatalogView = await context.get<{
 `);
 if (ownerCatalogView === undefined) {
     throw new Error("owner_material_catalog_view was not initialized");
+}
+const collectionsTable = await context.get<{
+    table_name: string;
+}>(`
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name = 'collections'
+`);
+if (collectionsTable === undefined) {
+    throw new Error("collections table was not initialized");
+}
+const collectionItemsTable = await context.get<{
+    table_name: string;
+}>(`
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name = 'collection_items'
+`);
+if (collectionItemsTable === undefined) {
+    throw new Error("collection_items table was not initialized");
 }
 await database.close();

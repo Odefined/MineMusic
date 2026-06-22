@@ -6,6 +6,8 @@ import {
   createOwnerRelationPoolRef,
   type OwnerRelationEntryKind,
 } from "./owner_material_relation_ref.js";
+import { assertCollectionRef } from "./collection_ref.js";
+import { parseStoredRef } from "./collection_records.js";
 import { assertOwnerScope } from "./owner_scope.js";
 import { assertSourceLibraryRef } from "./source_library_ref.js";
 
@@ -41,6 +43,22 @@ export type OwnerRelationEntryProjectionSummary = {
   obsoleteEntryDeleteCount: number;
 };
 
+export type RebuildCollectionEntriesInput = {
+  ownerScope: string;
+  collectionRef: Ref;
+};
+
+export type ResolveCollectionRefsForMaterialInput = {
+  ownerScope: string;
+  materialRef: Ref;
+};
+
+export type CollectionEntryProjectionSummary = {
+  collectionItemCount: number;
+  projectedEntryCount: number;
+  obsoleteEntryDeleteCount: number;
+};
+
 export type OwnerCatalogProjectionCommands = {
   rebuildSourceLibraryEntriesForLibrary(
     input: RebuildSourceLibraryEntriesForLibraryInput,
@@ -51,6 +69,16 @@ export type OwnerCatalogProjectionCommands = {
   rebuildOwnerRelationEntries(
     input: RebuildOwnerRelationEntriesInput,
   ): Promise<OwnerRelationEntryProjectionSummary>;
+  rebuildCollectionEntries(
+    input: RebuildCollectionEntriesInput,
+  ): Promise<CollectionEntryProjectionSummary>;
+  // Resolves the collection refs whose active membership currently includes a
+  // material, so the material-scoped projection dispatch can rebuild each
+  // owning collection (plan: the resolution belongs in the producer, keeping
+  // materialScopedTargets a pure function of (ownerScope, materialRef)).
+  resolveCollectionRefsForMaterial(
+    input: ResolveCollectionRefsForMaterialInput,
+  ): Promise<readonly Ref[]>;
 };
 
 type SourceLibraryScopeRow = {
@@ -411,6 +439,155 @@ export function createOwnerCatalogProjectionCommands(
         obsoleteEntryDeleteCount,
       };
     },
+    async rebuildCollectionEntries(commandInput) {
+      assertOwnerScope(commandInput.ownerScope);
+      assertCollectionRef(commandInput.collectionRef);
+      const collectionRefKey = refKey(commandInput.collectionRef);
+
+      const collectionScope = await input.db.get<{ owner_scope: string }>(
+        `
+          SELECT owner_scope
+          FROM collections
+          WHERE collection_ref_key = ?
+        `,
+        [collectionRefKey],
+      );
+      if (collectionScope === undefined) {
+        throw new MusicDataPlatformError({
+          code: "music_data.collection_not_found",
+          message: "Cannot rebuild owner catalog entries for a missing collection.",
+        });
+      }
+      if (collectionScope.owner_scope !== commandInput.ownerScope) {
+        throw new MusicDataPlatformError({
+          code: "music_data.collection_owner_scope_mismatch",
+          message: "Collection owner scope did not match the rebuild request.",
+        });
+      }
+
+      const collectionItemCount = await countActiveCollectionItems(input.db, collectionRefKey);
+
+      // INSERT...SELECT: one owner_material_entries row per active member whose
+      // material is lifecycle-active. Removed collections / removed members /
+      // inactive materials are filtered out, so a rebuild after any of those
+      // naturally drops the entry via the obsolete DELETE below.
+      await input.db.run(
+        `
+          INSERT INTO owner_material_entries (
+            entry_key,
+            owner_scope,
+            entry_kind,
+            entry_ref_key,
+            material_ref_key,
+            visibility_role,
+            active,
+            provenance_json,
+            created_at,
+            updated_at
+          )
+          SELECT
+            'ome_' || md5(
+              c.owner_scope || '|' || 'collection' || '|' ||
+              c.collection_ref_key || '|' || i.material_ref_key
+            ) AS entry_key,
+            c.owner_scope,
+            'collection' AS entry_kind,
+            c.collection_ref_key AS entry_ref_key,
+            i.material_ref_key,
+            'positive' AS visibility_role,
+            1 AS active,
+            jsonb_build_object(
+              'kind', 'collection',
+              'collectionRefKey', c.collection_ref_key,
+              'collectionName', c.name,
+              'collectionKind', c.collection_kind,
+              'lastCollectionUpdatedAt', MAX(i.updated_at)
+            )::text AS provenance_json,
+            ? AS created_at,
+            ? AS updated_at
+          FROM collection_items i
+          JOIN collections c
+            ON c.collection_ref_key = i.collection_ref_key
+          JOIN material_records m
+            ON m.ref_key = i.material_ref_key
+          WHERE c.collection_ref_key = ?
+            AND c.owner_scope = ?
+            AND c.status = 'active'
+            AND i.status = 'active'
+            AND m.lifecycle_status = 'active'
+          GROUP BY c.owner_scope, c.collection_ref_key, i.material_ref_key, c.name, c.collection_kind
+          ON CONFLICT(owner_scope, entry_kind, entry_ref_key, material_ref_key) DO UPDATE SET
+            visibility_role = excluded.visibility_role,
+            active = excluded.active,
+            provenance_json = excluded.provenance_json,
+            updated_at = excluded.updated_at
+        `,
+        [input.now, input.now, collectionRefKey, commandInput.ownerScope],
+      );
+
+      const obsoleteEntryDeleteCount = await countObsoleteCollectionEntries(
+        input.db,
+        commandInput.ownerScope,
+        collectionRefKey,
+      );
+
+      await input.db.run(
+        `
+          DELETE FROM owner_material_entries
+          WHERE owner_scope = ?
+            AND entry_kind = 'collection'
+            AND entry_ref_key = ?
+            AND NOT EXISTS (
+              SELECT 1
+              FROM collection_items i
+              JOIN collections c
+                ON c.collection_ref_key = i.collection_ref_key
+              JOIN material_records m
+                ON m.ref_key = i.material_ref_key
+              WHERE i.collection_ref_key = ?
+                AND c.status = 'active'
+                AND i.status = 'active'
+                AND m.lifecycle_status = 'active'
+                AND i.material_ref_key = owner_material_entries.material_ref_key
+            )
+        `,
+        [commandInput.ownerScope, collectionRefKey, collectionRefKey],
+      );
+
+      return {
+        collectionItemCount,
+        projectedEntryCount: await countProjectedCollectionEntries(
+          input.db,
+          commandInput.ownerScope,
+          collectionRefKey,
+        ),
+        obsoleteEntryDeleteCount,
+      };
+    },
+    async resolveCollectionRefsForMaterial(commandInput) {
+      assertOwnerScope(commandInput.ownerScope);
+      assertMaterialRef(commandInput.materialRef);
+      const rows = await input.db.all<{
+        collection_ref_key: string;
+        collection_ref_json: string;
+      }>(
+        `
+          SELECT DISTINCT c.collection_ref_key, c.collection_ref_json
+          FROM collections c
+          JOIN collection_items i
+            ON i.collection_ref_key = c.collection_ref_key
+          WHERE c.owner_scope = ?
+            AND c.status = 'active'
+            AND i.status = 'active'
+            AND i.material_ref_key = ?
+        `,
+        [commandInput.ownerScope, refKey(commandInput.materialRef)],
+      );
+      // parseStoredRef round-trips the stored JSON AND asserts the parsed ref
+      // key matches the stored key — a malformed row throws and is recorded as
+      // a failed rebuild target, matching collection_records' own read contract.
+      return rows.map((row) => parseStoredRef(row.collection_ref_json, row.collection_ref_key));
+    },
   };
 }
 
@@ -663,5 +840,72 @@ async function countProjectedOwnerRelationEntries(
       ...selectedPoolRefKeys,
       materialRefKey,
     ],
+  ))?.count ?? 0);
+}
+
+async function countActiveCollectionItems(
+  db: MusicDatabaseTransactionContext,
+  collectionRefKey: string,
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM collection_items i
+      JOIN material_records m
+        ON m.ref_key = i.material_ref_key
+      WHERE i.collection_ref_key = ?
+        AND i.status = 'active'
+        AND m.lifecycle_status = 'active'
+    `,
+    [collectionRefKey],
+  ))?.count ?? 0);
+}
+
+async function countObsoleteCollectionEntries(
+  db: MusicDatabaseTransactionContext,
+  ownerScope: string,
+  collectionRefKey: string,
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM owner_material_entries
+      WHERE owner_scope = ?
+        AND entry_kind = 'collection'
+        AND entry_ref_key = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM collection_items i
+          JOIN collections c
+            ON c.collection_ref_key = i.collection_ref_key
+          JOIN material_records m
+            ON m.ref_key = i.material_ref_key
+          WHERE i.collection_ref_key = ?
+            AND c.status = 'active'
+            AND i.status = 'active'
+            AND m.lifecycle_status = 'active'
+            AND i.material_ref_key = owner_material_entries.material_ref_key
+        )
+    `,
+    [ownerScope, collectionRefKey, collectionRefKey],
+  ))?.count ?? 0);
+}
+
+async function countProjectedCollectionEntries(
+  db: MusicDatabaseTransactionContext,
+  ownerScope: string,
+  collectionRefKey: string,
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM owner_material_entries
+      WHERE owner_scope = ?
+        AND entry_kind = 'collection'
+        AND entry_ref_key = ?
+        AND active = 1
+        AND visibility_role = 'positive'
+    `,
+    [ownerScope, collectionRefKey],
   ))?.count ?? 0);
 }

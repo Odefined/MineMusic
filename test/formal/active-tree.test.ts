@@ -118,6 +118,7 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/server")))
     "src/server/host.ts",
     "src/server/index.ts",
     "src/server/library_catalog_runtime_module.ts",
+    "src/server/library_collection_runtime_module.ts",
     "src/server/library_import_runtime_module.ts",
     "src/server/library_relation_runtime_module.ts",
     "src/server/mcp_stdio_entrypoint.ts",
@@ -140,6 +141,11 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_data_pl
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
     "src/music_data_platform/candidate_commit_command.ts",
+    "src/music_data_platform/collection_commands.ts",
+    "src/music_data_platform/collection_records.ts",
+    "src/music_data_platform/collection_ref.ts",
+    "src/music_data_platform/collection_schema.ts",
+    "src/music_data_platform/collection_service.ts",
     "src/music_data_platform/download_commands.ts",
     "src/music_data_platform/download_file_writer.ts",
     "src/music_data_platform/download_records.ts",
@@ -160,6 +166,7 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_data_pl
     "src/music_data_platform/localize_provider_source_job.ts",
     "src/music_data_platform/material_candidate_ref.ts",
     "src/music_data_platform/material_projection.ts",
+    "src/music_data_platform/material_records_read.ts",
     "src/music_data_platform/material_ref.ts",
     "src/music_data_platform/material_ref_factory.ts",
     "src/music_data_platform/material_text_normalization.ts",
@@ -201,8 +208,11 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_data_pl
     "src/music_data_platform/source_library_schema.ts",
     "src/music_data_platform/source_of_truth_write_commands.ts",
     "src/music_data_platform/stage_adapter/catalog.ts",
+    "src/music_data_platform/stage_adapter/collection_edit.ts",
+    "src/music_data_platform/stage_adapter/collection_scope.ts",
     "src/music_data_platform/stage_adapter/import_control.ts",
     "src/music_data_platform/stage_adapter/index.ts",
+    "src/music_data_platform/stage_adapter/library_handle_resolution.ts",
     "src/music_data_platform/stage_adapter/list_sources.ts",
     "src/music_data_platform/stage_adapter/relation_edit.ts",
     "src/music_data_platform/stage_adapter/source_library_scope.ts",
@@ -649,6 +659,8 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intell
         "createSourceLibrary",
         "createOwnerCatalog",
         "createOwnerMaterialRelation",
+        "createCollectionCommands",
+        "createLibraryCollectionService",
         "createMaterialText",
         "createProjectionMaintenance",
         "createRetrievalResultSetRecords",
@@ -659,6 +671,7 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intell
         "OwnerMaterialEntryRecord",
         "MaterialTextDocumentRecord",
         "ProjectionMaintenanceTargetRecord",
+        "CollectionRecord",
     ]) {
         if (text.includes(forbiddenMdpSymbol)) {
             musicIntelligenceImportFailures.push(`${relativeFile} mentions forbidden Music Data Platform symbol '${forbiddenMdpSymbol}'`);
@@ -767,10 +780,13 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_experi
         "createSourceLibrary",
         "createOwnerCatalog",
         "createOwnerMaterialRelation",
+        "createCollectionCommands",
+        "createLibraryCollectionService",
         "createMaterialText",
         "createProjectionMaintenance",
         "createRetrievalResultSetRecords",
         "createMusicDataPlatformSourceOfTruthWriteCommands",
+        "CollectionRecord",
     ]) {
         if (text.includes(forbiddenMdpSymbol)) {
             musicExperienceImportFailures.push(`${relativeFile} mentions forbidden Music Data Platform symbol '${forbiddenMdpSymbol}'`);
@@ -828,6 +844,7 @@ for (const forbiddenBarrelExport of [
     "createIdentityWriteCommands",
     "createSourceLibraryCommands",
     "createOwnerMaterialRelationCommands",
+    "createCollectionCommands",
     "createRetrievalResultSetRecords",
 ]) {
     assert.equal(musicDataPlatformBarrelText.includes(forbiddenBarrelExport), false, `Music Data Platform public barrel must not expose low-level persistence helper '${forbiddenBarrelExport}'`);
@@ -862,6 +879,7 @@ const lowLevelWriteFactoryAllowedFiles = new Set([
     "src/music_data_platform/identity_write_model.ts",
     "src/music_data_platform/source_library_commands.ts",
     "src/music_data_platform/owner_material_relation_commands.ts",
+    "src/music_data_platform/collection_commands.ts",
     "src/music_data_platform/source_of_truth_write_commands.ts",
 ]);
 const lowLevelWriteFactoryFailures: string[] = [];
@@ -872,6 +890,7 @@ for (const file of activeFiles) {
         "createIdentityWriteCommands(",
         "createSourceLibraryCommands(",
         "createOwnerMaterialRelationCommands(",
+        "createCollectionCommands(",
     ]) {
         if (text.includes(factoryCall) &&
             !lowLevelWriteFactoryAllowedFiles.has(relativeFile)) {
@@ -884,6 +903,7 @@ const projectionInvalidationCallAllowedFiles = new Set([
     "src/music_data_platform/identity_write_model.ts",
     "src/music_data_platform/source_library_commands.ts",
     "src/music_data_platform/owner_material_relation_commands.ts",
+    "src/music_data_platform/collection_commands.ts",
     "src/music_data_platform/source_of_truth_write_commands.ts",
 ]);
 const projectionInvalidationCallFailures: string[] = [];
@@ -918,6 +938,7 @@ for (const file of activeFiles) {
         ".rebuildSourceLibraryEntriesForLibrary(",
         ".rebuildSourceLibraryEntriesForMaterial(",
         ".rebuildOwnerRelationEntries(",
+        ".rebuildCollectionEntries(",
         ".rebuildMaterialTextDocument(",
         ".rebuildMaterialTextDocuments(",
         ".rebuildSearchMetadataDocument(",
@@ -958,6 +979,8 @@ const directWriteAllowedFiles = new Set([
     "src/music_data_platform/owner_catalog_schema.ts",
     "src/music_data_platform/owner_material_relation_commands.ts",
     "src/music_data_platform/owner_material_relation_schema.ts",
+    "src/music_data_platform/collection_commands.ts",
+    "src/music_data_platform/collection_schema.ts",
     "src/music_data_platform/projection_maintenance_commands.ts",
     "src/music_data_platform/projection_maintenance_schema.ts",
     "src/music_data_platform/retrieval_result_set_records.ts",

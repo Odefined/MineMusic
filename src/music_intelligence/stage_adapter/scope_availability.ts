@@ -22,6 +22,19 @@ export type MusicRelationScopeAvailability = {
   detailText?: string;
 };
 
+// `targetKind` is set for a single-kind catalog-visible Collection (recording,
+// album, artist) and omitted for a mixed Collection (catalog baseline). Work and
+// release Collections are catalog-invisible (D7) and never enter the snapshot, so
+// the type needs no CollectionKind — `targetKind` presence alone distinguishes
+// the two catalog-visible shapes.
+export type MusicCollectionScopeAvailability = {
+  id: string;
+  ref: Ref;
+  collectionName: string;
+  targetKind?: MusicTargetKind;
+  detailText?: string;
+};
+
 export type MusicProviderScopeAvailability = {
   providerId: string;
   providerName?: string;
@@ -33,6 +46,7 @@ export type MusicScopeAvailabilitySnapshot = {
   sourceLibraries: readonly MusicSourceLibraryScopeAvailability[];
   relations: readonly MusicRelationScopeAvailability[];
   providers: readonly MusicProviderScopeAvailability[];
+  collections: readonly MusicCollectionScopeAvailability[];
 };
 
 export type MusicScopeAvailabilityPort = {
@@ -63,6 +77,7 @@ export function emptyMusicScopeAvailabilitySnapshot(): MusicScopeAvailabilitySna
     sourceLibraries: [],
     relations: [],
     providers: [],
+    collections: [],
   };
 }
 
@@ -97,6 +112,10 @@ function copySnapshot(snapshot: MusicScopeAvailabilitySnapshot): MusicScopeAvail
     providers: snapshot.providers.map((scope) => ({
       ...scope,
       targetKinds: copyNonEmptyTargetKinds(scope.targetKinds),
+    })),
+    collections: snapshot.collections.map((scope) => ({
+      ...scope,
+      ref: { ...scope.ref },
     })),
   };
 }

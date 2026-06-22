@@ -29,6 +29,18 @@ const scopeAvailability = createInMemoryMusicScopeAvailabilityPort({
             targetKinds: ["recording", "album"],
         },
     ],
+    collections: [
+        // A catalog-visible collection in the snapshot must NOT be surfaced by
+        // music.discovery.list_scopes (collection is a catalog-browse scope, not
+        // a discovery lookup source). Regression guard for the
+        // ListedMusicScopeKind/catalog split.
+        {
+            id: "scope_collection_regression",
+            ref: ref("collection", "recording", "c_discovery_regression"),
+            collectionName: "Regression Collection",
+            targetKind: "recording",
+        },
+    ],
 });
 const registration = createMusicDiscoveryListScopesRegistration({
     scopeAvailability,
@@ -82,6 +94,11 @@ if (allScopes.ok) {
         },
     });
     assertNoInternalScopeLeak(allScopes.value.result);
+    assert.equal(
+        allScopes.value.result.scopes.some((scope) => scope.kind === "collection"),
+        false,
+        "music.discovery.list_scopes must not surface collection scopes (use library.catalog.list_scopes instead)",
+    );
 }
 const providerScopes = await stageInterface.dispatch(testStageToolContext(), {
     toolName: "music.discovery.list_scopes",
@@ -112,6 +129,7 @@ const noProviderInterface = createStageInterface({
                 sourceLibraries: [],
                 relations: [],
                 providers: [],
+                collections: [],
             }),
         }),
     ],
