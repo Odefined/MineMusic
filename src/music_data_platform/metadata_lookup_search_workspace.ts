@@ -189,6 +189,8 @@ type SourceLibraryRow = {
 };
 
 const LOCAL_RESULT_WINDOW_MULTIPLIER = 10;
+const SEARCH_RESULT_ROW_INSERT_PARAMETER_COUNT = 13;
+const SEARCH_RESULT_ROW_INSERT_CHUNK_SIZE = 500;
 
 export function createMusicDataPlatformMetadataLookupSearchWorkspace(
   input: CreateMusicDataPlatformMetadataLookupSearchWorkspaceInput,
@@ -735,7 +737,16 @@ async function insertSearchResultRows(input: {
   resultSetId: string;
   descriptors: readonly SearchDescriptor[];
 }): Promise<void> {
-  for (const descriptor of input.descriptors) {
+  for (let offset = 0; offset < input.descriptors.length; offset += SEARCH_RESULT_ROW_INSERT_CHUNK_SIZE) {
+    const chunk = input.descriptors.slice(offset, offset + SEARCH_RESULT_ROW_INSERT_CHUNK_SIZE);
+    const valuesSql = chunk.map(() =>
+      "(?, ?, ?, ?, ?, ?, ?, 0, 0, ?::jsonb, ?, ?, ?, ?, ?)"
+    ).join(",\n          ");
+    const params = searchResultRowInsertParams({
+      resultSetId: input.resultSetId,
+      descriptors: chunk,
+    });
+
     await input.db.run(
       `
         INSERT INTO search_result_rows (
@@ -755,25 +766,42 @@ async function insertSearchResultRows(input: {
           version_text,
           alias_text
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?::jsonb, ?, ?, ?, ?, ?)
+        VALUES ${valuesSql}
       `,
-      [
-        input.resultSetId,
-        descriptor.rowKind,
-        descriptor.stableRefKey,
-        descriptor.materialRefKey ?? null,
-        descriptor.materialCandidateRefKey ?? null,
-        descriptor.materialKind ?? null,
-        descriptor.rowKindSort,
-        descriptor.evidenceJson,
-        descriptor.titleText,
-        descriptor.artistText,
-        descriptor.albumText,
-        descriptor.versionText,
-        descriptor.aliasText,
-      ],
+      params,
     );
   }
+}
+
+function searchResultRowInsertParams(input: {
+  resultSetId: string;
+  descriptors: readonly SearchDescriptor[];
+}): readonly MusicDatabaseParameter[] {
+  const params: MusicDatabaseParameter[] = [];
+
+  for (const descriptor of input.descriptors) {
+    params.push(
+      input.resultSetId,
+      descriptor.rowKind,
+      descriptor.stableRefKey,
+      descriptor.materialRefKey ?? null,
+      descriptor.materialCandidateRefKey ?? null,
+      descriptor.materialKind ?? null,
+      descriptor.rowKindSort,
+      descriptor.evidenceJson,
+      descriptor.titleText,
+      descriptor.artistText,
+      descriptor.albumText,
+      descriptor.versionText,
+      descriptor.aliasText,
+    );
+  }
+
+  if (params.length !== input.descriptors.length * SEARCH_RESULT_ROW_INSERT_PARAMETER_COUNT) {
+    throw invalidMetadataLookupSearch("Search result row insert parameter count is inconsistent.");
+  }
+
+  return params;
 }
 
 async function rerankSearchResultRows(input: {
@@ -866,35 +894,35 @@ async function cleanupExpiredSearchResultSets(input: {
   db: MusicDatabaseContext;
   now: string;
 }): Promise<void> {
-  const expiredIds = (await input.db.all<{ result_set_id: string }>(
-    `
-      SELECT result_set_id
-      FROM search_result_sets
-      WHERE expires_at <= ?
-      ORDER BY expires_at ASC, result_set_id ASC
-      LIMIT 500
-    `,
-    [input.now],
-  )).map((row) => row.result_set_id);
-
-  if (expiredIds.length === 0) {
-    return;
-  }
-
-  const placeholders = sqlPlaceholders(expiredIds.length);
   await input.db.run(
     `
-      DELETE FROM search_result_rows
-      WHERE result_set_id IN (${placeholders})
+      WITH expired AS (
+        SELECT result_set_id
+        FROM search_result_sets
+        WHERE expires_at <= ?
+        ORDER BY expires_at ASC, result_set_id ASC
+        LIMIT 500
+      )
+      DELETE FROM search_result_rows r
+      USING expired e
+      WHERE r.result_set_id = e.result_set_id
     `,
-    expiredIds,
+    [input.now],
   );
   await input.db.run(
     `
-      DELETE FROM search_result_sets
-      WHERE result_set_id IN (${placeholders})
+      WITH expired AS (
+        SELECT result_set_id
+        FROM search_result_sets
+        WHERE expires_at <= ?
+        ORDER BY expires_at ASC, result_set_id ASC
+        LIMIT 500
+      )
+      DELETE FROM search_result_sets s
+      USING expired e
+      WHERE s.result_set_id = e.result_set_id
     `,
-    expiredIds,
+    [input.now],
   );
 }
 

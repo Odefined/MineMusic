@@ -21,7 +21,7 @@ import {
   type MusicDataPlatformMetadataLookupSearchWorkspace,
 } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
-import type { MusicDatabase, MusicDatabaseTransactionContext } from "../../src/storage/index.js";
+import type { MusicDatabase, MusicDatabaseParameter, MusicDatabaseTransactionContext } from "../../src/storage/index.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
 import { indexExists, tableColumns } from "./helpers/postgres-introspection.js";
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
@@ -141,6 +141,37 @@ if (nightPage.status === "ok") {
 
 await database.close();
 
+const bulkInsertDatabase = await initializedDatabase();
+let searchResultRowInsertCount = 0;
+const bulkInsertWorkspace = createMusicDataPlatformMetadataLookupSearchWorkspace({
+  database: wrapDatabaseWithRunInterceptor(bulkInsertDatabase, ({ sql }) => {
+    if (sql.includes("INSERT INTO search_result_rows")) {
+      searchResultRowInsertCount += 1;
+    }
+  }),
+});
+const bulkInsertPage = await bulkInsertWorkspace.searchMetadataLookupResultSet({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "bulk",
+  materialKind: "recording",
+  includeLocalCatalog: false,
+  limit: 10,
+  queryFingerprint: "metadata-lookup-bulk-insert",
+  providerCandidates: [
+    providerCandidate(sourceTrack("bulk-1", "Bulk Song One")),
+    providerCandidate(sourceTrack("bulk-2", "Bulk Song Two")),
+    providerCandidate(sourceTrack("bulk-3", "Bulk Song Three")),
+  ],
+  now: "2026-06-20T12:05:00.000Z",
+});
+assert.equal(bulkInsertPage.status, "ok");
+if (bulkInsertPage.status === "ok") {
+  assert.equal(bulkInsertPage.rows.length, 3);
+  assert.equal(await searchResultSetRowCount(bulkInsertDatabase, bulkInsertPage.resultSetId), 3);
+}
+assert.equal(searchResultRowInsertCount, 1);
+await bulkInsertDatabase.close();
+
 function createIdentityTestCommands(
   db: MusicDatabaseTransactionContext,
   now: string,
@@ -223,6 +254,48 @@ async function initializedDatabase(): Promise<MusicDatabase> {
     ],
   });
   return database;
+}
+
+function wrapDatabaseWithRunInterceptor(
+  database: MusicDatabase,
+  interceptor: (input: {
+    sql: string;
+    params: readonly MusicDatabaseParameter[] | undefined;
+    context: MusicDatabaseTransactionContext;
+  }) => void,
+): MusicDatabase {
+  return {
+    async initialize(input) {
+      await database.initialize(input);
+    },
+    context() {
+      return database.context();
+    },
+    async transaction(operation) {
+      return await database.transaction(async (db) => {
+        const proxiedContext = {
+          async run(sql: string, params?: readonly MusicDatabaseParameter[]) {
+            await db.run(sql, params);
+            interceptor({
+              sql,
+              params,
+              context: proxiedContext as MusicDatabaseTransactionContext,
+            });
+          },
+          async all<Row>(sql: string, params?: readonly MusicDatabaseParameter[]) {
+            return await db.all<Row>(sql, params);
+          },
+          async get<Row>(sql: string, params?: readonly MusicDatabaseParameter[]) {
+            return await db.get<Row>(sql, params);
+          },
+        };
+        return operation(proxiedContext as MusicDatabaseTransactionContext);
+      });
+    },
+    async close() {
+      await database.close();
+    },
+  };
 }
 
 function sourceTrack(

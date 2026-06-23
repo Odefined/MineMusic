@@ -24,7 +24,7 @@ import {
   type SearchMetadataDocumentFields,
 } from "../../src/music_data_platform/search_metadata_document_builder.js";
 import { normalizeSearchMetadataValue } from "../../src/music_data_platform/search_metadata_normalization.js";
-import type { MusicDatabase, MusicDatabaseTransactionContext } from "../../src/storage/index.js";
+import type { MusicDatabase, MusicDatabaseParameter, MusicDatabaseTransactionContext } from "../../src/storage/index.js";
 import { foreignKeyColumns, indexExists, primaryKeyColumns, relationKind, tableColumns } from "./helpers/postgres-introspection.js";
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
@@ -111,6 +111,7 @@ const duplicateProviderTrack = sourceTrack("1002", " night ", {
 
 await database.transaction(async (db) => {
   const identity = createIdentityTestCommands(db, "2026-06-20T10:00:00.000Z");
+  let searchMetadataDocumentUpdateCount = 0;
 
   await identity.upsertSourceRecord({ entity: providerTrack });
   await identity.upsertSourceRecord({ entity: duplicateProviderTrack });
@@ -146,7 +147,11 @@ await database.transaction(async (db) => {
     canonicalRef: canonical,
   });
   const summary = await createSearchMetadataProjectionCommands({
-    db,
+    db: wrapTransactionWithRunInterceptor(db, ({ sql }) => {
+      if (sql.includes("UPDATE search_metadata_documents")) {
+        searchMetadataDocumentUpdateCount += 1;
+      }
+    }),
     now: "2026-06-20T10:05:00.000Z",
   }).rebuildSearchMetadataDocuments({
     materialRefs: [nightMaterialRef, nightMaterialRef],
@@ -162,6 +167,7 @@ await database.transaction(async (db) => {
       },
     ],
   });
+  assert.equal(searchMetadataDocumentUpdateCount, 0);
 });
 
 const document = await createSearchMetadataProjectionRecords({
@@ -233,6 +239,27 @@ async function initializedDatabase(): Promise<MusicDatabase> {
     ],
   });
   return database;
+}
+
+function wrapTransactionWithRunInterceptor(
+  context: MusicDatabaseTransactionContext,
+  interceptor: (input: {
+    sql: string;
+    params: readonly MusicDatabaseParameter[] | undefined;
+  }) => void,
+): MusicDatabaseTransactionContext {
+  return {
+    async run(sql: string, params?: readonly MusicDatabaseParameter[]) {
+      await context.run(sql, params);
+      interceptor({ sql, params });
+    },
+    async all<Row>(sql: string, params?: readonly MusicDatabaseParameter[]) {
+      return await context.all<Row>(sql, params);
+    },
+    async get<Row>(sql: string, params?: readonly MusicDatabaseParameter[]) {
+      return await context.get<Row>(sql, params);
+    },
+  } as MusicDatabaseTransactionContext;
 }
 
 function sourceTrack(

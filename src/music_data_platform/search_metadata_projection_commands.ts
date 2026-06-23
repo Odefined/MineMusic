@@ -134,9 +134,35 @@ async function rebuildSingleSearchMetadataDocument(input: {
         version_text,
         alias_text,
         search_text,
+        search_vector,
         updated_at
       )
-      VALUES (?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)
+      SELECT
+        row.material_ref_key,
+        row.material_kind,
+        row.fields_json,
+        row.title_text,
+        row.artist_text,
+        row.album_text,
+        row.version_text,
+        row.alias_text,
+        row.search_text,
+        ${searchMetadataVectorSql("row")},
+        row.updated_at
+      FROM (
+        VALUES (?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)
+      ) AS row(
+        material_ref_key,
+        material_kind,
+        fields_json,
+        title_text,
+        artist_text,
+        album_text,
+        version_text,
+        alias_text,
+        search_text,
+        updated_at
+      )
       ON CONFLICT(material_ref_key) DO UPDATE SET
         material_kind = excluded.material_kind,
         fields_json = excluded.fields_json,
@@ -146,6 +172,7 @@ async function rebuildSingleSearchMetadataDocument(input: {
         version_text = excluded.version_text,
         alias_text = excluded.alias_text,
         search_text = excluded.search_text,
+        search_vector = excluded.search_vector,
         updated_at = excluded.updated_at
     `,
     [
@@ -161,7 +188,6 @@ async function rebuildSingleSearchMetadataDocument(input: {
       document.updatedAt,
     ],
   );
-  await updateSearchMetadataVector(input.db, materialRefKey);
 
   return {
     materialRefKey,
@@ -169,23 +195,14 @@ async function rebuildSingleSearchMetadataDocument(input: {
   };
 }
 
-async function updateSearchMetadataVector(
-  db: MusicDatabaseTransactionContext,
-  materialRefKey: string,
-): Promise<void> {
-  await db.run(
-    `
-      UPDATE search_metadata_documents
-      SET search_vector =
-        setweight(to_tsvector('simple', COALESCE(title_text, '')), 'A') ||
-        setweight(to_tsvector('simple', COALESCE(artist_text, '')), 'B') ||
-        setweight(to_tsvector('simple', COALESCE(album_text, '')), 'B') ||
-        setweight(to_tsvector('simple', COALESCE(version_text, '')), 'C') ||
-        setweight(to_tsvector('simple', COALESCE(alias_text, '')), 'D')
-      WHERE material_ref_key = ?
-    `,
-    [materialRefKey],
-  );
+function searchMetadataVectorSql(alias: string): string {
+  return `
+    setweight(to_tsvector('simple', COALESCE(${alias}.title_text, '')), 'A') ||
+    setweight(to_tsvector('simple', COALESCE(${alias}.artist_text, '')), 'B') ||
+    setweight(to_tsvector('simple', COALESCE(${alias}.album_text, '')), 'B') ||
+    setweight(to_tsvector('simple', COALESCE(${alias}.version_text, '')), 'C') ||
+    setweight(to_tsvector('simple', COALESCE(${alias}.alias_text, '')), 'D')
+  `;
 }
 
 async function deleteSearchMetadataRows(
