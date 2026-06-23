@@ -157,13 +157,20 @@ await database.transaction(async (db) => {
 });
 
 let providerResolvedLookupCount = 0;
+let localMetadataWindowSqlText: string | undefined;
+let localMetadataWindowParams: readonly MusicDatabaseParameter[] | undefined;
 const workspace = createMusicDataPlatformMetadataLookupSearchWorkspace({
-  database: wrapDatabaseWithSqlInterceptor(database, ({ sql }) => {
+  database: wrapDatabaseWithSqlInterceptor(database, ({ sql, params }) => {
     if (
       sql.includes("FROM source_material_bindings b") &&
       sql.includes("WHERE b.source_ref_key IN")
     ) {
       providerResolvedLookupCount += 1;
+    }
+
+    if (sql.includes("WITH metadata_candidates AS MATERIALIZED")) {
+      localMetadataWindowSqlText = sql;
+      localMetadataWindowParams = params;
     }
   }),
 });
@@ -214,6 +221,11 @@ if (nightPage.status === "ok") {
   assert.equal(JSON.stringify(nightPage.rows).includes("Provider Noise"), false);
   assert.equal(await searchResultSetRowCount(database, nightPage.resultSetId), 1);
 }
+await assertLocalMetadataLookupIsMetadataFirst({
+  database,
+  sql: localMetadataWindowSqlText,
+  params: localMetadataWindowParams,
+});
 
 await database.close();
 
@@ -310,6 +322,25 @@ async function searchResultSetRowCount(
   }
 
   return row.row_count;
+}
+
+async function assertLocalMetadataLookupIsMetadataFirst(input: {
+  database: MusicDatabase;
+  sql: string | undefined;
+  params: readonly MusicDatabaseParameter[] | undefined;
+}): Promise<void> {
+  assert.notEqual(input.sql, undefined);
+  assert.equal(input.sql?.includes("WITH metadata_candidates AS MATERIALIZED"), true);
+  assert.equal(input.sql?.includes("FROM search_metadata_documents d"), true);
+  assert.equal(input.sql?.includes("FROM owner_material_catalog_view"), false);
+
+  const explainRows = await input.database.context().all<{ "QUERY PLAN": unknown }>(
+    `EXPLAIN (FORMAT JSON) ${input.sql}`,
+    input.params,
+  );
+  const planText = JSON.stringify(explainRows[0]?.["QUERY PLAN"]);
+  assert.equal(planText.includes("search_metadata_documents"), true);
+  assert.equal(planText.includes("owner_material_catalog_view"), false);
 }
 
 function providerCandidate(sourceEntity: SourceEntity): ProviderMaterialCandidate {

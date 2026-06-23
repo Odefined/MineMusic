@@ -408,11 +408,16 @@ async function selectLocalMetadataWindow(input: {
   }
 
   return input.db.all<LocalSearchRow>(
-    localMetadataWindowSql(input.poolFilter, input.materialKind),
+    localMetadataWindowSql({
+      includeLocalCatalog: input.includeLocalCatalog,
+      materialKind: input.materialKind,
+      poolFilter: input.poolFilter,
+    }),
     [
-      ...metadataScoreParams(input.textQuery),
+      ...metadataScoreParamsForSingleExpression(input.textQuery),
       ...metadataRecallParams(input.textQuery),
-      ...catalogBaseParams(input.ownerScope, input.materialKind, input.poolFilter),
+      ...metadataCandidateParams(input.materialKind),
+      ...catalogBaseParams(input.ownerScope, input.includeLocalCatalog, input.poolFilter),
       input.localResultWindowLimit,
     ],
   );
@@ -616,15 +621,32 @@ function providerResolvedMaterialDescriptorFromRow(
   });
 }
 
-function localMetadataWindowSql(
-  poolFilter: NormalizedDurablePoolFilter,
-  materialKind: MaterialEntityKind | undefined,
-): string {
-  const whereClauses = catalogBaseWhereClauses(poolFilter, materialKind);
+function localMetadataWindowSql(input: {
+  includeLocalCatalog: boolean;
+  materialKind: MaterialEntityKind | undefined;
+  poolFilter: NormalizedDurablePoolFilter;
+}): string {
+  const candidateWhereClauses = metadataCandidateWhereClauses(input.materialKind);
+  const catalogWhereClauses = catalogBaseWhereClauses(input.poolFilter, input.includeLocalCatalog);
 
   return `
+    WITH metadata_candidates AS MATERIALIZED (
+      SELECT
+        d.material_ref_key,
+        d.material_kind,
+        d.fields_json,
+        d.title_text,
+        d.artist_text,
+        d.album_text,
+        d.version_text,
+        d.alias_text,
+        d.search_text,
+        ${metadataScoreSql("d", "indexed")} AS score_value
+      FROM search_metadata_documents d
+      WHERE ${candidateWhereClauses.map((clause) => `(${clause.trim()})`).join("\n        AND ")}
+    )
     SELECT
-      c.material_ref_key,
+      d.material_ref_key,
       d.material_kind,
       d.title_text AS "titleText",
       d.artist_text AS "artistText",
@@ -632,19 +654,28 @@ function localMetadataWindowSql(
       d.version_text AS "versionText",
       d.alias_text AS "aliasText",
       d.search_text AS "searchText",
-      ${metadataScoreSql("d", "indexed")} AS score_value,
-      -(${metadataScoreSql("d", "indexed")}) AS score_sort_value,
+      d.score_value,
+      -d.score_value AS score_sort_value,
       jsonb_build_object('document', jsonb_build_object('fields', d.fields_json->'fields')) AS evidence_json
-    FROM owner_material_catalog_view c
+    FROM metadata_candidates d
     JOIN material_records m
-      ON m.ref_key = c.material_ref_key
-    JOIN search_metadata_documents d
-      ON d.material_ref_key = c.material_ref_key
-    WHERE (${metadataRecallSql("d", "indexed")})
-      AND ${whereClauses.map((clause) => `(${clause.trim()})`).join("\n      AND ")}
-    ORDER BY score_sort_value ASC, c.material_ref_key ASC
+      ON m.ref_key = d.material_ref_key
+    WHERE ${catalogWhereClauses.map((clause) => `(${clause.trim()})`).join("\n      AND ")}
+    ORDER BY score_sort_value ASC, d.material_ref_key ASC
     LIMIT ?
   `;
+}
+
+function metadataCandidateWhereClauses(
+  materialKind: MaterialEntityKind | undefined,
+): string[] {
+  const whereClauses = [`${metadataRecallSql("d", "indexed")}`];
+
+  if (materialKind !== undefined) {
+    whereClauses.push("d.material_kind = ?");
+  }
+
+  return whereClauses;
 }
 
 function metadataRecallSql(alias: string, source: MetadataScoreSource): string {
@@ -710,6 +741,12 @@ function metadataRecallParams(textQuery: EffectiveTextQuery): readonly MusicData
     textQuery.prefixQuery,
     textQuery.normalizedText,
   ];
+}
+
+function metadataCandidateParams(
+  materialKind: MaterialEntityKind | undefined,
+): readonly MusicDatabaseParameter[] {
+  return materialKind === undefined ? [] : [materialKind];
 }
 
 function materialDescriptorFromLocalSearchRow(row: LocalSearchRow): SearchDescriptor {
@@ -1131,15 +1168,33 @@ function candidateCacheExpired(row: SearchResultRow, now: string): boolean {
 
 function catalogBaseWhereClauses(
   poolFilter: NormalizedDurablePoolFilter,
-  materialKind: MaterialEntityKind | undefined,
+  includeLocalCatalog: boolean,
 ): string[] {
   const whereClauses = [
-    "c.owner_scope = ?",
     "m.lifecycle_status = 'active'",
+    `
+      NOT EXISTS (
+        SELECT 1
+        FROM owner_material_relations r
+        WHERE r.owner_scope = ?
+          AND r.material_ref_key = d.material_ref_key
+          AND r.relation_kind = 'blocked'
+          AND r.status = 'active'
+      )
+    `,
   ];
 
-  if (materialKind !== undefined) {
-    whereClauses.push("m.kind = ?");
+  if (includeLocalCatalog) {
+    whereClauses.push(`
+      EXISTS (
+        SELECT 1
+        FROM owner_material_entries e
+        WHERE e.owner_scope = ?
+          AND e.material_ref_key = d.material_ref_key
+          AND e.active = 1
+          AND e.visibility_role = 'positive'
+      )
+    `);
   }
 
   if (poolFilter.allOfRefKeys.length > 0) {
@@ -1147,8 +1202,8 @@ function catalogBaseWhereClauses(
       (
         SELECT COUNT(DISTINCT e.entry_ref_key)
         FROM owner_material_entries e
-        WHERE e.owner_scope = c.owner_scope
-          AND e.material_ref_key = c.material_ref_key
+        WHERE e.owner_scope = ?
+          AND e.material_ref_key = d.material_ref_key
           AND e.active = 1
           AND e.visibility_role = 'positive'
           AND e.entry_ref_key IN (${sqlPlaceholders(poolFilter.allOfRefKeys.length)})
@@ -1161,8 +1216,8 @@ function catalogBaseWhereClauses(
       EXISTS (
         SELECT 1
         FROM owner_material_entries e
-        WHERE e.owner_scope = c.owner_scope
-          AND e.material_ref_key = c.material_ref_key
+        WHERE e.owner_scope = ?
+          AND e.material_ref_key = d.material_ref_key
           AND e.active = 1
           AND e.visibility_role = 'positive'
           AND e.entry_ref_key IN (${sqlPlaceholders(poolFilter.anyOfRefKeys.length)})
@@ -1175,8 +1230,8 @@ function catalogBaseWhereClauses(
       NOT EXISTS (
         SELECT 1
         FROM owner_material_entries e
-        WHERE e.owner_scope = c.owner_scope
-          AND e.material_ref_key = c.material_ref_key
+        WHERE e.owner_scope = ?
+          AND e.material_ref_key = d.material_ref_key
           AND e.active = 1
           AND e.visibility_role = 'positive'
           AND e.entry_ref_key IN (${sqlPlaceholders(poolFilter.noneOfRefKeys.length)})
@@ -1189,25 +1244,25 @@ function catalogBaseWhereClauses(
 
 function catalogBaseParams(
   ownerScope: string,
-  materialKind: MaterialEntityKind | undefined,
+  includeLocalCatalog: boolean,
   poolFilter: NormalizedDurablePoolFilter,
 ): MusicDatabaseParameter[] {
   const params: MusicDatabaseParameter[] = [ownerScope];
 
-  if (materialKind !== undefined) {
-    params.push(materialKind);
+  if (includeLocalCatalog) {
+    params.push(ownerScope);
   }
 
   if (poolFilter.allOfRefKeys.length > 0) {
-    params.push(...poolFilter.allOfRefKeys, poolFilter.allOfRefKeys.length);
+    params.push(ownerScope, ...poolFilter.allOfRefKeys, poolFilter.allOfRefKeys.length);
   }
 
   if (poolFilter.anyOfRefKeys.length > 0) {
-    params.push(...poolFilter.anyOfRefKeys);
+    params.push(ownerScope, ...poolFilter.anyOfRefKeys);
   }
 
   if (poolFilter.noneOfRefKeys.length > 0) {
-    params.push(...poolFilter.noneOfRefKeys);
+    params.push(ownerScope, ...poolFilter.noneOfRefKeys);
   }
 
   return params;
