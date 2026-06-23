@@ -43,6 +43,49 @@ const testModules = [
     "./formal/server-host.test.js",
     "./formal/stage-tool-context-factory.test.js",
 ];
+type ModuleResult = { module: string; ok: boolean };
+
+const results: ModuleResult[] = [];
+let index = 0;
+const total = testModules.length;
 for (const testModule of testModules) {
-    await import(testModule);
+    index += 1;
+    const label = testModule.replace(/^\.\//, "").replace(/\.test\.js$/, "");
+    process.stdout.write(`[${index}/${total}] ${label} ... `);
+    try {
+        await import(testModule);
+        results.push({ module: testModule, ok: true });
+        process.stdout.write("ok\n");
+    } catch (error) {
+        results.push({ module: testModule, ok: false });
+        process.stdout.write(`FAIL\n${formatFailure(error)}`);
+    }
+}
+
+const failed = results.filter((result) => !result.ok);
+process.stdout.write(`\n${results.length - failed.length}/${results.length} modules passed.\n`);
+if (failed.length > 0) {
+    process.stdout.write(`Failed: ${failed.map((result) => result.module).join(", ")}\n`);
+}
+process.exit(failed.length > 0 ? 1 : 0);
+
+function formatFailure(error: unknown): string {
+    let message: string;
+    let operator = "";
+    if (error !== null && typeof error === "object" && "message" in error) {
+        const descriptor = error as { message?: unknown; operator?: unknown };
+        message = typeof descriptor.message === "string" ? descriptor.message : String(error);
+        if (typeof descriptor.operator === "string") {
+            operator = ` [${descriptor.operator}]`;
+        }
+    } else {
+        message = String(error);
+    }
+    return `  ${truncate(message)}${operator}\n`;
+}
+
+function truncate(value: string, limit = 500): string {
+    return value.length > limit
+        ? `${value.slice(0, limit)}… (+${value.length - limit} chars)`
+        : value;
 }
