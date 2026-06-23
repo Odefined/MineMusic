@@ -5,7 +5,6 @@ export type MusicDataPlatformErrorCode =
   | "music_data.retrieval_result_set_invalid"
   | "music_data.material_ref_invalid"
   | "music_data.material_candidate_ref_invalid"
-  | "music_data.material_text_projection_invalid"
   | "music_data.projection_maintenance_target_invalid"
   | "music_data.projection_maintenance_kind_invalid"
   | "music_data.projection_maintenance_generation_mismatch"

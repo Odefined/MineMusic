@@ -1,14 +1,13 @@
 # Music Data Platform Ports
 
 > Status: Current boundary authority through implemented Phase 23
-> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, search metadata projection, projection maintenance, metadata lookup search workspace/result sets, Library Import stage adapter tools, Library Relation stage adapter tools, and Library Catalog stage adapter tools
+> Scope: Identity write model, source-library import, owner relation, owner catalog projection, search metadata projection, projection maintenance, metadata lookup search workspace/result sets, Library Import stage adapter tools, Library Relation stage adapter tools, and Library Catalog stage adapter tools
 
 Music Data Platform provides identity repositories, identity read/write
 boundaries, source-library repositories, source-library commands/read port,
 Library Import service, source-library and owner relation ref helpers, owner
 relation commands/read port, owner catalog
-projection commands/read port, material text projection commands/read port,
-search metadata projection commands/read port, projection maintenance
+projection commands/read port, search metadata projection commands/read port, projection maintenance
 commands/reads/runner, metadata lookup search workspace, schema contributions,
 runtime search result-set schema and material-candidate cache helpers, the
 Library Import stage-adapter RuntimeModule and
@@ -30,7 +29,6 @@ provider plugin implementations.
 | `musicDataPlatformOwnerCatalogEntriesSchema` | Storage initialization callers | Creates `owner_material_entries`. | `src/music_data_platform/owner_catalog_schema.ts` |
 | `musicDataPlatformOwnerRelationSchema` | Storage initialization callers | Creates `owner_material_relations`. | `src/music_data_platform/owner_material_relation_schema.ts` |
 | `musicDataPlatformOwnerCatalogViewSchema` | Storage initialization callers | Creates the final `owner_material_catalog_view`. | `src/music_data_platform/owner_catalog_schema.ts` |
-| `musicDataPlatformMaterialTextProjectionSchema` | Storage initialization callers | Creates `material_text_documents` and `material_text_fts`. | `src/music_data_platform/material_text_projection_schema.ts` |
 | `musicDataPlatformSearchMetadataProjectionSchema` | Storage initialization callers | Creates durable `search_metadata_documents` for material-level metadata lookup. | `src/music_data_platform/search_metadata_projection_schema.ts` |
 | `musicDataPlatformProjectionMaintenanceSchema` | Storage initialization callers | Creates `projection_maintenance_targets` and its pending-order index. | `src/music_data_platform/projection_maintenance_schema.ts` |
 | `musicDataPlatformSearchResultSetSchema` | Storage initialization callers | Creates runtime `search_result_sets` and `search_result_rows` for metadata lookup result windows; rows do not store duplicate `search_text` or `tsvector`. | `src/music_data_platform/search_result_set_schema.ts` |
@@ -63,8 +61,6 @@ provider plugin implementations.
 | `createOwnerMaterialRelationRecords` | Internal commands/tests/later policy phases | Read internal owner material relation rows with explicit status handling. | `src/music_data_platform/owner_material_relation_records.ts` |
 | `createOwnerCatalogProjectionCommands` | Internal commands/tests | Rebuild library-scope source-library projection plus material-scope source-library and owner-relation catalog entries through transaction-scoped SQL commands. | `src/music_data_platform/owner_catalog_projection.ts` |
 | `createOwnerCatalogRecords` | Internal tests/later query phases | Read owner catalog entries/material rows through Music Data Platform-owned row shapes. | `src/music_data_platform/owner_catalog_records.ts` |
-| `createMaterialTextProjectionCommands` | Internal commands/tests/later query phases | Rebuild current material text documents and replacement FTS rows by explicit material ref. | `src/music_data_platform/material_text_projection_commands.ts` |
-| `createMaterialTextProjectionRecords` | Internal tests/later query phases | Read projected material text documents and run owner-neutral strict FTS probes. | `src/music_data_platform/material_text_projection_records.ts` |
 | `createSearchMetadataProjectionCommands` | Internal commands/tests/query phases | Rebuild current material metadata lookup documents by explicit material ref. | `src/music_data_platform/search_metadata_projection_commands.ts` |
 | `createSearchMetadataProjectionRecords` | Internal tests/query phases | Read durable material metadata lookup documents. | `src/music_data_platform/search_metadata_projection_records.ts` |
 | `createMusicDataPlatformMetadataLookupSearchWorkspace` | Internal Music Intelligence retrieval/tests | Build/read metadata lookup result sets, rerank local/provider rows with Postgres text scoring, dedupe provider hits already bound to active materials, upsert unresolved material candidates, and paginate with result-set cursors. | `src/music_data_platform/metadata_lookup_search_workspace.ts` |
@@ -152,13 +148,11 @@ current `source_material_bindings` row for the same `sourceRef`.
 | `createOwnerCatalogProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSourceLibraryEntriesForLibrary({ ownerScope, libraryRef })`, `rebuildSourceLibraryEntriesForMaterial({ ownerScope, materialRef })`, and `rebuildOwnerRelationEntries({ ownerScope, materialRef })` | writes `owner_material_entries` only |
 | `createOwnerCatalogRecords({ db })` | database context | `listOwnerMaterialEntries(...)`, `listOwnerCatalogMaterials(...)` | reads `owner_material_entries` and `owner_material_catalog_view` |
 | `createLibraryCatalogReadPort({ db })` | database context | `listCatalogItems({ ownerScope, scope })` for library, source-library, and relation scopes | reads `owner_material_catalog_view`, `owner_material_entries`, and `material_records` |
-| `createMaterialTextProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildMaterialTextDocument({ materialRef })` and `rebuildMaterialTextDocuments({ materialRefs })` | writes `material_text_documents` and `material_text_fts` only |
-| `createMaterialTextProjectionRecords({ db })` | database context | `getMaterialTextDocument({ materialRef })`, `matchMaterialTextDocuments({ text, limit? })` | reads `material_text_documents` and `material_text_fts` |
 | `createSearchMetadataProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSearchMetadataDocument({ materialRef })` and `rebuildSearchMetadataDocuments({ materialRefs })` | writes `search_metadata_documents` only |
 | `createSearchMetadataProjectionRecords({ db })` | database context | `getSearchMetadataDocument({ materialRef })` | reads `search_metadata_documents` |
 | `createMusicDataPlatformMetadataLookupSearchWorkspace({ database })` | root database | `searchMetadataLookupResultSet(...)` | reads owner catalog, material/source identity, `search_metadata_documents`, `search_result_sets`, `search_result_rows`, and `material_candidate_cache`; writes `search_result_sets`, `search_result_rows`, and `material_candidate_cache` only |
 | `createProjectionMaintenanceRecords({ db })` | database context | `getProjectionTarget(...)`, `listPendingProjectionTargets({ limit? })` | reads `projection_maintenance_targets` |
-| `createProjectionMaintenanceRunner({ database, now })` | root database plus timestamp | runner object with `runProjectionMaintenance({ limit? })` | reads `projection_maintenance_targets`; writes `projection_maintenance_targets`, `owner_material_entries`, `material_text_*`, and `search_metadata_documents` through owning commands |
+| `createProjectionMaintenanceRunner({ database, now })` | root database plus timestamp | runner object with `runProjectionMaintenance({ limit? })` | reads `projection_maintenance_targets`; writes `projection_maintenance_targets`, `owner_material_entries`, and `search_metadata_documents` through owning commands |
 
 Projection commands are Music Data Platform-owned database commands.
 `rebuildSourceLibraryEntriesForLibrary(...)` rebuilds one source-library scope
@@ -306,11 +300,11 @@ Current guards:
   idempotent rebuild, missing-library rejection, owner-scope mismatch, rebind
   cleanup, material-merge cleanup, and empty-library rebuild under the split
   entries/relation/view schema order.
-- material text projection tests cover record/command/read-port key sets,
-  schema/FTS column shape, strict normalization/query construction, operator
-  escaping, bound-source truth from `source_material_bindings`, canonical
-  inclusion guards, repeated rebuild replacement, active-empty rebuild, and
-  delete-on-missing-or-inactive behavior.
+- search metadata projection tests cover record/command/read-port key sets,
+  schema/index shape, normalization, bound-source truth from
+  `source_material_bindings`, canonical inclusion guards, runtime provider
+  candidate document building, repeated rebuild replacement, active-empty
+  rebuild, and delete-on-missing-or-inactive behavior.
 - ref-validation tests cover the internal Music Data Platform ref/refKey
   helper plus area-specific validator error codes for malformed external
   inputs.

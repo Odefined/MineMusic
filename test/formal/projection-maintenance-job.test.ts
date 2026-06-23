@@ -6,7 +6,6 @@ import {
   createProjectionMaintenanceJobHandler,
   createProjectionMaintenanceRecords,
   musicDataPlatformIdentitySchema,
-  musicDataPlatformMaterialTextProjectionSchema,
   musicDataPlatformOwnerCatalogEntriesSchema,
   musicDataPlatformOwnerCatalogViewSchema,
   musicDataPlatformOwnerRelationSchema,
@@ -24,7 +23,7 @@ const SCHEMAS = [
   musicDataPlatformOwnerCatalogEntriesSchema,
   musicDataPlatformOwnerRelationSchema,
   musicDataPlatformOwnerCatalogViewSchema,
-  musicDataPlatformMaterialTextProjectionSchema,
+  musicDataPlatformSearchMetadataProjectionSchema,
   musicDataPlatformSearchMetadataProjectionSchema,
   musicDataPlatformProjectionMaintenanceSchema,
 ];
@@ -59,7 +58,7 @@ function signal(): AbortSignal {
   await assert.doesNotReject(() => handler({
     jobId: "j-gone",
     jobType: PROJECTION_MAINTENANCE_JOB_TYPE,
-    payload: { projectionKind: "material_text", targetKey: "pmt_gone", expectedDirtyGeneration: 1 },
+    payload: { projectionKind: "search_metadata", targetKey: "pmt_gone", expectedDirtyGeneration: 1 },
     signal: signal(),
   }));
   await database.close();
@@ -71,11 +70,11 @@ function signal(): AbortSignal {
   const database = await initializedDatabase();
   const target = await database.transaction(async (db) => {
     const dirty = await createProjectionMaintenanceCommands({ db, now: "2026-06-21T00:00:00.000Z" }).markProjectionTargetDirty({
-      projectionKind: "material_text",
+      projectionKind: "search_metadata",
       materialRef: recordingRef("already-failed"),
     });
     await createProjectionMaintenanceCommands({ db, now: "2026-06-21T00:00:00.000Z" }).markProjectionFailed({
-      projectionKind: "material_text",
+      projectionKind: "search_metadata",
       targetKey: dirty.targetKey,
       expectedDirtyGeneration: dirty.dirtyGeneration,
       failureCode: "music_data.projection_maintenance_target_invalid",
@@ -91,18 +90,18 @@ function signal(): AbortSignal {
   await assert.doesNotReject(() => handler({
     jobId: "j-failed",
     jobType: PROJECTION_MAINTENANCE_JOB_TYPE,
-    payload: { projectionKind: "material_text", targetKey: target.targetKey, expectedDirtyGeneration: target.dirtyGeneration },
+    payload: { projectionKind: "search_metadata", targetKey: target.targetKey, expectedDirtyGeneration: target.dirtyGeneration },
     signal: signal(),
   }));
   const record = await createProjectionMaintenanceRecords({ db: database.context() }).getProjectionTarget({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: target.targetKey,
   });
   assert.equal(record?.status, "failed");
   await database.close();
 }
 
-// Happy path: write source+material+bind, dirty the material_text target, run the
+// Happy path: write source+material+bind, dirty the search_metadata target, run the
 // handler, and the target row is removed (markProjectionClean via optimistic lock).
 {
   const database = await initializedDatabase();
@@ -125,7 +124,7 @@ function signal(): AbortSignal {
     await writes.identity.bindSourceToMaterial({ sourceRef: source, materialRef });
   });
   const target = await database.transaction(async (db) => await createProjectionMaintenanceCommands({ db, now: "2026-06-21T00:00:01.000Z" }).markProjectionTargetDirty({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     materialRef,
   }));
   const handler = createProjectionMaintenanceJobHandler({
@@ -136,11 +135,11 @@ function signal(): AbortSignal {
   await handler({
     jobId: "j-happy",
     jobType: PROJECTION_MAINTENANCE_JOB_TYPE,
-    payload: { projectionKind: "material_text", targetKey: target.targetKey, expectedDirtyGeneration: target.dirtyGeneration },
+    payload: { projectionKind: "search_metadata", targetKey: target.targetKey, expectedDirtyGeneration: target.dirtyGeneration },
     signal: signal(),
   });
   const record = await createProjectionMaintenanceRecords({ db: database.context() }).getProjectionTarget({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: target.targetKey,
   });
   assert.equal(record, undefined);
@@ -154,12 +153,12 @@ function signal(): AbortSignal {
   const database = await initializedDatabase();
   const target = await database.transaction(async (db) => {
     const dirty = await createProjectionMaintenanceCommands({ db, now: "2026-06-21T00:00:00.000Z" }).markProjectionTargetDirty({
-      projectionKind: "material_text",
+      projectionKind: "search_metadata",
       materialRef: recordingRef("job-retry-exhausted"),
     });
     await db.run(
       "UPDATE projection_maintenance_targets SET target_payload_json = ? WHERE projection_kind = ? AND target_key = ?",
-      ["{not-json", "material_text", dirty.targetKey],
+      ["{not-json", "search_metadata", dirty.targetKey],
     );
     return dirty;
   });
@@ -171,13 +170,13 @@ function signal(): AbortSignal {
   await handler({
     jobId: "j-retry-final",
     jobType: PROJECTION_MAINTENANCE_JOB_TYPE,
-    payload: { projectionKind: "material_text", targetKey: target.targetKey, expectedDirtyGeneration: target.dirtyGeneration },
+    payload: { projectionKind: "search_metadata", targetKey: target.targetKey, expectedDirtyGeneration: target.dirtyGeneration },
     signal: signal(),
     retryCount: 2,
     retryLimit: 2,
   });
   const record = await createProjectionMaintenanceRecords({ db: database.context() }).getProjectionTarget({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: target.targetKey,
   });
   assert.equal(record?.status, "failed");
@@ -190,12 +189,12 @@ function signal(): AbortSignal {
   const database = await initializedDatabase();
   const target = await database.transaction(async (db) => {
     const dirty = await createProjectionMaintenanceCommands({ db, now: "2026-06-21T00:00:00.000Z" }).markProjectionTargetDirty({
-      projectionKind: "material_text",
+      projectionKind: "search_metadata",
       materialRef: recordingRef("job-retryable"),
     });
     await db.run(
       "UPDATE projection_maintenance_targets SET target_payload_json = ? WHERE projection_kind = ? AND target_key = ?",
-      ["{not-json", "material_text", dirty.targetKey],
+      ["{not-json", "search_metadata", dirty.targetKey],
     );
     return dirty;
   });
@@ -207,13 +206,13 @@ function signal(): AbortSignal {
   await assert.rejects(() => handler({
     jobId: "j-retryable",
     jobType: PROJECTION_MAINTENANCE_JOB_TYPE,
-    payload: { projectionKind: "material_text", targetKey: target.targetKey, expectedDirtyGeneration: target.dirtyGeneration },
+    payload: { projectionKind: "search_metadata", targetKey: target.targetKey, expectedDirtyGeneration: target.dirtyGeneration },
     signal: signal(),
     retryCount: 0,
     retryLimit: 2,
   }));
   const record = await createProjectionMaintenanceRecords({ db: database.context() }).getProjectionTarget({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: target.targetKey,
   });
   assert.equal(record?.status, "dirty");
@@ -227,11 +226,11 @@ function signal(): AbortSignal {
   const database = await initializedDatabase();
   const materialRef = recordingRef("job-stale");
   const firstDirty = await database.transaction(async (db) => await createProjectionMaintenanceCommands({ db, now: "2026-06-21T00:00:00.000Z" }).markProjectionTargetDirty({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     materialRef,
   }));
   const secondDirty = await database.transaction(async (db) => await createProjectionMaintenanceCommands({ db, now: "2026-06-21T00:00:01.000Z" }).markProjectionTargetDirty({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     materialRef,
   }));
   assert.equal(secondDirty.dirtyGeneration, 2);
@@ -243,11 +242,11 @@ function signal(): AbortSignal {
   await handler({
     jobId: "j-stale",
     jobType: PROJECTION_MAINTENANCE_JOB_TYPE,
-    payload: { projectionKind: "material_text", targetKey: firstDirty.targetKey, expectedDirtyGeneration: 1 },
+    payload: { projectionKind: "search_metadata", targetKey: firstDirty.targetKey, expectedDirtyGeneration: 1 },
     signal: signal(),
   });
   const record = await createProjectionMaintenanceRecords({ db: database.context() }).getProjectionTarget({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: firstDirty.targetKey,
   });
   assert.equal(record?.status, "dirty");

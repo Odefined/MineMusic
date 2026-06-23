@@ -114,21 +114,17 @@
   material-scope positive owner-relation replacement.
 - `src/music_data_platform/owner_catalog_records.ts` exposes the internal owner
   catalog read port for tests and later query phases.
-- `src/music_data_platform/material_text_projection_schema.ts` contributes
-  `material_text_documents` and `material_text_fts`.
-- `src/music_data_platform/material_text_normalization.ts` implements
-  Phase 10/12 internal normalization, field-level dedupe, strict plain-text
-  FTS query construction, and retrieval prefix-query tokenization helpers.
-- `src/music_data_platform/material_text_projection_commands.ts` implements
-  command-owned rebuild of current material text documents and replacement FTS
-  rows by explicit material ref.
-- `src/music_data_platform/material_text_projection_records.ts` exposes the
-  internal material text read port with exact document reads and strict
-  owner-neutral FTS probes.
 - `src/music_data_platform/projection_maintenance_schema.ts` contributes
   `projection_maintenance_targets` plus a pending-order index.
 - `src/music_data_platform/search_metadata_projection_schema.ts` contributes
-  durable `search_metadata_documents` for material-level metadata lookup.
+  durable `search_metadata_documents` for material-level metadata lookup; the
+  runtime schema no longer creates or maintains the retired legacy material-text
+  tables.
+- `src/music_data_platform/search_metadata_projection_commands.ts` implements
+  command-owned rebuild of current metadata lookup documents by explicit
+  material ref.
+- `src/music_data_platform/search_metadata_projection_records.ts` exposes the
+  internal search metadata read port with exact document reads.
 - `src/music_data_platform/search_result_set_schema.ts` contributes runtime
   `search_result_sets` and `search_result_rows` for metadata lookup result
   windows; rows do not store duplicate `search_text` or `tsvector` columns.
@@ -142,7 +138,7 @@
   internal projection maintenance read port for exact target lookup and
   pending dirty/failed target listing.
 - `src/music_data_platform/projection_maintenance_runner.ts` implements the
-  internal rebuild runner that dispatches to owner catalog and material text
+  internal rebuild runner that dispatches to owner catalog and search metadata
   projection commands one target transaction at a time.
 - `src/music_data_platform/ref_validation.ts` now owns Music Data Platform
   internal ref/refKey input hardening so malformed external refs become
@@ -225,43 +221,24 @@
   refs and does not expose per-material relation refs as `entry_ref_key`.
 - `blocked` does not create `owner_material_entries`; it suppresses ordinary
   owner catalog visibility through `owner_material_catalog_view`.
-- Material text projection derives only from current `material_records`,
+- Search metadata projection derives only from current `material_records`,
   current `source_material_bindings -> source_records`, and confirmed active
   canonical rows.
-- Material text rebuild treats `source_material_bindings` as the current bound
-  source truth and labels source contributions uniformly as `source`; it no
-  longer has a primary-source contribution label.
-- Material text projection stores structured text fields plus deterministic
-  `document_json`; `material_kind` remains a structured column and does not
-  enter FTS text or contribution JSON.
-- `material_text_fts` indexes `title/artist/album/version/alias` only.
-  `search_text` is stored on the document row but intentionally not indexed.
-- Missing or non-active materials delete current material text rows. Active
+- Search metadata rebuild treats `source_material_bindings` as the current
+  bound source truth and stores field attribution in `fields_json`.
+- `search_metadata_documents` stores structured text fields, `search_text`,
+  `fields_json`, and indexed `search_vector`; `search_text` is also indexed
+  through `pg_trgm`.
+- Missing or non-active materials delete current search metadata rows. Active
   materials rebuild one current document row even when every text field is
   empty.
-- Retrieval read validates only `DEFAULT_OWNER_SCOPE`, supports SQL-owned
-  owner-visible catalog queries over pool algebra, and accepts `stable`,
-  `recently_added`, and `text_relevance` orders.
-- Retrieval read currently accepts only `source_library` and
-  `owner_material_relation_pool` refs, validates them against current
-  Music Data Platform truth, and returns matched positive pool evidence per
-  row.
-- Retrieval read left-joins `material_text_documents` for normalized display
-  text when effective text is absent, and uses `material_text_documents` plus
-  `material_text_fts` for text recall when effective text is present.
-- Retrieval read builds prefix-OR FTS queries from deduped capped query tokens,
-  treats all-dropped text as absent text for `stable` / `recently_added`,
-  and rejects `text_relevance` without effective query text.
-- Retrieval read exposes matched text fields, matched tokens by field,
-  distinct `matchedTokenCount`, and `rankScore` only for `text_relevance`.
-- Missing material text projections remain tolerated as projection staleness:
-  no-text reads return empty display fields, and text reads simply do not
-  recall those rows.
-- Retrieval freshness counts dirty/failed current-owner owner-catalog targets
-  plus global `material_text` targets without rebuilding them.
-- Runtime result-set cleanup removes expired result-set FTS rows, mixed rows,
-  then headers; material-candidate cleanup deletes only expired cache rows that
-  are not referenced by any non-expired result-set row.
+- Metadata lookup search validates `DEFAULT_OWNER_SCOPE`, supports SQL-owned
+  owner-visible catalog queries over pool algebra, and uses
+  `search_metadata_documents` plus runtime provider candidates for local/mixed
+  metadata recall.
+- Metadata lookup result-set cleanup removes expired result-set rows then
+  headers; material-candidate cleanup deletes only expired cache rows that are
+  not referenced by any non-expired result-set row.
 - Mixed retrieval SQL is enabled through the internal workspace, while
   provider-search execution remains outside Music Data Platform. Public
   Stage Interface tools stay behind their owning stage-adapter boundaries.
@@ -304,11 +281,11 @@
   validation, removed/archived reactivation semantics, blocked catalog
   exclusion, owner-relation projection shape, mixed provenance priority,
   scoped cleanup, and inactive-material projection skip behavior.
-- Phase 10 tests cover material text schema/FTS shape, key-set guards,
-  normalization/query construction, repeated rebuild replacement, strict
-  conjunctive match semantics, operator escaping, canonical inclusion guards,
-  bound-source truth from `source_material_bindings`, and active-empty plus
-  delete-on-missing-or-inactive rebuild behavior.
+- Search metadata tests cover schema/index shape, key-set guards,
+  normalization, repeated rebuild replacement, canonical inclusion guards,
+  runtime provider candidate documents, bound-source truth from
+  `source_material_bindings`, and active-empty plus delete-on-missing-or-
+  inactive rebuild behavior.
 - Phase 11C tests cover projection maintenance schema/record/command shapes,
   deterministic payload/key generation, invalidation planning from typed write
   scopes, dirty-generation increments, failure clearing, pending list

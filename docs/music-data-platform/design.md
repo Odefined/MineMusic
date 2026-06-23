@@ -1,7 +1,7 @@
 # Music Data Platform Design
 
 > Status: Current design authority through implemented Phase 23
-> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, search metadata projection, projection maintenance core, metadata lookup search workspace/result sets, and the Library Import / Library Relation / Library Catalog stage adapter tools
+> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, search metadata projection, projection maintenance core, metadata lookup search workspace/result sets, and the Library Import / Library Relation / Library Catalog stage adapter tools
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Data Platform owns source/material/canonical identity records, current
@@ -9,11 +9,11 @@ source-to-material binding facts, and the source-library import persistence
 foundation that lets later phases move from provider account-library
 observations to MineMusic source-backed material anchors. It also owns
 material-scope owner relation facts, the internal owner catalog
-projection/read-model foundation, the owner-neutral material text
-projection/FTS foundation built from those durable facts, and the
+projection/read-model foundation, the Postgres-native search metadata
+projection built from durable material/source/canonical facts, and the
 projection-maintenance target table/runner that tracks explicit rebuild work
-for current projections. Phase 22 adds the Postgres-native metadata lookup
-search path: durable `search_metadata_documents`, runtime
+for current projections. Phase 22 adds the metadata lookup search path:
+durable `search_metadata_documents`, runtime
 `search_result_sets` / `search_result_rows`, and a Music Data Platform
 metadata lookup workspace that owns SQL reranking, pagination, provider-hit
 dedupe/collapse, and unresolved material-candidate cache writes. The Music Data
@@ -38,8 +38,6 @@ Platform `stage_adapter` subtree owns the MDP-backed public `library.import.*`,
 | Owner relation pool ref | Deterministic positive owner-relation projection scope. | `owner_material_relation_pool:<kind>:rp_<opaque>` derived from owner scope and positive relation kind. |
 | `owner_material_entries` | Owner catalog projection row. | One row per `owner_scope + entry_kind + entry_ref_key + material_ref_key`; not source-of-truth. |
 | `owner_material_catalog_view` | Owner catalog SQL read model. | Aggregates active positive entries by owner/material and excludes active material-scope blocked facts. |
-| `material_text_documents` | Current material-centered text document projection. | One row per active material ref; built only from current material/bound-source/confirmed-canonical facts. |
-| `material_text_fts` | Postgres full-text read model for projected material text. | Stores `title/artist/album/version/alias` text plus a `tsvector` search column; `search_text` remains a stored projection column on `material_text_documents`. |
 | `search_metadata_documents` | Durable material-level metadata lookup document. | One row per active material ref; stores normalized `title/artist/album/version/alias` fields, deduped field values, attribution JSON, `search_text`, and indexed `search_vector`. |
 | `materialCandidateRef` | Runtime material-facing handle for an unresolved provider candidate. | `material_candidate:provider_candidate:<opaque>` derived from `digest(refKey(sourceEntity.sourceRef))`; not durable material identity and not a source ref. |
 | `search_result_sets` | Runtime metadata lookup result-set header. | Stores metadata lookup query fingerprint, pruned row count, TTL, and creation time; it does not store Stage Interface output. |
@@ -480,7 +478,7 @@ Callers do not construct projection rows themselves. Projection maintenance is
 not public Stage Interface behavior, and ordinary owner relation writes do not
 implicitly rebuild the projection.
 
-## Material Text Projection
+## Search Metadata Projection
 
 Phase 10 adds an owner-neutral material-centered text projection/read-model
 foundation for later Music Intelligence retrieval.
@@ -494,41 +492,31 @@ source_records
 canonical_records (confirmed active canonical only)
 ```
 
-Projection output is:
+Search metadata projection output is:
 
 ```text
-material_text_documents
-material_text_fts
+search_metadata_documents
 ```
 
-`material_text_documents` keeps one current document per active material:
+`search_metadata_documents` keeps one current document per active material:
 
 ```text
 material_ref_key
 material_kind
+fields_json
 title_text
 artist_text
 album_text
 version_text
 alias_text
 search_text
-document_json
+search_vector
 updated_at
 ```
 
-`material_text_fts` indexes only:
-
-```text
-material_ref_key
-title_text
-artist_text
-album_text
-version_text
-alias_text
-```
-
-`search_text` is stored on the document row for internal inspection and later
-consumption, but Phase 10 does not index it in FTS.
+`search_vector` is indexed with Postgres GIN full-text search, and
+`search_text` is indexed with `pg_trgm` for fuzzy metadata recall. The runtime
+schema no longer creates or maintains the retired legacy material-text tables.
 
 Text projection derives only from current durable facts:
 
@@ -541,7 +529,7 @@ Text projection derives only from current durable facts:
 `MaterialEntity.sourceRefs` is not authoritative input for projection rebuild.
 Current bound source truth comes from `source_material_bindings`.
 
-`document_json` is current projection debug structure only. It stores compact
+`fields_json` is current projection evidence structure only. It stores compact
 field contribution arrays in fixed key order:
 
 ```text
@@ -560,30 +548,28 @@ basis
 value
 ```
 
-Phase 10 rebuild is command-owned:
+Rebuild is command-owned:
 
 ```text
-createMaterialTextProjectionCommands({ db, now })
-  -> rebuildMaterialTextDocument({ materialRef })
-  -> rebuildMaterialTextDocuments({ materialRefs })
+createSearchMetadataProjectionCommands({ db, now })
+  -> rebuildSearchMetadataDocument({ materialRef })
+  -> rebuildSearchMetadataDocuments({ materialRefs })
 ```
 
 Missing or non-active materials delete current projection rows. Active
 materials always rebuild one current document row, even when every text field
-is empty; the command also replaces the single FTS row for that material.
+is empty.
 
-Phase 10 reads are internal only:
+Projection reads are internal only:
 
 ```text
-createMaterialTextProjectionRecords({ db })
-  -> getMaterialTextDocument({ materialRef })
-  -> matchMaterialTextDocuments({ text, limit? })
+createSearchMetadataProjectionRecords({ db })
+  -> getSearchMetadataDocument({ materialRef })
 ```
 
-`matchMaterialTextDocuments` is an owner-neutral strict conjunctive plain-text
-FTS probe over projected material text. It does not implement owner catalog
-pool logic, provider candidate search, query-hit shaping, ranking, or
-presentation output.
+Metadata lookup text recall, pool logic, provider candidate collapse, ranking,
+and pagination are owned by the metadata lookup search workspace, not by the
+projection record port.
 
 ## Metadata Lookup Search Workspace
 
@@ -650,7 +636,9 @@ The implemented projection kinds are:
 owner_catalog_source_library
 owner_catalog_source_library_material
 owner_catalog_relation_material
-material_text
+owner_catalog_collection
+owner_catalog_collection_material
+search_metadata
 ```
 
 `target_key` is an opaque deterministic digest:
@@ -695,7 +683,7 @@ typed write scopes such as `source_record_written`,
 `material_record_written`, `canonical_record_written`,
 `source_material_binding_written`, `source_library_item_written`, and
 `owner_relation_written`. Projection Maintenance plans the affected
-`material_text`, `owner_catalog_source_library_material`, and
+`search_metadata`, `owner_catalog_source_library_material`, and
 `owner_catalog_relation_material` targets inside the same transaction as the
 write. Workflow-facing callers use
 `createMusicDataPlatformSourceOfTruthWriteCommands({ db, now })`; ordinary

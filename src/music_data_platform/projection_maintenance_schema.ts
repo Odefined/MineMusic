@@ -15,18 +15,40 @@ export const musicDataPlatformProjectionMaintenanceSchema: MusicDatabaseSchemaCo
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         PRIMARY KEY(projection_kind, target_key),
-        CHECK (projection_kind IN (
+        CONSTRAINT projection_maintenance_targets_projection_kind_check CHECK (projection_kind IN (
           'owner_catalog_source_library',
           'owner_catalog_source_library_material',
           'owner_catalog_relation_material',
           'owner_catalog_collection',
           'owner_catalog_collection_material',
-          'material_text'
+          'search_metadata'
         )),
         CHECK (status IN ('dirty', 'failed')),
         CHECK (dirty_generation >= 1),
         CHECK (substr(target_key, 1, 4) = 'pmt_')
       )
+    `);
+
+    await context.run(`
+      DELETE FROM projection_maintenance_targets
+      WHERE projection_kind = 'material_text'
+    `);
+
+    await context.run(`
+      ALTER TABLE projection_maintenance_targets
+      DROP CONSTRAINT IF EXISTS projection_maintenance_targets_projection_kind_check
+    `);
+
+    await context.run(`
+      ALTER TABLE projection_maintenance_targets
+      ADD CONSTRAINT projection_maintenance_targets_projection_kind_check CHECK (projection_kind IN (
+        'owner_catalog_source_library',
+        'owner_catalog_source_library_material',
+        'owner_catalog_relation_material',
+        'owner_catalog_collection',
+        'owner_catalog_collection_material',
+        'search_metadata'
+      ))
     `);
 
     await context.run(`

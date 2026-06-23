@@ -1,7 +1,7 @@
 # Music Data Platform
 
 > Status: Current area documentation through implemented Phase 23
-> Scope: Identity write model, source-library import, owner material relation, owner catalog projection, material/search metadata projections, projection maintenance, metadata lookup search, and MDP-owned library stage-adapter tools
+> Scope: Identity write model, source-library import, owner material relation, owner catalog projection, search metadata projection, projection maintenance, metadata lookup search, and MDP-owned library stage-adapter tools
 
 Music Data Platform owns formal music data truth. The implemented slices cover
 source/material/canonical identity records, current source-to-material binding
@@ -9,8 +9,8 @@ facts, narrow identity write commands, transaction-scoped repositories,
 source-library import persistence, library-ref-based source-library facts,
 opaque material ref creation, the internal Library Import application service,
 material-scope owner relation facts, the internal owner catalog
-projection/read-model foundation, the owner-neutral material text
-projection/FTS foundation, the internal projection maintenance core for
+projection/read-model foundation, the Postgres-native search metadata
+projection, the internal projection maintenance core for
 typed dirty/failed targets plus explicit rebuild dispatch, a top-level
 source-of-truth write facade that wires durable writes into projection
 invalidation planning, metadata lookup search result windows, and the
@@ -58,10 +58,6 @@ src/music_data_platform/search_metadata_projection_records.ts
 src/music_data_platform/search_metadata_projection_commands.ts
 src/music_data_platform/search_result_set_schema.ts
 src/music_data_platform/metadata_lookup_search_workspace.ts
-src/music_data_platform/material_text_projection_schema.ts
-src/music_data_platform/material_text_normalization.ts
-src/music_data_platform/material_text_projection_records.ts
-src/music_data_platform/material_text_projection_commands.ts
 src/music_data_platform/projection_maintenance_schema.ts
 src/music_data_platform/projection_maintenance_records.ts
 src/music_data_platform/projection_maintenance_commands.ts

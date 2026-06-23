@@ -67,10 +67,10 @@ const now = "2026-06-17T12:00:00.000Z";
         db: context,
     }).listPendingProjectionTargets()).map((target) => target.projectionKind).sort();
     assert.deepEqual(projectionKinds, [
-        "material_text",
         "owner_catalog_collection_material",
         "owner_catalog_relation_material",
         "owner_catalog_source_library_material",
+        "search_metadata",
     ]);
     await database.close();
 }

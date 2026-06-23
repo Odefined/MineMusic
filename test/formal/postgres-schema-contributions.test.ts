@@ -1,6 +1,5 @@
 import { musicDataPlatformDownloadSchema, } from "../../src/music_data_platform/download_schema.js";
 import { musicDataPlatformIdentitySchema, } from "../../src/music_data_platform/identity_schema.js";
-import { musicDataPlatformMaterialTextProjectionSchema, } from "../../src/music_data_platform/material_text_projection_schema.js";
 import { musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, } from "../../src/music_data_platform/owner_catalog_schema.js";
 import { musicDataPlatformOwnerRelationSchema, } from "../../src/music_data_platform/owner_material_relation_schema.js";
 import { musicDataPlatformCollectionSchema, } from "../../src/music_data_platform/collection_schema.js";
@@ -24,7 +23,6 @@ await database.initialize({
         musicDataPlatformOwnerRelationSchema,
         musicDataPlatformCollectionSchema,
         musicDataPlatformOwnerCatalogViewSchema,
-        musicDataPlatformMaterialTextProjectionSchema,
         musicDataPlatformSearchMetadataProjectionSchema,
         musicDataPlatformProjectionMaintenanceSchema,
         musicDataPlatformRetrievalResultSetSchema,
@@ -45,17 +43,6 @@ const sourceRecords = await context.get<{
 `);
 if (sourceRecords === undefined) {
     throw new Error("source_records table was not initialized");
-}
-const materialTextFts = await context.get<{
-    indexname: string;
-}>(`
-  SELECT indexname
-  FROM pg_indexes
-  WHERE schemaname = 'public'
-    AND indexname = 'material_text_fts_search_vector_idx'
-`);
-if (materialTextFts === undefined) {
-    throw new Error("material text search vector index was not initialized");
 }
 const searchMetadataDocuments = await context.get<{
     table_name: string;

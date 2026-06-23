@@ -25,7 +25,7 @@ export type ProjectionMaintenanceKind =
   | "owner_catalog_relation_material"
   | "owner_catalog_collection"
   | "owner_catalog_collection_material"
-  | "material_text";
+  | "search_metadata";
 
 export type ProjectionMaintenanceTargetStatus =
   | "dirty"
@@ -131,7 +131,7 @@ export type ProjectionMaintenanceTargetInput =
       materialRef: Ref;
     }
   | {
-      projectionKind: "material_text";
+      projectionKind: "search_metadata";
       materialRef: Ref;
     };
 
@@ -203,7 +203,7 @@ type OwnerCatalogMaterialPayload = {
   materialRef: RefPayload;
 };
 
-type MaterialTextPayload = {
+type SearchMetadataPayload = {
   materialRef: RefPayload;
 };
 
@@ -350,7 +350,7 @@ export function assertProjectionMaintenanceKind(
     value !== "owner_catalog_relation_material" &&
     value !== "owner_catalog_collection" &&
     value !== "owner_catalog_collection_material" &&
-    value !== "material_text"
+    value !== "search_metadata"
   ) {
     throw invalidProjectionMaintenanceKind(
       `Projection maintenance kind '${value}' is not supported.`,
@@ -416,7 +416,7 @@ export function parseProjectionMaintenanceTargetPayload(input: {
         materialRef,
       };
     }
-    case "material_text": {
+    case "search_metadata": {
       const payload = requireObjectPayload(parsed);
       assertExactObjectKeys(payload, ["materialRef"]);
       const materialRef = refFromPayload(payload.materialRef, "materialRef");
@@ -478,9 +478,9 @@ function buildNormalizedTargetPayloadJson(input: ProjectionMaintenanceTargetInpu
       };
       return JSON.stringify(payload);
     }
-    case "material_text": {
+    case "search_metadata": {
       assertMaterialRef(input.materialRef);
-      const payload: MaterialTextPayload = {
+      const payload: SearchMetadataPayload = {
         materialRef: normalizedRefPayload(input.materialRef),
       };
       return JSON.stringify(payload);
@@ -564,7 +564,7 @@ async function planProjectionInvalidationTargets(
       const currentMaterialRef = await findCurrentMaterialRefForSource(db, write.sourceRef);
       return currentMaterialRef === undefined
         ? []
-        : [{ projectionKind: "material_text", materialRef: currentMaterialRef }];
+        : [{ projectionKind: "search_metadata", materialRef: currentMaterialRef }];
     }
     case "material_record_written":
       assertMaterialRef(write.materialRef);
@@ -572,7 +572,7 @@ async function planProjectionInvalidationTargets(
     case "canonical_record_written": {
       assertSafeRef(write.canonicalRef, "canonicalRef");
       return (await findMaterialRefsForCanonical(db, write.canonicalRef)).map((materialRef) => ({
-        projectionKind: "material_text" as const,
+        projectionKind: "search_metadata" as const,
         materialRef,
       }));
     }
@@ -657,7 +657,7 @@ function materialScopedTargets(
   materialRef: Ref,
 ): readonly ProjectionMaintenanceTargetInput[] {
   return [
-    { projectionKind: "material_text", materialRef },
+    { projectionKind: "search_metadata", materialRef },
     {
       projectionKind: "owner_catalog_source_library_material",
       ownerScope,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { refKey, type Ref, type Result } from "../../src/contracts/kernel.js";
 import type { PlatformLibraryCandidate, PlatformLibraryReadInput, PlatformLibraryReadResult, SourceEntity } from "../../src/contracts/music_data_platform.js";
-import { DEFAULT_OWNER_SCOPE, createMaterialTextProjectionRecords, createMaterialRefFactory, createOwnerCatalogRecords, createProjectionMaintenanceRecords, createProjectionMaintenanceRunner, createSourceLibraryRef, createSourceLibraryImportService, isMusicDataPlatformError, musicDataPlatformIdentitySchema, musicDataPlatformMaterialTextProjectionSchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformCollectionSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformSearchMetadataProjectionSchema, musicDataPlatformSourceLibrarySchema, type PlatformLibraryReadPort, type SourceLibraryImportBatchRecord, type SourceLibraryImportItemOutcomeRecord, type SourceLibraryImportService, type SourceLibraryRecord, type SourceLibraryItemRecord, type SourceLibraryCommands, type SourceLibraryReadPort, } from "../../src/music_data_platform/index.js";
+import { DEFAULT_OWNER_SCOPE, createSearchMetadataProjectionRecords, createMaterialRefFactory, createOwnerCatalogRecords, createProjectionMaintenanceRecords, createProjectionMaintenanceRunner, createSourceLibraryRef, createSourceLibraryImportService, isMusicDataPlatformError, musicDataPlatformIdentitySchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformCollectionSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformSearchMetadataProjectionSchema, musicDataPlatformSourceLibrarySchema, type PlatformLibraryReadPort, type SourceLibraryImportBatchRecord, type SourceLibraryImportItemOutcomeRecord, type SourceLibraryImportService, type SourceLibraryRecord, type SourceLibraryItemRecord, type SourceLibraryCommands, type SourceLibraryReadPort, } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
 import { createSourceLibraryCommands } from "../../src/music_data_platform/source_library_commands.js";
 import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
@@ -1009,10 +1009,10 @@ assert.equal((await importOutcomes(projectionMaintenanceDatabase, "projection-ma
 assert.deepEqual((await createProjectionMaintenanceRecords({ db: projectionMaintenanceDatabase.context() })
     .listPendingProjectionTargets()).map((target) => target.projectionKind)
     .sort(), [
-    "material_text",
     "owner_catalog_collection_material",
     "owner_catalog_relation_material",
     "owner_catalog_source_library_material",
+    "search_metadata",
 ]);
 assert.deepEqual(await createProjectionMaintenanceRunner({
     database: projectionMaintenanceDatabase,
@@ -1025,8 +1025,8 @@ assert.deepEqual(await createProjectionMaintenanceRunner({
 });
 assert.equal((await createProjectionMaintenanceRecords({ db: projectionMaintenanceDatabase.context() })
     .listPendingProjectionTargets()).length, 0);
-assert.equal((await createMaterialTextProjectionRecords({ db: projectionMaintenanceDatabase.context() })
-    .getMaterialTextDocument({ materialRef: projectionMaintenanceMaterialRef }))?.materialRefKey, refKey(projectionMaintenanceMaterialRef));
+assert.equal((await createSearchMetadataProjectionRecords({ db: projectionMaintenanceDatabase.context() })
+    .getSearchMetadataDocument({ materialRef: projectionMaintenanceMaterialRef }))?.materialRefKey, refKey(projectionMaintenanceMaterialRef));
 assert.notEqual(projectionMaintenanceBatch.libraryRef, undefined);
 assert.equal((await createOwnerCatalogRecords({ db: projectionMaintenanceDatabase.context() })
     .listOwnerMaterialEntries({
@@ -1470,7 +1470,7 @@ async function initializedDatabase(): Promise<MusicDatabase> {
             musicDataPlatformCollectionSchema,
             musicDataPlatformOwnerCatalogEntriesSchema,
             musicDataPlatformOwnerCatalogViewSchema,
-            musicDataPlatformMaterialTextProjectionSchema,
+            musicDataPlatformSearchMetadataProjectionSchema,
             musicDataPlatformSearchMetadataProjectionSchema,
             musicDataPlatformSourceLibrarySchema,
             musicDataPlatformProjectionMaintenanceSchema,

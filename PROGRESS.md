@@ -408,6 +408,10 @@ implemented plan lives at
 `docs/formal-rebuild/phase-8-owner-catalog-projection-foundation-implementation-plan.md`.
 Current Music Data Platform docs live under `docs/music-data-platform/`.
 
+2026-06-24 update: the Phase 10 material-text projection/read-helper has been
+retired from the active tree. Current lookup/search projection state is
+`search_metadata_documents` plus metadata lookup result sets.
+
 ## 2026-06-14: Phase 11C Source-Of-Truth Invalidation Wiring
 
 Phase 11C completes the write-side invalidation seam for the currently
@@ -454,7 +458,7 @@ Phase 11B adds the internal projection-maintenance worklist and rebuild core:
 - `createProjectionMaintenanceRecords({ db })` exposes exact target lookup and
   pending dirty/failed target reads;
 - `createProjectionMaintenanceRunner({ database, now })` reads pending targets
-  and dispatches each target to the owning owner-catalog or material-text
+  and dispatches each target to the owning owner-catalog or search-metadata
   rebuild command inside its own transaction;
 - repeated dirty marks increment `dirty_generation` instead of creating
   duplicates, and dirty-after-failed clears compact failure fields;
@@ -711,7 +715,7 @@ Phase 13 completes Projection Maintenance runtime ownership as three PR slices:
   maintenance starts after database/schema initialization and stops before the
   owned database closes;
 - PR13C adds the end-to-end closure check that a source-of-truth write can
-  dirty owner-catalog/material-text targets, retrieval freshness reports
+  dirty owner-catalog/search-metadata targets, retrieval freshness reports
   stale, the scheduler tick rebuilds and cleans those targets, and retrieval
   freshness plus retrieval results observe the rebuilt state afterward;
 - active-tree guards now confine `createProjectionMaintenanceRunner(...)` to
@@ -839,8 +843,8 @@ kernel (ADR-0013):
 - `music_data_platform.ts` imports the kernel; `storage.ts` imports the kernel
   and music_data_platform; `stage_interface.ts` imports the kernel;
   `stage_core.ts` imports the kernel and stage_interface;
-- there is no `music_intelligence` contract; retrieval reads downward into
-  music_data_platform, and material-text tokenization lives in
+- there is no `music_intelligence` contract; lookup reads downward into
+  music_data_platform, and metadata lookup normalization lives in
   music_data_platform to avoid a reverse edge;
 - `PublicRefKey` and `PublicHandle` are dropped as zero-/single-consumer
   orphans; `refKey` returns `string`;
@@ -854,10 +858,10 @@ kernel (ADR-0013):
   ref primitives imported only from `kernel.js`), and repointed `src/index.ts` to
   re-export the five area files directly. The contracts barrel no longer exists.
 
-## 2026-06-16: Retrieval Text Ranking Dedup
+## 2026-06-16: Legacy Retrieval Text Ranking Dedup
 
-The duplicated FTS5 text-ranking SQL engine is consolidated into one shared
-module (architecture deepening candidate #2):
+The now-retired duplicated FTS5 text-ranking SQL engine was consolidated into
+one shared module (architecture deepening candidate #2):
 
 - `src/music_data_platform/material_text_ranking.ts` owns the field config,
   token-count, and field-priority SQL expressions, parameterised by the FTS table
@@ -1280,10 +1284,9 @@ Search Core path:
   `primarySourceRef`, or provider result metadata for resolved hits.
 - Field values are normalized and deduped within each field, with merged
   attribution evidence stored as JSONB.
-- Projection Maintenance rebuilds the new search metadata index when it
-  processes existing material-scoped projection targets; legacy
-  `material_text_*` tables remain preserved but are no longer the default
-  lookup path.
+- Projection Maintenance rebuilds the search metadata index through
+  `search_metadata` material-scoped projection targets; the legacy
+  material-text projection/read-helper has been removed from the active tree.
 - Music Data Platform now owns `search_result_sets` and `search_result_rows`
   for metadata lookup result windows, Postgres text-score reranking, and
   local/provider mixed recall. Result rows store row identity, compact text

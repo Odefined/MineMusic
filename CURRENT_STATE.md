@@ -20,12 +20,12 @@ refs, and introduces the first internal owner catalog projection schema,
 rebuild command, and SQL catalog view. Phase 9 adds
 `owner_material_relations`, deterministic owner relation refs/pool refs,
 material-scope `saved/favorite/blocked`, owner-relation projection, and
-ordinary catalog exclusion for active blocked facts. Phase 10 adds
-`material_text_documents`, `material_text_fts`, command-owned rebuild by
-explicit material ref, and an owner-neutral internal material text read/FTS
-probe. Phase 11 adds `projection_maintenance_targets`, typed invalidation/
+ordinary catalog exclusion for active blocked facts. Phase 10 originally added
+the owner-neutral material text projection foundation; the active tree has now
+retired that legacy projection in favor of `search_metadata_documents`. Phase
+11 adds `projection_maintenance_targets`, typed invalidation/
 dirty/failed projection maintenance commands, an internal rebuild runner that
-dispatches to owner catalog and material text projection commands, and a
+dispatches to owner catalog and search metadata projection commands, and a
 top-level source-of-truth write facade that wires identity/source-library/
 relation writes into projection invalidation planning. Phase 12A adds the
 first query-ready Music Data Platform retrieval read port for owner-visible
@@ -90,9 +90,8 @@ metadata retrieval. The first landed slice adds Music Data Platform
 normalized-value dedupe and attribution JSON that distinguishes
 `material_fact`, `bound_source_fact`, `canonical_fact`, and runtime
 `provider_candidate_fact` evidence without source-priority ranking. Projection
-maintenance now rebuilds this new index alongside the preserved legacy
-`material_text_*` projection when a material-scoped projection target is
-processed. Music Data Platform also owns `search_result_sets` /
+maintenance now rebuilds this index through `search_metadata` material-scoped
+projection targets. Music Data Platform also owns `search_result_sets` /
 `search_result_rows` for metadata lookup result windows, text-score reranking,
 and provider/local mixed recall. Result rows store row identity, compact text
 fields, evidence, and scores only; they do not persist a duplicate
@@ -432,19 +431,16 @@ Phase 8/9 owner catalog and owner relation vocabulary includes:
 - `blocked` affecting ordinary catalog visibility through the catalog SQL view,
   not through `owner_material_entries`.
 
-Phase 10 material text projection vocabulary includes:
+Current search metadata projection vocabulary includes:
 
-- `musicDataPlatformMaterialTextProjectionSchema` for
-  `material_text_documents` plus `material_text_fts`;
-- `createMaterialTextProjectionCommands({ db, now })` with
-  `rebuildMaterialTextDocument({ materialRef })` and
-  `rebuildMaterialTextDocuments({ materialRefs })`;
-- `createMaterialTextProjectionRecords({ db })` with
-  `getMaterialTextDocument({ materialRef })` and
-  `matchMaterialTextDocuments({ text, limit? })`;
-- `music_data.material_text_projection_invalid` for internal read-port input
-  validation;
-- current bound source truth for text projection coming from
+- `musicDataPlatformSearchMetadataProjectionSchema` for
+  `search_metadata_documents`;
+- `createSearchMetadataProjectionCommands({ db, now })` with
+  `rebuildSearchMetadataDocument({ materialRef })` and
+  `rebuildSearchMetadataDocuments({ materialRefs })`;
+- `createSearchMetadataProjectionRecords({ db })` with
+  `getSearchMetadataDocument({ materialRef })`;
+- current bound source truth for metadata projection coming from
   `source_material_bindings`, not from `MaterialEntity.sourceRefs`;
 - `document_json` as compact current projection debug structure only;
 - strict owner-neutral conjunctive FTS matching over projected
@@ -486,7 +482,7 @@ Phase 13 runtime-orchestrated Projection Maintenance vocabulary includes:
   stop;
 - immediate background startup tick plus interval ticks owned by the runtime
   module lifecycle, not by writes, import flows, or retrieval;
-- retrieval freshness closure where dirty owner-catalog/material-text targets
+- retrieval freshness closure where dirty owner-catalog/search-metadata targets
   can move from `possibly_stale` to `current` after scheduler-driven rebuild.
 
 Phase 14 source-library update reconciliation vocabulary includes:
@@ -654,14 +650,6 @@ The active TypeScript tree is now a formal skeleton:
   catalog read port;
 - `src/music_data_platform/owner_catalog_projection.ts` owns owner catalog
   rebuild commands for source-library and owner-relation projection scopes;
-- `src/music_data_platform/material_text_projection_schema.ts` owns the
-  material text projection schema contribution;
-- `src/music_data_platform/material_text_normalization.ts` owns internal
-  normalization, dedupe, and strict FTS query construction helpers;
-- `src/music_data_platform/material_text_projection_records.ts` owns the
-  internal material text read port;
-- `src/music_data_platform/material_text_projection_commands.ts` owns
-  command-owned material text rebuilds;
 - `src/music_data_platform/search_metadata_projection_schema.ts` and
   `src/music_data_platform/search_metadata_projection_commands.ts` own the
   durable material metadata lookup projection;
@@ -829,7 +817,7 @@ restored as compatibility layers.
   `docs/music-data-platform/ports.md`, and
   `docs/music-data-platform/progress.md` are the current Music Data Platform
   area docs for identity, source-library import, owner material relation,
-  owner catalog projection, material text projection, projection
+  owner catalog projection, search metadata projection, projection
   maintenance core, runtime-integrated freshness closure, metadata lookup
   search, and the Library Catalog stage adapter tools.
 - `docs/music-intelligence/README.md`, `docs/music-intelligence/design.md`,

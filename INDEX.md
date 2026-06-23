@@ -200,12 +200,12 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/music-data-platform/README.md`: Music Data Platform area
   documentation entrypoint.
 - `docs/music-data-platform/design.md`: Music Data Platform identity,
-  source-library, owner relation, owner catalog, material text projection,
-  retrieval read-port, mixed retrieval workspace, and Library Import
+  source-library, owner relation, owner catalog, search metadata projection,
+  metadata lookup workspace, and Library Import
   stage-adapter design authority.
 - `docs/music-data-platform/ports.md`: Music Data Platform identity,
-  source-library, owner relation, owner catalog, material text projection,
-  retrieval read-port, mixed retrieval workspace, Library Import stage-adapter
+  source-library, owner relation, owner catalog, search metadata projection,
+  metadata lookup workspace, Library Import stage-adapter
   ports, forbidden dependencies, composition, and guards.
 - `docs/music-data-platform/progress.md`: Music Data Platform implementation
   state, verification evidence, and remaining gaps.
@@ -374,7 +374,7 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   `Result`, `StageError`/`StageWarning`, `FormalArea`, and ref helpers); a strict
   leaf that imports no other contract file (ADR-0013).
 - `src/contracts/music_data_platform.ts`: source/material/canonical, provider,
-  platform-library, source-library import, and material-text tokenization
+  platform-library, source-library import, and metadata lookup
   contracts; imports only the kernel.
 - `src/contracts/storage.ts`: source/material/canonical record contracts; imports
   the kernel and music_data_platform.
@@ -535,14 +535,6 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   catalog item descriptions are projected separately through Material Projection.
 - `src/music_data_platform/owner_catalog_projection.ts`: owner catalog rebuild
   commands for source-library and owner-relation projection scopes.
-- `src/music_data_platform/material_text_projection_schema.ts`: material text
-  projection schema contribution.
-- `src/music_data_platform/material_text_normalization.ts`: internal material
-  text normalization and strict FTS query construction helpers.
-- `src/music_data_platform/material_text_projection_records.ts`: internal
-  material text read port.
-- `src/music_data_platform/material_text_projection_commands.ts`: internal
-  material text rebuild commands.
 - `src/music_data_platform/ref_validation.ts`: internal Music Data Platform
   ref/refKey validation helper that converts malformed external ref inputs
   into `MusicDataPlatformError`.

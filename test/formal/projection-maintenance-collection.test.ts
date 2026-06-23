@@ -425,7 +425,7 @@ await dispatchDatabase.transaction(async (db) => {
   });
 });
 // Dirty only the collection_material target (not the full material_record_written
-// set, which would also dispatch material_text/source_library/relation rebuilds
+// set, which would also dispatch search_metadata/source_library/relation rebuilds
 // unrelated to this regression) so the runner exercises the collection dispatch
 // path in isolation.
 await dispatchDatabase.transaction(async (db) =>

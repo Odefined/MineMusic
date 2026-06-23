@@ -1,9 +1,6 @@
 import type { BackgroundWorkHandler } from "../background_work/index.js";
 import type { MusicDatabase } from "../storage/database.js";
 import {
-  createMaterialTextProjectionCommands,
-} from "./material_text_projection_commands.js";
-import {
   createOwnerCatalogProjectionCommands,
 } from "./owner_catalog_projection.js";
 import {
@@ -83,7 +80,6 @@ export function createProjectionMaintenanceJobHandler(
         await dispatchProjectionTarget({
           target,
           ownerCatalogProjectionCommands: createOwnerCatalogProjectionCommands({ db, now }),
-          materialTextProjectionCommands: createMaterialTextProjectionCommands({ db, now }),
           searchMetadataProjectionCommands: createSearchMetadataProjectionCommands({ db, now }),
         });
 

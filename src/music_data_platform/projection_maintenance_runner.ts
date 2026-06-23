@@ -1,9 +1,6 @@
 import type { MusicDatabase } from "../storage/database.js";
 import { isMusicDataPlatformError } from "./errors.js";
 import {
-  createMaterialTextProjectionCommands,
-} from "./material_text_projection_commands.js";
-import {
   createOwnerCatalogProjectionCommands,
 } from "./owner_catalog_projection.js";
 import {
@@ -61,10 +58,6 @@ export function createProjectionMaintenanceRunner(
                 db,
                 now: input.now,
               }),
-              materialTextProjectionCommands: createMaterialTextProjectionCommands({
-                db,
-                now: input.now,
-              }),
               searchMetadataProjectionCommands: createSearchMetadataProjectionCommands({
                 db,
                 now: input.now,
@@ -116,7 +109,6 @@ export function createProjectionMaintenanceRunner(
 export async function dispatchProjectionTarget(input: {
   target: ProjectionMaintenanceTargetRecord;
   ownerCatalogProjectionCommands: ReturnType<typeof createOwnerCatalogProjectionCommands>;
-  materialTextProjectionCommands: ReturnType<typeof createMaterialTextProjectionCommands>;
   searchMetadataProjectionCommands: ReturnType<typeof createSearchMetadataProjectionCommands>;
 }): Promise<void> {
   const payload = parseProjectionMaintenanceTargetPayload({
@@ -167,10 +159,7 @@ export async function dispatchProjectionTarget(input: {
       }
       return;
     }
-    case "material_text":
-      await input.materialTextProjectionCommands.rebuildMaterialTextDocument({
-        materialRef: payload.materialRef,
-      });
+    case "search_metadata":
       await input.searchMetadataProjectionCommands.rebuildSearchMetadataDocument({
         materialRef: payload.materialRef,
       });

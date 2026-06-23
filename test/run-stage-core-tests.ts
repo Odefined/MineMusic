@@ -29,7 +29,6 @@ const testModules = [
     "./formal/library-collection-control.test.js",
     "./formal/music-data-platform-owner-catalog.test.js",
     "./formal/music-data-platform-material-projection.test.js",
-    "./formal/music-data-platform-material-text-projection.test.js",
     "./formal/music-data-platform-search-metadata-projection.test.js",
     "./formal/music-data-platform-ref-validation.test.js",
     "./formal/music-data-platform-projection-maintenance.test.js",

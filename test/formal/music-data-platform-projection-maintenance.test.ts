@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import * as musicDataPlatform from "../../src/music_data_platform/index.js";
-import { DEFAULT_OWNER_SCOPE, createMaterialTextProjectionRecords, createMusicDataPlatformSourceOfTruthWriteCommands, createOwnerCatalogRecords, createOwnerRelationPoolRef, createProjectionMaintenanceCommands, createProjectionMaintenanceRecords, createProjectionMaintenanceRunner, createSourceLibraryRef, isMusicDataPlatformError, musicDataPlatformIdentitySchema, musicDataPlatformMaterialTextProjectionSchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformSearchMetadataProjectionSchema, musicDataPlatformSourceLibrarySchema, type CreateProjectionMaintenanceCommandsInput, type CreateProjectionMaintenanceRecordsInput, type CreateProjectionMaintenanceRunnerInput, type CreateMusicDataPlatformSourceOfTruthWriteCommandsInput, type GetProjectionTargetInput, type ListPendingProjectionTargetsInput, type ProjectionMaintenanceCleanInput, type ProjectionMaintenanceCleanResult, type ProjectionMaintenanceCommands, type ProjectionInvalidationCommands, type ProjectionMaintenanceInvalidationInput, type ProjectionMaintenanceInvalidationResult, type ProjectionMaintenanceFailedInput, type ProjectionMaintenanceFailedResult, type ProjectionMaintenanceKind, type ProjectionMaintenanceRecords, type ProjectionMaintenanceRunSummary, type ProjectionMaintenanceRunner, type ProjectionSourceWrite, type ProjectionMaintenanceTargetDirtyResult, type ProjectionMaintenanceTargetInput, type ProjectionMaintenanceTargetRecord, type ProjectionMaintenanceTargetStatus, } from "../../src/music_data_platform/index.js";
+import { DEFAULT_OWNER_SCOPE, createSearchMetadataProjectionRecords, createMusicDataPlatformSourceOfTruthWriteCommands, createOwnerCatalogRecords, createOwnerRelationPoolRef, createProjectionMaintenanceCommands, createProjectionMaintenanceRecords, createProjectionMaintenanceRunner, createSourceLibraryRef, isMusicDataPlatformError, musicDataPlatformIdentitySchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformSearchMetadataProjectionSchema, musicDataPlatformSourceLibrarySchema, type CreateProjectionMaintenanceCommandsInput, type CreateProjectionMaintenanceRecordsInput, type CreateProjectionMaintenanceRunnerInput, type CreateMusicDataPlatformSourceOfTruthWriteCommandsInput, type GetProjectionTargetInput, type ListPendingProjectionTargetsInput, type ProjectionMaintenanceCleanInput, type ProjectionMaintenanceCleanResult, type ProjectionMaintenanceCommands, type ProjectionInvalidationCommands, type ProjectionMaintenanceInvalidationInput, type ProjectionMaintenanceInvalidationResult, type ProjectionMaintenanceFailedInput, type ProjectionMaintenanceFailedResult, type ProjectionMaintenanceKind, type ProjectionMaintenanceRecords, type ProjectionMaintenanceRunSummary, type ProjectionMaintenanceRunner, type ProjectionSourceWrite, type ProjectionMaintenanceTargetDirtyResult, type ProjectionMaintenanceTargetInput, type ProjectionMaintenanceTargetRecord, type ProjectionMaintenanceTargetStatus, } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
 import { runSourceOfTruthWrite, type ProjectionMaintenanceDispatcher } from "../../src/music_data_platform/index.js";
 import { createOwnerMaterialRelationCommands } from "../../src/music_data_platform/owner_material_relation_commands.js";
@@ -31,12 +31,12 @@ function createOwnerRelationTestCommands(db: Parameters<typeof createOwnerMateri
     });
 }
 export type _createProjectionMaintenanceCommandsInputShape = Expect<Equal<keyof CreateProjectionMaintenanceCommandsInput, "db" | "now">>;
-export type _projectionMaintenanceKindShape = Expect<Equal<ProjectionMaintenanceKind, "owner_catalog_source_library" | "owner_catalog_source_library_material" | "owner_catalog_relation_material" | "owner_catalog_collection" | "owner_catalog_collection_material" | "material_text">>;
+export type _projectionMaintenanceKindShape = Expect<Equal<ProjectionMaintenanceKind, "owner_catalog_source_library" | "owner_catalog_source_library_material" | "owner_catalog_relation_material" | "owner_catalog_collection" | "owner_catalog_collection_material" | "search_metadata">>;
 export type _projectionMaintenanceTargetStatusShape = Expect<Equal<ProjectionMaintenanceTargetStatus, "dirty" | "failed">>;
 export type _projectionMaintenanceSourceLibraryTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"owner_catalog_source_library">, "projectionKind" | "ownerScope" | "libraryRef">>;
 export type _projectionMaintenanceSourceLibraryMaterialTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"owner_catalog_source_library_material">, "projectionKind" | "ownerScope" | "materialRef">>;
 export type _projectionMaintenanceRelationMaterialTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"owner_catalog_relation_material">, "projectionKind" | "ownerScope" | "materialRef">>;
-export type _projectionMaintenanceMaterialTextTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"material_text">, "projectionKind" | "materialRef">>;
+export type _projectionMaintenanceSearchMetadataTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"search_metadata">, "projectionKind" | "materialRef">>;
 export type _projectionMaintenanceCollectionTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"owner_catalog_collection">, "projectionKind" | "ownerScope" | "collectionRef">>;
 export type _projectionMaintenanceCollectionMaterialTargetInputShape = Expect<Equal<keyof ProjectionMaintenanceTargetByKind<"owner_catalog_collection_material">, "projectionKind" | "ownerScope" | "materialRef">>;
 export type _projectionMaintenanceTargetDirtyResultShape = Expect<Equal<keyof ProjectionMaintenanceTargetDirtyResult, "targetKey" | "dirtyGeneration">>;
@@ -63,12 +63,12 @@ assert.equal("parseProjectionMaintenanceTargetPayload" in musicDataPlatform, fal
 assert.throws(() => assertProjectionMaintenanceKind("bad-kind"), (error: unknown) => isMusicDataPlatformError(error) &&
     error.code === "music_data.projection_maintenance_kind_invalid");
 assert.throws(() => parseProjectionMaintenanceTargetPayload({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetPayloadJson: "{\"materialRef\":{\"namespace\":\"material\",\"kind\":\"recording\"}}",
 }), (error: unknown) => isMusicDataPlatformError(error) &&
     error.code === "music_data.projection_maintenance_target_invalid");
 assert.throws(() => parseProjectionMaintenanceTargetPayload({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetPayloadJson: "{\"materialRef\":{\"namespace\":\"source_netease\",\"kind\":\"track\",\"id\":\"bad\"}}",
 }), (error: unknown) => isMusicDataPlatformError(error) &&
     error.code === "music_data.material_ref_invalid");
@@ -103,7 +103,7 @@ await schemaDatabase.transaction(async (db) => {
           )
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `, [
-        "material_text",
+        "search_metadata",
         "bad_key",
         "{\"materialRef\":{\"namespace\":\"material\",\"kind\":\"recording\",\"id\":\"m_schema\"}}",
         "dirty",
@@ -123,7 +123,7 @@ await schemaDatabase.transaction(async (db) => {
           )
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `, [
-        "material_text",
+        "search_metadata",
         "pmt_schema",
         "{\"materialRef\":{\"namespace\":\"material\",\"kind\":\"recording\",\"id\":\"m_schema\"}}",
         "dirty",
@@ -135,13 +135,13 @@ await schemaDatabase.transaction(async (db) => {
 await schemaDatabase.close();
 const commandDatabase = await initializedDatabase();
 const libraryTargetRef = sourceLibraryRef("130950618", "saved_source_track");
-const materialTextTargetWithLabel: Ref = {
+const searchMetadataTargetWithLabel: Ref = {
     namespace: "material",
     kind: "recording",
     id: "m_dirty",
     label: "Ignored Label",
 };
-const materialTextTarget: Ref = {
+const searchMetadataTarget: Ref = {
     namespace: "material",
     kind: "recording",
     id: "m_dirty",
@@ -150,7 +150,7 @@ await assert.rejects(async () => await commandDatabase.transaction(async (db) =>
     db,
     now: "2026-06-13T12:09:00.000Z",
 }).markProjectionTargetDirty({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     materialRef: {
         namespace: "source_netease",
         kind: "track",
@@ -162,8 +162,8 @@ const initialDirty = await commandDatabase.transaction(async (db) => await creat
     db,
     now: "2026-06-13T12:10:00.000Z",
 }).markProjectionTargetDirty({
-    projectionKind: "material_text",
-    materialRef: materialTextTargetWithLabel,
+    projectionKind: "search_metadata",
+    materialRef: searchMetadataTargetWithLabel,
 }));
 assert.equal(initialDirty.targetKey.startsWith("pmt_"), true);
 assert.equal(initialDirty.dirtyGeneration, 1);
@@ -171,8 +171,8 @@ const repeatedDirty = await commandDatabase.transaction(async (db) => await crea
     db,
     now: "2026-06-13T12:11:00.000Z",
 }).markProjectionTargetDirty({
-    projectionKind: "material_text",
-    materialRef: materialTextTarget,
+    projectionKind: "search_metadata",
+    materialRef: searchMetadataTarget,
 }));
 assert.equal(repeatedDirty.targetKey, initialDirty.targetKey);
 assert.equal(repeatedDirty.dirtyGeneration, 2);
@@ -193,18 +193,18 @@ const commandRecords = createProjectionMaintenanceRecords({
 });
 assert.deepEqual(await (await commandRecords.listPendingProjectionTargets()).map((target) => target.targetKey), [initialDirty.targetKey, libraryDirty.targetKey]);
 assert.equal(await (await commandRecords.listPendingProjectionTargets({ limit: 1 })).length, 1);
-const materialTextRow = await commandRecords.getProjectionTarget({
-    projectionKind: "material_text",
+const searchMetadataRow = await commandRecords.getProjectionTarget({
+    projectionKind: "search_metadata",
     targetKey: initialDirty.targetKey,
 });
-assert.equal(materialTextRow?.targetPayloadJson, "{\"materialRef\":{\"namespace\":\"material\",\"kind\":\"recording\",\"id\":\"m_dirty\"}}");
-assert.equal(materialTextRow?.status, "dirty");
-assert.equal(materialTextRow?.dirtyGeneration, 2);
+assert.equal(searchMetadataRow?.targetPayloadJson, "{\"materialRef\":{\"namespace\":\"material\",\"kind\":\"recording\",\"id\":\"m_dirty\"}}");
+assert.equal(searchMetadataRow?.status, "dirty");
+assert.equal(searchMetadataRow?.dirtyGeneration, 2);
 const failedDirty = await commandDatabase.transaction(async (db) => await createProjectionMaintenanceCommands({
     db,
     now: "2026-06-13T12:13:00.000Z",
 }).markProjectionFailed({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: initialDirty.targetKey,
     expectedDirtyGeneration: 2,
     failureCode: "fixture.failed",
@@ -212,10 +212,10 @@ const failedDirty = await commandDatabase.transaction(async (db) => await create
 }));
 assert.deepEqual(failedDirty, { failed: true });
 assert.deepEqual(await commandRecords.getProjectionTarget({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: initialDirty.targetKey,
 }), {
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: initialDirty.targetKey,
     targetPayloadJson: "{\"materialRef\":{\"namespace\":\"material\",\"kind\":\"recording\",\"id\":\"m_dirty\"}}",
     status: "failed",
@@ -229,15 +229,15 @@ const clearedDirty = await commandDatabase.transaction(async (db) => await creat
     db,
     now: "2026-06-13T12:14:00.000Z",
 }).markProjectionTargetDirty({
-    projectionKind: "material_text",
-    materialRef: materialTextTarget,
+    projectionKind: "search_metadata",
+    materialRef: searchMetadataTarget,
 }));
 assert.equal(clearedDirty.dirtyGeneration, 3);
 assert.deepEqual(await commandRecords.getProjectionTarget({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: initialDirty.targetKey,
 }), {
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: initialDirty.targetKey,
     targetPayloadJson: "{\"materialRef\":{\"namespace\":\"material\",\"kind\":\"recording\",\"id\":\"m_dirty\"}}",
     status: "dirty",
@@ -249,24 +249,24 @@ assert.deepEqual(await commandDatabase.transaction(async (db) => await createPro
     db,
     now: "2026-06-13T12:15:00.000Z",
 }).markProjectionClean({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: initialDirty.targetKey,
     expectedDirtyGeneration: 2,
 })), { cleaned: false });
 assert.equal((await commandRecords.getProjectionTarget({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: initialDirty.targetKey,
 }))?.dirtyGeneration, 3);
 assert.deepEqual(await commandDatabase.transaction(async (db) => await createProjectionMaintenanceCommands({
     db,
     now: "2026-06-13T12:16:00.000Z",
 }).markProjectionClean({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: initialDirty.targetKey,
     expectedDirtyGeneration: 3,
 })), { cleaned: true });
 assert.equal(await commandRecords.getProjectionTarget({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: initialDirty.targetKey,
 }), undefined);
 await commandDatabase.close();
@@ -358,16 +358,6 @@ assert.equal(plannerInvalidation.targetCount, 5);
 assert.equal(plannerInvalidation.invalidatedTargets.length, 5);
 assert.deepEqual(await summarizePendingTargets(plannerDatabase), [
     {
-        projectionKind: "material_text",
-        targetPayloadJson: materialPayloadJson(plannerBoundMaterialRef),
-        dirtyGeneration: 1,
-    },
-    {
-        projectionKind: "material_text",
-        targetPayloadJson: materialPayloadJson(plannerCanonicalMaterialRef),
-        dirtyGeneration: 1,
-    },
-    {
         projectionKind: "owner_catalog_relation_material",
         targetPayloadJson: ownerMaterialPayloadJson(DEFAULT_OWNER_SCOPE, plannerBoundMaterialRef),
         dirtyGeneration: 1,
@@ -380,6 +370,16 @@ assert.deepEqual(await summarizePendingTargets(plannerDatabase), [
     {
         projectionKind: "owner_catalog_source_library_material",
         targetPayloadJson: ownerMaterialPayloadJson(DEFAULT_OWNER_SCOPE, plannerBoundMaterialRef),
+        dirtyGeneration: 1,
+    },
+    {
+        projectionKind: "search_metadata",
+        targetPayloadJson: materialPayloadJson(plannerBoundMaterialRef),
+        dirtyGeneration: 1,
+    },
+    {
+        projectionKind: "search_metadata",
+        targetPayloadJson: materialPayloadJson(plannerCanonicalMaterialRef),
         dirtyGeneration: 1,
     },
 ]);
@@ -397,11 +397,6 @@ await facadeMaterialDatabase.transaction(async (db) => {
 });
 assert.deepEqual(await summarizePendingTargets(facadeMaterialDatabase), [
     {
-        projectionKind: "material_text",
-        targetPayloadJson: materialPayloadJson(facadeMaterialRef),
-        dirtyGeneration: 1,
-    },
-    {
         projectionKind: "owner_catalog_collection_material",
         targetPayloadJson: ownerMaterialPayloadJson(DEFAULT_OWNER_SCOPE, facadeMaterialRef),
         dirtyGeneration: 1,
@@ -414,6 +409,11 @@ assert.deepEqual(await summarizePendingTargets(facadeMaterialDatabase), [
     {
         projectionKind: "owner_catalog_source_library_material",
         targetPayloadJson: ownerMaterialPayloadJson(DEFAULT_OWNER_SCOPE, facadeMaterialRef),
+        dirtyGeneration: 1,
+    },
+    {
+        projectionKind: "search_metadata",
+        targetPayloadJson: materialPayloadJson(facadeMaterialRef),
         dirtyGeneration: 1,
     },
 ]);
@@ -713,7 +713,7 @@ await runnerSuccessDatabase.transaction(async (db) => {
         materialRef: runnerMaterialRef,
     });
     await maintenance.markProjectionTargetDirty({
-        projectionKind: "material_text",
+        projectionKind: "search_metadata",
         materialRef: runnerMaterialRef,
     });
 });
@@ -728,7 +728,7 @@ assert.deepEqual(runnerSuccessSummary, {
     skippedStaleGenerationCount: 0,
 });
 assert.deepEqual(await createProjectionMaintenanceRecords({ db: runnerSuccessDatabase.context() }).listPendingProjectionTargets(), []);
-assert.equal((await createMaterialTextProjectionRecords({ db: runnerSuccessDatabase.context() }).getMaterialTextDocument({
+assert.equal((await createSearchMetadataProjectionRecords({ db: runnerSuccessDatabase.context() }).getSearchMetadataDocument({
     materialRef: runnerMaterialRef,
 }))?.materialRefKey, refKey(runnerMaterialRef));
 assert.equal((await createOwnerCatalogRecords({ db: runnerSuccessDatabase.context() }).listOwnerMaterialEntries({
@@ -863,11 +863,11 @@ await runnerLimitDatabase.transaction(async (db) => {
         now: "2026-06-13T12:31:00.000Z",
     });
     await maintenance.markProjectionTargetDirty({
-        projectionKind: "material_text",
+        projectionKind: "search_metadata",
         materialRef: materialRef("recording", "m_limit_1"),
     });
     await maintenance.markProjectionTargetDirty({
-        projectionKind: "material_text",
+        projectionKind: "search_metadata",
         materialRef: materialRef("recording", "m_limit_2"),
     });
 });
@@ -891,7 +891,7 @@ await runnerMalformedDatabase.transaction(async (db) => {
         db,
         now: "2026-06-13T12:41:00.000Z",
     }).markProjectionTargetDirty({
-        projectionKind: "material_text",
+        projectionKind: "search_metadata",
         materialRef: materialRef("recording", "m_malformed"),
     });
     await db.run(`
@@ -923,7 +923,7 @@ assert.deepEqual(await runnerMalformed.runProjectionMaintenance(), {
     failedCount: 1,
     skippedStaleGenerationCount: 0,
 });
-assert.equal((await createMaterialTextProjectionRecords({ db: runnerMalformedDatabase.context() }).getMaterialTextDocument({
+assert.equal((await createSearchMetadataProjectionRecords({ db: runnerMalformedDatabase.context() }).getSearchMetadataDocument({
     materialRef: materialRef("recording", "m_malformed"),
 }))?.materialRefKey, refKey(materialRef("recording", "m_malformed")));
 assert.deepEqual(await createProjectionMaintenanceRecords({ db: runnerMalformedDatabase.context() }).getProjectionTarget({
@@ -961,7 +961,7 @@ await runnerInvalidMaterialRefDatabase.transaction(async (db) => {
       )
       VALUES (?, ?, ?, 'dirty', 1, ?, ?)
     `, [
-        "material_text",
+        "search_metadata",
         "pmt_invalid_material_ref_target",
         "{\"materialRef\":{\"namespace\":\"source_netease\",\"kind\":\"track\",\"id\":\"bad\"}}",
         "2026-06-13T12:49:00.000Z",
@@ -978,10 +978,10 @@ assert.deepEqual(await createProjectionMaintenanceRunner({
     skippedStaleGenerationCount: 0,
 });
 assert.deepEqual(await createProjectionMaintenanceRecords({ db: runnerInvalidMaterialRefDatabase.context() }).getProjectionTarget({
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: "pmt_invalid_material_ref_target",
 }), {
-    projectionKind: "material_text",
+    projectionKind: "search_metadata",
     targetKey: "pmt_invalid_material_ref_target",
     targetPayloadJson: "{\"materialRef\":{\"namespace\":\"source_netease\",\"kind\":\"track\",\"id\":\"bad\"}}",
     status: "failed",
@@ -1000,13 +1000,13 @@ await rollbackDatabase.transaction(async (db) => {
         db,
         now: "2026-06-13T12:51:00.000Z",
     }).markProjectionTargetDirty({
-        projectionKind: "material_text",
+        projectionKind: "search_metadata",
         materialRef: materialRef("recording", "m_rollback"),
     });
 });
 const rollbackRunner = createProjectionMaintenanceRunner({
     database: await wrapDatabaseWithRunInterceptor(rollbackDatabase, ({ sql }) => {
-        if (sql.includes("INSERT INTO material_text_documents")) {
+        if (sql.includes("INSERT INTO search_metadata_documents")) {
             throw new Error("injected rebuild failure");
         }
     }),
@@ -1018,19 +1018,19 @@ assert.deepEqual(await rollbackRunner.runProjectionMaintenance(), {
     failedCount: 1,
     skippedStaleGenerationCount: 0,
 });
-assert.equal(await createMaterialTextProjectionRecords({ db: rollbackDatabase.context() }).getMaterialTextDocument({
+assert.equal(await createSearchMetadataProjectionRecords({ db: rollbackDatabase.context() }).getSearchMetadataDocument({
     materialRef: materialRef("recording", "m_rollback"),
 }), undefined);
 assert.deepEqual(await createProjectionMaintenanceRecords({ db: rollbackDatabase.context() }).listPendingProjectionTargets(), [
     {
-        projectionKind: "material_text",
+        projectionKind: "search_metadata",
         targetKey: (await createProjectionMaintenanceRecords({ db: rollbackDatabase.context() })
             .listPendingProjectionTargets())[0]!.targetKey,
         targetPayloadJson: "{\"materialRef\":{\"namespace\":\"material\",\"kind\":\"recording\",\"id\":\"m_rollback\"}}",
         status: "failed",
         dirtyGeneration: 1,
         failureCode: "music_data.projection_maintenance_target_invalid",
-        failureMessage: "material_text rebuild failed: injected rebuild failure",
+        failureMessage: "search_metadata rebuild failed: injected rebuild failure",
         createdAt: "2026-06-13T12:51:00.000Z",
         updatedAt: "2026-06-13T12:52:00.000Z",
     },
@@ -1045,18 +1045,18 @@ await staleDatabase.transaction(async (db) => {
         db,
         now: "2026-06-13T13:01:00.000Z",
     }).markProjectionTargetDirty({
-        projectionKind: "material_text",
+        projectionKind: "search_metadata",
         materialRef: staleMaterialRef,
     });
 });
 const staleRunner = createProjectionMaintenanceRunner({
     database: await wrapDatabaseWithRunInterceptor(staleDatabase, async ({ sql, context }) => {
-        if (sql.includes("INSERT INTO material_text_documents")) {
+        if (sql.includes("INSERT INTO search_metadata_documents")) {
             await createProjectionMaintenanceCommands({
                 db: context,
                 now: "2026-06-13T13:02:00.000Z",
             }).markProjectionTargetDirty({
-                projectionKind: "material_text",
+                projectionKind: "search_metadata",
                 materialRef: staleMaterialRef,
             });
         }
@@ -1069,7 +1069,7 @@ assert.deepEqual(await staleRunner.runProjectionMaintenance(), {
     failedCount: 0,
     skippedStaleGenerationCount: 1,
 });
-assert.equal((await createMaterialTextProjectionRecords({ db: staleDatabase.context() }).getMaterialTextDocument({
+assert.equal((await createSearchMetadataProjectionRecords({ db: staleDatabase.context() }).getSearchMetadataDocument({
     materialRef: staleMaterialRef,
 }))?.materialRefKey, refKey(staleMaterialRef));
 const staleRow = (await createProjectionMaintenanceRecords({ db: staleDatabase.context() }).listPendingProjectionTargets())[0];
@@ -1135,7 +1135,7 @@ async function initializedDatabase(): Promise<MusicDatabase> {
             musicDataPlatformOwnerCatalogEntriesSchema,
             musicDataPlatformOwnerRelationSchema,
             musicDataPlatformOwnerCatalogViewSchema,
-            musicDataPlatformMaterialTextProjectionSchema,
+            musicDataPlatformSearchMetadataProjectionSchema,
             musicDataPlatformSearchMetadataProjectionSchema,
             musicDataPlatformProjectionMaintenanceSchema,
         ],

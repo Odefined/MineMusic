@@ -2,7 +2,7 @@ import { performance } from "node:perf_hooks";
 import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import type { PlatformLibraryKind, SourceEntity, } from "../../src/contracts/music_data_platform.js";
 import { createServerHost, } from "../../src/server/index.js";
-import { DEFAULT_OWNER_SCOPE, createMusicDataPlatformSourceOfTruthWriteCommands, createOwnerRelationPoolRef, createProjectionMaintenanceRunner, createSourceLibraryRef, musicDataPlatformIdentitySchema, musicDataPlatformMaterialTextProjectionSchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformRetrievalResultSetSchema, musicDataPlatformSourceLibrarySchema, } from "../../src/music_data_platform/index.js";
+import { DEFAULT_OWNER_SCOPE, createMusicDataPlatformSourceOfTruthWriteCommands, createOwnerRelationPoolRef, createProjectionMaintenanceRunner, createSourceLibraryRef, musicDataPlatformIdentitySchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformRetrievalResultSetSchema, musicDataPlatformSearchMetadataProjectionSchema, musicDataPlatformSourceLibrarySchema, } from "../../src/music_data_platform/index.js";
 import type { OwnerMaterialRelationKind, SourceLibraryImportBatchRecord, } from "../../src/music_data_platform/index.js";
 import type { RetrievalPoolFilter, RetrievalQueryInput, RetrievalQueryResult, } from "../../src/music_intelligence/index.js";
 import { type MusicDatabase } from "../../src/storage/index.js";
@@ -562,8 +562,7 @@ async function readCounts(databaseTarget: PostgresDatabaseTarget) {
             sourceMaterialBindings: await scalar(database, "select count(*) as value from source_material_bindings"),
             ownerCatalogRows: await scalar(database, "select count(*) as value from owner_material_catalog_view"),
             ownerEntries: await scalar(database, "select count(*) as value from owner_material_entries"),
-            materialTextDocuments: await scalar(database, "select count(*) as value from material_text_documents"),
-            materialTextFtsRows: await scalar(database, "select count(*) as value from material_text_fts"),
+            searchMetadataDocuments: await scalar(database, "select count(*) as value from search_metadata_documents"),
             ownerRelations: await scalar(database, "select count(*) as value from owner_material_relations"),
             pendingProjectionTargets: await scalar(database, "select count(*) as value from projection_maintenance_targets where status = 'dirty'"),
             failedProjectionTargets: await scalar(database, "select count(*) as value from projection_maintenance_targets where status = 'failed'"),
@@ -623,7 +622,7 @@ async function openDatabase(databaseTarget: PostgresDatabaseTarget): Promise<Mus
             musicDataPlatformOwnerCatalogEntriesSchema,
             musicDataPlatformOwnerRelationSchema,
             musicDataPlatformOwnerCatalogViewSchema,
-            musicDataPlatformMaterialTextProjectionSchema,
+            musicDataPlatformSearchMetadataProjectionSchema,
             musicDataPlatformProjectionMaintenanceSchema,
             musicDataPlatformRetrievalResultSetSchema,
         ],
