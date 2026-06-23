@@ -16,7 +16,7 @@ import {
   isMusicDataPlatformError,
   type LibraryRelationEdit,
 } from "../index.js";
-import { resolveLibraryMaterialRef, stageEditFail } from "./library_handle_resolution.js";
+import { resolveMaterialItemRef, stageEditFail } from "./library_handle_resolution.js";
 
 export type LibraryRelationControlPort = {
   getRelationState(input: {
@@ -77,7 +77,7 @@ const readErrors = [
   {
     code: "invalid_input",
     retryable: false,
-    suggestedFixTemplate: "Retry with item as a durable library MusicItemHandle. Present candidate items first with music.experience.present.",
+    suggestedFixTemplate: "Retry with item as a durable material MusicItemHandle. Present candidate items first with music.experience.present.",
   },
   {
     code: "item_not_found",
@@ -107,7 +107,7 @@ export const libraryRelationGetDescriptor: ToolDeclaration = {
   ownerArea: "music_data_platform",
   description: "Read the current saved, favorite, and blocked relation state for one MineMusic library item.",
   usage: {
-    useWhen: "Use when the user or agent needs to know whether a durable library item is currently saved, favorite, or blocked without editing it.",
+    useWhen: "Use when the user or agent needs to know whether a durable material item is currently saved, favorite, or blocked without editing it.",
     doNotUseWhen: "Do not use for lookup, presentation, provider-side saves, collection membership, candidate admission, or changing relation state.",
     outputSemantics: "Returns only the current saved/favorite/blocked booleans for the item; it does not expose relation records, material refs, timestamps, or scope handles.",
   },
@@ -133,7 +133,7 @@ export const libraryRelationSaveDescriptor = editDescriptor({
   action: "save",
   label: "Save Library Item",
   description: "Mark one MineMusic library item as saved.",
-  useWhen: "Use when the user explicitly asks to save or keep one durable library item in MineMusic.",
+  useWhen: "Use when the user explicitly asks to save or keep one durable material item in MineMusic.",
   doNotUseWhen: "Do not use for provider-side liking, candidate admission, collection membership, or simply checking whether an item is saved.",
   outputSemantics: "Clears blocked, marks saved active, leaves favorite unchanged, and returns the current saved/favorite/blocked booleans.",
   callPrompt: "save this track",
@@ -145,7 +145,7 @@ export const libraryRelationUnsaveDescriptor = editDescriptor({
   action: "unsave",
   label: "Unsave Library Item",
   description: "Remove the saved relation from one MineMusic library item.",
-  useWhen: "Use when the user explicitly asks to remove the saved relation from one durable library item.",
+  useWhen: "Use when the user explicitly asks to remove the saved relation from one durable material item.",
   doNotUseWhen: "Do not use to delete material identity, remove source-library facts, unlike a provider item, or edit favorite/blocked state.",
   outputSemantics: "Removes saved if active, leaves favorite and blocked unchanged, and returns the current saved/favorite/blocked booleans.",
   callPrompt: "unsave this track",
@@ -157,7 +157,7 @@ export const libraryRelationFavoriteDescriptor = editDescriptor({
   action: "favorite",
   label: "Favorite Library Item",
   description: "Mark one MineMusic library item as favorite.",
-  useWhen: "Use when the user explicitly asks to favorite one durable library item in MineMusic.",
+  useWhen: "Use when the user explicitly asks to favorite one durable material item in MineMusic.",
   doNotUseWhen: "Do not use for provider-side likes, candidate admission, collection membership, or saving without favorite intent.",
   outputSemantics: "Clears blocked, marks favorite active, leaves saved unchanged, and returns the current saved/favorite/blocked booleans.",
   callPrompt: "favorite this album",
@@ -169,7 +169,7 @@ export const libraryRelationUnfavoriteDescriptor = editDescriptor({
   action: "unfavorite",
   label: "Unfavorite Library Item",
   description: "Remove the favorite relation from one MineMusic library item.",
-  useWhen: "Use when the user explicitly asks to remove the favorite relation from one durable library item.",
+  useWhen: "Use when the user explicitly asks to remove the favorite relation from one durable material item.",
   doNotUseWhen: "Do not use to unsave, unblock, delete identity, or edit provider-side likes.",
   outputSemantics: "Removes favorite if active, leaves saved and blocked unchanged, and returns the current saved/favorite/blocked booleans.",
   callPrompt: "unfavorite this artist",
@@ -181,7 +181,7 @@ export const libraryRelationBlockDescriptor = editDescriptor({
   action: "block",
   label: "Block Library Item",
   description: "Mark one MineMusic library item as blocked.",
-  useWhen: "Use when the user explicitly asks to block, hide, or exclude one durable library item from ordinary catalog visibility.",
+  useWhen: "Use when the user explicitly asks to block, hide, or exclude one durable material item from ordinary catalog visibility.",
   doNotUseWhen: "Do not use for temporary filtering, provider-side blocking, candidate admission, or deleting the item.",
   outputSemantics: "Clears saved and favorite, marks blocked active, and returns the current saved/favorite/blocked booleans.",
   callPrompt: "block this version",
@@ -193,7 +193,7 @@ export const libraryRelationUnblockDescriptor = editDescriptor({
   action: "unblock",
   label: "Unblock Library Item",
   description: "Remove the blocked relation from one MineMusic library item.",
-  useWhen: "Use when the user explicitly asks to unblock or allow one durable library item again.",
+  useWhen: "Use when the user explicitly asks to unblock or allow one durable material item again.",
   doNotUseWhen: "Do not use to save, favorite, restore provider state, or inspect relation state without editing.",
   outputSemantics: "Removes blocked if active, leaves saved and favorite unchanged, and returns the current saved/favorite/blocked booleans.",
   callPrompt: "unblock this track",
@@ -308,7 +308,7 @@ async function handleLibraryRelation(
   control: LibraryRelationControlPort,
 ): Promise<Result<LibraryRelationStateOutput>> {
   const input = payload as LibraryRelationItemInput;
-  const materialRefResult = await resolveLibraryMaterialRef(ctx, input.item.id, "Retry with item as a durable library MusicItemHandle. Present candidate items first with music.experience.present.");
+  const materialRefResult = await resolveMaterialItemRef(ctx, input.item.id, "Retry with item as a durable material MusicItemHandle. Present candidate items first with music.experience.present.");
 
   if (!materialRefResult.ok) {
     return materialRefResult;
@@ -388,6 +388,6 @@ function invalidInput(message: string): Result<never> {
     code: "invalid_input",
     message,
     retryable: false,
-    suggestedFix: "Retry with item as a durable library MusicItemHandle. Present candidate items first with music.experience.present.",
+    suggestedFix: "Retry with item as a durable material MusicItemHandle. Present candidate items first with music.experience.present.",
   });
 }

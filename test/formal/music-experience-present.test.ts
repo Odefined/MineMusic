@@ -91,7 +91,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     const firstOutput = expectPresentOutput(first);
     assert.deepEqual(firstOutput, {
         item: {
-            kind: "library",
+            kind: "material",
             id: "mh_present_candidate_library",
         },
         card: {
@@ -108,6 +108,11 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     });
     assert.equal(Object.hasOwn(firstOutput.card, "trackPosition"), false);
     assert.equal(Object.hasOwn(firstOutput.card, "durationMs"), false);
+    // ADR-0040 guard #2: present output carries the "material" item-handle kind
+    // (never the retired "library") and leaks no raw materialRef — the minted
+    // handle is the only item reference in the output.
+    assert.equal(firstOutput.item.kind, "material");
+    assert.equal("materialRef" in firstOutput, false);
     assertSampleOutputHasNoInternalAnchors({
         label: "music.experience.present candidate output",
         output: firstOutput,
@@ -154,9 +159,9 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
         clock: () => now,
         publicIdFactory: () => "mh_library_present",
     });
-    const publicLibraryId = await handleMinting.mint({
+    const publicMaterialId = await handleMinting.mint({
         ownerScope: "owner-a",
-        handleKind: "library",
+        handleKind: "material",
         internalAnchor: {
             materialRef: refKey(materialRef),
         },
@@ -185,14 +190,14 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
         toolName: musicExperiencePresentDescriptor.name,
         payload: {
             item: {
-                kind: "library",
-                id: publicLibraryId,
+                kind: "material",
+                id: publicMaterialId,
             },
         },
     });
     const output = expectPresentOutput(result);
     assert.equal(commitCalled, false);
-    assert.equal(output.item.id, publicLibraryId);
+    assert.equal(output.item.id, publicMaterialId);
     assert.deepEqual(output.card, {
         kind: "recording",
         label: "Library Present Song",
@@ -261,7 +266,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     // Agent holds a handle anchored on the LOSER ref (e.g. minted before the merge).
     const loserHandle = await handleMinting.mint({
         ownerScope: "owner-a",
-        handleKind: "library",
+        handleKind: "material",
         internalAnchor: {
             materialRef: refKey(loserRef),
         },
@@ -288,7 +293,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
         toolName: musicExperiencePresentDescriptor.name,
         payload: {
             item: {
-                kind: "library",
+                kind: "material",
                 id: loserHandle,
             },
         },
@@ -298,7 +303,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     // proving present minted from the projected survivor, not the input loser ref.
     const resolved = await handleMinting.resolve({
         ownerScope: "owner-a",
-        handleKind: "library",
+        handleKind: "material",
         publicId: output.item.id,
     }) as {
         materialRef: string;
@@ -364,17 +369,17 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
         clock: () => now,
         publicIdFactory: () => "mh_missing_material",
     });
-    const publicLibraryId = await handleMinting.mint({
+    const publicMaterialId = await handleMinting.mint({
         ownerScope: "owner-a",
-        handleKind: "library",
+        handleKind: "material",
         internalAnchor: {
             materialRef: refKey(missingMaterialRef),
         },
     });
     const result = await dispatchWithPorts({
         item: {
-            kind: "library",
-            id: publicLibraryId,
+            kind: "material",
+            id: publicMaterialId,
         },
         handleMinting,
         db: database.context(),
@@ -442,7 +447,7 @@ function createPresentContext(input: {
 }
 async function dispatchWithPorts(input: {
     item: {
-        kind: "candidate" | "library";
+        kind: "candidate" | "material";
         id: string;
     };
     candidateHandles?: Parameters<typeof createStageInterfaceHandleMintingPort>[0]["candidateHandles"];

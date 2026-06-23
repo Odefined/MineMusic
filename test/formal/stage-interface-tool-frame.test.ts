@@ -42,10 +42,12 @@ assert.equal(validateScope({ kind: "provider", providerId: "netease" }), true);
 assert.equal(validateScope({ kind: "source_library" }), false);
 assert.equal(validateScope({ kind: "provider", id: "netease" }), false);
 const validateItemHandle = compiled(musicItemHandleSchema);
-assert.equal(validateItemHandle({ kind: "library", id: "pub_1" }), true);
+assert.equal(validateItemHandle({ kind: "material", id: "mat_1" }), true);
 assert.equal(validateItemHandle({ kind: "candidate", id: "cand_1" }), true);
 assert.equal(validateItemHandle({ kind: "candidate", id: "" }), false);
-assert.equal(validateItemHandle({ kind: "material", id: "mat_1" }), false);
+// ADR-0040: the "library" item-handle kind is retired; only "material" and
+// "candidate" are valid MusicItemHandle kinds now.
+assert.equal(validateItemHandle({ kind: "library", id: "pub_1" }), false);
 const validateMusicCard = compiled(musicCardSchema);
 assert.equal(validateMusicCard({
     kind: "recording",
@@ -84,7 +86,7 @@ assert.equal(validatePresentInput({
 }), true);
 assert.equal(validatePresentInput({
     item: {
-        kind: "library",
+        kind: "material",
         id: "mh_1",
     },
 }), true);
@@ -97,7 +99,7 @@ assert.equal(validatePresentInput({
 const validatePresentOutput = compiled(musicExperiencePresentOutputSchema);
 assert.equal(validatePresentOutput({
     item: {
-        kind: "library",
+        kind: "material",
         id: "mh_1",
     },
     card: {
@@ -111,7 +113,7 @@ assert.equal(validatePresentOutput({
 // library MusicItemHandle and must keep non-empty parity with the input handle.
 assert.equal(validatePresentOutput({
     item: {
-        kind: "library",
+        kind: "material",
         id: "",
     },
     card: {
@@ -228,7 +230,7 @@ assert.doesNotThrow(() => assertSampleOutputHasNoInternalAnchors({
     label: "music-card",
     output: {
         item: {
-            kind: "library",
+            kind: "material",
             id: "mh_public",
         },
         card: {
@@ -340,19 +342,19 @@ const internalLibraryAnchor = {
 };
 const publicLibraryHandleId = await handleMinting.mint({
     ownerScope: "owner-a",
-    handleKind: "library",
+    handleKind: "material",
     internalAnchor: internalLibraryAnchor,
 });
 assert.equal(publicLibraryHandleId, "mh_owner_bound_1");
 assert.notEqual(publicLibraryHandleId, internalLibraryAnchor.materialRef);
 assert.deepEqual(await handleMinting.resolve({
     ownerScope: "owner-a",
-    handleKind: "library",
+    handleKind: "material",
     publicId: publicLibraryHandleId,
 }), internalLibraryAnchor);
 assert.equal(await handleMinting.resolve({
     ownerScope: "owner-b",
-    handleKind: "library",
+    handleKind: "material",
     publicId: publicLibraryHandleId,
 }), undefined);
 await handleRegistryDatabase.close();
@@ -883,14 +885,14 @@ const upsertAnchorJson = JSON.stringify({ track: 1 });
 const firstUpsert = await upsertRecords.bindings.createBinding({
     publicId: "mh_upsert_1",
     ownerScope: "owner-a",
-    handleKind: "library",
+    handleKind: "material",
     internalAnchorJson: upsertAnchorJson,
     issuedAt: "2026-06-17T00:00:00.000Z",
 });
 const secondUpsert = await upsertRecords.bindings.createBinding({
     publicId: "mh_upsert_2",
     ownerScope: "owner-a",
-    handleKind: "library",
+    handleKind: "material",
     internalAnchorJson: upsertAnchorJson,
     issuedAt: "2026-06-17T01:00:00.000Z",
 });
@@ -900,7 +902,7 @@ assert.equal(await upsertRecords.bindings.getByPublicId({ publicId: "mh_upsert_1
 assert.equal((await upsertRecords.bindings.getByOwnerPublicId({
     publicId: "mh_upsert_2",
     ownerScope: "owner-a",
-    handleKind: "library",
+    handleKind: "material",
 }))?.publicId, "mh_upsert_2");
 await upsertDatabase.close();
 function compiled(schema: JsonSchema) {

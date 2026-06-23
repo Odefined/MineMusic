@@ -67,21 +67,21 @@ const handleMinting = createStageInterfaceHandleMintingPort({
 });
 const publicId = await handleMinting.mint({
     ownerScope: "local",
-    handleKind: "library",
+    handleKind: "material",
     internalAnchor: {
         materialRef: refKey(materialRef),
     },
 });
 const inactivePublicId = await handleMinting.mint({
     ownerScope: "local",
-    handleKind: "library",
+    handleKind: "material",
     internalAnchor: {
         materialRef: refKey(inactiveMaterialRef),
     },
 });
 const foreignOwnerPublicId = await handleMinting.mint({
     ownerScope: "owner-b",
-    handleKind: "library",
+    handleKind: "material",
     internalAnchor: {
         materialRef: refKey(ownerScopedMaterialRef),
     },
@@ -174,7 +174,7 @@ if (initializedServerModule.ok) {
             toolName,
             payload: {
                 item: {
-                    kind: "library",
+                    kind: "material",
                     id: publicId,
                 },
             },
@@ -199,7 +199,7 @@ if (initializedServerModule.ok) {
             toolName: input.toolName,
             payload: {
                 item: {
-                    kind: "library",
+                    kind: "material",
                     id: input.publicId,
                 },
             },

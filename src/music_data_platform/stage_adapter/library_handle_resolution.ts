@@ -1,39 +1,39 @@
 import { parseRefKey, type Ref, type Result } from "../../contracts/kernel.js";
 import type { StageToolContext } from "../../contracts/stage_interface.js";
 
-// Shared library-handle -> materialRef resolution for library.* edit tools.
-// Both collection_edit and relation_edit resolve a durable library item handle
+// Shared material-handle -> materialRef resolution for library.* edit tools.
+// Both collection_edit and relation_edit resolve a durable material item handle
 // to its underlying materialRef; no new handle is minted and no internal ref
 // leaks. The invalid-input suggestedFix is caller-supplied because each tool
 // family names its own next-step (collection scope handle vs music.experience).
 // stageEditFail hardcodes area "music_data_platform" (owning area of both
 // library.collection and library.relation).
 
-export async function resolveLibraryMaterialRef(
+export async function resolveMaterialItemRef(
   ctx: StageToolContext,
   publicId: string,
   invalidInputSuggestedFix: string,
 ): Promise<Result<Ref>> {
   const resolved = await ctx.handleMinting.resolve({
     ownerScope: ctx.ownerScope,
-    handleKind: "library",
+    handleKind: "material",
     publicId,
   });
 
   if (resolved === undefined) {
     return stageEditFail({
       code: "item_not_found",
-      message: "Library item handle is unknown or no longer available.",
+      message: "Material item handle is unknown or no longer available.",
       retryable: true,
-      suggestedFix: "Retry with a current library item handle, or look up and present the item again.",
+      suggestedFix: "Retry with a current material handle, or look up and present the item again.",
     });
   }
 
   const materialRef = refFromResolvedAnchor(resolved);
-  if (materialRef === undefined || !isLibraryMaterialRef(materialRef)) {
+  if (materialRef === undefined || !isPresentableMaterialRef(materialRef)) {
     return stageEditFail({
       code: "invalid_input",
-      message: "Library item handle did not resolve to a valid library material.",
+      message: "Material item handle did not resolve to a valid material.",
       retryable: false,
       suggestedFix: invalidInputSuggestedFix,
     });
@@ -71,7 +71,7 @@ function refFromResolvedAnchor(anchor: unknown): Ref | undefined {
   return parseRefKey(value);
 }
 
-function isLibraryMaterialRef(ref: Ref): boolean {
+function isPresentableMaterialRef(ref: Ref): boolean {
   return (
     ref.namespace === "material" &&
     (ref.kind === "recording" || ref.kind === "album" || ref.kind === "artist")

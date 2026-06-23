@@ -65,7 +65,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
         toolName: "library.relation.get",
         payload: {
             item: {
-                kind: "library",
+                kind: "material",
                 id: libraryHandleId,
             },
         },
@@ -85,6 +85,47 @@ for (const descriptor of relationDescriptors.slice(1)) {
         assertSampleOutputHasNoInternalAnchors({
             label: "library.relation.get output",
             output: result.value.result,
+        });
+    }
+}
+{
+    // ADR-0040 guard #3: a material handle with no library relation (never
+    // admitted via save/favorite/import) is accepted by library.relation.get and
+    // reports saved:false. The "material" handle kind does not presuppose library
+    // admission — admission is a fact queried by the tool, not asserted by the
+    // handle kind, so reading a never-admitted material is legal and returns false.
+    const result = await interfaceFor({
+        async getRelationState(input) {
+            assert.deepEqual(input, {
+                ownerScope: "local",
+                materialRef,
+            });
+            return {
+                saved: false,
+                favorite: false,
+                blocked: false,
+            };
+        },
+        async editRelation() {
+            throw new Error("get must not edit relation state");
+        },
+    }).dispatch(testStageToolContext({ materialRef }), {
+        toolName: "library.relation.get",
+        payload: {
+            item: {
+                kind: "material",
+                id: libraryHandleId,
+            },
+        },
+    });
+    assert.equal(result.ok, true);
+    if (result.ok) {
+        assert.deepEqual(result.value.result, {
+            relations: {
+                saved: false,
+                favorite: false,
+                blocked: false,
+            },
         });
     }
 }
@@ -112,7 +153,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
         toolName: "library.relation.save",
         payload: {
             item: {
-                kind: "library",
+                kind: "material",
                 id: libraryHandleId,
             },
         },
@@ -158,7 +199,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
         toolName: "library.relation.get",
         payload: {
             item: {
-                kind: "library",
+                kind: "material",
                 id: libraryHandleId,
             },
         },
@@ -174,7 +215,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
         toolName: "library.relation.get",
         payload: {
             item: {
-                kind: "library",
+                kind: "material",
                 id: libraryHandleId,
             },
         },
@@ -196,7 +237,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
         toolName: "library.relation.get",
         payload: {
             item: {
-                kind: "library",
+                kind: "material",
                 id: libraryHandleId,
             },
         },
@@ -221,7 +262,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
         toolName: "library.relation.save",
         payload: {
             item: {
-                kind: "library",
+                kind: "material",
                 id: libraryHandleId,
             },
         },

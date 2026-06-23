@@ -285,8 +285,8 @@ export const musicItemHandleSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library",
-              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+              "const": "material",
+              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
             },
             "id": {
               "type": "string",
@@ -305,7 +305,7 @@ export const musicItemHandleSchema = {
             "kind": {
               "type": "string",
               "const": "candidate",
-              "description": "\"candidate\": an unconfirmed provider item not yet admitted to the library."
+              "description": "\"candidate\": an unconfirmed provider item not yet committed to a durable material."
             },
             "id": {
               "type": "string",
@@ -411,7 +411,7 @@ export const musicExperiencePresentInputSchema = {
   "properties": {
     "item": {
       "$ref": "#/definitions/MusicItemHandle",
-      "description": "The music item to present. A \"candidate\" handle is admitted to the library first."
+      "description": "The music item to present. A \"candidate\" handle is committed to a durable material first."
     }
   },
   "required": [
@@ -426,8 +426,8 @@ export const musicExperiencePresentInputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library",
-              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+              "const": "material",
+              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
             },
             "id": {
               "type": "string",
@@ -446,7 +446,7 @@ export const musicExperiencePresentInputSchema = {
             "kind": {
               "type": "string",
               "const": "candidate",
-              "description": "\"candidate\": an unconfirmed provider item not yet admitted to the library."
+              "description": "\"candidate\": an unconfirmed provider item not yet committed to a durable material."
             },
             "id": {
               "type": "string",
@@ -473,8 +473,8 @@ export const musicExperiencePresentOutputSchema = {
       "properties": {
         "kind": {
           "type": "string",
-          "const": "library",
-          "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+          "const": "material",
+          "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
         },
         "id": {
           "type": "string",
@@ -1502,8 +1502,8 @@ export const libraryCatalogBrowseOutputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library",
-              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+              "const": "material",
+              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
             },
             "id": {
               "type": "string",
@@ -1792,8 +1792,8 @@ export const libraryCatalogSampleOutputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library",
-              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+              "const": "material",
+              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
             },
             "id": {
               "type": "string",
@@ -2118,8 +2118,8 @@ export const libraryCatalogSummaryOutputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library",
-              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+              "const": "material",
+              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
             },
             "id": {
               "type": "string",
@@ -2733,8 +2733,8 @@ export const libraryRelationItemInputSchema = {
       "properties": {
         "kind": {
           "type": "string",
-          "const": "library",
-          "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+          "const": "material",
+          "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
         },
         "id": {
           "type": "string",
@@ -2746,7 +2746,7 @@ export const libraryRelationItemInputSchema = {
         "id"
       ],
       "additionalProperties": false,
-      "description": "The durable library item whose relation state to read or edit. Candidate handles are rejected."
+      "description": "The durable material item whose relation state to read or edit. Candidate handles are rejected."
     }
   },
   "required": [
@@ -2917,8 +2917,8 @@ export const libraryCollectionItemInputSchema = {
       "properties": {
         "kind": {
           "type": "string",
-          "const": "library",
-          "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+          "const": "material",
+          "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
         },
         "id": {
           "type": "string",
@@ -2972,8 +2972,8 @@ export const libraryCollectionMoveInputSchema = {
       "properties": {
         "kind": {
           "type": "string",
-          "const": "library",
-          "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+          "const": "material",
+          "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
         },
         "id": {
           "type": "string",
@@ -3154,8 +3154,8 @@ export const libraryCollectionStateOutputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library",
-              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+              "const": "material",
+              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
             },
             "id": {
               "type": "string",
@@ -3221,8 +3221,8 @@ export const musicDiscoveryLookupOutputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library",
-              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+              "const": "material",
+              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
             },
             "id": {
               "type": "string",
@@ -3241,7 +3241,7 @@ export const musicDiscoveryLookupOutputSchema = {
             "kind": {
               "type": "string",
               "const": "candidate",
-              "description": "\"candidate\": an unconfirmed provider item not yet admitted to the library."
+              "description": "\"candidate\": an unconfirmed provider item not yet committed to a durable material."
             },
             "id": {
               "type": "string",

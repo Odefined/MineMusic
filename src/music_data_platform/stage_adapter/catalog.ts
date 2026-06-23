@@ -1152,10 +1152,10 @@ async function publicItems(
   for (const record of records) {
     items.push({
       item: {
-        kind: "library",
+        kind: "material",
         id: await ctx.handleMinting.mint({
           ownerScope: ctx.ownerScope,
-          handleKind: "library",
+          handleKind: "material",
           internalAnchor: {
             materialRef: refKey(record.material.materialRef),
           },
@@ -1174,7 +1174,7 @@ function publicDescriptionFromMaterial(material: MusicMaterial): PublicHandleDes
       const artistsText = artistsTextForLabels(material.artistLabels);
       return {
         label: musicLookupItemLabel({
-          handle: { kind: "library" },
+          handle: { kind: "material" },
           title: material.title,
           ...(artistsText === undefined ? {} : { artistsText }),
           ...(material.albumLabel === undefined ? {} : { album: material.albumLabel }),
@@ -1186,7 +1186,7 @@ function publicDescriptionFromMaterial(material: MusicMaterial): PublicHandleDes
       const artistsText = artistsTextForLabels(material.artistLabels);
       return {
         label: musicLookupItemLabel({
-          handle: { kind: "library" },
+          handle: { kind: "material" },
           title: material.title,
           ...(artistsText === undefined ? {} : { artistsText }),
           ...(material.versionInfo?.label === undefined ? {} : { versionText: material.versionInfo.label }),
@@ -1196,7 +1196,7 @@ function publicDescriptionFromMaterial(material: MusicMaterial): PublicHandleDes
     case "artist":
       return {
         label: musicLookupItemLabel({
-          handle: { kind: "library" },
+          handle: { kind: "material" },
           title: material.name,
         }),
       };

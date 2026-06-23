@@ -1,6 +1,6 @@
 import type { MusicDatabaseContext } from "../storage/database.js";
 
-export type StageInterfaceHandleKind = "library" | "candidate";
+export type StageInterfaceHandleKind = "material" | "candidate";
 
 export type StageInterfaceHandleBindingRecord = {
   publicId: string;
@@ -165,8 +165,8 @@ function assertBindingRecord(record: StageInterfaceHandleBindingRecord): void {
 }
 
 function assertHandleKind(handleKind: StageInterfaceHandleKind): void {
-  if (handleKind !== "library" && handleKind !== "candidate") {
-    throw new Error("handleKind must be 'library' or 'candidate'.");
+  if (handleKind !== "material" && handleKind !== "candidate") {
+    throw new Error("handleKind must be 'material' or 'candidate'.");
   }
 }
 
