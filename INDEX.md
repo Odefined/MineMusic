@@ -335,6 +335,13 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   does not claim library admission (which stays explicit, PB4). Decision recorded
   this cycle; the boundary-affecting code refactor (contracts + handle registry
   `handle_kind` + downstream tools + migration) is tracked in GitHub issue #113.
+- `docs/adr/0041-memory-taste-is-user-editable-backdrop-grown-by-confirmed-proposals.md`:
+  Memory taste is a user-visible, user-editable calibration artifact (not an
+  opaque profile); a backdrop that fills unspecified gaps and breaks ties but
+  never overrides an explicit current request; grown from behavior only through
+  confirmed proposals (Notify-level, never silent, never from interface cleanup)
+  plus direct explicit statements. Product direction ahead of the deferred Memory
+  phase; forgetting, scene-scoping, and concrete structure remain open.
 
 ## Pre-Formal ADR Evidence
 

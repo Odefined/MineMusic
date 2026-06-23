@@ -57,7 +57,7 @@ type OwnerMaterialEntryRow = {
   material_ref_key: string;
   visibility_role: OwnerMaterialEntryVisibilityRole;
   active: number;
-  provenance_json: string;
+  provenance_json: unknown;
   created_at: string;
   updated_at: string;
 };
@@ -68,7 +68,7 @@ type OwnerCatalogMaterialRow = {
   positive_entry_count: number;
   updated_at: string;
   recently_added_at: string;
-  provenance_json: string;
+  provenance_json: unknown;
 };
 
 export function createOwnerCatalogRecords(
@@ -121,7 +121,7 @@ function ownerMaterialEntryFromRow(row: OwnerMaterialEntryRow): OwnerMaterialEnt
     materialRefKey: row.material_ref_key,
     visibilityRole: row.visibility_role,
     active: row.active === 1,
-    provenanceJson: JSON.parse(row.provenance_json) as Record<string, unknown>,
+    provenanceJson: decodePostgresJson(row.provenance_json) as Record<string, unknown>,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -134,6 +134,14 @@ function ownerCatalogMaterialFromRow(row: OwnerCatalogMaterialRow): OwnerCatalog
     positiveEntryCount: row.positive_entry_count,
     updatedAt: row.updated_at,
     recentlyAddedAt: row.recently_added_at,
-    provenanceJson: JSON.parse(row.provenance_json) as readonly Record<string, unknown>[],
+    provenanceJson: decodePostgresJson(row.provenance_json) as readonly Record<string, unknown>[],
   };
+}
+
+function decodePostgresJson(value: unknown): unknown {
+  if (typeof value === "string") {
+    return JSON.parse(value);
+  }
+
+  return value;
 }

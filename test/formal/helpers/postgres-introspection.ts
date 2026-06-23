@@ -36,6 +36,20 @@ export async function tableColumns(database: DatabaseLike, tableName: string): P
     `, [tableName])).map((row) => row.column_name);
 }
 
+export async function columnDataType(
+    database: DatabaseLike,
+    tableName: string,
+    columnName: string,
+): Promise<string | undefined> {
+    return (await contextOf(database).get<{ data_type: string }>(`
+      SELECT data_type
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = ?
+        AND column_name = ?
+    `, [tableName, columnName]))?.data_type;
+}
+
 export async function primaryKeyColumns(database: DatabaseLike, tableName: string): Promise<readonly string[]> {
     return (await contextOf(database).all<{ column_name: string }>(`
       SELECT kcu.column_name

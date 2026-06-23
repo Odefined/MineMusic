@@ -12,7 +12,7 @@ export const musicDataPlatformOwnerCatalogEntriesSchema: MusicDatabaseSchemaCont
         material_ref_key TEXT NOT NULL,
         visibility_role TEXT NOT NULL,
         active INTEGER NOT NULL,
-        provenance_json TEXT NOT NULL,
+        provenance_json JSONB NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         CHECK (entry_kind IN ('source_library', 'collection', 'owner_relation')),
@@ -21,6 +21,14 @@ export const musicDataPlatformOwnerCatalogEntriesSchema: MusicDatabaseSchemaCont
         UNIQUE(owner_scope, entry_kind, entry_ref_key, material_ref_key),
         FOREIGN KEY(material_ref_key) REFERENCES material_records(ref_key)
       )
+    `);
+
+    await context.run("DROP VIEW IF EXISTS owner_material_catalog_view");
+
+    await context.run(`
+      ALTER TABLE owner_material_entries
+      ALTER COLUMN provenance_json TYPE JSONB
+      USING provenance_json::jsonb
     `);
 
     await context.run(`
@@ -49,25 +57,25 @@ export const musicDataPlatformOwnerCatalogViewSchema: MusicDatabaseSchemaContrib
         COALESCE(
           MAX(
             CASE
-              WHEN e.provenance_json::jsonb ->> 'lastProviderAddedAt' IS NOT NULL
-              THEN e.provenance_json::jsonb ->> 'lastProviderAddedAt'
+              WHEN e.provenance_json ->> 'lastProviderAddedAt' IS NOT NULL
+              THEN e.provenance_json ->> 'lastProviderAddedAt'
             END
           ),
           MAX(
             CASE
-              WHEN e.provenance_json::jsonb ->> 'lastAddedAt' IS NOT NULL
-              THEN e.provenance_json::jsonb ->> 'lastAddedAt'
+              WHEN e.provenance_json ->> 'lastAddedAt' IS NOT NULL
+              THEN e.provenance_json ->> 'lastAddedAt'
             END
           ),
           MAX(
             CASE
-              WHEN e.provenance_json::jsonb ->> 'lastRelationUpdatedAt' IS NOT NULL
-              THEN e.provenance_json::jsonb ->> 'lastRelationUpdatedAt'
+              WHEN e.provenance_json ->> 'lastRelationUpdatedAt' IS NOT NULL
+              THEN e.provenance_json ->> 'lastRelationUpdatedAt'
             END
           ),
           MAX(e.created_at)
         ) AS recently_added_at,
-        jsonb_agg(e.provenance_json::jsonb)::text AS provenance_json
+        jsonb_agg(e.provenance_json) AS provenance_json
       FROM owner_material_entries e
       JOIN material_records m
         ON m.ref_key = e.material_ref_key

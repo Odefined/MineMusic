@@ -214,7 +214,7 @@ async function insertOwnerCatalogEntry(
         created_at,
         updated_at
       )
-      VALUES (?, ?, 'collection', ?, ?, 'positive', 1, ?::jsonb::text, ?, ?)
+      VALUES (?, ?, 'collection', ?, ?, 'positive', 1, ?::jsonb, ?, ?)
     `,
     [
       `entry_${materialRefValue.id}`,

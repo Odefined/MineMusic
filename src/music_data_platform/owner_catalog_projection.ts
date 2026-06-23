@@ -157,7 +157,7 @@ export function createOwnerCatalogProjectionCommands(
               'lastAddedAt', MAX(i.added_at),
               'firstProviderAddedAt', MIN(i.provider_added_at),
               'lastProviderAddedAt', MAX(i.provider_added_at)
-            )::text AS provenance_json,
+            ) AS provenance_json,
             ? AS created_at,
             ? AS updated_at
           FROM source_library_items i
@@ -272,7 +272,7 @@ export function createOwnerCatalogProjectionCommands(
               'lastAddedAt', MAX(i.added_at),
               'firstProviderAddedAt', MIN(i.provider_added_at),
               'lastProviderAddedAt', MAX(i.provider_added_at)
-            )::text AS provenance_json,
+            ) AS provenance_json,
             ? AS created_at,
             ? AS updated_at
           FROM source_library_items i
@@ -381,7 +381,7 @@ export function createOwnerCatalogProjectionCommands(
               'ownerRelationPoolRefKey', refKeyPool.owner_relation_pool_ref_key,
               'relationFactCount', COUNT(*),
               'lastRelationUpdatedAt', MAX(r.updated_at)
-            )::text AS provenance_json,
+            ) AS provenance_json,
             ? AS created_at,
             ? AS updated_at
           FROM owner_material_relations r
@@ -502,7 +502,7 @@ export function createOwnerCatalogProjectionCommands(
               'collectionName', c.name,
               'collectionKind', c.collection_kind,
               'lastCollectionUpdatedAt', MAX(i.updated_at)
-            )::text AS provenance_json,
+            ) AS provenance_json,
             ? AS created_at,
             ? AS updated_at
           FROM collection_items i
