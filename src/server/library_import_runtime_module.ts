@@ -6,12 +6,20 @@ import type { ExtensionRuntime } from "../extension/index.js";
 import type {
   PlatformLibrarySourceDescriptor,
 } from "../music_data_platform/stage_adapter/index.js";
+import type {
+  LibraryImportStartCommand,
+  SourceLibraryReadPort,
+} from "../music_data_platform/index.js";
 import type { RuntimeModule } from "../stage_core/index.js";
-import type { MusicDataPlatformRuntimeModule } from "./music_data_platform_runtime_module.js";
+
+export type LibraryImportServerPorts = {
+  libraryImportStart(): LibraryImportStartCommand | undefined;
+  sourceLibraryRead(): SourceLibraryReadPort | undefined;
+};
 
 export type CreateLibraryImportServerRuntimeModuleInput = {
   extensionRuntime: Pick<ExtensionRuntime, "listPlatformLibraryProviders">;
-  musicDataPlatformModule: MusicDataPlatformRuntimeModule;
+  ports: LibraryImportServerPorts;
 };
 
 export function createLibraryImportServerRuntimeModule(
@@ -59,7 +67,7 @@ export function createLibraryImportServerRuntimeModule(
   });
 
   function libraryImportStartCommand() {
-    const command = input.musicDataPlatformModule.libraryImportStart();
+    const command = input.ports.libraryImportStart();
 
     if (command === undefined) {
       throw new Error("Library import start command is not initialized.");
@@ -69,7 +77,7 @@ export function createLibraryImportServerRuntimeModule(
   }
 
   function sourceLibraryReadPort() {
-    const readPort = input.musicDataPlatformModule.sourceLibraryRead();
+    const readPort = input.ports.sourceLibraryRead();
 
     if (readPort === undefined) {
       throw new Error("Source library read port is not initialized.");

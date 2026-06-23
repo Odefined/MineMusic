@@ -414,6 +414,26 @@ for (const forbidden of hostThinForbidden) {
     }
 }
 assert.deepEqual(hostThinFailures, [], "src/server/host.ts must stay thin: no production ports, Stage Interface factory, or transport/entrypoint wiring");
+const serverShimMdpRuntimeModuleHandoffFailures: string[] = [];
+for (const relativeFile of [
+    "src/server/library_catalog_runtime_module.ts",
+    "src/server/library_collection_runtime_module.ts",
+    "src/server/library_import_runtime_module.ts",
+    "src/server/library_relation_runtime_module.ts",
+    "src/server/music_experience_runtime_module.ts",
+    "src/server/stage_tool_context_assembly.ts",
+]) {
+    const text = await readFile(join(repositoryRoot, relativeFile), "utf8");
+    for (const forbidden of [
+        "music_data_platform_runtime_module",
+        "MusicDataPlatformRuntimeModule",
+    ]) {
+        if (text.includes(forbidden)) {
+            serverShimMdpRuntimeModuleHandoffFailures.push(`${relativeFile} names broad MDP runtime-module handoff '${forbidden}'`);
+        }
+    }
+}
+assert.deepEqual(serverShimMdpRuntimeModuleHandoffFailures, [], "Server runtime shims must declare narrow server ports instead of consuming MusicDataPlatformRuntimeModule");
 const musicDataPlatformRuntimeModuleText = await readFile(join(repositoryRoot, "src/server/music_data_platform_runtime_module.ts"), "utf8");
 assert.equal(musicDataPlatformRuntimeModuleText.includes("createProjectionMaintenanceRunner"), false, "Music Data Platform runtime module must drive projection maintenance through background-work handlers and must not reference the Projection Maintenance runner directly");
 assert.equal(musicDataPlatformRuntimeModuleText.includes("projection_maintenance_scheduler"), false, "Music Data Platform runtime module must not reference the retired Projection Maintenance scheduler");

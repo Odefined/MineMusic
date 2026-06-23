@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { HandleMintingPort, LookupCursorStore, StageToolAuditPort, StageToolExecutionGate, } from "../../src/contracts/stage_interface.js";
 import { createStageToolContextFactory } from "../../src/stage_interface/index.js";
-import { createServerHost, createStageToolContextAssembly, type MusicDataPlatformRuntimeModule, } from "../../src/server/index.js";
+import { createServerHost, createStageToolContextAssembly, type StageToolContextAssemblyPorts, } from "../../src/server/index.js";
 import { createPostgresTestSchema, postgresTestDatabaseUrl } from "../support/postgres.js";
 const fixedNow = "2026-06-18T00:00:00.000Z";
 const stubHandleMinting: HandleMintingPort = {
@@ -107,7 +107,7 @@ const stubAudit: StageToolAuditPort = {
             };
         },
     };
-    const mdp: Pick<MusicDataPlatformRuntimeModule, "handleMinting" | "lookupCursorStore"> = {
+    const ports: StageToolContextAssemblyPorts = {
         handleMinting() {
             return port;
         },
@@ -115,7 +115,7 @@ const stubAudit: StageToolAuditPort = {
             return cursorStore;
         },
     };
-    const factory = createStageToolContextAssembly({ musicDataPlatformModule: mdp });
+    const factory = createStageToolContextAssembly({ ports });
     const ctx = await factory.createToolContext({ sessionId: "s", requestId: "r" });
     assert.equal(ctx.ownerScope, "local");
     assert.equal(await ctx.handleMinting.mint({
@@ -130,13 +130,13 @@ const stubAudit: StageToolAuditPort = {
         queryInput: {},
     }), "lc_assembly");
     assert.equal(cursorRegisterCalls, 1);
-    const scoped = createStageToolContextAssembly({ musicDataPlatformModule: mdp, ownerScope: "owner-b" });
+    const scoped = createStageToolContextAssembly({ ports, ownerScope: "owner-b" });
     assert.equal((await scoped.createToolContext({ sessionId: "s", requestId: "r" })).ownerScope, "owner-b");
 }
 // The lazy handleMinting fails loudly when the owning module is not initialized,
 // rather than silently falling back to the unavailable default.
 {
-    const uninitialized: Pick<MusicDataPlatformRuntimeModule, "handleMinting" | "lookupCursorStore"> = {
+    const uninitialized: StageToolContextAssemblyPorts = {
         handleMinting() {
             return undefined;
         },
@@ -144,7 +144,7 @@ const stubAudit: StageToolAuditPort = {
             return undefined;
         },
     };
-    const factory = createStageToolContextAssembly({ musicDataPlatformModule: uninitialized });
+    const factory = createStageToolContextAssembly({ ports: uninitialized });
     const ctx = await factory.createToolContext({ sessionId: "s", requestId: "r" });
     await assert.rejects(ctx.handleMinting.mint({
         ownerScope: "local",

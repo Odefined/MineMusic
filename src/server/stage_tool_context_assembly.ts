@@ -19,10 +19,14 @@ import {
   createStageToolContextFactory,
   type StageToolContextFactory,
 } from "../stage_interface/index.js";
-import type { MusicDataPlatformRuntimeModule } from "./music_data_platform_runtime_module.js";
+
+export type StageToolContextAssemblyPorts = {
+  handleMinting(): HandleMintingPort | undefined;
+  lookupCursorStore(): LookupCursorStore | undefined;
+};
 
 export type CreateStageToolContextAssemblyInput = {
-  musicDataPlatformModule: Pick<MusicDataPlatformRuntimeModule, "handleMinting" | "lookupCursorStore">;
+  ports: StageToolContextAssemblyPorts;
   ownerScope?: string;
 };
 
@@ -32,7 +36,7 @@ export function createStageToolContextAssembly(
   // Both HandleMintingPort methods share one lazy-resolution guard so the
   // fail-loud invariant cannot drift between mint() and resolve().
   const resolveHandleMintingPort = (): HandleMintingPort => {
-    const port = input.musicDataPlatformModule.handleMinting();
+    const port = input.ports.handleMinting();
     if (port === undefined) {
       throw new Error("Stage Tool Context factory used before Music Data Platform initialization.");
     }
@@ -49,7 +53,7 @@ export function createStageToolContextAssembly(
   };
 
   const resolveLookupCursorStore = (): LookupCursorStore => {
-    const store = input.musicDataPlatformModule.lookupCursorStore();
+    const store = input.ports.lookupCursorStore();
     if (store === undefined) {
       throw new Error("Stage Tool Context factory used before Music Data Platform initialization.");
     }

@@ -2,11 +2,24 @@ import {
   createLibraryCatalogRuntimeModule,
   type LibraryCatalogScopeAvailabilityPort,
 } from "../music_data_platform/stage_adapter/index.js";
+import type {
+  LibraryCatalogReadPort,
+  MaterialProjection,
+} from "../music_data_platform/index.js";
+import type { MusicScopeAvailabilityPort } from "../music_intelligence/stage_adapter/index.js";
 import type { RuntimeModule } from "../stage_core/index.js";
-import type { MusicDataPlatformRuntimeModule } from "./music_data_platform_runtime_module.js";
+
+export type LibraryCatalogScopeServerPorts = {
+  musicScopeAvailability(): MusicScopeAvailabilityPort | undefined;
+};
+
+export type LibraryCatalogServerPorts = LibraryCatalogScopeServerPorts & {
+  libraryCatalog(): LibraryCatalogReadPort | undefined;
+  materialProjection(): MaterialProjection | undefined;
+};
 
 export type CreateLibraryCatalogServerRuntimeModuleInput = {
-  musicDataPlatformModule: MusicDataPlatformRuntimeModule;
+  ports: LibraryCatalogServerPorts;
 };
 
 export function createLibraryCatalogServerRuntimeModule(
@@ -15,7 +28,7 @@ export function createLibraryCatalogServerRuntimeModule(
   return createLibraryCatalogRuntimeModule({
     catalog: {
       listCatalogItems(readInput) {
-        const port = input.musicDataPlatformModule.libraryCatalog();
+        const port = input.ports.libraryCatalog();
         if (port === undefined) {
           throw new Error("Library catalog read port is not initialized.");
         }
@@ -25,7 +38,7 @@ export function createLibraryCatalogServerRuntimeModule(
     },
     materialProjection: {
       projectMusicMaterial(projectInput) {
-        const port = input.musicDataPlatformModule.materialProjection();
+        const port = input.ports.materialProjection();
         if (port === undefined) {
           throw new Error("Material Projection is not initialized.");
         }
@@ -33,7 +46,7 @@ export function createLibraryCatalogServerRuntimeModule(
         return port.projectMusicMaterial(projectInput);
       },
       projectMusicMaterials(projectInput) {
-        const port = input.musicDataPlatformModule.materialProjection();
+        const port = input.ports.materialProjection();
         if (port === undefined) {
           throw new Error("Material Projection is not initialized.");
         }
@@ -41,18 +54,18 @@ export function createLibraryCatalogServerRuntimeModule(
         return port.projectMusicMaterials(projectInput);
       },
     },
-    scopeAvailability: createServerLibraryCatalogScopeAvailability(input.musicDataPlatformModule),
+    scopeAvailability: createServerLibraryCatalogScopeAvailability(input.ports),
   });
 }
 
 // Shared by the catalog read module and the collection edit module: both need
 // to resolve collection scope ids to refs and to read the catalog scope list.
 export function createServerLibraryCatalogScopeAvailability(
-  musicDataPlatformModule: MusicDataPlatformRuntimeModule,
+  ports: LibraryCatalogScopeServerPorts,
 ): LibraryCatalogScopeAvailabilityPort {
   return {
     async listCatalogScopes(readInput) {
-      const port = musicDataPlatformModule.musicScopeAvailability();
+      const port = ports.musicScopeAvailability();
       if (port === undefined) {
         return {
           ok: false,

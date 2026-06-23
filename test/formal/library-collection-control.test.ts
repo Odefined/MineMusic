@@ -133,7 +133,7 @@ const itemHandleC = await handleMinting.mint({
   internalAnchor: { materialRef: refKey(recordingC) },
 });
 
-const serverModule = createLibraryCollectionServerRuntimeModule({ musicDataPlatformModule });
+const serverModule = createLibraryCollectionServerRuntimeModule({ ports: musicDataPlatformModule });
 const initializedServerModule = await serverModule.initialize({});
 assert.equal(initializedServerModule.ok, true);
 

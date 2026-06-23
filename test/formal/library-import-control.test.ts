@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { PlatformLibraryCandidate, } from "../../src/contracts/music_data_platform.js";
 import type { LibraryImportDriveOutput, StageToolContext, } from "../../src/contracts/stage_interface.js";
-import type { SourceLibraryImportBatchRecord, SourceLibraryImportService, SourceLibraryReadPort, } from "../../src/music_data_platform/index.js";
+import type { SourceLibraryImportBatchRecord, SourceLibraryReadPort, } from "../../src/music_data_platform/index.js";
 import { createLibraryImportStartRegistration, createLibraryImportStatusRegistration, libraryImportInstrument, libraryImportStartDescriptor, libraryImportStatusDescriptor, type LibraryImportControlPort, } from "../../src/music_data_platform/stage_adapter/index.js";
 import { assertSampleOutputHasNoInternalAnchors, createStageInterface, } from "../../src/stage_interface/index.js";
-import { createLibraryImportServerRuntimeModule, type MusicDataPlatformRuntimeModule, } from "../../src/server/index.js";
+import { createLibraryImportServerRuntimeModule, type LibraryImportServerPorts, } from "../../src/server/index.js";
 const now = "2026-06-18T00:00:00.000Z";
 const libraryRef: Ref = {
     namespace: "source_library",
@@ -223,18 +223,7 @@ await assertStartError(error("music_data.unmapped_internal_failure"), "write_fai
                     }];
             },
         },
-        musicDataPlatformModule: musicDataPlatformModuleFor({
-            importService: {
-                async startImport() {
-                    throw new Error("server wiring start test must submit through start command");
-                },
-                async advanceOnePage() {
-                    throw new Error("server wiring start test must not advance import");
-                },
-                async markBatchFailed() {
-                    throw new Error("server wiring start test must not mark batch failed");
-                },
-            },
+        ports: libraryImportServerPortsFor({
             readPort: {
                 async getImportBatch() {
                     statusReadCalls += 1;
@@ -328,66 +317,16 @@ function testControl(overrides: Partial<LibraryImportControlPort>): LibraryImpor
         ...overrides,
     };
 }
-function musicDataPlatformModuleFor(input: {
-    importService: SourceLibraryImportService;
+function libraryImportServerPortsFor(input: {
     readPort: SourceLibraryReadPort;
     startCommand: { submit(input: unknown): Promise<unknown> };
-}): MusicDataPlatformRuntimeModule {
+}): LibraryImportServerPorts {
     return {
-        descriptor: {
-            id: "music-data-platform",
-            ownerArea: "music_data_platform",
-        },
-        async initialize() {
-            return {
-                ok: true,
-                value: {},
-            };
-        },
-        sourceLibraryImport() {
-            return input.importService;
-        },
         sourceLibraryRead() {
             return input.readPort;
         },
-        libraryCatalog() {
-            return undefined;
-        },
         libraryImportStart() {
             return input.startCommand as never;
-        },
-        retrievalQuery() {
-            return undefined;
-        },
-        musicScopeAvailability() {
-            return undefined;
-        },
-        candidateCommit() {
-            return undefined;
-        },
-        materialProjection() {
-            return undefined;
-        },
-        libraryRelation() {
-            return undefined;
-        },
-        libraryCollection() {
-            return undefined;
-        },
-        handleMinting() {
-            return undefined;
-        },
-        lookupCursorStore() {
-            return undefined;
-        },
-        download() {
-            return undefined;
-        },
-        localSource() {
-            return undefined;
-        },
-        localizeProviderSource() {
-            return undefined;
         },
     };
 }

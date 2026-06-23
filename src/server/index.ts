@@ -23,12 +23,21 @@ export {
 } from "./music_experience_runtime_module.js";
 export type {
   CreateMusicExperienceServerRuntimeModuleInput,
+  MusicExperienceServerPorts,
 } from "./music_experience_runtime_module.js";
 export {
   createLibraryImportServerRuntimeModule,
 } from "./library_import_runtime_module.js";
+export type {
+  CreateLibraryImportServerRuntimeModuleInput,
+  LibraryImportServerPorts,
+} from "./library_import_runtime_module.js";
 export {
   createLibraryRelationServerRuntimeModule,
+} from "./library_relation_runtime_module.js";
+export type {
+  CreateLibraryRelationServerRuntimeModuleInput,
+  LibraryRelationServerPorts,
 } from "./library_relation_runtime_module.js";
 export {
   createLibraryCatalogServerRuntimeModule,
@@ -38,7 +47,13 @@ export {
 } from "./library_collection_runtime_module.js";
 export type {
   CreateLibraryCatalogServerRuntimeModuleInput,
+  LibraryCatalogScopeServerPorts,
+  LibraryCatalogServerPorts,
 } from "./library_catalog_runtime_module.js";
+export type {
+  CreateLibraryCollectionServerRuntimeModuleInput,
+  LibraryCollectionServerPorts,
+} from "./library_collection_runtime_module.js";
 export {
   createExtensionRuntimeRetrievalProviderSearchPort,
 } from "./retrieval_provider_search_adapter.js";
@@ -50,6 +65,7 @@ export {
 } from "./stage_tool_context_assembly.js";
 export type {
   CreateStageToolContextAssemblyInput,
+  StageToolContextAssemblyPorts,
 } from "./stage_tool_context_assembly.js";
 
 if (import.meta.url === `file://${process.argv[1]}`) {

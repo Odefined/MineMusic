@@ -31,7 +31,7 @@ const initializedMdp = await musicDataPlatformModule.initialize({});
 assert.equal(initializedMdp.ok, true);
 const serverModule = createLibraryImportServerRuntimeModule({
     extensionRuntime,
-    musicDataPlatformModule,
+    ports: musicDataPlatformModule,
 });
 const initializedServerModule = await serverModule.initialize({});
 assert.equal(initializedServerModule.ok, true);
@@ -152,7 +152,7 @@ await database.close();
     assert.equal(initializedWriteFailureMdp.ok, true);
     const writeFailureServerModule = createLibraryImportServerRuntimeModule({
         extensionRuntime: writeFailureExtensionRuntime,
-        musicDataPlatformModule: writeFailureMdp,
+        ports: writeFailureMdp,
     });
     const initializedWriteFailureServerModule = await writeFailureServerModule.initialize({});
     assert.equal(initializedWriteFailureServerModule.ok, true);

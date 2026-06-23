@@ -87,7 +87,7 @@ const foreignOwnerPublicId = await handleMinting.mint({
     },
 });
 const serverModule = createLibraryRelationServerRuntimeModule({
-    musicDataPlatformModule,
+    ports: musicDataPlatformModule,
 });
 const initializedServerModule = await serverModule.initialize({});
 assert.equal(initializedServerModule.ok, true);

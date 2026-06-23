@@ -264,12 +264,12 @@ const fixtureRuntime = createStageRuntime({
             },
         }),
         createMusicExperienceServerRuntimeModule({
-            musicDataPlatformModule: fixtureMusicDataPlatformModule,
+            ports: fixtureMusicDataPlatformModule,
         }),
     ],
 });
 const fixtureContextFactory = createStageToolContextAssembly({
-    musicDataPlatformModule: fixtureMusicDataPlatformModule,
+    ports: fixtureMusicDataPlatformModule,
 });
 const fixtureStarted = await fixtureRuntime.initialize();
 assert.equal(fixtureStarted.ok, true);

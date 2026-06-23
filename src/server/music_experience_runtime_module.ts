@@ -6,30 +6,31 @@ import {
   createMusicExperienceRuntimeModule,
 } from "../music_experience/stage_adapter/index.js";
 import type { RuntimeModule } from "../stage_core/index.js";
-import type { MusicDataPlatformRuntimeModule } from "./music_data_platform_runtime_module.js";
+
+export type MusicExperienceServerPorts = {
+  candidateCommit(): CandidateCommitCommand | undefined;
+  materialProjection(): MaterialProjection | undefined;
+};
 
 export type CreateMusicExperienceServerRuntimeModuleInput = {
-  musicDataPlatformModule: Pick<
-    MusicDataPlatformRuntimeModule,
-    "candidateCommit" | "materialProjection"
-  >;
+  ports: MusicExperienceServerPorts;
 };
 
 export function createMusicExperienceServerRuntimeModule(
   input: CreateMusicExperienceServerRuntimeModuleInput,
 ): RuntimeModule {
   return createMusicExperienceRuntimeModule({
-    candidateCommit: lazyCandidateCommitCommand(input.musicDataPlatformModule),
-    materialProjection: lazyMaterialProjection(input.musicDataPlatformModule),
+    candidateCommit: lazyCandidateCommitCommand(input.ports),
+    materialProjection: lazyMaterialProjection(input.ports),
   });
 }
 
 function lazyCandidateCommitCommand(
-  module: Pick<MusicDataPlatformRuntimeModule, "candidateCommit">,
+  ports: Pick<MusicExperienceServerPorts, "candidateCommit">,
 ): CandidateCommitCommand {
   return {
     commitCandidate(commandInput) {
-      const port = module.candidateCommit();
+      const port = ports.candidateCommit();
 
       if (port === undefined) {
         throw new Error("Candidate Commit command is not initialized.");
@@ -41,11 +42,11 @@ function lazyCandidateCommitCommand(
 }
 
 function lazyMaterialProjection(
-  module: Pick<MusicDataPlatformRuntimeModule, "materialProjection">,
+  ports: Pick<MusicExperienceServerPorts, "materialProjection">,
 ): MaterialProjection {
   return {
     projectMusicMaterial(projectInput) {
-      const port = module.materialProjection();
+      const port = ports.materialProjection();
 
       if (port === undefined) {
         throw new Error("Material Projection is not initialized.");
@@ -54,7 +55,7 @@ function lazyMaterialProjection(
       return port.projectMusicMaterial(projectInput);
     },
     projectMusicMaterials(projectInput) {
-      const port = module.materialProjection();
+      const port = ports.materialProjection();
 
       if (port === undefined) {
         throw new Error("Material Projection is not initialized.");

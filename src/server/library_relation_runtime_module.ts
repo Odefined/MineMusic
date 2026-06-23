@@ -1,11 +1,15 @@
 import {
   createLibraryRelationRuntimeModule,
 } from "../music_data_platform/stage_adapter/index.js";
+import type { LibraryRelationService } from "../music_data_platform/index.js";
 import type { RuntimeModule } from "../stage_core/index.js";
-import type { MusicDataPlatformRuntimeModule } from "./music_data_platform_runtime_module.js";
+
+export type LibraryRelationServerPorts = {
+  libraryRelation(): LibraryRelationService | undefined;
+};
 
 export type CreateLibraryRelationServerRuntimeModuleInput = {
-  musicDataPlatformModule: MusicDataPlatformRuntimeModule;
+  ports: LibraryRelationServerPorts;
 };
 
 export function createLibraryRelationServerRuntimeModule(
@@ -23,7 +27,7 @@ export function createLibraryRelationServerRuntimeModule(
   });
 
   function libraryRelationService() {
-    const service = input.musicDataPlatformModule.libraryRelation();
+    const service = input.ports.libraryRelation();
 
     if (service === undefined) {
       throw new Error("Library relation service is not initialized.");

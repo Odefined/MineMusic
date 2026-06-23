@@ -85,7 +85,12 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
   const stageToolContextFactory: StageToolContextFactory | undefined =
     musicDataPlatformModule === undefined
       ? undefined
-      : createStageToolContextAssembly({ musicDataPlatformModule });
+      : createStageToolContextAssembly({
+          ports: {
+            handleMinting: () => musicDataPlatformModule.handleMinting(),
+            lookupCursorStore: () => musicDataPlatformModule.lookupCursorStore(),
+          },
+        });
   const musicDiscoveryModule: RuntimeModule | undefined =
     musicDataPlatformModule === undefined
       ? undefined
@@ -116,32 +121,47 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     musicDataPlatformModule === undefined
       ? undefined
       : createMusicExperienceServerRuntimeModule({
-          musicDataPlatformModule,
+          ports: {
+            candidateCommit: () => musicDataPlatformModule.candidateCommit(),
+            materialProjection: () => musicDataPlatformModule.materialProjection(),
+          },
         });
   const libraryImportModule: RuntimeModule | undefined =
     musicDataPlatformModule === undefined
       ? undefined
       : createLibraryImportServerRuntimeModule({
           extensionRuntime,
-          musicDataPlatformModule,
+          ports: {
+            libraryImportStart: () => musicDataPlatformModule.libraryImportStart(),
+            sourceLibraryRead: () => musicDataPlatformModule.sourceLibraryRead(),
+          },
         });
   const libraryRelationModule: RuntimeModule | undefined =
     musicDataPlatformModule === undefined
       ? undefined
       : createLibraryRelationServerRuntimeModule({
-          musicDataPlatformModule,
+          ports: {
+            libraryRelation: () => musicDataPlatformModule.libraryRelation(),
+          },
         });
   const libraryCatalogModule: RuntimeModule | undefined =
     musicDataPlatformModule === undefined
       ? undefined
       : createLibraryCatalogServerRuntimeModule({
-          musicDataPlatformModule,
+          ports: {
+            libraryCatalog: () => musicDataPlatformModule.libraryCatalog(),
+            materialProjection: () => musicDataPlatformModule.materialProjection(),
+            musicScopeAvailability: () => musicDataPlatformModule.musicScopeAvailability(),
+          },
         });
   const libraryCollectionModule: RuntimeModule | undefined =
     musicDataPlatformModule === undefined
       ? undefined
       : createLibraryCollectionServerRuntimeModule({
-          musicDataPlatformModule,
+          ports: {
+            libraryCollection: () => musicDataPlatformModule.libraryCollection(),
+            musicScopeAvailability: () => musicDataPlatformModule.musicScopeAvailability(),
+          },
         });
   const backgroundWorkModule: RuntimeModule | undefined = backgroundWork === undefined
     ? undefined

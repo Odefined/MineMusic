@@ -29,7 +29,7 @@ import {
   libraryCatalogInstrument,
   type LibraryCatalogScopeAvailabilityPort,
 } from "../../src/music_data_platform/stage_adapter/index.js";
-import { createLibraryCatalogServerRuntimeModule, type MusicDataPlatformRuntimeModule } from "../../src/server/index.js";
+import { createLibraryCatalogServerRuntimeModule, type LibraryCatalogServerPorts } from "../../src/server/index.js";
 import { createStageInterface } from "../../src/stage_interface/index.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
@@ -381,7 +381,7 @@ if (initialized.ok) {
 }
 
 const serverModule = createLibraryCatalogServerRuntimeModule({
-  musicDataPlatformModule: fakeMusicDataPlatformModule({
+  ports: fakeLibraryCatalogServerPorts({
     catalog,
     materialProjection,
     scopeAvailability,
@@ -655,36 +655,14 @@ function ref(namespace: string, kind: string, id: string): Ref {
   return { namespace, kind, id };
 }
 
-function fakeMusicDataPlatformModule(input: {
+function fakeLibraryCatalogServerPorts(input: {
   catalog: LibraryCatalogReadPort;
   materialProjection: MaterialProjection;
   scopeAvailability: LibraryCatalogScopeAvailabilityPort;
-}): MusicDataPlatformRuntimeModule {
+}): LibraryCatalogServerPorts {
   return {
-    descriptor: {
-      id: "music-data-platform",
-      ownerArea: "music_data_platform",
-    },
-    async initialize() {
-      return {
-        ok: true,
-        value: {},
-      };
-    },
-    sourceLibraryImport() {
-      return undefined;
-    },
-    sourceLibraryRead() {
-      return undefined;
-    },
     libraryCatalog() {
       return input.catalog;
-    },
-    libraryImportStart() {
-      return undefined;
-    },
-    retrievalQuery() {
-      return undefined;
     },
     musicScopeAvailability() {
       return {
@@ -711,32 +689,8 @@ function fakeMusicDataPlatformModule(input: {
         },
       };
     },
-    candidateCommit() {
-      return undefined;
-    },
     materialProjection() {
       return input.materialProjection;
-    },
-    libraryRelation() {
-      return undefined;
-    },
-    libraryCollection() {
-      return undefined;
-    },
-    handleMinting() {
-      return undefined;
-    },
-    lookupCursorStore() {
-      return undefined;
-    },
-    download() {
-      return undefined;
-    },
-    localSource() {
-      return undefined;
-    },
-    localizeProviderSource() {
-      return undefined;
     },
   };
 }

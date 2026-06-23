@@ -3,7 +3,7 @@ import { createStageInterface, } from "../../src/stage_interface/index.js";
 import type { LibraryImportListSourcesOutput, StageToolContext, } from "../../src/contracts/stage_interface.js";
 import { createExtensionRuntime, } from "../../src/extension/index.js";
 import { createLibraryImportRuntimeModule, createLibraryImportListSourcesRegistration, libraryImportInstrument, } from "../../src/music_data_platform/stage_adapter/index.js";
-import { createLibraryImportServerRuntimeModule, createMineMusicExtensionRuntime, type MusicDataPlatformRuntimeModule, } from "../../src/server/index.js";
+import { createLibraryImportServerRuntimeModule, createMineMusicExtensionRuntime, type LibraryImportServerPorts, } from "../../src/server/index.js";
 let listCalls = 0;
 const registration = createLibraryImportListSourcesRegistration({
     sourceListing: {
@@ -118,7 +118,7 @@ const initializedExtension = await extensionRuntime.initialize();
 assert.equal(initializedExtension.ok, true);
 const serverModule = createLibraryImportServerRuntimeModule({
     extensionRuntime,
-    musicDataPlatformModule: importlessMusicDataPlatformModule(),
+    ports: importlessLibraryImportServerPorts(),
 });
 const initializedServerModule = await serverModule.initialize({});
 assert.equal(initializedServerModule.ok, true);
@@ -174,7 +174,7 @@ const initializedNoProviderRuntime = await noProviderRuntime.initialize();
 assert.equal(initializedNoProviderRuntime.ok, true);
 const noProviderModule = createLibraryImportServerRuntimeModule({
     extensionRuntime: noProviderRuntime,
-    musicDataPlatformModule: importlessMusicDataPlatformModule(),
+    ports: importlessLibraryImportServerPorts(),
 });
 const initializedNoProviderModule = await noProviderModule.initialize({});
 assert.equal(initializedNoProviderModule.ok, true);
@@ -231,62 +231,13 @@ function testStageToolContext(): StageToolContext {
         },
     };
 }
-function importlessMusicDataPlatformModule(): MusicDataPlatformRuntimeModule {
+function importlessLibraryImportServerPorts(): LibraryImportServerPorts {
     return {
-        descriptor: {
-            id: "music-data-platform",
-            ownerArea: "music_data_platform",
-        },
-        async initialize() {
-            return {
-                ok: true,
-                value: {},
-            };
-        },
-        sourceLibraryImport() {
-            throw new Error("list_sources must not touch source library import service");
-        },
         sourceLibraryRead() {
             throw new Error("list_sources must not touch source library read port");
         },
-        libraryCatalog() {
-            throw new Error("list_sources must not touch library catalog read port");
-        },
         libraryImportStart() {
             throw new Error("list_sources must not touch library import start command");
-        },
-        retrievalQuery() {
-            return undefined;
-        },
-        musicScopeAvailability() {
-            return undefined;
-        },
-        candidateCommit() {
-            return undefined;
-        },
-        materialProjection() {
-            return undefined;
-        },
-        libraryRelation() {
-            return undefined;
-        },
-        libraryCollection() {
-            return undefined;
-        },
-        handleMinting() {
-            return undefined;
-        },
-        lookupCursorStore() {
-            return undefined;
-        },
-        download() {
-            return undefined;
-        },
-        localSource() {
-            return undefined;
-        },
-        localizeProviderSource() {
-            return undefined;
         },
     };
 }
