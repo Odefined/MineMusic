@@ -170,9 +170,30 @@ type SearchResultRow = SearchMetadataTextFields & {
   candidate_expires_at: string | null;
 };
 
-type ProviderResolvedMaterialIdentityRow = {
+type ProviderCandidateDescriptorInput = {
+  candidate: ProviderMaterialCandidate;
+  sourceEntity: SourceEntity;
+  sourceRefKey: string;
+};
+
+type ProviderResolvedMaterialLookup = {
+  materialKind: MaterialEntityKind;
+  blocked: boolean;
+  descriptor?: SearchDescriptor;
+};
+
+type ProviderResolvedMaterialLookupRow = {
+  source_ref_key: string;
   material_ref_key: string;
   material_kind: MaterialEntityKind;
+  blocked: number | string;
+  fields_json: unknown | null;
+  title_text: string | null;
+  artist_text: string | null;
+  album_text: string | null;
+  version_text: string | null;
+  alias_text: string | null;
+  search_text: string | null;
 };
 
 type MaterialEntityPayload = {
@@ -250,13 +271,22 @@ export function createMusicDataPlatformMetadataLookupSearchWorkspace(
           descriptors.set(descriptorKey(descriptor), descriptor);
         }
 
-        for (const candidate of providerCandidates) {
+        const providerCandidateInputs = providerCandidateDescriptorInputs({
+          candidates: providerCandidates,
+          materialKind,
+        });
+        const resolvedMaterials = await providerResolvedMaterialsBySourceRefKey({
+          db,
+          ownerScope,
+          sourceRefKeys: providerCandidateInputs.map((candidateInput) => candidateInput.sourceRefKey),
+        });
+
+        for (const candidateInput of providerCandidateInputs) {
           await addProviderCandidateDescriptor({
-            db,
             descriptors,
             materialCandidates: retrievalRecords.materialCandidates,
-            candidate,
-            ownerScope,
+            candidateInput,
+            resolved: resolvedMaterials.get(candidateInput.sourceRefKey),
             materialKind,
             expiresAt,
             now,
@@ -384,40 +414,27 @@ async function selectLocalMetadataWindow(input: {
 }
 
 async function addProviderCandidateDescriptor(input: {
-  db: MusicDatabaseContext;
   descriptors: Map<string, SearchDescriptor>;
   materialCandidates: MaterialCandidateCacheRepository;
-  candidate: ProviderMaterialCandidate;
-  ownerScope: string;
+  candidateInput: ProviderCandidateDescriptorInput;
+  resolved: ProviderResolvedMaterialLookup | undefined;
   materialKind: MaterialEntityKind | undefined;
   expiresAt: string;
   now: string;
 }): Promise<void> {
-  const sourceEntity = validatedProviderCandidate(input.candidate);
-  const candidateMaterialKind = materialKindForSourceKind(sourceEntity.kind);
+  const { candidate, sourceEntity, sourceRefKey } = input.candidateInput;
 
-  if (input.materialKind !== undefined && input.materialKind !== candidateMaterialKind) {
-    return;
-  }
-
-  const sourceRefKey = refKey(sourceEntity.sourceRef);
-  const resolved = await providerResolvedMaterialIdentity(input.db, sourceRefKey);
-
-  if (resolved !== undefined) {
-    if (input.materialKind !== undefined && input.materialKind !== resolved.material_kind) {
+  if (input.resolved !== undefined) {
+    if (input.materialKind !== undefined && input.materialKind !== input.resolved.materialKind) {
       return;
     }
 
-    if (await providerResolvedMaterialBlocked(input.db, input.ownerScope, resolved.material_ref_key)) {
+    if (input.resolved.blocked) {
       return;
     }
 
-    const resolvedDescriptor = await providerResolvedMaterialDescriptor(
-      input.db,
-      resolved.material_ref_key,
-    );
-    if (resolvedDescriptor !== undefined) {
-      descriptorsSetIfAbsent(input.descriptors, resolvedDescriptor);
+    if (input.resolved.descriptor !== undefined) {
+      descriptorsSetIfAbsent(input.descriptors, input.resolved.descriptor);
     }
     return;
   }
@@ -459,7 +476,7 @@ async function addProviderCandidateDescriptor(input: {
     providerEntityId: sourceEntity.providerEntityId!,
     sourceKind: sourceEntity.kind,
     materialCandidateKind: "provider_candidate",
-    validatedProviderCandidateJson: JSON.stringify(input.candidate),
+    validatedProviderCandidateJson: JSON.stringify(candidate),
     searchableFieldsJson: JSON.stringify({
       titleText: descriptor.titleText,
       artistText: descriptor.artistText,
@@ -467,13 +484,37 @@ async function addProviderCandidateDescriptor(input: {
       versionText: descriptor.versionText,
       aliasText: descriptor.aliasText,
     }),
-    ...(input.candidate.providerScore === undefined
+    ...(candidate.providerScore === undefined
       ? {}
-      : { providerScore: input.candidate.providerScore }),
+      : { providerScore: candidate.providerScore }),
     expiresAt: input.expiresAt,
     createdAt: input.now,
   });
   input.descriptors.set(descriptorKeyValue, descriptor);
+}
+
+function providerCandidateDescriptorInputs(input: {
+  candidates: readonly ProviderMaterialCandidate[];
+  materialKind: MaterialEntityKind | undefined;
+}): readonly ProviderCandidateDescriptorInput[] {
+  const candidateInputs: ProviderCandidateDescriptorInput[] = [];
+
+  for (const candidate of input.candidates) {
+    const sourceEntity = validatedProviderCandidate(candidate);
+    const candidateMaterialKind = materialKindForSourceKind(sourceEntity.kind);
+
+    if (input.materialKind !== undefined && input.materialKind !== candidateMaterialKind) {
+      continue;
+    }
+
+    candidateInputs.push({
+      candidate,
+      sourceEntity,
+      sourceRefKey: refKey(sourceEntity.sourceRef),
+    });
+  }
+
+  return candidateInputs;
 }
 
 function descriptorsSetIfAbsent(
@@ -486,77 +527,88 @@ function descriptorsSetIfAbsent(
   }
 }
 
-async function providerResolvedMaterialIdentity(
-  db: MusicDatabaseContext,
-  sourceRefKey: string,
-): Promise<ProviderResolvedMaterialIdentityRow | undefined> {
-  return db.get<ProviderResolvedMaterialIdentityRow>(
+async function providerResolvedMaterialsBySourceRefKey(input: {
+  db: MusicDatabaseContext;
+  ownerScope: string;
+  sourceRefKeys: readonly string[];
+}): Promise<ReadonlyMap<string, ProviderResolvedMaterialLookup>> {
+  const sourceRefKeys = [...new Set(input.sourceRefKeys)].sort();
+  if (sourceRefKeys.length === 0) {
+    return new Map();
+  }
+
+  const rows = await input.db.all<ProviderResolvedMaterialLookupRow>(
     `
       SELECT
+        b.source_ref_key,
         b.material_ref_key,
-        m.kind AS material_kind
+        m.kind AS material_kind,
+        CASE WHEN EXISTS (
+          SELECT 1
+          FROM owner_material_relations r
+          WHERE r.owner_scope = ?
+            AND r.material_ref_key = b.material_ref_key
+            AND r.relation_kind = 'blocked'
+            AND r.status = 'active'
+        ) THEN 1 ELSE 0 END AS blocked,
+        d.fields_json,
+        d.title_text,
+        d.artist_text,
+        d.album_text,
+        d.version_text,
+        d.alias_text,
+        d.search_text
       FROM source_material_bindings b
       JOIN material_records m
         ON m.ref_key = b.material_ref_key
-      WHERE b.source_ref_key = ?
+      LEFT JOIN search_metadata_documents d
+        ON d.material_ref_key = b.material_ref_key
+      WHERE b.source_ref_key IN (${sqlPlaceholders(sourceRefKeys.length)})
         AND m.lifecycle_status = 'active'
+      ORDER BY b.source_ref_key ASC
     `,
-    [sourceRefKey],
-  );
-}
-
-async function providerResolvedMaterialDescriptor(
-  db: MusicDatabaseContext,
-  materialRefKey: string,
-): Promise<SearchDescriptor | undefined> {
-  const row = await db.get<{
-    material_ref_key: string;
-    material_kind: MaterialEntityKind;
-    fields_json: unknown;
-    title_text: string;
-    artist_text: string;
-    album_text: string;
-    version_text: string;
-    alias_text: string;
-    search_text: string;
-  }>(
-    `
-      SELECT
-        material_ref_key,
-        material_kind,
-        fields_json,
-        title_text,
-        artist_text,
-        album_text,
-        version_text,
-        alias_text,
-        search_text
-      FROM search_metadata_documents
-      WHERE material_ref_key = ?
-    `,
-    [materialRefKey],
+    [input.ownerScope, ...sourceRefKeys],
   );
 
-  return row === undefined ? undefined : materialDescriptorFromMetadataRow(row);
+  const resolvedMaterials = new Map<string, ProviderResolvedMaterialLookup>();
+  for (const row of rows) {
+    const descriptor = providerResolvedMaterialDescriptorFromRow(row);
+    resolvedMaterials.set(row.source_ref_key, {
+      materialKind: row.material_kind,
+      blocked: Number(row.blocked) === 1,
+      ...(descriptor === undefined ? {} : { descriptor }),
+    });
+  }
+
+  return resolvedMaterials;
 }
 
-async function providerResolvedMaterialBlocked(
-  db: MusicDatabaseContext,
-  ownerScope: string,
-  materialRefKey: string,
-): Promise<boolean> {
-  return (await db.get<{ one: number }>(
-    `
-      SELECT 1 AS one
-      FROM owner_material_relations
-      WHERE owner_scope = ?
-        AND material_ref_key = ?
-        AND relation_kind = 'blocked'
-        AND status = 'active'
-      LIMIT 1
-    `,
-    [ownerScope, materialRefKey],
-  )) !== undefined;
+function providerResolvedMaterialDescriptorFromRow(
+  row: ProviderResolvedMaterialLookupRow,
+): SearchDescriptor | undefined {
+  if (
+    row.fields_json === null ||
+    row.title_text === null ||
+    row.artist_text === null ||
+    row.album_text === null ||
+    row.version_text === null ||
+    row.alias_text === null ||
+    row.search_text === null
+  ) {
+    return undefined;
+  }
+
+  return materialDescriptorFromMetadataRow({
+    material_ref_key: row.material_ref_key,
+    material_kind: row.material_kind,
+    fields_json: row.fields_json,
+    title_text: row.title_text,
+    artist_text: row.artist_text,
+    album_text: row.album_text,
+    version_text: row.version_text,
+    alias_text: row.alias_text,
+    search_text: row.search_text,
+  });
 }
 
 function localMetadataWindowSql(

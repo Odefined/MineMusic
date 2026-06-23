@@ -92,7 +92,17 @@ await database.transaction(async (db) => {
   await insertOwnerCatalogEntry(db, material, "2026-06-20T12:02:00.000Z");
 });
 
-const workspace = createMusicDataPlatformMetadataLookupSearchWorkspace({ database });
+let providerResolvedLookupCount = 0;
+const workspace = createMusicDataPlatformMetadataLookupSearchWorkspace({
+  database: wrapDatabaseWithSqlInterceptor(database, ({ sql }) => {
+    if (
+      sql.includes("FROM source_material_bindings b") &&
+      sql.includes("WHERE b.source_ref_key IN")
+    ) {
+      providerResolvedLookupCount += 1;
+    }
+  }),
+});
 const resolvedProviderNoise = providerCandidate(sourceTrack("1001", "Provider Noise", {
   artistLabels: ["Provider Artist"],
 }));
@@ -111,6 +121,7 @@ const noisePage = await workspace.searchMetadataLookupResultSet({
   now: "2026-06-20T12:03:00.000Z",
 });
 assert.equal(noisePage.status, "ok");
+assert.equal(providerResolvedLookupCount, 1);
 if (noisePage.status === "ok") {
   assert.deepEqual(noisePage.rows.map((row) => row.kind), ["material_candidate"]);
   assert.equal(noisePage.rows[0]?.titleText, "noise song");
@@ -129,6 +140,7 @@ const nightPage = await workspace.searchMetadataLookupResultSet({
   now: "2026-06-20T12:04:00.000Z",
 });
 assert.equal(nightPage.status, "ok");
+assert.equal(providerResolvedLookupCount, 2);
 if (nightPage.status === "ok") {
   assert.equal(nightPage.rows.length, 1);
   assert.equal(nightPage.rows[0]?.kind, "material");
@@ -144,7 +156,7 @@ await database.close();
 const bulkInsertDatabase = await initializedDatabase();
 let searchResultRowInsertCount = 0;
 const bulkInsertWorkspace = createMusicDataPlatformMetadataLookupSearchWorkspace({
-  database: wrapDatabaseWithRunInterceptor(bulkInsertDatabase, ({ sql }) => {
+  database: wrapDatabaseWithSqlInterceptor(bulkInsertDatabase, ({ sql }) => {
     if (sql.includes("INSERT INTO search_result_rows")) {
       searchResultRowInsertCount += 1;
     }
@@ -256,9 +268,10 @@ async function initializedDatabase(): Promise<MusicDatabase> {
   return database;
 }
 
-function wrapDatabaseWithRunInterceptor(
+function wrapDatabaseWithSqlInterceptor(
   database: MusicDatabase,
   interceptor: (input: {
+    method: "run" | "all" | "get";
     sql: string;
     params: readonly MusicDatabaseParameter[] | undefined;
     context: MusicDatabaseTransactionContext;
@@ -277,16 +290,31 @@ function wrapDatabaseWithRunInterceptor(
           async run(sql: string, params?: readonly MusicDatabaseParameter[]) {
             await db.run(sql, params);
             interceptor({
+              method: "run",
               sql,
               params,
               context: proxiedContext as MusicDatabaseTransactionContext,
             });
           },
           async all<Row>(sql: string, params?: readonly MusicDatabaseParameter[]) {
-            return await db.all<Row>(sql, params);
+            const rows = await db.all<Row>(sql, params);
+            interceptor({
+              method: "all",
+              sql,
+              params,
+              context: proxiedContext as MusicDatabaseTransactionContext,
+            });
+            return rows;
           },
           async get<Row>(sql: string, params?: readonly MusicDatabaseParameter[]) {
-            return await db.get<Row>(sql, params);
+            const row = await db.get<Row>(sql, params);
+            interceptor({
+              method: "get",
+              sql,
+              params,
+              context: proxiedContext as MusicDatabaseTransactionContext,
+            });
+            return row;
           },
         };
         return operation(proxiedContext as MusicDatabaseTransactionContext);
