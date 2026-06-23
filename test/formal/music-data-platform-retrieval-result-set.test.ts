@@ -3,7 +3,7 @@ import { refKey } from "../../src/contracts/kernel.js";
 import type { ProviderMaterialCandidate, SourceTrack } from "../../src/contracts/music_data_platform.js";
 import { assertProviderMaterialCandidateRef, createProviderMaterialCandidateRef, isMusicDataPlatformError, musicDataPlatformRetrievalResultSetSchema, } from "../../src/music_data_platform/index.js";
 import { createRetrievalResultSetRecords, expiresAtFromResultSetCreatedAt, type MaterialCandidateCacheRecord, } from "../../src/music_data_platform/retrieval_result_set_records.js";
-import { type MusicDatabase } from "../../src/storage/index.js";
+import type { MusicDatabase, MusicDatabaseParameter, MusicDatabaseTransactionContext } from "../../src/storage/index.js";
 import { relationKind } from "./helpers/postgres-introspection.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
 const alphaSource = sourceTrack("1001", "Alpha Candidate");
@@ -57,6 +57,7 @@ assert.equal(expiresAtFromResultSetCreatedAt({
     const database = await initializedDatabase();
     await database.transaction(async (db) => {
         const records = createRetrievalResultSetRecords({ db });
+        const cleanupSqlCalls: string[] = [];
         const liveCandidateKey = refKey(createProviderMaterialCandidateRef({
             sourceRef: sourceTrack("2001", "Live Candidate").sourceRef,
         }));
@@ -79,9 +80,17 @@ assert.equal(expiresAtFromResultSetCreatedAt({
                 expiresAt,
             }));
         }
-        assert.deepEqual(await records.cleanupExpiredMaterialCandidates({
+        const cleanupRecords = createRetrievalResultSetRecords({
+            db: wrapTransactionWithSqlInterceptor(db, ({ method, sql }) => {
+                cleanupSqlCalls.push(`${method}:${sql}`);
+            }),
+        });
+        assert.deepEqual(await cleanupRecords.cleanupExpiredMaterialCandidates({
             now: "2026-06-15T10:00:00.000Z",
         }), { deletedCount: 2 });
+        assert.equal(cleanupSqlCalls.length, 1);
+        assert.equal(cleanupSqlCalls[0]?.startsWith("get:"), true);
+        assert.equal(cleanupSqlCalls[0]?.includes("DELETE FROM material_candidate_cache"), true);
         assert.equal((await records.materialCandidates.getByRefKey({
             materialCandidateRefKey: liveCandidateKey,
         }))?.materialCandidateRefKey, liveCandidateKey);
@@ -167,6 +176,31 @@ async function initializedDatabase(): Promise<MusicDatabase> {
 }
 async function tableExists(database: MusicDatabase | ReturnType<MusicDatabase["context"]>, tableName: string): Promise<boolean> {
     return await relationKind(database, tableName) === "table";
+}
+function wrapTransactionWithSqlInterceptor(
+    context: MusicDatabaseTransactionContext,
+    interceptor: (input: {
+        method: "run" | "all" | "get";
+        sql: string;
+        params: readonly MusicDatabaseParameter[] | undefined;
+    }) => void,
+): MusicDatabaseTransactionContext {
+    return {
+        async run(sql: string, params?: readonly MusicDatabaseParameter[]) {
+            await context.run(sql, params);
+            interceptor({ method: "run", sql, params });
+        },
+        async all<Row>(sql: string, params?: readonly MusicDatabaseParameter[]) {
+            const rows = await context.all<Row>(sql, params);
+            interceptor({ method: "all", sql, params });
+            return rows;
+        },
+        async get<Row>(sql: string, params?: readonly MusicDatabaseParameter[]) {
+            const row = await context.get<Row>(sql, params);
+            interceptor({ method: "get", sql, params });
+            return row;
+        },
+    } as MusicDatabaseTransactionContext;
 }
 function sourceTrack(id: string, title: string): SourceTrack {
     return {

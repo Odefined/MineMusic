@@ -151,30 +151,28 @@ export function createRetrievalResultSetRecords(
       // is no longer pinned by any live result set and can be deleted. Read
       // paths already surface "material_candidate_expired" for expired rows, so
       // deleting the row changes nothing user-visible.
-      const expiredKeys = (await db.all<{ material_candidate_ref_key: string }>(
+      const row = await db.get<{ deleted_count: number | string }>(
         `
-          SELECT material_candidate_ref_key
-          FROM material_candidate_cache
-          WHERE expires_at <= ?
-          ORDER BY expires_at ASC, material_candidate_ref_key ASC
-          LIMIT ?
+          WITH expired AS (
+            SELECT material_candidate_ref_key
+            FROM material_candidate_cache
+            WHERE expires_at <= ?
+            ORDER BY expires_at ASC, material_candidate_ref_key ASC
+            LIMIT ?
+          ),
+          deleted AS (
+            DELETE FROM material_candidate_cache c
+            USING expired e
+            WHERE c.material_candidate_ref_key = e.material_candidate_ref_key
+            RETURNING 1
+          )
+          SELECT COUNT(*) AS deleted_count
+          FROM deleted
         `,
         [cleanupInput.now, limit],
-      )).map((row) => row.material_candidate_ref_key);
-
-      if (expiredKeys.length === 0) {
-        return { deletedCount: 0 };
-      }
-
-      await db.run(
-        `
-          DELETE FROM material_candidate_cache
-          WHERE material_candidate_ref_key IN (${placeholdersFor(expiredKeys)})
-        `,
-        expiredKeys,
       );
 
-      return { deletedCount: expiredKeys.length };
+      return { deletedCount: Number(row?.deleted_count ?? 0) };
     },
   };
 }
@@ -311,14 +309,6 @@ function validatedCleanupLimit(limit: number | undefined): number {
   const value = limit ?? DEFAULT_RETRIEVAL_RESULT_SET_CLEANUP_LIMIT;
   assertPositiveInteger(value, "cleanup limit");
   return value;
-}
-
-function placeholdersFor(values: readonly unknown[]): string {
-  if (values.length === 0) {
-    throw invalidRetrievalResultSetRecord("SQL placeholder list cannot be empty.");
-  }
-
-  return values.map(() => "?").join(", ");
 }
 
 function requireRecord<Record>(record: Record | undefined, message: string): Record {
