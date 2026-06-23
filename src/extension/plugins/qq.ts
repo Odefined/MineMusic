@@ -30,6 +30,14 @@ import { platformLibraryProviderSlot } from "../platform_library_provider_slot.j
 import { sourceProviderSlot } from "../source_provider_slot.js";
 import { qrcDecrypt } from "./qq_qrc_decrypt.js";
 import { extractVersionInfo } from "./version_extraction.js";
+import {
+  fetchWithTimeout,
+  isFetchImpl,
+  providerUnavailable,
+  readBoundedJson,
+  resolveProviderHttpBounds,
+  type ProviderHttpProfile,
+} from "./provider_http.js";
 
 export const qqPluginId = "minemusic.qq";
 export const qqProviderId = "qq";
@@ -38,6 +46,19 @@ export const defaultQqBaseUrl = "http://127.0.0.1:8080";
 export type QqPluginConfig = {
   baseUrl?: string;
   fetch?: typeof fetch;
+  /**
+   * Per-request timeout in milliseconds. Defaults to defaultProviderRequestTimeoutMs();
+   * a hung or unresponsive QQ bridge is aborted and surfaced as
+   * extension.qq_provider_unavailable (retryable). (#88)
+   */
+  requestTimeoutMs?: number;
+  /**
+   * Per-response byte bound. Defaults to defaultProviderMaxResponseBytes(); a
+   * response body that exceeds it is streamed-cancelled and surfaced as
+   * extension.qq_malformed_response so a misbehaving bridge cannot OOM the
+   * process. (#88)
+   */
+  maxResponseBytes?: number;
 };
 
 const QQ_NAMESPACE = "source_qq";
@@ -494,6 +515,17 @@ function qqArtistUrl(mid: string): string {
 
 // --- bridge HTTP helper ----------------------------------------------------
 
+// #88 HTTP bounds (timeout + response size cap) for the QQ bridge. The generic
+// bound/abort/parse mechanics live in ./provider_http.ts; this profile only fixes
+// the QQ error codes and label so timeouts/oversized responses map onto the
+// existing extension.qq_* codes (no new codes).
+const qqHttpProfile = {
+  providerLabel: "QQ",
+  invalidConfigCode: "extension.qq_invalid_config",
+  malformedCode: "extension.qq_malformed_response",
+  providerUnavailableCode: "extension.qq_provider_unavailable",
+} as const satisfies ProviderHttpProfile;
+
 async function requestQqPath(
   config: unknown,
   path: string,
@@ -506,7 +538,13 @@ async function requestQqPath(
     );
   }
 
-  const fetchJson = config.fetch ?? fetch;
+  const bounds = resolveProviderHttpBounds(config, qqHttpProfile);
+
+  if (!bounds.ok) {
+    return bounds;
+  }
+
+  const configuredFetch = config.fetch;
   const baseUrl = typeof config.baseUrl === "string" ? config.baseUrl : defaultQqBaseUrl;
   const urlResult = qqPathUrl(baseUrl, path);
 
@@ -514,12 +552,14 @@ async function requestQqPath(
     return urlResult;
   }
 
-  if (typeof fetchJson !== "function") {
+  if (configuredFetch !== undefined && !isFetchImpl(configuredFetch)) {
     return failExtension(
       "extension.qq_invalid_config",
       "QQ plugin fetch config must be a function.",
     );
   }
+
+  const fetchJson: typeof fetch = configuredFetch ?? fetch;
 
   const url = urlResult.value;
 
@@ -530,14 +570,9 @@ async function requestQqPath(
   let response: Response;
 
   try {
-    response = await fetchJson(url);
-  } catch {
-    return failExtension(
-      "extension.qq_provider_unavailable",
-      `QQ provider is unavailable at ${url.origin}.`,
-      undefined,
-      true,
-    );
+    response = await fetchWithTimeout(fetchJson, url, bounds.value.timeoutMs);
+  } catch (error) {
+    return providerUnavailable(url.origin, error, qqHttpProfile);
   }
 
   if (!response.ok) {
@@ -558,17 +593,15 @@ async function requestQqPath(
     );
   }
 
-  try {
-    const payload = await response.json();
-    const issue = issueFromQqPayload(payload);
+  const payload = await readBoundedJson(response, bounds.value.maxBytes, qqHttpProfile);
 
-    return issue ?? ok(payload);
-  } catch {
-    return failExtension(
-      "extension.qq_malformed_response",
-      "QQ provider returned malformed JSON.",
-    );
+  if (!payload.ok) {
+    return payload;
   }
+
+  const issue = issueFromQqPayload(payload.value);
+
+  return issue ?? ok(payload.value);
 }
 
 function qqPathUrl(baseUrl: string, path: string): Result<URL> {

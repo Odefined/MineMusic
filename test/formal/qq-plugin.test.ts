@@ -159,6 +159,58 @@ const unavailableProvider = await sourceProviderFor({
     fetch: async () => new Response("down", { status: 503 }),
 });
 assertErrorCode(await unavailableProvider.search?.({ query: { text: "x", targetKinds: ["track"] } }) ?? fail("missing_search", ""), "extension.qq_provider_unavailable", true);
+// #88: a hung QQ bridge is bounded by requestTimeoutMs. The injected fetch honors
+// the abort signal the way real fetch does; the plugin aborts and maps the timeout
+// onto the existing extension.qq_provider_unavailable code (retryable), with a
+// message that names the timeout. No new error code. (Same shape as the NCM guard.)
+const hungQqFetch: typeof fetch = (_input, init) => new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener("abort", () => {
+        reject(init?.signal?.reason ?? new Error("aborted"));
+    });
+});
+const qqTimeoutProvider = await sourceProviderFor({
+    baseUrl: "http://qq.test",
+    requestTimeoutMs: 50,
+    fetch: hungQqFetch,
+});
+const qqTimeoutSearch = await qqTimeoutProvider.search?.({
+    query: { text: "slow", targetKinds: ["track"] },
+}) ?? fail("missing_search", "");
+assertErrorCode(qqTimeoutSearch, "extension.qq_provider_unavailable", true);
+if (!qqTimeoutSearch.ok) {
+    assert.equal(qqTimeoutSearch.error.message.includes("timeout"), true);
+}
+// #88: a QQ response exceeding maxResponseBytes is rejected as malformed, streamed
+// so it cannot OOM the process. Small cap + a small over-cap body.
+const qqOversizedProvider = await sourceProviderFor({
+    baseUrl: "http://qq.test",
+    maxResponseBytes: 8,
+    fetch: async () => new Response("x".repeat(64), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+    }),
+});
+assertErrorCode(await qqOversizedProvider.search?.({
+    query: { text: "big", targetKinds: ["track"] },
+}) ?? fail("missing_search", ""), "extension.qq_malformed_response");
+// #88: non-positive / non-integer HTTP bounds are invalid config, surfaced at the
+// provider boundary rather than silently coerced to a default.
+const qqInvalidTimeoutProvider = await sourceProviderFor({
+    baseUrl: "http://qq.test",
+    requestTimeoutMs: 0,
+    fetch: fetchJson({ code: 0, data: { song: { list: [] } } }).fetch,
+});
+assertErrorCode(await qqInvalidTimeoutProvider.search?.({
+    query: { text: "cfg-timeout", targetKinds: ["track"] },
+}) ?? fail("missing_search", ""), "extension.qq_invalid_config");
+const qqInvalidMaxBytesProvider = await sourceProviderFor({
+    baseUrl: "http://qq.test",
+    maxResponseBytes: -1,
+    fetch: fetchJson({ code: 0, data: { song: { list: [] } } }).fetch,
+});
+assertErrorCode(await qqInvalidMaxBytesProvider.search?.({
+    query: { text: "cfg-bytes", targetKinds: ["track"] },
+}) ?? fail("missing_search", ""), "extension.qq_invalid_config");
 
 const multiKindOffsetProvider = await sourceProviderFor({
     fetch: fetchJson({ code: 0, data: { song: [] } }).fetch,

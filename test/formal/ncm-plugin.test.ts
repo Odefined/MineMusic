@@ -796,6 +796,68 @@ const malformedJsonProvider = await sourceProviderFor({
 assertErrorCode(await malformedJsonProvider.search?.({
     query: { text: "json", targetKinds: ["track"] },
 }) ?? fail("missing_search", "missing search"), "extension.ncm_malformed_response");
+// #88: a hung NCM provider is bounded by requestTimeoutMs. The injected fetch
+// honors the abort signal the way real fetch does; the plugin aborts and maps the
+// timeout onto the existing extension.ncm_provider_unavailable code (retryable),
+// with a message that names the timeout. No new error code.
+const hungFetch: typeof fetch = (_input, init) => new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener("abort", () => {
+        reject(init?.signal?.reason ?? new Error("aborted"));
+    });
+});
+const timeoutProvider = await sourceProviderFor({
+    baseUrl: "http://ncm.test",
+    requestTimeoutMs: 50,
+    fetch: hungFetch,
+});
+const timeoutSearch = await timeoutProvider.search?.({
+    query: { text: "slow", targetKinds: ["track"] },
+}) ?? fail("missing_search", "missing search");
+assertErrorCode(timeoutSearch, "extension.ncm_provider_unavailable", true);
+if (!timeoutSearch.ok) {
+    assert.equal(timeoutSearch.error.message.includes("timeout"), true);
+}
+// #88 M-1: the path-based entry (requestNcmPath — used by lyrics/song-url/picture
+// and library reads) is bounded by the same timeout, not only search. Reuse the
+// hung provider and exercise a path call (getSongLyrics -> /lyric).
+const timeoutLyrics = await timeoutProvider.getSongLyrics?.({
+    sourceRef: { namespace: "source_netease", kind: "track", id: "1001" },
+}) ?? fail("missing_song_lyrics", "missing getSongLyrics");
+assertErrorCode(timeoutLyrics, "extension.ncm_provider_unavailable", true);
+if (!timeoutLyrics.ok) {
+    assert.equal(timeoutLyrics.error.message.includes("timeout"), true);
+}
+// #88: a provider response exceeding maxResponseBytes is rejected as malformed,
+// streamed so it cannot OOM the process. Small cap + a small over-cap body.
+const oversizedProvider = await sourceProviderFor({
+    baseUrl: "http://ncm.test",
+    maxResponseBytes: 8,
+    fetch: async () => new Response("x".repeat(64), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+    }),
+});
+assertErrorCode(await oversizedProvider.search?.({
+    query: { text: "big", targetKinds: ["track"] },
+}) ?? fail("missing_search", "missing search"), "extension.ncm_malformed_response");
+// #88: non-positive / non-integer HTTP bounds are invalid config, surfaced at the
+// provider boundary rather than silently coerced to a default.
+const invalidTimeoutProvider = await sourceProviderFor({
+    baseUrl: "http://ncm.test",
+    requestTimeoutMs: 0,
+    fetch: fetchJson({ result: { songs: [] }, code: 200 }).fetch,
+});
+assertErrorCode(await invalidTimeoutProvider.search?.({
+    query: { text: "cfg-timeout", targetKinds: ["track"] },
+}) ?? fail("missing_search", "missing search"), "extension.ncm_invalid_config");
+const invalidMaxBytesProvider = await sourceProviderFor({
+    baseUrl: "http://ncm.test",
+    maxResponseBytes: -1,
+    fetch: fetchJson({ result: { songs: [] }, code: 200 }).fetch,
+});
+assertErrorCode(await invalidMaxBytesProvider.search?.({
+    query: { text: "cfg-bytes", targetKinds: ["track"] },
+}) ?? fail("missing_search", "missing search"), "extension.ncm_invalid_config");
 const invalidBaseUrlProvider = await sourceProviderFor({
     baseUrl: "not a url",
     fetch: fetchJson({

@@ -6,6 +6,14 @@ import type { MineMusicPlugin } from "../plugin_runtime.js";
 import { platformLibraryProviderSlot } from "../platform_library_provider_slot.js";
 import { sourceProviderSlot } from "../source_provider_slot.js";
 import { extractVersionInfo } from "./version_extraction.js";
+import {
+  fetchWithTimeout,
+  isFetchImpl,
+  providerUnavailable,
+  readBoundedJson,
+  resolveProviderHttpBounds,
+  type ProviderHttpProfile,
+} from "./provider_http.js";
 
 export const ncmPluginId = "minemusic.ncm";
 export const ncmProviderId = "netease";
@@ -14,6 +22,19 @@ export const defaultNcmBaseUrl = "http://127.0.0.1:3000";
 export type NcmPluginConfig = {
   baseUrl?: string;
   fetch?: typeof fetch;
+  /**
+   * Per-request timeout in milliseconds. Defaults to defaultProviderRequestTimeoutMs();
+   * a hung or unresponsive ncmapi is aborted and surfaced as
+   * extension.ncm_provider_unavailable (retryable). (#88)
+   */
+  requestTimeoutMs?: number;
+  /**
+   * Per-response byte bound. Defaults to defaultProviderMaxResponseBytes(); a response
+   * body that exceeds it is streamed-cancelled and surfaced as
+   * extension.ncm_malformed_response so a misbehaving provider cannot OOM the
+   * process. (#88)
+   */
+  maxResponseBytes?: number;
 };
 
 type NcmSearchType = "1" | "10" | "100";
@@ -390,6 +411,17 @@ async function readNcmFollowedArtists(
   });
 }
 
+// #88 HTTP bounds (timeout + response size cap) for the ncmapi bridge. The generic
+// bound/abort/parse mechanics live in ./provider_http.ts; this profile only fixes
+// the NCM error codes and label so timeouts/oversized responses map onto the
+// existing extension.ncm_* codes (no new codes).
+const ncmHttpProfile = {
+  providerLabel: "NCM",
+  invalidConfigCode: "extension.ncm_invalid_config",
+  malformedCode: "extension.ncm_malformed_response",
+  providerUnavailableCode: "extension.ncm_provider_unavailable",
+} as const satisfies ProviderHttpProfile;
+
 async function requestNcmSearch(
   config: unknown,
   input: {
@@ -406,19 +438,27 @@ async function requestNcmSearch(
     );
   }
 
-  const fetchJson = config.fetch ?? fetch;
+  const bounds = resolveProviderHttpBounds(config, ncmHttpProfile);
+
+  if (!bounds.ok) {
+    return bounds;
+  }
+
+  const configuredFetch = config.fetch;
   const urlResult = ncmSearchUrl(config.baseUrl ?? defaultNcmBaseUrl);
 
   if (!urlResult.ok) {
     return urlResult;
   }
 
-  if (typeof fetchJson !== "function") {
+  if (configuredFetch !== undefined && !isFetchImpl(configuredFetch)) {
     return failExtension(
       "extension.ncm_invalid_config",
       "NCM plugin fetch config must be a function.",
     );
   }
+
+  const fetchJson: typeof fetch = configuredFetch ?? fetch;
 
   const url = urlResult.value;
 
@@ -430,14 +470,9 @@ async function requestNcmSearch(
   let response: Response;
 
   try {
-    response = await fetchJson(url);
-  } catch {
-    return failExtension(
-      "extension.ncm_provider_unavailable",
-      `NCM provider is unavailable at ${url.origin}.`,
-      undefined,
-      true,
-    );
+    response = await fetchWithTimeout(fetchJson, url, bounds.value.timeoutMs);
+  } catch (error) {
+    return providerUnavailable(url.origin, error, ncmHttpProfile);
   }
 
   if (!response.ok) {
@@ -449,14 +484,7 @@ async function requestNcmSearch(
     );
   }
 
-  try {
-    return ok(await response.json());
-  } catch {
-    return failExtension(
-      "extension.ncm_malformed_response",
-      "NCM provider returned malformed JSON.",
-    );
-  }
+  return readBoundedJson(response, bounds.value.maxBytes, ncmHttpProfile);
 }
 
 async function requestNcmPath(
@@ -471,19 +499,27 @@ async function requestNcmPath(
     );
   }
 
-  const fetchJson = config.fetch ?? fetch;
+  const bounds = resolveProviderHttpBounds(config, ncmHttpProfile);
+
+  if (!bounds.ok) {
+    return bounds;
+  }
+
+  const configuredFetch = config.fetch;
   const urlResult = ncmPathUrl(config.baseUrl ?? defaultNcmBaseUrl, path);
 
   if (!urlResult.ok) {
     return urlResult;
   }
 
-  if (typeof fetchJson !== "function") {
+  if (configuredFetch !== undefined && !isFetchImpl(configuredFetch)) {
     return failExtension(
       "extension.ncm_invalid_config",
       "NCM plugin fetch config must be a function.",
     );
   }
+
+  const fetchJson: typeof fetch = configuredFetch ?? fetch;
 
   const url = urlResult.value;
 
@@ -494,14 +530,9 @@ async function requestNcmPath(
   let response: Response;
 
   try {
-    response = await fetchJson(url);
-  } catch {
-    return failExtension(
-      "extension.ncm_provider_unavailable",
-      `NCM provider is unavailable at ${url.origin}.`,
-      undefined,
-      true,
-    );
+    response = await fetchWithTimeout(fetchJson, url, bounds.value.timeoutMs);
+  } catch (error) {
+    return providerUnavailable(url.origin, error, ncmHttpProfile);
   }
 
   if (!response.ok) {
@@ -513,17 +544,15 @@ async function requestNcmPath(
     );
   }
 
-  try {
-    const payload = await response.json();
-    const issue = issueFromNcmPayload(payload);
+  const payload = await readBoundedJson(response, bounds.value.maxBytes, ncmHttpProfile);
 
-    return issue ?? ok(payload);
-  } catch {
-    return failExtension(
-      "extension.ncm_malformed_response",
-      "NCM provider returned malformed JSON.",
-    );
+  if (!payload.ok) {
+    return payload;
   }
+
+  const issue = issueFromNcmPayload(payload.value);
+
+  return issue ?? ok(payload.value);
 }
 
 async function resolveNcmProviderAccountId(
