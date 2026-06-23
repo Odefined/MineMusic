@@ -6,7 +6,7 @@
   "scripts": {
     "generate:stage-interface-schemas": "node scripts/generate-stage-interface-schemas.mjs",
     "check:stage-interface-schemas": "node scripts/generate-stage-interface-schemas.mjs --check",
-    "build:test": "npm run check:stage-interface-schemas && rm -rf .tmp-test && tsc -p tsconfig.test.json",
+    "build:test": "npm run check:stage-interface-schemas && node scripts/build-test.mjs",
     "server:minemusic": "npm run build:test && node ./.tmp-test/src/server/index.js",
     "start": "node ./.tmp-test/src/server/index.js",
     "smoke:ncm": "npm run build:test && node ./.tmp-test/test/live/ncm-source-smoke.js",
