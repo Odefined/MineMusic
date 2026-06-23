@@ -1403,6 +1403,11 @@ stage-core suite EXIT 0):
 
 ## Next Formal Milestones
 
+The Agent-Native Workbench PRD sequencing (Phase A in-process loop → Phase B
+Radio + concurrency → Phase C AG-UI Web boundary) is locked in
+`docs/formal-rebuild/agent-native-workbench-roadmap.md`. The loose area list
+below is background scope, not an execution order.
+
 ### Later Formal Phases
 
 Later phases should rewrite area docs and code only when the owning boundary is
@@ -1428,3 +1433,14 @@ in scope. Known later areas include:
 Each later phase should keep old MVP code/docs as evidence only and should not
 add compatibility layers unless a new accepted ADR explicitly allows an
 exception.
+
+### Tracked follow-up refactors
+
+- **Item-handle currency → `material` (ADR-0040, GitHub issue #113).** The
+  agent-facing item-handle currency unifies to a single `material` kind and the
+  `library` item-handle kind is retired; `present` stops claiming library
+  admission. The decision is recorded (ADR-0040); the boundary-affecting code
+  change (public `MusicItemHandle` contract + handle-registry `handle_kind` +
+  downstream relation/collection/catalog tools + a DB migration, plus extracting
+  `ResolveDurableMusicItem` and re-examining `present`'s coarse
+  `durableUserStateWrite` bit / `ownerCurationWrite` marker) lands as its own PR.

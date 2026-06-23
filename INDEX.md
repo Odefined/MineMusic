@@ -281,6 +281,60 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/adr/0030-agent-runtime-and-workbench-interface-are-top-level-areas.md`:
   Agent Runtime and Workbench Interface are formal top-level areas; Session
   Context is an Agent Runtime-owned context view.
+- `docs/adr/0031-workspace-snapshot-in-process-read-model-ag-ui-web-boundary.md`:
+  Workspace Snapshot is an in-process read model, serialized to Web only as an
+  AG-UI profile; embedded agents read it in process.
+- `docs/adr/0032-radio-agent-is-peer-actor-of-main-agent.md`:
+  Radio Agent is a peer actor of Main Agent within Agent Runtime, coordinating
+  through typed messages (Radio directives, Radio results, notify/speak requests).
+- `docs/adr/0033-user-agent-concurrency-ownership-agent-work-basis-cancellation.md`:
+  user-agent concurrency uses ownership serialization, the per-area Agent Work
+  Basis (no global intent epoch), and Pi cancellation.
+- `docs/adr/0034-agent-generated-cards-fixed-now-shaped-for-a2ui-later.md`:
+  agent-generated cards use fixed components shaped for A2UI; A2UI is the
+  declarative format rather than a private Card IR.
+- `docs/adr/0035-projection-maintenance-uses-pg-boss-native-retry.md`:
+  projection maintenance rebuilds use pg-boss native retry with
+  `includeMetadata` observation; `retryCount >= retryLimit` marks `failed`
+  instead of rethrowing.
+- `docs/adr/0036-ag-ui-state-download-only-upstream-writes-typed-actions-split-by-contention.md`:
+  AG-UI `state` is a download-only projection; upstream writes go through typed
+  `WorkbenchActionEnvelope` actions (not state round-trip), and authority
+  placement is split by multi-writer contention, not durability.
+- `docs/adr/0037-radio-continuity-transcript-soul-radio-truth-floor-commanded-vs-posture.md`:
+  Radio continuity is layered — transcript is the lossy chain-of-thought soul,
+  durable radio truth is the floor; radio truth splits into commanded direction
+  (Main-written, participates in PB3 OCC) and evolved posture (Radio-written,
+  OCC-invisible, revision-stamped, conditionally cleared). Direction values are a
+  `text | material | scope` discriminated union. Posture is a structured, bounded
+  `lean` list (no motif of its own), autonomously incrementally edited — taking
+  the LangGraph structured-state route over MemGPT free-text self-editing memory
+  to shut drift/bloat/misjudgement while keeping MemGPT's autonomous-edit +
+  fixed-capacity mechanics.
+- `docs/adr/0038-effect-boundary-ask-policy-impact-class-by-actor-trust.md`:
+  the Effect Boundary `ask` policy is a two-dimensional decision — tool impact
+  class (`read` / `local-bounded` / `external-or-irreversible`) × actor trust
+  basis (`user-intent-backed` / `autonomous-within-grant`) → allow / ask(park) /
+  raise-to-conversation; `deny` is a separate pre-gate denylist. Generalizes the
+  per-scenario auto-pass booleans (ADR-0021/0022/0023) once a real confirmer
+  (Phase C Proposal Unit) exists.
+- `docs/adr/0039-agent-engine-is-pi-behind-a-leaky-port-provider-loop-neutral-concurrency-pinned.md`:
+  the agent engine is `@earendil-works/pi-agent-core` (low-level `Agent`, pinned)
+  behind the Agent Runtime engine port. The port is deliberately leaky — neutral
+  for provider/model access and basic loop shape; persistence/compaction/
+  coordination are MineMusic-owned (never cross the boundary); loop concurrency
+  semantics (cooperative abort, await-in-hook pause + manual abort race,
+  idle-after-settle, writable transcript) are correctness dependencies recorded as
+  an explicit engine-semantics list, not abstracted away. pi is justified as
+  *inherited + audited-sufficient + shape-fit* (audit @0.79.10), not by a
+  fabricated head-to-head ranking; dominant risk is version churn (pin + re-audit).
+- `docs/adr/0040-item-handle-currency-is-material-retire-library-item-kind.md`:
+  the agent-facing item-handle currency unifies to a single `material` kind; the
+  `library` *item-handle* kind is retired (the `library` *scope* baseline is
+  unchanged). `present` durable-materializes and returns a `material` handle — it
+  does not claim library admission (which stays explicit, PB4). Decision recorded
+  this cycle; the boundary-affecting code refactor (contracts + handle registry
+  `handle_kind` + downstream tools + migration) is tracked in GitHub issue #113.
 
 ## Pre-Formal ADR Evidence
 

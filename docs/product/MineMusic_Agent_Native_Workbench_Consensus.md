@@ -334,6 +334,14 @@ Main Agent handles the conversational and steering side of the embedded music
 agent experience. Radio Agent handles the continuous radio loop: ongoing
 listening posture, radio pacing, candidate work, and radio-mode continuity.
 
+Radio Agent maintains autoplay queue continuity as a pacing concern: it reads
+queue depth from Music Experience and, when depth falls below a threshold,
+triggers a candidate-selection pass that refills several tracks at a time — not
+one track per inference — so playback never waits on an LLM round-trip and the
+queue never runs dry. Queue truth and the candidate batch remain owned by
+Music Experience; Radio Agent acts through Music Experience commands to append,
+never by writing queue state directly.
+
 Main Agent does not own Radio Agent as a tool call or handoff target. Radio
 Agent is not a Stage Tool and is not a nested subroutine of Main Agent. They
 coordinate through Agent Runtime-owned typed messages and shared public
@@ -620,6 +628,35 @@ actually needs.
 The convergence point is still the owning-area command, but only after the
 entry adapter has translated public protocol shape into typed area input.
 
+## Post-Grill Refinements
+
+A later grilling pass (recorded as ADR-0031 through ADR-0034 and in `CONTEXT.md`)
+refined several points in this fusion. Where they differ, those ADRs and
+`CONTEXT.md` govern.
+
+- Workspace Snapshot is an in-process read model; it is serialized only at the
+  Web boundary as an AG-UI profile, while embedded agents read it in process.
+  AG-UI is the external serialization, not the internal ownership model
+  (ADR-0031).
+- Radio Agent is a peer actor of Main Agent within Agent Runtime, so Main never
+  blocks on Radio. A user's radio redirection routes through owned radio truth (a
+  direction change), not a directive message; the typed channel is reserved for
+  Radio→Main notify/speak requests (ADR-0032 Refinements, ADR-0037).
+- User-agent concurrency uses ownership serialization, the per-area, per-concern
+  Agent Work Basis, and Pi cancellation. There is no global intent epoch; the
+  earlier `intentEpoch` follow-up is superseded by the Agent Work Basis
+  (ADR-0033, refined per-concern by ADR-0037/PB3).
+- High-impact confirmations park only the Proposal Unit, not the whole agent;
+  the Main conversation and the Radio loop keep running, and a Radio loop
+  contains no blocking human-approval step.
+- Agent-generated cards use fixed components shaped for A2UI; A2UI (not a private
+  Card IR) is the declarative format, and open-ended HTML/JS/CSS stays forbidden
+  (ADR-0034).
+- The two PRD product policies that previously had no owner are assigned: Agent
+  Runtime owns Speech Level (Silent/Notify/Speak); Workbench Action Adapter
+  assigns each user action's Signal Class at entry, so interface cleanup never
+  reaches Memory as taste.
+
 ## Implementation Follow-Ups
 
 The architecture decisions above are final for this fusion. Remaining work is
@@ -640,14 +677,15 @@ Architecture specifications to complete before implementation:
 - State durability policy for Workbench Interaction State, A2UI surfaces,
   agent thread/work state, workspace events, playback observations, and
   browser-local state.
-- Revision and stale-command semantics across `intentEpoch`,
-  workspace/area revisions, queue revisions, radio direction revisions, and
-  agent work basis.
+- Revision and stale-command semantics across the per-area `Agent Work Basis`,
+  workspace/area revisions, queue revisions, and radio direction revisions.
+  There is no global intent epoch (ADR-0033).
 - Browser playback authority and observation protocol between Music Experience
   and the Web player.
 - Fixed Functional Card versus controlled Workbench Surface IR/A2UI boundaries.
-- Main/Radio typed message protocol, including Radio directives, Radio
-  results, notify/speak requests, and peer-actor constraints.
+- Main/Radio typed message protocol — Radio→Main notify/speak requests and
+  peer-actor constraints. (Radio *direction changes* are not messages; they route
+  through owned radio truth — ADR-0032 Refinements, ADR-0037.)
 
 Implementation specifications:
 

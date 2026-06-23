@@ -96,7 +96,10 @@ Workbench Interface owns:
 
 - Workspace Interaction State: session identity, selected object, expanded,
   visible, and dismissed card interaction state, workspace focus, attention
-  posture, and reconnectable interaction revision.
+  posture, and reconnectable interaction revision. This is uncontended,
+  single-owner state; its interaction revision serves reconnect/multi-tab
+  convergence, not Agent-Work-Basis OCC staleness rejection (ADR-0036 keeps it off
+  the command/OCC apparatus).
 - Workspace Protocol: public workspace snapshots, command envelopes, event
   envelopes, sequence/replay, and public card/action views.
 - user action routing into area-owned commands.
@@ -114,14 +117,57 @@ payload to have an owning area.
 _Avoid_: browser-only UI store, global workspace database, Music Experience
 state, Agent Runtime state, provider/session cache.
 
+### Workspace Snapshot
+
+A Workbench Interface public read model that gives Web and embedded agents one
+reconnectable view of the current workspace. It composes public projections
+from owning areas; every included field remains owned by its source area, and
+cross-area product card and work projections are owned by Workbench Interface.
+It is a read model assembled from owning-area projections, not a global state
+store and not a durability owner for the facts it shows.
+
+It is an in-process read model. Embedded agents read it in process — their
+agent-facing view is Session Context — and it is serialized only at the Web
+boundary, as an AG-UI profile (Workspace Snapshot/Events map onto AG-UI
+`StateSnapshot` and `StateDelta` as RFC 6902 JSON Patch; agent work trace maps
+onto AG-UI activity/tool events). AG-UI is the external serialization, not the
+internal ownership model. See ADR-0031.
+
+### Workspace Event
+
+A Workbench Interface public projection-change event on the per-workspace
+timeline, carrying sequence and replay metadata. It is a workbench projection
+event, not a domain event and not the system's global event log. Owning areas
+change their own state and public projections; Workspace Protocol publishes the
+workspace-facing event stream that lets Web and embedded agents observe those
+projection changes.
+
+### Agent Work Basis
+
+The tuple of owning-area, per-concern revisions captured at the start of an agent
+turn or work unit. An agent action carries its basis; the owning area that
+executes the action judges it stale when the current revision of a concern it
+depends on has moved past the basis value. Revisions are per-area *and
+per-concern* (for Music Experience: radio-direction, queue, and later playback),
+so a change to one concern does not void work that depended only on another — a
+user queue reorder must not void a Radio refill keyed to radio-direction
+(ADR-0033 Refinements, ADR-0037). The basis is captured per turn by default;
+Radio Agent may use a finer refresh. Hard-pivot cancellation is owned by Agent
+Runtime interrupt and cancel, not by a global intent epoch.
+
+The basis check is the per-area optimistic-concurrency mechanism that backs
+stale rejection. Ownership serialization minimizes conflicts at the source and
+engine cancellation stops stale work early, but neither replaces the commit-time
+basis check. See ADR-0033.
+
 ### Session Context
 
 Agent Runtime-owned context view assembled for embedded MineMusic agents.
 
 Session Context names the agent-readable context contract: current
 task/posture, active instruments, current listening mode, session-local
-constraints, recent choices/exclusions, intent epoch, area slice revisions, and
-selected workspace focus as read from Workbench Interface.
+constraints, recent choices/exclusions, area slice revisions captured as the
+Agent Work Basis, and selected workspace focus as read from Workbench Interface.
 
 Session Context does not own the underlying Workbench Interface state/protocol,
 agent run/message/work state, long-term Memory, Music Data Platform facts,
@@ -136,6 +182,68 @@ view over that state plus area-owned projections.
 _Avoid_: formal top-level area, unified workspace state owner, Workspace
 Session, Stage Core state, Music Experience durable state, generic session
 store.
+
+### Radio Subagent
+
+Radio Agent is a peer actor of Main Agent within Agent Runtime: both are
+owned by Agent Runtime, so Main never waits on Radio. A user's radio redirection
+is routed through owned radio truth (a direction change on Music Experience), not
+a directive message; the typed Main↔Radio channel is reserved for Radio→Main
+notify/speak requests (ADR-0032 Refinements, ADR-0037). It
+coordinates through the shared in-process workspace read model, and its loop
+contains no blocking human-approval step — high-impact confirmations are raised
+as Proposal Units to the conversation side. It maintains autoplay queue
+continuity as a pacing concern: when queue depth falls below a threshold it
+triggers a candidate-selection pass to refill (several tracks at a time, not
+one track per inference), so playback never waits on an LLM round-trip; queue
+truth and the candidate batch remain owned by Music Experience. See ADR-0032.
+_Avoid_: blocking subroutine of Main, handoff target, independent peer runtime
+outside Agent Runtime, separate message bus, third-party subagent extension.
+
+### Proposal Unit
+
+A short-lived agent work unit for a high-impact action that needs user
+confirmation (PRD "agent proposes"). It parks at the confirmation point with the
+intended owning-area command captured frozen, along with its Agent Work Basis,
+without freezing the spawning agent: Main's main conversation and Radio's loop
+keep running. On resume (approval) the owning area re-checks the Agent Work Basis; a stale
+basis voids the unit — a `voided_stale` outcome distinct from user rejection and
+timeout — and routes the void to Main agent, which speaks the outcome and may
+re-propose. This is agent-driven recovery: Effect Boundary emits the void fact,
+owns the unit's lifecycle (pending → confirmed | rejected | expired |
+voided_stale) and audit, and gates release of the captured command to the owning
+area; it does not construct or re-derive the command, and it does not speak.
+Rejection discards the unit.
+_Avoid_: blocking the whole agent, side-channel-only proposal, freezing Main
+conversation, Effect Boundary reconstructing the command from an intent handle,
+Workbench or Effect Boundary auto-deriving or auto-speaking the void.
+
+### User Signal Class
+
+The product-defined class of a user action, assigned at the entry boundary
+(Workbench Action Adapter) before routing: UI cleanup (dismiss/fold/clear),
+playback/queue behavior, session steering, or explicit preference. The class is
+a product fact fixed at entry, not an LLM judgement, so a dismiss is always
+cleanup and never reaches Memory as taste. Owning areas interpret signal
+strength and trend; they do not re-decide the class.
+_Avoid_: agent-inferred signal type, per-area reclassification, treating dismiss
+as taste feedback.
+
+### Speech Level
+
+The Silent / Notify / Speak level of an agent-originated message, owned by Agent
+Runtime as actor behavior. It is rule-locked at both ends (routine maintenance
+is Silent; high-impact actions go Speak or proposal) while the middle — is this
+worth interrupting the user — is the actor's judgement. On a producer→surfacer
+chain (e.g. Radio→Main) that middle judgement splits across two actors on
+orthogonal axes: the producer (Radio) owns event *severity*; the surfacer (Main),
+holding the conversation context, owns whether to *interrupt now*. A high-impact
+event has a Notify floor the surfacer's restraint cannot suppress (ADR-0037 note;
+PB7). Workbench Interface only renders Notify (badges/status) and Speak (chat
+messages); it does not decide the level. A user request like "talk less" is a
+session-steering signal in chat context, not a settings surface.
+_Avoid_: Workbench deciding speech level, routine work speaking in chat, a
+separate preferences panel.
 
 ### Background Work Backend
 
