@@ -117,19 +117,19 @@ const handleMinting = createStageInterfaceHandleMintingPort({
 });
 const itemHandleA = await handleMinting.mint({
   ownerScope: "local",
-  handleKind: "library",
+  handleKind: "material",
   internalAnchor: { materialRef: refKey(recordingA) },
 });
 const itemHandleB = await handleMinting.mint({
   ownerScope: "local",
-  handleKind: "library",
+  handleKind: "material",
   internalAnchor: { materialRef: refKey(recordingB) },
 });
 // recordingC is a durable library item that is never added to any collection
 // below — used to exercise the never-member remove path.
 const itemHandleC = await handleMinting.mint({
   ownerScope: "local",
-  handleKind: "library",
+  handleKind: "material",
   internalAnchor: { materialRef: refKey(recordingC) },
 });
 
@@ -173,14 +173,14 @@ if (initializedServerModule.ok) {
   // add A then B; position order is [A, B].
   const afterAddA = await dispatch("library.collection.add", {
     collection: { kind: "collection", id: collectionScopeId },
-    item: { kind: "library", id: itemHandleA },
+    item: { kind: "material", id: itemHandleA },
   });
   assert.equal(afterAddA.collection.itemCount, 1);
   assert.equal(afterAddA.items[0]!.item.id, itemHandleA);
 
   const afterAddB = await dispatch("library.collection.add", {
     collection: { kind: "collection", id: collectionScopeId },
-    item: { kind: "library", id: itemHandleB },
+    item: { kind: "material", id: itemHandleB },
   });
   assert.equal(afterAddB.collection.itemCount, 2);
   assert.deepEqual(
@@ -193,7 +193,7 @@ if (initializedServerModule.ok) {
   // position gap. (ON CONFLICT ... WHERE status='removed' guards this.)
   const reAddActive = await dispatch("library.collection.add", {
     collection: { kind: "collection", id: collectionScopeId },
-    item: { kind: "library", id: itemHandleA },
+    item: { kind: "material", id: itemHandleA },
   });
   assert.equal(reAddActive.collection.itemCount, 2);
   assert.deepEqual(
@@ -213,7 +213,7 @@ if (initializedServerModule.ok) {
   // move B to position 1; order becomes [B, A].
   const afterMove = await dispatch("library.collection.move", {
     collection: { kind: "collection", id: collectionScopeId },
-    item: { kind: "library", id: itemHandleB },
+    item: { kind: "material", id: itemHandleB },
     toPosition: 1,
   });
   assert.deepEqual(
@@ -231,14 +231,14 @@ if (initializedServerModule.ok) {
   // remove A (idempotent — second remove is a no-op success).
   const afterRemove = await dispatch("library.collection.remove", {
     collection: { kind: "collection", id: collectionScopeId },
-    item: { kind: "library", id: itemHandleA },
+    item: { kind: "material", id: itemHandleA },
   });
   assert.equal(afterRemove.collection.itemCount, 1);
   assert.equal(afterRemove.items[0]!.item.id, itemHandleB);
 
   const idempotentRemove = await dispatch("library.collection.remove", {
     collection: { kind: "collection", id: collectionScopeId },
-    item: { kind: "library", id: itemHandleA },
+    item: { kind: "material", id: itemHandleA },
   });
   assert.equal(idempotentRemove.collection.itemCount, 1);
 
@@ -249,7 +249,7 @@ if (initializedServerModule.ok) {
     toolName: "library.collection.remove",
     payload: {
       collection: { kind: "collection", id: collectionScopeId },
-      item: { kind: "library", id: itemHandleC },
+      item: { kind: "material", id: itemHandleC },
     },
   });
   assert.equal(neverMemberRemove.ok, false);
@@ -267,7 +267,7 @@ if (initializedServerModule.ok) {
     toolName: "library.collection.add",
     payload: {
       collection: { kind: "collection", id: albumCreated.collection.scope.id },
-      item: { kind: "library", id: itemHandleA },
+      item: { kind: "material", id: itemHandleA },
     },
   });
   assert.equal(kindMismatch.ok, false);
@@ -355,7 +355,7 @@ if (initializedServerModule.ok) {
     for (const entry of state.items) {
       assert.deepEqual(Object.keys(entry).sort(), ["item"]);
       assert.deepEqual(Object.keys(entry.item).sort(), ["id", "kind"]);
-      assert.equal(entry.item.kind, "library");
+      assert.equal(entry.item.kind, "material");
     }
   }
 }

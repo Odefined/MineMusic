@@ -11,7 +11,7 @@ export const stageInterfaceHandleRegistrySchema: MusicDatabaseSchemaContribution
         internal_anchor_json TEXT NOT NULL,
         issued_at TEXT NOT NULL,
         expires_at TEXT,
-        CHECK (handle_kind IN ('library', 'candidate'))
+        CHECK (handle_kind IN ('material', 'candidate'))
       )
     `);
 

@@ -340,7 +340,7 @@ export type LibraryCatalogListScopesOutput = {
 export type LibraryCatalogScopeInput = LibraryCatalogScope | ListedLibraryCatalogScope;
 
 export type LibraryCatalogItem = {
-  item: Extract<MusicItemHandle, { kind: "library" }>;
+  item: Extract<MusicItemHandle, { kind: "material" }>;
   description: PublicHandleDescription;
 };
 
@@ -504,8 +504,8 @@ export type LibraryImportStatusOutput = {
 };
 
 export type LibraryRelationItemInput = {
-  /** The durable library item whose relation state to read or edit. Candidate handles are rejected. */
-  item: Extract<MusicItemHandle, { kind: "library" }>;
+  /** The durable material item whose relation state to read or edit. Candidate handles are rejected. */
+  item: Extract<MusicItemHandle, { kind: "material" }>;
 };
 
 export type LibraryRelationState = {
@@ -542,12 +542,12 @@ export type LibraryCollectionRenameInput = {
 
 export type LibraryCollectionItemInput = {
   collection: LibraryCollectionScopeHandle;
-  item: Extract<MusicItemHandle, { kind: "library" }>;
+  item: Extract<MusicItemHandle, { kind: "material" }>;
 };
 
 export type LibraryCollectionMoveInput = {
   collection: LibraryCollectionScopeHandle;
-  item: Extract<MusicItemHandle, { kind: "library" }>;
+  item: Extract<MusicItemHandle, { kind: "material" }>;
   /** 1-based target position; the writer rebalances to consecutive integers (D4). */
   toPosition: number;
 };
@@ -557,7 +557,7 @@ export type LibraryCollectionDeleteInput = {
 };
 
 export type LibraryCollectionStateItem = {
-  item: Extract<MusicItemHandle, { kind: "library" }>;
+  item: Extract<MusicItemHandle, { kind: "material" }>;
 };
 
 export type LibraryCollectionState = {
@@ -594,25 +594,25 @@ export type MusicDiscoveryLookupInput =
 
 export type MusicItemHandle =
   | {
-    /** "library": a known, durable MineMusic item. Stable indefinitely. */
-    kind: "library";
+    /** "material": a durable MineMusic material reference. Stable indefinitely. */
+    kind: "material";
     /** Opaque handle id returned by a prior tool; pass it back unchanged. */
     id: string;
   }
   | {
-    /** "candidate": an unconfirmed provider item not yet admitted to the library. */
+    /** "candidate": an unconfirmed provider item not yet committed to a durable material. */
     kind: "candidate";
     /** Opaque handle id returned by a prior tool; pass it back unchanged. */
     id: string;
   };
 
 export type MusicExperiencePresentInput = {
-  /** The music item to present. A "candidate" handle is admitted to the library first. */
+  /** The music item to present. A "candidate" handle is committed to a durable material first. */
   item: MusicItemHandle;
 };
 
 export type MusicExperiencePresentOutput = {
-  item: Extract<MusicItemHandle, { kind: "library" }>;
+  item: Extract<MusicItemHandle, { kind: "material" }>;
   card: MusicCard;
 };
 

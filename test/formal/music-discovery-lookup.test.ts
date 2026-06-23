@@ -139,8 +139,8 @@ if (lookupResult.ok) {
     assert.equal(output.items.length, 2);
     assert.deepEqual(output.items[0], {
         handle: {
-            kind: "library",
-            id: "public_library_1",
+            kind: "material",
+            id: "public_material_1",
         },
         description: {
             label: "whoo - Nemophila",

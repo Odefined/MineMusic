@@ -368,7 +368,7 @@ async function lookupItemForHit(
   ctx: StageToolContext,
   hit: RetrievalQueryHit,
 ): Promise<MusicDiscoveryLookupItem> {
-  const handleKind = hit.kind === "material" ? "library" : "candidate";
+  const handleKind = hit.kind === "material" ? "material" : "candidate";
   const handle: MusicItemHandle = {
     kind: handleKind,
     id: await ctx.handleMinting.mint({

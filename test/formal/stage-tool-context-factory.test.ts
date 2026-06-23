@@ -73,7 +73,7 @@ const stubAudit: StageToolAuditPort = {
     // throws on mint.
     assert.equal(await ctx.handleMinting.mint({
         ownerScope: "local",
-        handleKind: "library",
+        handleKind: "material",
         internalAnchor: { x: 1 },
     }), "stub-handle");
 }
@@ -120,7 +120,7 @@ const stubAudit: StageToolAuditPort = {
     assert.equal(ctx.ownerScope, "local");
     assert.equal(await ctx.handleMinting.mint({
         ownerScope: "local",
-        handleKind: "library",
+        handleKind: "material",
         internalAnchor: {},
     }), "assembly-handle");
     assert.equal(mintCalls, 1);
@@ -148,13 +148,13 @@ const stubAudit: StageToolAuditPort = {
     const ctx = await factory.createToolContext({ sessionId: "s", requestId: "r" });
     await assert.rejects(ctx.handleMinting.mint({
         ownerScope: "local",
-        handleKind: "library",
+        handleKind: "material",
         internalAnchor: {},
     }), /Music Data Platform initialization/u);
     // The lazy guard covers resolve() too, not just mint().
     await assert.rejects(async () => await ctx.handleMinting.resolve({
         ownerScope: "local",
-        handleKind: "library",
+        handleKind: "material",
         publicId: "any",
     }), /Music Data Platform initialization/u);
     await assert.rejects(async () => await ctx.lookupCursors.register({
@@ -194,7 +194,7 @@ const stubAudit: StageToolAuditPort = {
         assert.equal(ctx.sessionId, "host-session");
         const publicId = await ctx.handleMinting.mint({
             ownerScope: "local",
-            handleKind: "library",
+            handleKind: "material",
             internalAnchor: { materialRef: "material:recording:m_factory" },
         });
         assert.equal(typeof publicId, "string");

@@ -36,11 +36,11 @@ export const musicExperiencePresentDescriptor: ToolDeclaration = {
   instrumentId: musicExperienceInstrument.id,
   label: "Present Music",
   ownerArea: "music_experience",
-  description: "Present a candidate or library music item as a durable user-facing MusicCard.",
+  description: "Present a candidate or material music item as a durable user-facing MusicCard.",
   usage: {
-    useWhen: "Use after the agent has chosen a specific candidate or library item to present in the conversation or user-facing display.",
+    useWhen: "Use after the agent has chosen a specific candidate or material item to present in the conversation or user-facing display.",
     doNotUseWhen: "Do not use for lookup, browsing, provider search, playback, saving, rating, or final musical judgement.",
-    outputSemantics: "Returns a durable library music item handle plus a compact MusicCard; candidate inputs are admitted to the library before presentation.",
+    outputSemantics: "Returns a durable material handle plus a compact MusicCard; candidate inputs are committed to a durable material before presentation.",
   },
   examples: [
     {
@@ -48,7 +48,7 @@ export const musicExperiencePresentDescriptor: ToolDeclaration = {
       expects: "call",
     },
     {
-      prompt: "show this library track as the answer",
+      prompt: "show this track as the answer",
       expects: "call",
     },
     {
@@ -90,17 +90,17 @@ export const musicExperiencePresentDescriptor: ToolDeclaration = {
     {
       code: "material_not_found",
       retryable: true,
-      suggestedFixTemplate: "Retry with a current library item handle or look up the item again.",
+      suggestedFixTemplate: "Retry with a current material handle or look up the item again.",
     },
     {
       code: "invalid_input",
       retryable: false,
-      suggestedFixTemplate: "Call music.experience.present with item as a library or candidate MusicItemHandle.",
+      suggestedFixTemplate: "Call music.experience.present with item as a material or candidate MusicItemHandle.",
     },
   ],
   resultSummary(result) {
     const output = result as MusicExperiencePresentOutput;
-    return `Presented ${output.card.label} (${output.card.kind}) as library item ${output.item.id}.`;
+    return `Presented ${output.card.label} (${output.card.kind}) as material item ${output.item.id}.`;
   },
 };
 
@@ -123,8 +123,8 @@ async function handleMusicExperiencePresent(
   switch (input.item.kind) {
     case "candidate":
       return presentCandidate(ctx, input.item.id, ports);
-    case "library":
-      return presentLibrary(ctx, input.item.id, ports);
+    case "material":
+      return presentMaterialHandle(ctx, input.item.id, ports);
   }
 }
 
@@ -160,19 +160,19 @@ async function presentCandidate(
   return presentMaterial(ctx, committed.value.materialRef, ports);
 }
 
-async function presentLibrary(
+async function presentMaterialHandle(
   ctx: StageToolContext,
   publicId: string,
   ports: CreateMusicExperiencePresentRegistrationInput,
 ): Promise<Result<MusicExperiencePresentOutput>> {
   const resolved = await ctx.handleMinting.resolve({
     ownerScope: ctx.ownerScope,
-    handleKind: "library",
+    handleKind: "material",
     publicId,
   });
 
   if (resolved === undefined) {
-    return materialNotFound("Library item handle is unknown or no longer available.");
+    return materialNotFound("Material item handle is unknown or no longer available.");
   }
 
   const materialRef = materialRefFromResolvedAnchor(resolved);
@@ -202,7 +202,7 @@ async function presentMaterial(
   // anchor to later play/favorite/save tools.
   const publicId = await ctx.handleMinting.mint({
     ownerScope: ctx.ownerScope,
-    handleKind: "library",
+    handleKind: "material",
     internalAnchor: {
       materialRef: refKey(material.materialRef),
     },
@@ -212,7 +212,7 @@ async function presentMaterial(
     ok: true,
     value: {
       item: {
-        kind: "library",
+        kind: "material",
         id: publicId,
       },
       card: musicCardFromMusicMaterial(material),
@@ -241,11 +241,11 @@ function materialRefFromResolvedAnchor(anchor: unknown): Result<Ref> {
   const materialRef = refFromResolvedAnchor(anchor, "materialRef");
 
   if (materialRef === undefined) {
-    return invalidInput("Library item handle did not resolve to material.");
+    return invalidInput("Material item handle did not resolve to material.");
   }
 
   if (!isMaterialRef(materialRef)) {
-    return invalidInput("Library item handle did not resolve to valid material.");
+    return invalidInput("Material item handle did not resolve to valid material.");
   }
 
   return {
@@ -304,7 +304,7 @@ function materialNotFound(message: string): Result<never> {
     code: "material_not_found",
     message,
     retryable: true,
-    suggestedFix: "Retry with a current library item handle or look up the item again.",
+    suggestedFix: "Retry with a current material handle or look up the item again.",
   });
 }
 
@@ -313,7 +313,7 @@ function invalidInput(message: string): Result<never> {
     code: "invalid_input",
     message,
     retryable: false,
-    suggestedFix: "Call music.experience.present with item as a library or candidate MusicItemHandle.",
+    suggestedFix: "Call music.experience.present with item as a material or candidate MusicItemHandle.",
   });
 }
 
@@ -341,7 +341,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isMaterialRef(ref: Ref): boolean {
   // Phase 17 Material Projection only resolves recording/album/artist. The
-  // work/release variants are deferred to the canonical layer; a library handle
+  // work/release variants are deferred to the canonical layer; a material handle
   // anchored on them cannot be projected today, so reject it up front as
   // invalid_input rather than letting it surface as a misleading
   // material_not_found after projection returns undefined.

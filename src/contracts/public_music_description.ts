@@ -34,8 +34,8 @@ export function labelForMusicTargetKind(kind: MusicTargetKind): string {
 
 export function fallbackMusicItemLabel(handle: Pick<MusicItemHandle, "kind">): string {
   switch (handle.kind) {
-    case "library":
-      return "Untitled library item";
+    case "material":
+      return "Untitled material";
     case "candidate":
       return "Untitled candidate";
   }

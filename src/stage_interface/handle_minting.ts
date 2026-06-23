@@ -256,9 +256,9 @@ function candidateAnchorFromInternalAnchor(anchor: unknown): {
   };
 }
 
-function assertHandleKind(handleKind: MusicItemHandle["kind"]): asserts handleKind is "library" {
-  if (handleKind !== "library") {
-    throw new Error("Only library handles are persisted by the Stage Interface handle registry.");
+function assertHandleKind(handleKind: MusicItemHandle["kind"]): asserts handleKind is "material" {
+  if (handleKind !== "material") {
+    throw new Error("Only material handles are persisted by the Stage Interface handle registry.");
   }
 }
 

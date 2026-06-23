@@ -290,7 +290,7 @@ if (fixtureLookup.ok) {
     const lookupResult = fixtureLookup.value.result as {
         items: {
             handle: {
-                kind: "library" | "candidate";
+                kind: "material" | "candidate";
                 id: string;
             };
             description: {

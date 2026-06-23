@@ -31,7 +31,7 @@ import {
 } from "../index.js";
 import type { LibraryCatalogScopeAvailabilityPort } from "./catalog.js";
 import { collectionScopeId } from "./collection_scope.js";
-import { resolveLibraryMaterialRef, stageEditFail } from "./library_handle_resolution.js";
+import { resolveMaterialItemRef, stageEditFail } from "./library_handle_resolution.js";
 
 // D9: the agent addresses a Collection by its catalog scope handle
 // ({ kind:"collection", id }) from library.catalog.list_scopes. The handler
@@ -129,7 +129,7 @@ const getErrors = [
   {
     code: "invalid_input",
     retryable: false,
-    suggestedFixTemplate: "Retry with a catalog-visible collection scope handle from library.catalog.list_scopes and a durable library item handle.",
+    suggestedFixTemplate: "Retry with a catalog-visible collection scope handle from library.catalog.list_scopes and a durable material item handle.",
   },
   {
     code: "collection_not_found",
@@ -290,7 +290,7 @@ export const libraryCollectionAddDescriptor = editDescriptor({
   name: "library.collection.add",
   label: "Add Library Collection Item",
   description: "Add one MineMusic library item to a Collection.",
-  useWhen: "Use when the user explicitly asks to add a durable library item to a named Collection.",
+  useWhen: "Use when the user explicitly asks to add a durable material item to a named Collection.",
   doNotUseWhen: "Do not use to remove an item, reorder, or add provider items not yet admitted to the library.",
   outputSemantics: "Appends the item (kind must match the Collection, or the Collection must be mixed) and returns the post-add state.",
   callPrompt: "add this track to my Favorites collection",
@@ -303,7 +303,7 @@ export const libraryCollectionRemoveDescriptor = editDescriptor({
   name: "library.collection.remove",
   label: "Remove Library Collection Item",
   description: "Remove one MineMusic library item from a Collection.",
-  useWhen: "Use when the user explicitly asks to remove a durable library item from a named Collection.",
+  useWhen: "Use when the user explicitly asks to remove a durable material item from a named Collection.",
   doNotUseWhen: "Do not use to add an item, reorder, or delete the Collection.",
   outputSemantics: "Soft-removes the item if it is a member; re-removing an already-removed member is a no-op. Returns the post-remove state.",
   callPrompt: "remove this track from my Favorites collection",
@@ -489,7 +489,7 @@ async function handleItemEdit(
   if (!resolvedCollection.ok) {
     return resolvedCollection;
   }
-  const materialRefResult = await resolveLibraryMaterialRef(ctx, input.item.id, "Retry with a catalog-visible collection scope handle from library.catalog.list_scopes and a durable library item handle.");
+  const materialRefResult = await resolveMaterialItemRef(ctx, input.item.id, "Retry with a catalog-visible collection scope handle from library.catalog.list_scopes and a durable material item handle.");
   if (!materialRefResult.ok) {
     return materialRefResult;
   }
@@ -533,14 +533,14 @@ async function veilCollectionState(
   ctx: StageToolContext,
   state: LibraryCollectionServiceState,
 ): Promise<Result<LibraryCollectionStateOutput>> {
-  const items: { item: Extract<MusicItemHandle, { kind: "library" }> }[] = await Promise.all(
+  const items: { item: Extract<MusicItemHandle, { kind: "material" }> }[] = await Promise.all(
     state.items.map(async (item) => {
       const publicId = await ctx.handleMinting.mint({
         ownerScope: ctx.ownerScope,
-        handleKind: "library",
+        handleKind: "material",
         internalAnchor: { materialRef: refKey(item.materialRef) },
       });
-      return { item: { kind: "library", id: publicId } };
+      return { item: { kind: "material", id: publicId } };
     }),
   );
 
@@ -640,6 +640,6 @@ function invalidInput(message: string): Result<never> {
     code: "invalid_input",
     message,
     retryable: false,
-    suggestedFix: "Retry with a catalog-visible collection scope handle from library.catalog.list_scopes and a durable library item handle.",
+    suggestedFix: "Retry with a catalog-visible collection scope handle from library.catalog.list_scopes and a durable material item handle.",
   });
 }
