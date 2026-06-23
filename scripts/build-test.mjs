@@ -60,10 +60,16 @@ if (compiled.error !== undefined) {
   console.error(`Test build failed to start tsc: ${compiled.error.message}`);
   process.exit(1);
 }
-if (compiled.status !== 0) {
+// status is null when tsc was terminated by a signal (SIGTERM/SIGKILL: IDE
+// cancel, OOM-killer, CI timeout). Normalize to a non-zero code so the
+// build:test contract (non-zero on failure) holds — process.exit(null) would
+// otherwise coerce to exit 0 and let `build:test && ...` run a stale build.
+const tscExitCode = compiled.status ?? 1;
+if (tscExitCode !== 0) {
   rmSync(stagingDir, { recursive: true, force: true });
-  console.error(`Test build failed (tsc exited ${compiled.status}).`);
-  process.exit(compiled.status);
+  const detail = compiled.status === null ? "interrupted by signal" : `exited ${compiled.status}`;
+  console.error(`Test build failed (tsc ${detail}).`);
+  process.exit(tscExitCode);
 }
 
 await publishAtomically(stagingDir, publishedDir);

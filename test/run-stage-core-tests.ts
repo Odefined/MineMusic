@@ -48,8 +48,35 @@ type ModuleResult = { module: string; ok: boolean };
 const results: ModuleResult[] = [];
 let index = 0;
 const total = testModules.length;
+
+// A test module may start fire-and-forget work (e.g. a transport run loop, a
+// timer) that rejects AFTER its `await import()` has resolved. The try/catch
+// below only covers the synchronous import; a late unhandled rejection would
+// otherwise abort the whole process (Node's default) and skip the remaining
+// modules plus the summary. Attribute it to the module currently in flight and
+// record it as a late failure so the aggregate exit code still reflects it,
+// but do not abort the run.
+let currentModule: string | undefined;
+let lastImported: string | undefined;
+let lateFailure = false;
+const reportLate = (kind: string, reason: unknown): void => {
+    lateFailure = true;
+    // A late rejection fires on a later tick than the import that spawned it,
+    // so attribute to the most recently imported module (the usual source),
+    // falling back to the one in flight or <startup>.
+    const where = lastImported ?? currentModule ?? "<startup>";
+    process.stdout.write(`\n[${kind} attributed to ${where}]\n${formatFailure(reason)}`);
+};
+process.on("unhandledRejection", (reason: unknown) => {
+    reportLate("unhandled rejection", reason);
+});
+process.on("uncaughtException", (error: unknown) => {
+    reportLate("uncaught exception", error);
+});
+
 for (const testModule of testModules) {
     index += 1;
+    currentModule = testModule;
     const label = testModule.replace(/^\.\//, "").replace(/\.test\.js$/, "");
     process.stdout.write(`[${index}/${total}] ${label} ... `);
     try {
@@ -60,21 +87,31 @@ for (const testModule of testModules) {
         results.push({ module: testModule, ok: false });
         process.stdout.write(`FAIL\n${formatFailure(error)}`);
     }
+    lastImported = testModule;
 }
+currentModule = undefined;
 
 const failed = results.filter((result) => !result.ok);
 process.stdout.write(`\n${results.length - failed.length}/${results.length} modules passed.\n`);
 if (failed.length > 0) {
     process.stdout.write(`Failed: ${failed.map((result) => result.module).join(", ")}\n`);
 }
-process.exit(failed.length > 0 ? 1 : 0);
+process.exit(failed.length > 0 || lateFailure ? 1 : 0);
 
 function formatFailure(error: unknown): string {
     let message: string;
     let operator = "";
     if (error !== null && typeof error === "object" && "message" in error) {
         const descriptor = error as { message?: unknown; operator?: unknown };
-        message = typeof descriptor.message === "string" ? descriptor.message : String(error);
+        if (typeof descriptor.message === "string") {
+            message = descriptor.message;
+        } else if (descriptor.message !== undefined) {
+            // Render a non-string .message (number, object) directly rather than
+            // the whole-error toString, which would collapse to [object Object].
+            message = String(descriptor.message);
+        } else {
+            message = String(error);
+        }
         if (typeof descriptor.operator === "string") {
             operator = ` [${descriptor.operator}]`;
         }
