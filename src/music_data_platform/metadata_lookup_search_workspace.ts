@@ -43,7 +43,10 @@ import {
   normalizeSearchMetadataValue,
 } from "./search_metadata_normalization.js";
 import { assertSourceLibraryRef, createSourceLibraryRef } from "./source_library_ref.js";
-import { assertComparableTimestamp } from "./timestamp_validation.js";
+import {
+  assertComparableTimestamp,
+  comparableTimestampSql,
+} from "./timestamp_validation.js";
 
 export type MetadataLookupSearchCursorPosition = {
   order: "text_relevance";
@@ -344,17 +347,19 @@ async function readExistingSearchResultSetPage(input: {
   const resultSetId = validatedResultSetId(input.resultSetId);
   const resultSet = await input.db.get<{
     query_fingerprint: string;
-    expires_at: string;
+    expired: boolean;
   }>(
     `
-      SELECT query_fingerprint, expires_at
+      SELECT
+        query_fingerprint,
+        expires_at <= ?::timestamptz AS expired
       FROM search_result_sets
       WHERE result_set_id = ?
     `,
-    [resultSetId],
+    [input.now, resultSetId],
   );
 
-  if (resultSet === undefined || resultSet.expires_at <= input.now) {
+  if (resultSet === undefined || resultSet.expired) {
     return { status: "result_set_expired" };
   }
 
@@ -772,7 +777,7 @@ async function insertSearchResultSet(input: {
         expires_at,
         created_at
       )
-      VALUES (?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?::timestamptz, ?)
     `,
     [
       input.resultSetId,
@@ -951,7 +956,7 @@ async function cleanupExpiredSearchResultSets(input: {
       WITH expired AS (
         SELECT result_set_id
         FROM search_result_sets
-        WHERE expires_at <= ?
+        WHERE expires_at <= ?::timestamptz
         ORDER BY expires_at ASC, result_set_id ASC
         LIMIT 500
       )
@@ -966,7 +971,7 @@ async function cleanupExpiredSearchResultSets(input: {
       WITH expired AS (
         SELECT result_set_id
         FROM search_result_sets
-        WHERE expires_at <= ?
+        WHERE expires_at <= ?::timestamptz
         ORDER BY expires_at ASC, result_set_id ASC
         LIMIT 500
       )
@@ -1001,7 +1006,7 @@ function searchResultPageSql(
       r.alias_text AS "aliasText",
       ${metadataTextSql("r", "row_text")} AS "searchText",
       c.material_candidate_ref_key AS candidate_cache_ref_key,
-      c.expires_at AS candidate_expires_at
+      ${comparableTimestampSql("c.expires_at")} AS candidate_expires_at
     FROM search_result_rows r
     LEFT JOIN material_candidate_cache c
       ON c.material_candidate_ref_key = r.material_candidate_ref_key

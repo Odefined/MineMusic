@@ -3,7 +3,10 @@ import type { MusicDatabaseContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import type { MaterialCandidateKind } from "./material_candidate_ref.js";
 import { assertMusicDataPlatformPublicRefKey } from "./ref_validation.js";
-import { assertComparableTimestamp } from "./timestamp_validation.js";
+import {
+  assertComparableTimestamp,
+  comparableTimestampSql,
+} from "./timestamp_validation.js";
 
 export const DEFAULT_RETRIEVAL_RESULT_SET_TTL_MS = 30 * 60 * 1000;
 export const DEFAULT_RETRIEVAL_RESULT_SET_CLEANUP_LIMIT = 500;
@@ -70,7 +73,18 @@ export function createRetrievalResultSetRecords(
 
       const row = await db.get<MaterialCandidateCacheRow>(
         `
-          SELECT *
+          SELECT
+            material_candidate_ref_key,
+            provider_id,
+            source_ref_key,
+            provider_entity_id,
+            source_kind,
+            material_candidate_kind,
+            validated_provider_candidate_json,
+            searchable_fields_json,
+            provider_score,
+            ${comparableTimestampSql("expires_at")} AS expires_at,
+            created_at
           FROM material_candidate_cache
           WHERE material_candidate_ref_key = ?
         `,
@@ -97,7 +111,7 @@ export function createRetrievalResultSetRecords(
             expires_at,
             created_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::timestamptz, ?)
           ON CONFLICT(material_candidate_ref_key) DO UPDATE SET
             provider_id = excluded.provider_id,
             source_ref_key = excluded.source_ref_key,
@@ -156,7 +170,7 @@ export function createRetrievalResultSetRecords(
           WITH expired AS (
             SELECT material_candidate_ref_key
             FROM material_candidate_cache
-            WHERE expires_at <= ?
+            WHERE expires_at <= ?::timestamptz
             ORDER BY expires_at ASC, material_candidate_ref_key ASC
             LIMIT ?
           ),

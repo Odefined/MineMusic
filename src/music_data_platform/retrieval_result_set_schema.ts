@@ -21,12 +21,18 @@ export const musicDataPlatformRetrievalResultSetSchema: MusicDatabaseSchemaContr
         validated_provider_candidate_json TEXT NOT NULL,
         searchable_fields_json TEXT NOT NULL,
         provider_score REAL,
-        expires_at TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
         created_at TEXT NOT NULL,
         PRIMARY KEY(material_candidate_ref_key),
         CHECK (source_kind IN ('track', 'album', 'artist')),
         CHECK (material_candidate_kind = 'provider_candidate')
       )
+    `);
+
+    await context.run(`
+      ALTER TABLE material_candidate_cache
+      ALTER COLUMN expires_at TYPE TIMESTAMPTZ
+      USING expires_at::timestamptz
     `);
 
     await context.run(`

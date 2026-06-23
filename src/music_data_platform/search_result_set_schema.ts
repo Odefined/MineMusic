@@ -8,10 +8,16 @@ export const musicDataPlatformSearchResultSetSchema: MusicDatabaseSchemaContribu
         result_set_id TEXT PRIMARY KEY,
         query_fingerprint TEXT NOT NULL,
         row_count INTEGER NOT NULL,
-        expires_at TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
         created_at TEXT NOT NULL,
         CHECK (row_count >= 0)
       )
+    `);
+
+    await context.run(`
+      ALTER TABLE search_result_sets
+      ALTER COLUMN expires_at TYPE TIMESTAMPTZ
+      USING expires_at::timestamptz
     `);
 
     await context.run(`

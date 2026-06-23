@@ -21,9 +21,9 @@ import {
   type MusicDataPlatformMetadataLookupSearchWorkspace,
 } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
-import type { MusicDatabase, MusicDatabaseParameter, MusicDatabaseTransactionContext } from "../../src/storage/index.js";
+import type { MusicDatabase, MusicDatabaseParameter, MusicDatabaseSchemaContribution, MusicDatabaseTransactionContext } from "../../src/storage/index.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
-import { indexExists, tableColumns } from "./helpers/postgres-introspection.js";
+import { columnDataType, indexExists, tableColumns } from "./helpers/postgres-introspection.js";
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends
@@ -48,7 +48,41 @@ export type _musicDataPlatformMetadataLookupSearchRowKind =
 export type _musicDataPlatformMetadataLookupSearchWorkspaceShape =
   Expect<Equal<keyof MusicDataPlatformMetadataLookupSearchWorkspace, "searchMetadataLookupResultSet">>;
 
+const oldSearchResultSetsTextExpiresSchema: MusicDatabaseSchemaContribution = {
+  id: "test.old_search_result_sets_text_expires",
+  async apply(context) {
+    await context.run(`
+      CREATE TABLE search_result_sets (
+        result_set_id TEXT PRIMARY KEY,
+        query_fingerprint TEXT NOT NULL,
+        row_count INTEGER NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        CHECK (row_count >= 0)
+      )
+    `);
+
+    await context.run(`
+      INSERT INTO search_result_sets (
+        result_set_id,
+        query_fingerprint,
+        row_count,
+        expires_at,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?)
+    `, [
+      "rs_text_expires",
+      "metadata-lookup-text-expires",
+      0,
+      "2026-06-20T12:30:00.000Z",
+      "2026-06-20T12:00:00.000Z",
+    ]);
+  },
+};
+
 const database = await initializedDatabase();
+assert.equal(await columnDataType(database, "search_result_sets", "expires_at"), "timestamp with time zone");
 assert.deepEqual(await tableColumns(database, "search_result_rows"), [
   "result_set_id",
   "row_kind",
@@ -67,6 +101,36 @@ assert.deepEqual(await tableColumns(database, "search_result_rows"), [
   "alias_text",
 ]);
 assert.equal(await indexExists(database, "search_result_rows_search_vector_idx"), false);
+const migratedResultSetDatabase = await openUninitializedPostgresTestMusicDatabase();
+await migratedResultSetDatabase.initialize({
+  schemas: [
+    musicDataPlatformIdentitySchema,
+    oldSearchResultSetsTextExpiresSchema,
+    musicDataPlatformSearchResultSetSchema,
+  ],
+});
+assert.equal(
+  await columnDataType(migratedResultSetDatabase, "search_result_sets", "expires_at"),
+  "timestamp with time zone",
+);
+const migratedResultSet = await migratedResultSetDatabase.context().get<{
+  expires_at: string;
+  expired: boolean;
+}>(`
+  SELECT
+    to_char(expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS expires_at,
+    expires_at <= ?::timestamptz AS expired
+  FROM search_result_sets
+  WHERE result_set_id = ?
+`, [
+  "2026-06-20T12:31:00.000Z",
+  "rs_text_expires",
+]);
+assert.deepEqual(migratedResultSet, {
+  expires_at: "2026-06-20T12:30:00.000Z",
+  expired: true,
+});
+await migratedResultSetDatabase.close();
 const material = materialRef("recording", "m_night");
 const resolvedSource = sourceTrack("1001", "Night", {
   artistLabels: ["Durable Artist"],

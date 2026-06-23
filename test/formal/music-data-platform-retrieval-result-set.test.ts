@@ -3,8 +3,8 @@ import { refKey } from "../../src/contracts/kernel.js";
 import type { ProviderMaterialCandidate, SourceTrack } from "../../src/contracts/music_data_platform.js";
 import { assertProviderMaterialCandidateRef, createProviderMaterialCandidateRef, isMusicDataPlatformError, musicDataPlatformRetrievalResultSetSchema, } from "../../src/music_data_platform/index.js";
 import { createRetrievalResultSetRecords, expiresAtFromResultSetCreatedAt, type MaterialCandidateCacheRecord, } from "../../src/music_data_platform/retrieval_result_set_records.js";
-import type { MusicDatabase, MusicDatabaseParameter, MusicDatabaseTransactionContext } from "../../src/storage/index.js";
-import { relationKind } from "./helpers/postgres-introspection.js";
+import type { MusicDatabase, MusicDatabaseParameter, MusicDatabaseSchemaContribution, MusicDatabaseTransactionContext } from "../../src/storage/index.js";
+import { columnDataType, relationKind } from "./helpers/postgres-introspection.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
 const alphaSource = sourceTrack("1001", "Alpha Candidate");
 const alphaCandidateRef = createProviderMaterialCandidateRef({
@@ -20,10 +20,80 @@ assert.notEqual(alphaCandidateRef.id, createProviderMaterialCandidateRef({
 assert.equal(expiresAtFromResultSetCreatedAt({
     createdAt: "2026-06-15T10:00:00.000Z",
 }), "2026-06-15T10:30:00.000Z");
+const oldMaterialCandidateCacheTextExpiresSchema: MusicDatabaseSchemaContribution = {
+    id: "test.old_material_candidate_cache_text_expires",
+    async apply(context) {
+        await context.run(`
+          CREATE TABLE material_candidate_cache (
+            material_candidate_ref_key TEXT NOT NULL,
+            provider_id TEXT NOT NULL,
+            source_ref_key TEXT NOT NULL,
+            provider_entity_id TEXT NOT NULL,
+            source_kind TEXT NOT NULL,
+            material_candidate_kind TEXT NOT NULL,
+            validated_provider_candidate_json TEXT NOT NULL,
+            searchable_fields_json TEXT NOT NULL,
+            provider_score REAL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY(material_candidate_ref_key),
+            CHECK (source_kind IN ('track', 'album', 'artist')),
+            CHECK (material_candidate_kind = 'provider_candidate')
+          )
+        `);
+
+        await context.run(`
+          INSERT INTO material_candidate_cache (
+            material_candidate_ref_key,
+            provider_id,
+            source_ref_key,
+            provider_entity_id,
+            source_kind,
+            material_candidate_kind,
+            validated_provider_candidate_json,
+            searchable_fields_json,
+            provider_score,
+            expires_at,
+            created_at
+          )
+          VALUES (?, ?, ?, ?, 'track', 'provider_candidate', ?, ?, ?, ?, ?)
+        `, [
+            alphaCandidateRefKey,
+            "netease",
+            refKey(alphaSource.sourceRef),
+            alphaSource.providerEntityId,
+            JSON.stringify({ sourceEntity: alphaSource }),
+            JSON.stringify({ titleText: alphaSource.title }),
+            0.8,
+            "2026-06-15T10:30:00.000Z",
+            "2026-06-15T10:00:00.000Z",
+        ]);
+    },
+};
 {
     const database = await initializedDatabase();
     const context = database.context();
     assert.equal(await tableExists(context, "material_candidate_cache"), true);
+    assert.equal(await columnDataType(context, "material_candidate_cache", "expires_at"), "timestamp with time zone");
+    await database.close();
+}
+{
+    const database = await openUninitializedPostgresTestMusicDatabase();
+    await database.initialize({
+        schemas: [
+            oldMaterialCandidateCacheTextExpiresSchema,
+            musicDataPlatformRetrievalResultSetSchema,
+        ],
+    });
+    assert.equal(await columnDataType(database, "material_candidate_cache", "expires_at"), "timestamp with time zone");
+    const records = createRetrievalResultSetRecords({ db: database.context() });
+    const migrated = await records.materialCandidates.getByRefKey({
+        materialCandidateRefKey: alphaCandidateRefKey,
+    });
+    assert.equal(migrated?.expiresAt, "2026-06-15T10:30:00.000Z");
+    assert.deepEqual(await records.cleanupExpiredMaterialCandidates({
+        now: "2026-06-15T10:31:00.000Z",
+    }), { deletedCount: 1 });
     await database.close();
 }
 {
@@ -155,8 +225,8 @@ assert.equal(expiresAtFromResultSetCreatedAt({
     await database.close();
 }
 assert.throws(() => expiresAtFromResultSetCreatedAt({ createdAt: "not-a-timestamp" }), isRetrievalResultSetError);
-// The cleanup `now` input is compared lexicographically against expires_at, so it must
-// be a comparable ISO-8601 UTC timestamp too.
+// The cleanup boundary still accepts the platform's comparable ISO timestamp shape;
+// storage converts it to TIMESTAMPTZ for the authoritative comparison.
 {
     const database = await initializedDatabase();
     await database.transaction(async (db) => {
