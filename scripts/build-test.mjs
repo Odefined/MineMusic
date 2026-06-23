@@ -17,20 +17,21 @@ const publishedDir = resolve(repositoryRoot, ".tmp-test");
 const stagingDir = resolve(repositoryRoot, `.tmp-test-staging-${process.pid}`);
 const tscBin = resolve(repositoryRoot, "node_modules/typescript/bin/tsc");
 
-// Publishes `staging` as `target`. tsc has finished writing, so the rm+rename
-// pair has no concurrent writers; but two builds may publish near-simultaneously.
-// When one rename loses the race (ENOTEMPTY because the other just filled
-// `target`), retry — concurrent builds compile identical source, so last
-// publish wins is correct semantics.
+// Publishes `staging` as `target`. tsc has finished writing, so there are no
+// concurrent writers from this process; but two builds may publish
+// near-simultaneously, and rmSync on `target` can briefly race with an OS handle
+// (antivirus, IDE watcher, another Node process) holding a file under it. Retry
+// the whole rmSync+renameSync pair on ENOTEMPTY/EPERM/EBUSY — concurrent builds
+// compile identical source, so last publish wins is correct semantics.
 async function publishAtomically(staging, target, maxAttempts = 10) {
   for (let attempt = 0; ; attempt++) {
-    rmSync(target, { recursive: true, force: true });
     try {
+      rmSync(target, { recursive: true, force: true });
       renameSync(staging, target);
       return;
     } catch (cause) {
       const code = cause && cause.code;
-      if ((code === "ENOTEMPTY" || code === "EPERM") && attempt < maxAttempts) {
+      if ((code === "ENOTEMPTY" || code === "EPERM" || code === "EBUSY") && attempt < maxAttempts) {
         await sleep(20);
         continue;
       }
