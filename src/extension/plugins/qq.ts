@@ -545,7 +545,7 @@ async function requestQqPath(
   }
 
   const configuredFetch = config.fetch;
-  const baseUrl = typeof config.baseUrl === "string" ? config.baseUrl : defaultQqBaseUrl;
+  const baseUrl = config.baseUrl ?? defaultQqBaseUrl;
   const urlResult = qqPathUrl(baseUrl, path);
 
   if (!urlResult.ok) {
@@ -593,7 +593,7 @@ async function requestQqPath(
     );
   }
 
-  const payload = await readBoundedJson(response, bounds.value.maxBytes, qqHttpProfile);
+  const payload = await readBoundedJson(response, bounds.value.maxBytes, qqHttpProfile, url.origin);
 
   if (!payload.ok) {
     return payload;
@@ -604,7 +604,14 @@ async function requestQqPath(
   return issue ?? ok(payload.value);
 }
 
-function qqPathUrl(baseUrl: string, path: string): Result<URL> {
+function qqPathUrl(baseUrl: unknown, path: string): Result<URL> {
+  if (typeof baseUrl !== "string" || baseUrl.trim().length === 0) {
+    return failExtension(
+      "extension.qq_invalid_config",
+      "QQ plugin baseUrl config must be a non-empty URL string.",
+    );
+  }
+
   try {
     return ok(new URL(path, baseUrl));
   } catch {

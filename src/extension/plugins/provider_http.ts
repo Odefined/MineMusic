@@ -122,56 +122,84 @@ export async function fetchWithTimeout(
 
 // Read and JSON-parse a response body with a hard byte cap. The body is streamed
 // (not buffered wholesale via .text()) so a response exceeding the cap is rejected
-// mid-stream and cannot OOM the process. Parse failure stays a malformed-response
-// result, matching the prior response.json() behavior. (#88)
+// mid-stream and cannot OOM the process; the cap is enforced before JSON.parse so a
+// runaway response is rejected before it can be buffered. Failure mapping is split
+// by channel so a torn connection is consistently retryable: transport-level failures
+// during the read (a reader.read() rejection on a torn connection, or a response.text()
+// rejection on a null body) map onto *_provider_unavailable, while a body that exceeds
+// the cap or fails JSON.parse maps onto *_malformed_response. (#88)
 export async function readBoundedJson(
   response: Response,
   maxBytes: number,
   profile: ProviderHttpProfile,
+  origin: string,
 ): Promise<Result<unknown>> {
+  const textResult = await readBoundedText(response, maxBytes, profile, origin);
+
+  if (!textResult.ok) {
+    return textResult;
+  }
+
   try {
-    let text: string;
-
-    if (response.body === null) {
-      text = await response.text();
-    } else {
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let received = 0;
-      let assembled = "";
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-
-          if (done) {
-            break;
-          }
-
-          received += value.byteLength;
-
-          if (received > maxBytes) {
-            return failExtension(
-              profile.malformedCode,
-              `${profile.providerLabel} provider response exceeded the ${maxBytes}-byte bound.`,
-            );
-          }
-
-          assembled += decoder.decode(value, { stream: true });
-        }
-      } finally {
-        reader.releaseLock();
-      }
-
-      text = assembled + decoder.decode();
-    }
-
-    return ok(JSON.parse(text));
+    return ok(JSON.parse(textResult.value));
   } catch {
     return failExtension(
       profile.malformedCode,
       `${profile.providerLabel} provider returned malformed JSON.`,
     );
+  }
+}
+
+// Stream a response body into text with a hard byte cap. Anything thrown by the read
+// is a transport-level failure (the body stream errored or the connection tore
+// mid-body) and is mapped onto *_provider_unavailable via providerUnavailable; the
+// oversize return stays *_malformed_response and JSON.parse is left to the caller. On
+// the oversize path the reader is cancelled so a runaway bridge cannot keep the socket
+// open after the response has been rejected — cancel runs before the finally
+// releaseLock because it requires the lock held. (#88)
+async function readBoundedText(
+  response: Response,
+  maxBytes: number,
+  profile: ProviderHttpProfile,
+  origin: string,
+): Promise<Result<string>> {
+  try {
+    if (response.body === null) {
+      return ok(await response.text());
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let received = 0;
+    let assembled = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        received += value.byteLength;
+
+        if (received > maxBytes) {
+          await reader.cancel();
+          return failExtension(
+            profile.malformedCode,
+            `${profile.providerLabel} provider response exceeded the ${maxBytes}-byte bound.`,
+          );
+        }
+
+        assembled += decoder.decode(value, { stream: true });
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return ok(assembled + decoder.decode());
+  } catch (error) {
+    return providerUnavailable(origin, error, profile);
   }
 }
 

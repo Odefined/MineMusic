@@ -181,18 +181,44 @@ if (!qqTimeoutSearch.ok) {
     assert.equal(qqTimeoutSearch.error.message.includes("timeout"), true);
 }
 // #88: a QQ response exceeding maxResponseBytes is rejected as malformed, streamed
-// so it cannot OOM the process. Small cap + a small over-cap body.
+// so it cannot OOM the process. The over-cap body is VALID JSON larger than the cap,
+// so the only path to qq_malformed_response is the byte cap firing pre-parse —
+// removing the cap would let this parse and fail the assertion. The "exceeded"
+// message check pins the oversize path rather than a parse failure.
 const qqOversizedProvider = await sourceProviderFor({
     baseUrl: "http://qq.test",
     maxResponseBytes: 8,
-    fetch: async () => new Response("x".repeat(64), {
+    fetch: async () => new Response(JSON.stringify({ pad: "a".repeat(64) }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
     }),
 });
-assertErrorCode(await qqOversizedProvider.search?.({
+const qqOversizedSearch = await qqOversizedProvider.search?.({
     query: { text: "big", targetKinds: ["track"] },
-}) ?? fail("missing_search", ""), "extension.qq_malformed_response");
+}) ?? fail("missing_search", "");
+assertErrorCode(qqOversizedSearch, "extension.qq_malformed_response");
+if (!qqOversizedSearch.ok) {
+    assert.equal(qqOversizedSearch.error.message.includes("exceeded"), true);
+}
+// #88: a mid-stream transport failure (the body stream errors after the headers
+// arrive) maps onto extension.qq_provider_unavailable (retryable), NOT
+// malformed_response — a torn connection is consistently retryable whether it fails
+// at the headers or mid-body. (Same shape as the NCM guard.)
+const tornQqStreamFetch: typeof fetch = async () => new Response(
+    new ReadableStream({
+        start(controller) {
+            controller.error(new Error("connection torn mid-stream"));
+        },
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+);
+const qqTornStreamProvider = await sourceProviderFor({
+    baseUrl: "http://qq.test",
+    fetch: tornQqStreamFetch,
+});
+assertErrorCode(await qqTornStreamProvider.search?.({
+    query: { text: "torn", targetKinds: ["track"] },
+}) ?? fail("missing_search", ""), "extension.qq_provider_unavailable", true);
 // #88: non-positive / non-integer HTTP bounds are invalid config, surfaced at the
 // provider boundary rather than silently coerced to a default.
 const qqInvalidTimeoutProvider = await sourceProviderFor({

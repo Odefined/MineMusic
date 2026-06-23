@@ -828,18 +828,45 @@ if (!timeoutLyrics.ok) {
     assert.equal(timeoutLyrics.error.message.includes("timeout"), true);
 }
 // #88: a provider response exceeding maxResponseBytes is rejected as malformed,
-// streamed so it cannot OOM the process. Small cap + a small over-cap body.
+// streamed so it cannot OOM the process. The over-cap body is VALID JSON larger
+// than the cap, so the only path to ncm_malformed_response is the byte cap firing
+// pre-parse — removing the cap would let this parse and fail the assertion. The
+// "exceeded" message check pins the oversize path rather than a parse failure.
 const oversizedProvider = await sourceProviderFor({
     baseUrl: "http://ncm.test",
     maxResponseBytes: 8,
-    fetch: async () => new Response("x".repeat(64), {
+    fetch: async () => new Response(JSON.stringify({ pad: "a".repeat(64) }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
     }),
 });
-assertErrorCode(await oversizedProvider.search?.({
+const oversizedSearch = await oversizedProvider.search?.({
     query: { text: "big", targetKinds: ["track"] },
-}) ?? fail("missing_search", "missing search"), "extension.ncm_malformed_response");
+}) ?? fail("missing_search", "missing search");
+assertErrorCode(oversizedSearch, "extension.ncm_malformed_response");
+if (!oversizedSearch.ok) {
+    assert.equal(oversizedSearch.error.message.includes("exceeded"), true);
+}
+// #88: a mid-stream transport failure (the body stream errors after the headers
+// arrive) maps onto extension.ncm_provider_unavailable (retryable), NOT
+// malformed_response — a torn connection is consistently retryable whether it fails
+// at the headers or mid-body. The injected fetch returns a Response whose body
+// stream errors on first read.
+const tornStreamFetch: typeof fetch = async () => new Response(
+    new ReadableStream({
+        start(controller) {
+            controller.error(new Error("connection torn mid-stream"));
+        },
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+);
+const tornStreamProvider = await sourceProviderFor({
+    baseUrl: "http://ncm.test",
+    fetch: tornStreamFetch,
+});
+assertErrorCode(await tornStreamProvider.search?.({
+    query: { text: "torn", targetKinds: ["track"] },
+}) ?? fail("missing_search", "missing search"), "extension.ncm_provider_unavailable", true);
 // #88: non-positive / non-integer HTTP bounds are invalid config, surfaced at the
 // provider boundary rather than silently coerced to a default.
 const invalidTimeoutProvider = await sourceProviderFor({

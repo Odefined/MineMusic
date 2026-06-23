@@ -484,7 +484,7 @@ async function requestNcmSearch(
     );
   }
 
-  return readBoundedJson(response, bounds.value.maxBytes, ncmHttpProfile);
+  return readBoundedJson(response, bounds.value.maxBytes, ncmHttpProfile, url.origin);
 }
 
 async function requestNcmPath(
@@ -544,7 +544,7 @@ async function requestNcmPath(
     );
   }
 
-  const payload = await readBoundedJson(response, bounds.value.maxBytes, ncmHttpProfile);
+  const payload = await readBoundedJson(response, bounds.value.maxBytes, ncmHttpProfile, url.origin);
 
   if (!payload.ok) {
     return payload;
