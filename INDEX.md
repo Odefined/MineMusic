@@ -179,6 +179,10 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/formal-rebuild/phase-25-local-source-root-path-identity-implementation-plan.md`:
   implemented execution plan for ADR-0042 local-source root/path identity,
   non-content-derived localize paths, and local root/path storage guards.
+- `docs/formal-rebuild/phase-26-local-source-scan-management.md`: grilled
+  planning spec for multiple configured Scan Roots, durable background scan
+  management, trusted disappeared-source deletion, and internal owner catalog
+  integration; implementation has not started.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -283,6 +287,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/adr/0042-local-source-identity-is-root-path-based-not-content-derived.md`:
   Local Source identity is a Local Source Root id plus normalized root-relative
   path; content hashes are non-unique facts, not identity.
+- `docs/adr/0043-trusted-local-scan-deletes-disappeared-sources-without-material-cascade.md`:
+  only a Trusted Complete Scan deletes disappeared scan membership, binding,
+  and Local Source; Material and owner facts survive, with no restore tombstone.
 - `docs/adr/0029-library-import-uses-chained-background-work-jobs.md`:
   library import drives multi-page provider reads as chained Background Work jobs.
 - `docs/adr/0030-agent-runtime-and-workbench-interface-are-top-level-areas.md`:

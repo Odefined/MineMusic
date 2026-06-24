@@ -28,6 +28,7 @@ or Music Experience.
 | `design.md` | Current identity, source-library, owner relation, owner catalog, projection, metadata lookup, and MDP stage-adapter design authority. |
 | `ports.md` | Provided/consumed ports, forbidden dependencies, and guards. |
 | `progress.md` | Implementation state, verification evidence, and remaining gaps. |
+| `local-source-scan-songloft-investigation.md` | Investigation evidence for local music-library scan management based on Songloft; not current design authority. |
 
 ## Current Source
 
