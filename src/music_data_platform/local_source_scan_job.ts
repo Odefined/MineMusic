@@ -12,6 +12,7 @@ import {
   DISCOVERY_DIRECTORY_CHUNK,
   LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE,
   PROCESSING_AUDIO_CHUNK,
+  RECONCILIATION_DELETION_CHUNK,
   type LocalSourceScanAdvanceCommands,
   type LocalSourceScanAudioInspectOutcome,
 } from "./local_source_scan_advance_commands.js";
@@ -43,6 +44,7 @@ export type CreateLocalSourceScanAdvanceJobHandlerInput = {
   now?: () => string;
   directoryChunk?: number;
   audioChunk?: number;
+  deletionChunk?: number;
   maxConcurrentFiles?: number;
 };
 
@@ -52,6 +54,7 @@ export function createLocalSourceScanAdvanceJobHandler(
   const now = input.now ?? (() => new Date().toISOString());
   const directoryChunk = input.directoryChunk ?? DISCOVERY_DIRECTORY_CHUNK;
   const audioChunk = input.audioChunk ?? PROCESSING_AUDIO_CHUNK;
+  const deletionChunk = input.deletionChunk ?? RECONCILIATION_DELETION_CHUNK;
   const maxConcurrentFiles = input.maxConcurrentFiles ?? 4;
 
   return async (job) => {
@@ -79,10 +82,16 @@ export function createLocalSourceScanAdvanceJobHandler(
       } else if (batch.phase === "processing") {
         await runProcessingStep({ input, batch, audioChunk, maxConcurrentFiles, now: now() });
       } else {
-        // reconciling: 26C finalizes (no disappeared-file deletion yet); 26D
-        // replaces this branch with the bounded deletion loop before finalize.
-        await input.commands.finalize({ batchId, now: now() });
-        return;
+        // reconciling: bounded deletion of disappeared Sources (D7, D8, D10).
+        // When no candidates remain, finalize; otherwise fall through to bump
+        // and resubmit for the next chunk. Reconciliation is uncancellable
+        // (D43): a cancel_requested batch reaches this branch only if cancel
+        // was accepted earlier, which is rejected once reconciling begins.
+        const { candidatesRemaining } = await input.commands.advanceReconciliation({ batchId, limit: deletionChunk, now: now() });
+        if (candidatesRemaining === 0) {
+          await input.commands.finalize({ batchId, now: now() });
+          return;
+        }
       }
     } catch (cause) {
       // Transient system failures (adapter throw, db failure) propagate so

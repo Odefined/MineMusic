@@ -135,6 +135,14 @@ export type LocalSourceScanItemRepository = {
   upsert(record: LocalSourceScanItemRecord): Promise<void>;
   deleteByKey(input: { rootId: string; relativePath: string }): Promise<void>;
   listActiveByRoot(input: { rootId: string }): Promise<readonly LocalSourceScanItemRecord[]>;
+  // Active items whose path has no succeeded audio-file work row in this batch:
+  // the disappeared-from-trusted-census set eligible for reconciliation deletion.
+  listDeletionCandidates(input: {
+    rootId: string;
+    batchId: string;
+    limit: number;
+  }): Promise<readonly LocalSourceScanItemRecord[]>;
+  countDeletionCandidates(input: { rootId: string; batchId: string }): Promise<number>;
 };
 
 export type LocalSourceScanIssueRepository = {
@@ -429,6 +437,45 @@ export function createLocalSourceScanRepositories(
         [rootId],
       );
       return rows.map(itemFromRow);
+    },
+    async listDeletionCandidates({ rootId, batchId, limit }) {
+      const rows = await db.all<LocalSourceScanItemRow>(
+        `
+          SELECT i.* FROM local_source_scan_items i
+          WHERE i.root_id = ?
+            AND i.state = 'active'
+            AND NOT EXISTS (
+              SELECT 1 FROM local_source_scan_work_items w
+              WHERE w.batch_id = ?
+                AND w.entry_kind = 'audio_file'
+                AND w.status = 'succeeded'
+                AND w.relative_path = i.relative_path
+            )
+          ORDER BY i.relative_path ASC
+          LIMIT ?
+        `,
+        [rootId, batchId, limit],
+      );
+      return rows.map(itemFromRow);
+    },
+    async countDeletionCandidates({ rootId, batchId }) {
+      return countScalar(
+        db,
+        `
+          SELECT COUNT(*) AS count
+          FROM local_source_scan_items i
+          WHERE i.root_id = ?
+            AND i.state = 'active'
+            AND NOT EXISTS (
+              SELECT 1 FROM local_source_scan_work_items w
+              WHERE w.batch_id = ?
+                AND w.entry_kind = 'audio_file'
+                AND w.status = 'succeeded'
+                AND w.relative_path = i.relative_path
+            )
+        `,
+        [rootId, batchId],
+      );
     },
   };
 

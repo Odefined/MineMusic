@@ -35,6 +35,7 @@ export type SourceRecordRepository = {
     relativePath: string;
     kind: SourceEntityKind;
   }): Promise<SourceRecord | undefined>;
+  delete(input: { sourceRef: Ref }): Promise<SourceRecord | undefined>;
 };
 
 export type MaterialRecordRepository = {
@@ -206,6 +207,12 @@ export function createIdentityRepositories(
       );
 
       return row === undefined ? undefined : sourceRecordFromRow(row);
+    },
+    async delete(input) {
+      const refKeyValue = refKey(input.sourceRef);
+      const existing = await sourceRecords.get({ sourceRef: input.sourceRef });
+      await db.run("DELETE FROM source_records WHERE ref_key = ?", [refKeyValue]);
+      return existing;
     },
   };
 

@@ -48,6 +48,7 @@ export const LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE = "music_data_platform.local_sou
 
 export const DISCOVERY_DIRECTORY_CHUNK = 16;
 export const PROCESSING_AUDIO_CHUNK = 8;
+export const RECONCILIATION_DELETION_CHUNK = 16;
 
 export type LocalSourceScanAudioInspect = {
   contentMd5: string;
@@ -102,6 +103,12 @@ export type LocalSourceScanAdvanceCommands = {
   // Move to reconciling after processing exhausts (26D owns the deletion loop;
   // 26C computes the deletion-candidate total here so progress is truthful).
   prepareReconciliation(input: { batchId: string; now: string }): Promise<void>;
+
+  // Run one bounded chunk of trusted reconciliation: delete up to `limit`
+  // disappeared Sources (binding + Local Source + scan item, atomically each,
+  // no Material/owner/Collection cascade) and return how many candidates
+  // remain. The handler finalizes when zero remain (D7, D8, D10, D43).
+  advanceReconciliation(input: { batchId: string; limit: number; now: string }): Promise<{ candidatesRemaining: number }>;
 
   // Finalize a batch into completed/completed_with_issues/cancelled/failed and
   // clean ordinary successful work rows (D26).
@@ -265,7 +272,7 @@ export function createLocalSourceScanAdvanceCommands(
         // Deletion candidates are active items not observed in this batch's
         // census. 26D runs the bounded deletion loop; 26C fixes the total so
         // reconciling progress is truthful and the seam is isolated.
-        const deletionCandidateCount = await countDeletionCandidates({ db, rootId: batch.rootId });
+        const deletionCandidateCount = await countDeletionCandidates({ db, rootId: batch.rootId, batchId });
         await repos.batches.upsert({
           ...batch,
           status: "running",
@@ -274,6 +281,21 @@ export function createLocalSourceScanAdvanceCommands(
           updatedAt: now,
         });
       });
+    },
+
+    async advanceReconciliation({ batchId, limit, now }) {
+      const ctx = input.database.context();
+      const scanRepos = createLocalSourceScanRepositories({ db: ctx });
+      const batch = await scanRepos.batches.get({ batchId });
+      if (batch === undefined) {
+        return { candidatesRemaining: 0 };
+      }
+      const candidates = await scanRepos.items.listDeletionCandidates({ rootId: batch.rootId, batchId, limit });
+      for (const candidate of candidates) {
+        await deleteDisappearedSource({ database: input.database, dispatcher: input.projectionMaintenanceDispatcher, batch, relativePath: candidate.relativePath, now });
+      }
+      const candidatesRemaining = await scanRepos.items.countDeletionCandidates({ rootId: batch.rootId, batchId });
+      return { candidatesRemaining };
     },
 
     async finalize({ batchId, now }) {
@@ -510,13 +532,48 @@ async function bumpCounter(
 async function countDeletionCandidates(input: {
   db: MusicDatabaseTransactionContext;
   rootId: string;
+  batchId: string;
 }): Promise<number> {
-  // 26D re-derives the exact candidate set (active items with no succeeded
-  // audio-file work row in this batch) and runs the bounded deletion loop. The
-  // 26C seam reports zero so reconciling progress is not misleading; 26D
-  // replaces this implementation entirely.
-  void input;
-  return 0;
+  const repos = createLocalSourceScanRepositories({ db: input.db });
+  return repos.items.countDeletionCandidates({ rootId: input.rootId, batchId: input.batchId });
+}
+
+// Atomically delete one disappeared Local Source (D8): its source-material
+// binding, its Local Source record, and its scan membership item. Each deletion
+// is one source-of-truth transaction (D44), so retry never observes a half
+// deletion. The Material, owner relations, Collections, and any other Source
+// survive — there is deliberately no cascade (D9). Search attribution refreshes
+// via the identity delete invalidations; scan catalog entries are removed by
+// the scan_root projection rebuild dirtied on the binding change.
+async function deleteDisappearedSource(args: {
+  database: MusicDatabase;
+  dispatcher: ProjectionMaintenanceDispatcher | undefined;
+  batch: LocalSourceScanBatchRecord;
+  relativePath: string;
+  now: string;
+}): Promise<void> {
+  await runSourceOfTruthWrite({
+    database: args.database,
+    now: args.now,
+    dispatcher: args.dispatcher,
+    fn: async (db, writes) => {
+      const scanRepos = createLocalSourceScanRepositories({ db });
+      const sourceRef = createLocalSourceRef({ rootId: args.batch.rootId, relativePath: args.relativePath, kind: "track" });
+      // Order matters only for diagnostics: remove the binding (records the
+      // material for invalidation), then the Source, then the membership item.
+      await writes.identity.deleteBindingForSource({ sourceRef });
+      await writes.identity.deleteSourceRecord({ sourceRef });
+      await scanRepos.items.deleteByKey({ rootId: args.batch.rootId, relativePath: args.relativePath });
+      const refreshed = await scanRepos.batches.get({ batchId: args.batch.batchId });
+      if (refreshed !== undefined) {
+        await scanRepos.batches.upsert({
+          ...refreshed,
+          deletedCount: refreshed.deletedCount + 1,
+          updatedAt: args.now,
+        });
+      }
+    },
+  });
 }
 
 function hasIssueOutcomes(batch: LocalSourceScanBatchRecord): boolean {

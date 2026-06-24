@@ -37,6 +37,12 @@ export type IdentityWriteCommands = {
   bindSourceToMaterial(input: BindSourceToMaterialInput): Promise<BindSourceToMaterialResult>;
   bindMaterialToCanonical(input: BindMaterialToCanonicalInput): Promise<MaterialRecord>;
   mergeMaterialRecord(input: MergeMaterialRecordInput): Promise<MergeMaterialRecordResult>;
+  // Remove one Local Source's binding and source record (Phase 26 trusted
+  // reconciliation). Returns the deleted binding so the caller can invalidate
+  // material-keyed projections; does not touch the bound Material, owner
+  // relations, Collections, or any other Source.
+  deleteBindingForSource(input: { sourceRef: Ref }): Promise<SourceToMaterialBindingRecord | undefined>;
+  deleteSourceRecord(input: { sourceRef: Ref }): Promise<SourceRecord | undefined>;
 };
 
 export type UpsertSourceRecordInput = {
@@ -173,6 +179,34 @@ export function createIdentityWriteCommands(
         ],
       });
       return result;
+    },
+    async deleteBindingForSource(deleteInput) {
+      const binding = await repositories.sourceMaterialBindings.deleteBindingForSource({ sourceRef: deleteInput.sourceRef });
+      if (binding === undefined) {
+        return undefined;
+      }
+      await input.projectionInvalidationCommands.markProjectionInvalidated({
+        writes: [
+          {
+            writeKind: "source_material_binding_written",
+            sourceRef: deleteInput.sourceRef,
+            previousMaterialRef: binding.materialRef,
+          },
+        ],
+      });
+      return binding;
+    },
+    async deleteSourceRecord(deleteInput) {
+      const record = await repositories.sourceRecords.delete({ sourceRef: deleteInput.sourceRef });
+      await input.projectionInvalidationCommands.markProjectionInvalidated({
+        writes: [
+          {
+            writeKind: "source_record_written",
+            sourceRef: deleteInput.sourceRef,
+          },
+        ],
+      });
+      return record;
     },
   };
 }

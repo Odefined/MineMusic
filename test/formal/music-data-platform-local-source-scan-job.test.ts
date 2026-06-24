@@ -13,6 +13,8 @@ import { createLocalSourceScanAdvanceCommands, LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYP
 import { createLocalSourceScanAdvanceJobHandler, createLocalSourceScanStartCommand } from "../../src/music_data_platform/local_source_scan_job.js";
 import { createLocalSourceScanReadPort } from "../../src/music_data_platform/local_source_scan_read_model.js";
 import { createLocalSourceCommand } from "../../src/music_data_platform/local_source_commands.js";
+import { createIdentityReadPort } from "../../src/music_data_platform/identity_read_model.js";
+import { createIdentityRepositories } from "../../src/music_data_platform/identity_records.js";
 import { createMaterialRefFactory } from "../../src/music_data_platform/material_ref_factory.js";
 import { createLocalSourceRef } from "../../src/music_data_platform/local_source_ref.js";
 import { refKey } from "../../src/contracts/kernel.js";
@@ -142,9 +144,87 @@ export async function main(): Promise<void> {
   try {
     await testEndToEndDiscoveryProcessing(database);
     await testUnstableAndCensusFatal(database);
+    await testReconciliationDeletion(database);
   } finally {
     await database.close();
   }
+}
+
+async function drain(database: MusicDatabase, queue: { batchId: string }[], handler: (job: { batchId: string }) => Promise<void>): Promise<void> {
+  void database;
+  let safety = 0;
+  while (queue.length > 0 && safety < 200) {
+    safety += 1;
+    const job = queue.shift()!;
+    await handler(job);
+  }
+  assert.ok(safety < 200, "advance chain did not terminate");
+}
+
+async function testReconciliationDeletion(database: MusicDatabase): Promise<void> {
+  const rootId = "recon-lib";
+  const materialRefFactory = createMaterialRefFactory();
+  // gone.mp3 was previously imported (Source+Material+binding+active item);
+  // it is absent from the current tree, so a trusted scan must delete it.
+  const goneKey = await seedLocalSource(database, rootId, "gone.mp3", "md5-gone");
+  const goneSourceRef = createLocalSourceRef({ rootId, relativePath: "gone.mp3", kind: "track" });
+  await seedItem(database, rootId, "gone.mp3", goneKey, 50, 5000, "md5-gone");
+
+  const tree = dir({ "present.mp3": file("md5-present", 60, 6000) });
+  const port = fakePort(tree);
+  const queue: { batchId: string }[] = [];
+  const advanceCommands = createLocalSourceScanAdvanceCommands({
+    database, materialRefFactory, projectionMaintenanceDispatcher: undefined,
+    resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS,
+  });
+  const service = createLocalSourceScanService({
+    database, filesystemPort: port, ownerScope, now: () => FIXED_NOW,
+    commands: createLocalSourceScanCommands({ database, generateBatchId: () => "b-recon" }),
+  });
+  const read = createLocalSourceScanReadPort({ db: database.context() });
+  const handler = createLocalSourceScanAdvanceJobHandler({
+    read, filesystemPort: port, commands: advanceCommands, backgroundWork: fakeBackgroundWork(queue),
+    resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, now: () => FIXED_NOW,
+  });
+  const start = createLocalSourceScanStartCommand({
+    service, advanceCommands, backgroundWork: fakeBackgroundWork(queue), now: () => FIXED_NOW,
+  });
+  const baseCommands = createLocalSourceScanCommands({ database, generateBatchId: () => "x" });
+  await baseCommands.registerRoots({ ownerScope, now: FIXED_NOW, registrations: [{ rootId, label: "Recon", configFingerprint: "fp" }] });
+  const batchId = unwrap(await start.submit({ rootId })).batchId;
+
+  // Capture gone's binding + Material BEFORE the scan deletes them.
+  const identityRead = createIdentityReadPort({ db: database.context() });
+  const identityRepos = createIdentityRepositories({ db: database.context() });
+  const goneBindingBefore = await identityRead.findMaterialForSource({ sourceRef: goneSourceRef });
+  assert.ok(goneBindingBefore, "gone binding exists before scan");
+  const goneMaterialRef = goneBindingBefore!.materialRef;
+  const goneMaterialBefore = await identityRepos.materialRecords.get({ materialRef: goneMaterialRef });
+  assert.ok(goneMaterialBefore, "gone Material exists before scan");
+
+  const controller = new AbortController();
+  await drain(database, queue, async (job) => {
+    await handler({ jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller.signal });
+  });
+
+  const summary = unwrap(await service.getScanStatus({ batchId }));
+  assert.equal(summary.status, "completed", "no issues -> completed");
+  assert.equal(summary.imported, 1, "present.mp3 imported");
+  assert.equal(summary.deleted, 1, "gone.mp3 deleted on trusted reconciliation");
+
+  // D8: only the binding + Local Source + scan item are deleted.
+  const scanRepos = createLocalSourceScanRepositories({ db: database.context() });
+  const goneItem = await scanRepos.items.get({ rootId, relativePath: "gone.mp3" });
+  assert.equal(goneItem, undefined, "scan membership item deleted");
+  const goneSource = await identityRepos.sourceRecords.get({ sourceRef: goneSourceRef });
+  assert.equal(goneSource, undefined, "Local Source record deleted");
+  const goneBindingAfter = await identityRead.findMaterialForSource({ sourceRef: goneSourceRef });
+  assert.equal(goneBindingAfter, undefined, "source-material binding deleted");
+  // D9: the bound Material survives as a deliberate orphan; no cascade.
+  const goneMaterialAfter = await identityRepos.materialRecords.get({ materialRef: goneMaterialRef });
+  assert.ok(goneMaterialAfter, "D9: Material survives deletion (orphan, no cascade)");
+  const presentItem = await scanRepos.items.get({ rootId, relativePath: "present.mp3" });
+  assert.equal(presentItem?.state, "active");
 }
 
 async function testEndToEndDiscoveryProcessing(database: MusicDatabase): Promise<void> {

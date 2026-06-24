@@ -1,7 +1,7 @@
 import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 
 export const musicDataPlatformOwnerCatalogEntriesSchema: MusicDatabaseSchemaContribution = {
-  id: "music_data_platform.owner_catalog_entries_v1",
+  id: "music_data_platform.owner_catalog_entries_v2",
   async apply(context) {
     await context.run(`
       CREATE TABLE IF NOT EXISTS owner_material_entries (
@@ -15,12 +15,30 @@ export const musicDataPlatformOwnerCatalogEntriesSchema: MusicDatabaseSchemaCont
         provenance_json JSONB NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
-        CHECK (entry_kind IN ('source_library', 'collection', 'owner_relation')),
+        CHECK (entry_kind IN ('source_library', 'collection', 'owner_relation', 'scan_root')),
         CHECK (visibility_role IN ('positive', 'blocked_audit', 'historical')),
         CHECK (active IN (0, 1)),
         UNIQUE(owner_scope, entry_kind, entry_ref_key, material_ref_key),
         FOREIGN KEY(material_ref_key) REFERENCES material_records(ref_key)
       )
+    `);
+
+    // Phase 26 (D22): widen the entry_kind CHECK to admit 'scan_root' for
+    // existing databases. CREATE TABLE IF NOT EXISTS does not update an existing
+    // table's constraint, so drop the v1 check (auto-named after entry_kind)
+    // and add an explicit, idempotent-named constraint with the new value.
+    await context.run(`
+      ALTER TABLE owner_material_entries
+      DROP CONSTRAINT IF EXISTS owner_material_entries_entry_kind_check
+    `);
+    await context.run(`
+      ALTER TABLE owner_material_entries
+      DROP CONSTRAINT IF EXISTS owner_material_entries_entry_kind_check_v2
+    `);
+    await context.run(`
+      ALTER TABLE owner_material_entries
+      ADD CONSTRAINT owner_material_entries_entry_kind_check_v2
+      CHECK (entry_kind IN ('source_library', 'collection', 'owner_relation', 'scan_root'))
     `);
 
     await context.run("DROP VIEW IF EXISTS owner_material_catalog_view");
