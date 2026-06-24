@@ -1,4 +1,4 @@
-import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, linkSync, mkdirSync, rmSync, unlinkSync } from "node:fs";
 import { once } from "node:events";
 import { finished } from "node:stream/promises";
 import { createHash } from "node:crypto";
@@ -60,7 +60,19 @@ export function createNodeLocalizeProviderSourceFileStore(): LocalizeProviderSou
       return hash.digest("hex");
     },
     move(fromPath, toPath) {
-      renameSync(fromPath, toPath);
+      try {
+        linkSync(fromPath, toPath);
+      } catch (cause) {
+        if (isNodeErrnoException(cause) && cause.code === "EEXIST") {
+          throw new Error(`Cannot move '${fromPath}' to '${toPath}': target already exists.`);
+        }
+        throw cause;
+      }
+      unlinkSync(fromPath);
     },
   };
+}
+
+function isNodeErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }

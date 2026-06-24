@@ -516,6 +516,11 @@ function assertSourceRecordRowIntegrity(row: SourceRecordRow, entity: SourceEnti
       `source_records row corrupt (ref_key=${row.ref_key}): entity kind '${String(entity.kind)}' disagrees with kind column '${row.kind}'.`,
     );
   }
+  if (refKey(entity.sourceRef) !== row.ref_key) {
+    throw new Error(
+      `source_records row corrupt (ref_key=${row.ref_key}): entity sourceRef '${refKey(entity.sourceRef)}' disagrees with ref_key column.`,
+    );
+  }
   if (entity.origin === "provider") {
     if (row.local_root_id !== null || row.local_relative_path !== null || row.local_content_md5 !== null) {
       throw new Error(

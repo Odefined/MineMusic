@@ -26,6 +26,7 @@ import { musicDataPlatformRefKey } from "./ref_validation.js";
 
 export const LOCALIZE_PROVIDER_SOURCE_JOB_TYPE = "music_data_platform.localize_provider_source";
 export const LOCALIZE_PROVIDER_SOURCE_TARGET_POLICY_VERSION = 1;
+const MAX_LOCALIZE_FILENAME_COMPONENT_LENGTH = 160;
 
 export type LocalizeProviderSourcePayloadRef = Pick<Ref, "namespace" | "kind" | "id">;
 
@@ -313,39 +314,45 @@ async function finalizeDownloadedFile(input: {
 }): Promise<boolean> {
   input.fileStore.ensureDir(directoryOf(input.finalPath));
 
-  if (input.fileStore.exists(input.finalPath)) {
-    const sourceRef = createLocalSourceRef({
-      rootId: MAIN_LOCAL_SOURCE_ROOT_ID,
-      relativePath: input.relativePath,
-      kind: "track",
-    });
-    const existingLocalSource = await input.identityRead.getSourceRecord({ sourceRef });
-    if (
-      existingLocalSource === undefined ||
-      existingLocalSource.entity.origin !== "local_file" ||
-      existingLocalSource.entity.rootId !== MAIN_LOCAL_SOURCE_ROOT_ID ||
-      existingLocalSource.entity.relativePath !== input.relativePath
-    ) {
-      input.fileStore.remove(input.stagingPath);
-      throw localizeError(
-        "music_data.localize_final_path_collision",
-        `Final local source path '${input.finalPath}' already exists without matching Local Source registration.`,
-      );
+  if (!input.fileStore.exists(input.finalPath)) {
+    try {
+      await input.fileStore.move(input.stagingPath, input.finalPath);
+      return true;
+    } catch (cause) {
+      if (!input.fileStore.exists(input.finalPath)) {
+        throw cause;
+      }
     }
-
-    if (existingLocalSource.entity.contentMd5 !== input.actualMd5.toLowerCase()) {
-      throw localizeError(
-        "music_data.local_source_content_drift",
-        `Final local source path '${input.finalPath}' is registered with different contentMd5.`,
-      );
-    }
-
-    input.fileStore.remove(input.stagingPath);
-    return false;
   }
 
-  await input.fileStore.move(input.stagingPath, input.finalPath);
-  return true;
+  const sourceRef = createLocalSourceRef({
+    rootId: MAIN_LOCAL_SOURCE_ROOT_ID,
+    relativePath: input.relativePath,
+    kind: "track",
+  });
+  const existingLocalSource = await input.identityRead.getSourceRecord({ sourceRef });
+  if (
+    existingLocalSource === undefined ||
+    existingLocalSource.entity.origin !== "local_file" ||
+    existingLocalSource.entity.rootId !== MAIN_LOCAL_SOURCE_ROOT_ID ||
+    existingLocalSource.entity.relativePath !== input.relativePath
+  ) {
+    input.fileStore.remove(input.stagingPath);
+    throw localizeError(
+      "music_data.localize_final_path_collision",
+      `Final local source path '${input.finalPath}' already exists without matching Local Source registration.`,
+    );
+  }
+
+  if (existingLocalSource.entity.contentMd5 !== input.actualMd5.toLowerCase()) {
+    throw localizeError(
+      "music_data.local_source_content_drift",
+      `Final local source path '${input.finalPath}' is registered with different contentMd5.`,
+    );
+  }
+
+  input.fileStore.remove(input.stagingPath);
+  return false;
 }
 
 function targetPathForDownload(input: {
@@ -360,12 +367,27 @@ function targetPathForDownload(input: {
   const album = filenameComponent(input.providerSource.albumLabel, "Unknown Album");
   const title = filenameComponent(input.providerSource.title, sourceKey);
   const track = trackNumberComponent(input.providerSource.trackPosition?.trackNumber);
-  const fileName = filenameComponent(`${track} - ${title} [${sourceKey}].${ext}`, `${track} - ${sourceKey}.${ext}`);
+  const fileName = downloadFileNameComponent({ track, title, sourceKey, ext });
   const relativePath = normalizeLocalSourceRelativePath(joinPath("downloads", artist, album, fileName));
   return {
     relativePath,
     finalPath: joinPath(input.rootDir, relativePath),
   };
+}
+
+function downloadFileNameComponent(input: {
+  track: string;
+  title: string;
+  sourceKey: string;
+  ext: string;
+}): string {
+  const prefix = `${input.track} - `;
+  const suffix = ` [${input.sourceKey}].${input.ext}`;
+  const titleBudget = Math.max(1, MAX_LOCALIZE_FILENAME_COMPONENT_LENGTH - prefix.length - suffix.length);
+  const title = input.title.length > titleBudget
+    ? input.title.slice(0, titleBudget).trimEnd()
+    : input.title;
+  return `${prefix}${title.length === 0 ? input.sourceKey : title}${suffix}`;
 }
 
 function extensionForContainer(container: string): string {
@@ -404,7 +426,9 @@ function filenameComponent(value: string | undefined, fallback: string): string 
   const safe = candidate.length === 0 || candidate === "." || candidate === ".."
     ? fallback
     : candidate;
-  return safe.length > 96 ? safe.slice(0, 96).trimEnd() : safe;
+  return safe.length > MAX_LOCALIZE_FILENAME_COMPONENT_LENGTH
+    ? safe.slice(0, MAX_LOCALIZE_FILENAME_COMPONENT_LENGTH).trimEnd()
+    : safe;
 }
 
 function textOrFallback(value: string | undefined, fallback: string): string {

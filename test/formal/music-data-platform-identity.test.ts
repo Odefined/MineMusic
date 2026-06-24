@@ -587,6 +587,26 @@ await mergedCanonicalDatabase.transaction(async (db) => {
     }), "music_data.canonical_not_bindable");
 });
 await mergedCanonicalDatabase.close();
+const corruptSourceRefDatabase = await openUninitializedPostgresTestMusicDatabase();
+await corruptSourceRefDatabase.initialize({ schemas: [musicDataPlatformIdentitySchema] });
+await corruptSourceRefDatabase.transaction(async (db) => {
+    const commands = createIdentityTestCommands(db, firstNow);
+    const repositories = createIdentityRepositories({ db });
+    const source = sourceTrack("corrupt-row-ref", "Corrupt Row Ref");
+    await commands.upsertSourceRecord({ entity: source });
+    await db.run("UPDATE source_records SET entity_json = ? WHERE ref_key = ?", [
+        JSON.stringify({
+            ...source,
+            sourceRef: sourceRef("corrupt-row-ref-other"),
+        }),
+        refKey(source.sourceRef),
+    ]);
+    await assert.rejects(
+        () => repositories.sourceRecords.get({ sourceRef: source.sourceRef }),
+        /source_records row corrupt/u,
+    );
+});
+await corruptSourceRefDatabase.close();
 await database.close();
 function sourceTrack(id: string, label: string): Extract<SourceTrack, { origin: "provider" }> {
     return {

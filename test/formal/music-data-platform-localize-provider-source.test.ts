@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import type {
   BackgroundWorkBackend,
@@ -15,6 +18,7 @@ import type {
   SourceTrack,
 } from "../../src/contracts/music_data_platform.js";
 import type { DownloadSourceProvider } from "../../src/music_data_platform/download_commands.js";
+import { createNodeLocalizeProviderSourceFileStore } from "../../src/music_data_platform/download_file_writer.js";
 import { MusicDataPlatformError } from "../../src/music_data_platform/errors.js";
 import { createIdentityReadPort } from "../../src/music_data_platform/identity_read_model.js";
 import { createIdentityRepositories } from "../../src/music_data_platform/identity_records.js";
@@ -355,6 +359,27 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
     },
   ]);
   assert.equal(localizeProviderSourceIdempotencyKey({ sourceRef: trackRef }), "source:source_netease:track:1001|bitrate:provider_default|targetPolicy:1");
+}
+
+// --- production file-store move refuses to overwrite an existing target ---
+{
+  const tempDir = mkdtempSync(join(tmpdir(), "minemusic-localize-move-"));
+  try {
+    const store = createNodeLocalizeProviderSourceFileStore();
+    const stagedPath = join(tempDir, "download.part");
+    const finalPath = join(tempDir, "song.flac");
+    writeFileSync(stagedPath, "new bytes");
+    writeFileSync(finalPath, "old bytes");
+
+    await assert.rejects(
+      async () => await store.move(stagedPath, finalPath),
+      /already exists|EEXIST/u,
+    );
+    assert.equal(readFileSync(finalPath, "utf8"), "old bytes");
+    assert.equal(readFileSync(stagedPath, "utf8"), "new bytes");
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 }
 
 // --- submit command rejects non-provider or non-track sourceRefs before queue submission ---
@@ -729,6 +754,69 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
   assert.deepEqual(files.files.get(expectedFinalPath), audio);
   assert.equal(localSource.calls[0]?.relativePath, expectedRelativePath);
   assert.equal(localSource.calls[0]?.descriptiveMetadata?.title, sourceKeyForPath(trackRef));
+}
+
+// --- handler preserves source key and extension when truncating long titles ---
+{
+  const materialRef: Ref = { namespace: "material", kind: "recording", id: "m_long_title" };
+  const audio = new Uint8Array([9, 9, 9]);
+  const sourceKey = sourceKeyForPath(trackRef);
+  const longTitle = "A".repeat(180);
+  const files = createMemoryLocalizeFileStore();
+  const provider = createFakeDownloadSourceProvider(() => ok(okSource(audio)));
+  const localSource = createFakeLocalSourceCommand(() => ok({ materialRef, created: true }));
+  const handler = createLocalizeProviderSourceJobHandler({
+    identityRead: {
+      async findMaterialForSource() {
+        return {
+          sourceRef: trackRef,
+          materialRef,
+          createdAt: now,
+          updatedAt: now,
+        };
+      },
+      async getSourceRecord() {
+        return {
+          entity: {
+            origin: "provider",
+            sourceRef: trackRef,
+            providerId: "netease",
+            providerEntityId: trackRef.id,
+            kind: "track",
+            label: longTitle,
+            title: longTitle,
+            artistLabels: ["Long Artist"],
+            albumLabel: "Long Album",
+            trackPosition: { trackNumber: 3 },
+          } as SourceTrack,
+          lookup: {
+            origin: "provider",
+            providerId: "netease",
+            providerEntityId: trackRef.id,
+            kind: "track",
+          },
+          createdAt: now,
+          updatedAt: now,
+        };
+      },
+    },
+    downloadSourceProvider: provider,
+    localSourceCommand: localSource,
+    localSourcesRootDir: localRoot,
+    fileStore: files.fileStore,
+    fetch: (async () => new Response(audio)) as typeof fetch,
+  });
+
+  await handler(localizeJob());
+
+  const relativePath = localSource.calls[0]?.relativePath;
+  assert.equal(relativePath?.startsWith("downloads/Long Artist/Long Album/03 - "), true);
+  assert.equal(relativePath?.endsWith(` [${sourceKey}].flac`), true);
+  assert.equal(relativePath?.includes(md5(audio)), false);
+  const fileName = relativePath?.split("/").at(-1);
+  assert.equal(fileName !== undefined && fileName.length > 96, true);
+  assert.equal(fileName !== undefined && fileName.length <= 160, true);
+  assert.deepEqual(files.files.get(`${localRoot}/${relativePath}`), audio);
 }
 
 // --- handler treats missing Local Source root config as a declared localize config error ---
