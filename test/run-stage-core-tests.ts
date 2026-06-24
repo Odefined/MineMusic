@@ -1,4 +1,5 @@
 import { inspect } from "node:util";
+import { performance } from "node:perf_hooks";
 
 const testModules = [
     "./formal/formal-contracts.test.js",
@@ -45,11 +46,35 @@ const testModules = [
     "./formal/server-host.test.js",
     "./formal/stage-tool-context-factory.test.js",
 ];
-type ModuleResult = { module: string; ok: boolean };
+type ModuleResult = { module: string; ok: boolean; durationMs: number };
+
+const filters = process.argv.slice(2).map((filter) => filter.trim()).filter((filter) => filter.length > 0);
+const selectedTestModules = filters.length === 0
+    ? testModules
+    : testModules.filter((testModule) => filters.some((filter) => moduleMatchesFilter(testModule, filter)));
+const unmatchedFilters = filters.filter((filter) => !testModules.some((testModule) => moduleMatchesFilter(testModule, filter)));
+
+if (selectedTestModules.length === 0 || unmatchedFilters.length > 0) {
+    if (selectedTestModules.length === 0) {
+        process.stdout.write(`No stage-core test modules matched filter(s): ${filters.join(", ")}\n`);
+    } else {
+        process.stdout.write(`Unmatched stage-core filter(s): ${unmatchedFilters.join(", ")}\n`);
+    }
+    process.stdout.write("Available modules:\n");
+    for (const testModule of testModules) {
+        process.stdout.write(`- ${moduleLabel(testModule)}\n`);
+    }
+    process.exit(1);
+}
+
+if (filters.length > 0) {
+    process.stdout.write(`Stage-core filters: ${filters.join(", ")} (${selectedTestModules.length}/${testModules.length} modules)\n`);
+}
 
 const results: ModuleResult[] = [];
 let index = 0;
-const total = testModules.length;
+const total = selectedTestModules.length;
+const suiteStartMs = performance.now();
 
 // A test module may start fire-and-forget work (e.g. a transport run loop, a
 // timer) that rejects AFTER its `await import()` has resolved. The try/catch
@@ -77,18 +102,21 @@ process.on("uncaughtException", (error: unknown) => {
     reportLate("uncaught exception", error);
 });
 
-for (const testModule of testModules) {
+for (const testModule of selectedTestModules) {
     index += 1;
     currentModule = testModule;
-    const label = testModule.replace(/^\.\//, "").replace(/\.test\.js$/, "");
+    const label = moduleLabel(testModule);
+    const moduleStartMs = performance.now();
     process.stdout.write(`[${index}/${total}] ${label} ... `);
     try {
         await import(testModule);
-        results.push({ module: testModule, ok: true });
-        process.stdout.write("ok\n");
+        const durationMs = performance.now() - moduleStartMs;
+        results.push({ module: testModule, ok: true, durationMs });
+        process.stdout.write(`ok ${formatDuration(durationMs)}\n`);
     } catch (error) {
-        results.push({ module: testModule, ok: false });
-        process.stdout.write(`FAIL\n${formatFailure(error)}`);
+        const durationMs = performance.now() - moduleStartMs;
+        results.push({ module: testModule, ok: false, durationMs });
+        process.stdout.write(`FAIL ${formatDuration(durationMs)}\n${formatFailure(error)}`);
     }
     lastImported = testModule;
 }
@@ -96,7 +124,7 @@ currentModule = undefined;
 
 const failed = results.filter((result) => !result.ok);
 const overallOk = failed.length === 0 && lateFailures.length === 0;
-process.stdout.write(`\n${results.length - failed.length}/${results.length} modules imported cleanly.\n`);
+process.stdout.write(`\n${results.length - failed.length}/${results.length} modules imported cleanly in ${formatDuration(performance.now() - suiteStartMs)}.\n`);
 if (failed.length > 0) {
     process.stdout.write(`Failed imports: ${failed.map((result) => result.module).join(", ")}\n`);
 }
@@ -108,6 +136,29 @@ if (lateFailures.length > 0) {
 }
 process.stdout.write(`Overall: ${overallOk ? "PASS" : "FAIL"}\n`);
 process.exit(overallOk ? 0 : 1);
+
+function moduleLabel(testModule: string): string {
+    return testModule.replace(/^\.\//, "").replace(/\.test\.js$/, "");
+}
+
+function moduleMatchesFilter(testModule: string, filter: string): boolean {
+    const normalizedFilter = normalizeFilter(filter);
+    const normalizedModule = normalizeFilter(testModule);
+    const normalizedLabel = normalizeFilter(moduleLabel(testModule));
+    return normalizedModule.includes(normalizedFilter) || normalizedLabel.includes(normalizedFilter);
+}
+
+function normalizeFilter(value: string): string {
+    return value
+        .replace(/^\.\//, "")
+        .replace(/\.test\.js$/, "")
+        .replace(/\.js$/, "")
+        .toLowerCase();
+}
+
+function formatDuration(durationMs: number): string {
+    return `${(durationMs / 1000).toFixed(2)}s`;
+}
 
 function formatFailure(error: unknown): string {
     const lines: string[] = [];

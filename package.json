@@ -21,6 +21,7 @@
     "smoke:mcp:stdio": "npm run build:test && node ./.tmp-test/test/live/mcp-stdio-smoke.js",
     "test": "npm run typecheck && npm run test:stage-core",
     "test:stage-core": "npm run build:test && node ./.tmp-test/test/run-stage-core-tests.js",
+    "test:localize-identity": "npm run typecheck && npm run build:test && node ./.tmp-test/test/run-stage-core-tests.js localize identity && node ./.tmp-test/test/formal/music-data-platform-local-source.test.js",
     "typecheck": "npm run check:stage-interface-schemas && tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
