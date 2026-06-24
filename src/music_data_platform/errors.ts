@@ -54,7 +54,8 @@ export type MusicDataPlatformErrorCode =
   | "music_data.collection_owner_scope_mismatch"
   | "music_data.collection_kind_mismatch"
   | "music_data.collection_name_taken"
-  | "music_data.collection_item_not_found";
+  | "music_data.collection_item_not_found"
+  | "music_data.scan_root_configuration_invalid";
 
 export type CreateMusicDataPlatformErrorInput = {
   code: MusicDataPlatformErrorCode;

@@ -150,12 +150,29 @@ export type SourceTrack = SourceEntityBase & {
   albumSourceRef?: Ref;
   trackPosition?: SourceTrackPosition;
   durationMs?: number;
+  audioTechnicalMetadata?: AudioTechnicalMetadata;
 };
 
 export type SourceTrackPosition = {
   discNumber?: string;
   trackNumber?: number;
   trackCount?: number;
+};
+
+// Optional Source-level facts describing the concrete audio encoding behind a
+// track Source (codec, bitrate in bits per second, sample rate in Hz, bit depth,
+// channels). These describe the file behind a Source; they do NOT participate
+// in Source identity, Material identity, binding, duplicate detection, or
+// canonical matching (ADR-0042; Phase 26 D12). Numeric fields use explicit
+// units so a caller cannot assume a convention. `bitrateBps` is a new
+// explicit-unit field: the existing `DownloadSource.bitrate` carries no
+// declared unit, so the two must not be conflated.
+export type AudioTechnicalMetadata = {
+  codec?: string;
+  bitrateBps?: number;
+  sampleRateHz?: number;
+  bitDepth?: number;
+  channels?: number;
 };
 
 export type SourceAlbum = SourceEntityBase & {

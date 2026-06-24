@@ -121,6 +121,8 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/server")))
     "src/server/library_collection_runtime_module.ts",
     "src/server/library_import_runtime_module.ts",
     "src/server/library_relation_runtime_module.ts",
+    "src/server/local_source_scan_config.ts",
+    "src/server/local_source_scan_filesystem_adapter.ts",
     "src/server/mcp_stdio_entrypoint.ts",
     "src/server/music_data_platform_runtime_module.ts",
     "src/server/music_experience_runtime_module.ts",
@@ -140,6 +142,7 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/effect_bounda
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_data_platform")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
+    "src/music_data_platform/audio_technical_metadata.ts",
     "src/music_data_platform/candidate_commit_command.ts",
     "src/music_data_platform/collection_commands.ts",
     "src/music_data_platform/collection_records.ts",
@@ -163,6 +166,8 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_data_pl
     "src/music_data_platform/local_source_commands.ts",
     "src/music_data_platform/local_source_path.ts",
     "src/music_data_platform/local_source_ref.ts",
+    "src/music_data_platform/local_source_scan_filesystem_port.ts",
+    "src/music_data_platform/local_source_scan_policy.ts",
     "src/music_data_platform/localize_provider_source_commands.ts",
     "src/music_data_platform/localize_provider_source_job.ts",
     "src/music_data_platform/material_candidate_ref.ts",

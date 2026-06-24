@@ -33,6 +33,7 @@
   "dependencies": {
     "@types/pg": "^8.20.0",
     "ajv": "^8.20.0",
+    "music-metadata": "^11.13.0",
     "pg": "^8.22.0",
     "pg-boss": "^12.20.0"
   }
