@@ -473,6 +473,57 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
   await database.close();
 }
 
+// --- handler treats registered same-path / different content as content drift ---
+{
+  const database = await initializedDatabase();
+  await seedProviderMaterial(database, trackRef);
+  const originalAudio = new Uint8Array([1, 1, 2, 3, 5]);
+  const driftAudio = new Uint8Array([8, 13, 21, 34]);
+  const expectedFinalPath = finalTrackPath(localRoot, trackRef);
+  const files = createMemoryLocalizeFileStore();
+  let nextAudio = originalAudio;
+  const provider = createFakeDownloadSourceProvider(() => ok(okSource(nextAudio)));
+  const handler = createLocalizeProviderSourceJobHandler({
+    identityRead: createIdentityReadPort({ db: database.context() }),
+    downloadSourceProvider: provider,
+    localSourceCommand: createLocalSourceCommand({
+      database,
+      materialRefFactory: createMaterialRefFactory({ nextOpaqueId: () => "unused" }),
+      now: () => now,
+    }),
+    localSourcesRootDir: localRoot,
+    fileStore: files.fileStore,
+    fetch: (async () => new Response(nextAudio)) as typeof fetch,
+  });
+
+  await handler(localizeJob({ preferredBitrate: 320000 }));
+  assert.deepEqual(files.files.get(expectedFinalPath), originalAudio);
+
+  nextAudio = driftAudio;
+  await assert.rejects(
+    () => handler(localizeJob({ jobId: "job-drift", preferredBitrate: 128000 })),
+    expectMusicDataPlatformError("music_data.local_source_content_drift"),
+  );
+  assert.deepEqual(files.files.get(expectedFinalPath), originalAudio);
+  assert.equal([...files.files.keys()].filter((path) => path.includes("/.staging/")).length, 1);
+
+  const repositories = createIdentityRepositories({ db: database.context() });
+  const localSourceRecord = await repositories.sourceRecords.get({
+    sourceRef: createLocalSourceRef({
+      rootId: MAIN_LOCAL_SOURCE_ROOT_ID,
+      relativePath: relativeTrackPathFor(trackRef),
+      kind: "track",
+    }),
+  });
+  assert.equal(localSourceRecord?.entity.origin, "local_file");
+  if (localSourceRecord?.entity.origin !== "local_file") {
+    throw new Error("expected local file source");
+  }
+  assert.equal(localSourceRecord.entity.contentMd5, md5(originalAudio));
+
+  await database.close();
+}
+
 // --- handler rejects corrupt provider source metadata before download/local registration ---
 {
   const materialRef: Ref = { namespace: "material", kind: "recording", id: "m_corrupt_source" };

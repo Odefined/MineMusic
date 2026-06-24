@@ -306,7 +306,7 @@ function localSourceRef(relativePath: string): Ref {
   if (drift.ok) {
     throw new Error("expected content drift to fail");
   }
-  assert.equal(drift.error.code, "music_data.local_source_identity_conflict");
+  assert.equal(drift.error.code, "music_data.local_source_content_drift");
 }
 
 // --- B with a non-existent materialRef is a Result failure, not a thrown error ---

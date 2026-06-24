@@ -19,6 +19,7 @@ export type MusicDataPlatformErrorCode =
   | "music_data.local_source_ref_invalid"
   | "music_data.local_source_material_conflict"
   | "music_data.local_source_identity_conflict"
+  | "music_data.local_source_content_drift"
   | "music_data.localize_invalid_payload"
   | "music_data.localize_invalid_source_ref"
   | "music_data.localize_no_audio_stream"

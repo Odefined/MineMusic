@@ -157,6 +157,7 @@ export function createLocalizeProviderSourceJobHandler(
       stagingPath,
       finalPath: target.finalPath,
       relativePath: target.relativePath,
+      actualMd5: downloaded.actualMd5,
     });
 
     const registered = await input.localSourceCommand.createLocalSource({
@@ -308,6 +309,7 @@ async function finalizeDownloadedFile(input: {
   stagingPath: string;
   finalPath: string;
   relativePath: string;
+  actualMd5: string;
 }): Promise<boolean> {
   input.fileStore.ensureDir(directoryOf(input.finalPath));
 
@@ -328,6 +330,13 @@ async function finalizeDownloadedFile(input: {
       throw localizeError(
         "music_data.localize_final_path_collision",
         `Final local source path '${input.finalPath}' already exists without matching Local Source registration.`,
+      );
+    }
+
+    if (existingLocalSource.entity.contentMd5 !== input.actualMd5.toLowerCase()) {
+      throw localizeError(
+        "music_data.local_source_content_drift",
+        `Final local source path '${input.finalPath}' is registered with different contentMd5.`,
       );
     }
 

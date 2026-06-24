@@ -107,12 +107,17 @@ export function createLocalSourceCommand(
               if (
                 existingSourceRecord.entity.origin !== "local_file" ||
                 existingSourceRecord.entity.rootId !== commandInput.rootId ||
-                existingSourceRecord.entity.relativePath !== normalizedRelativePath ||
-                existingSourceRecord.entity.contentMd5 !== normalizedContentMd5
+                existingSourceRecord.entity.relativePath !== normalizedRelativePath
               ) {
                 return failLocalSource(
                   "music_data.local_source_identity_conflict",
-                  "Local source path is already registered with different local source facts.",
+                  "Local source path is already registered with different identity facts.",
+                );
+              }
+              if (existingSourceRecord.entity.contentMd5 !== normalizedContentMd5) {
+                return failLocalSource(
+                  "music_data.local_source_content_drift",
+                  "Local source path is already registered with different contentMd5.",
                 );
               }
             }
