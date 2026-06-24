@@ -1079,8 +1079,14 @@ of separately ranked lists, persistent input snapshot.
 ### Metadata Lookup Normalization
 
 The Postgres-owned normalization used to compare Metadata Lookup Query text with
-Metadata Search Corpus fields. It is versioned search-index behavior, not
-display text and not a general MineMusic string helper.
+Metadata Search Corpus fields, and to score those fields' relevance. In the
+metadata-lookup corpus the comparison and the Corpus-Local Score it produces are
+one expression — the same `to_tsquery` / `similarity` terms both recall rows and
+rank them — so the normalization and its local score share one owning
+realization and one bound text-query input, with each scoring/recall SQL fragment
+paired to its parameters so the placeholder count is owned rather than
+conventionally maintained. It is versioned search-index behavior, not display
+text and not a general MineMusic string helper.
 _Avoid_: material text normalization helper, display label normalization,
 provider query rewriting.
 

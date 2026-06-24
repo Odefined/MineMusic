@@ -19,6 +19,12 @@ import {
   providerMaterialCandidateRefKey,
 } from "./material_candidate_ref.js";
 import {
+  metadataLookupTextSql,
+  metadataRecallClause,
+  metadataScoreClause,
+  type MetadataLookupQuery,
+} from "./metadata_lookup_normalization.js";
+import {
   assertOwnerRelationPoolRef,
   createOwnerRelationPoolRef,
   type OwnerRelationEntryKind,
@@ -124,12 +130,6 @@ export type MusicDataPlatformMetadataLookupSearchWorkspace = {
   searchMetadataLookupResultSet(
     input: MusicDataPlatformMetadataLookupSearchInput,
   ): Promise<MusicDataPlatformMetadataLookupSearchPage>;
-};
-
-type EffectiveTextQuery = {
-  normalizedText: string;
-  prefixQuery: string;
-  tokens: readonly string[];
 };
 
 type NormalizedDurablePoolFilter = {
@@ -400,22 +400,27 @@ async function selectLocalMetadataWindow(input: {
   materialKind: MaterialEntityKind | undefined;
   poolFilter: NormalizedDurablePoolFilter;
   includeLocalCatalog: boolean;
-  textQuery: EffectiveTextQuery;
+  textQuery: MetadataLookupQuery;
   localResultWindowLimit: number;
 }): Promise<readonly LocalSearchRow[]> {
   if (!hasLocalRecallSource(input.includeLocalCatalog, input.poolFilter)) {
     return [];
   }
 
+  const scoreClause = metadataScoreClause("d", "indexed", input.textQuery);
+  const recallClause = metadataRecallClause("d", "indexed", input.textQuery);
+
   return input.db.all<LocalSearchRow>(
     localMetadataWindowSql({
       includeLocalCatalog: input.includeLocalCatalog,
       materialKind: input.materialKind,
       poolFilter: input.poolFilter,
+      scoreSql: scoreClause.sql,
+      recallSql: recallClause.sql,
     }),
     [
-      ...metadataScoreParamsForSingleExpression(input.textQuery),
-      ...metadataRecallParams(input.textQuery),
+      ...scoreClause.params,
+      ...recallClause.params,
       ...metadataCandidateParams(input.materialKind),
       ...catalogBaseParams(input.ownerScope, input.includeLocalCatalog, input.poolFilter),
       input.localResultWindowLimit,
@@ -625,8 +630,10 @@ function localMetadataWindowSql(input: {
   includeLocalCatalog: boolean;
   materialKind: MaterialEntityKind | undefined;
   poolFilter: NormalizedDurablePoolFilter;
+  scoreSql: string;
+  recallSql: string;
 }): string {
-  const candidateWhereClauses = metadataCandidateWhereClauses(input.materialKind);
+  const candidateWhereClauses = metadataCandidateWhereClauses(input.materialKind, input.recallSql);
   const catalogWhereClauses = catalogBaseWhereClauses(input.poolFilter, input.includeLocalCatalog);
 
   return `
@@ -641,7 +648,7 @@ function localMetadataWindowSql(input: {
         d.version_text,
         d.alias_text,
         d.search_text,
-        ${metadataScoreSql("d", "indexed")} AS score_value
+        ${input.scoreSql} AS score_value
       FROM search_metadata_documents d
       WHERE ${candidateWhereClauses.map((clause) => `(${clause.trim()})`).join("\n        AND ")}
     )
@@ -668,79 +675,15 @@ function localMetadataWindowSql(input: {
 
 function metadataCandidateWhereClauses(
   materialKind: MaterialEntityKind | undefined,
+  recallSql: string,
 ): string[] {
-  const whereClauses = [`${metadataRecallSql("d", "indexed")}`];
+  const whereClauses = [recallSql];
 
   if (materialKind !== undefined) {
     whereClauses.push("d.material_kind = ?");
   }
 
   return whereClauses;
-}
-
-function metadataRecallSql(alias: string, source: MetadataScoreSource): string {
-  return `${metadataVectorSql(alias, source)} @@ to_tsquery('simple', ?) OR ${metadataTextSql(alias, source)} % ?`;
-}
-
-type MetadataScoreSource = "indexed" | "row_text";
-
-function metadataScoreSql(alias: string, source: MetadataScoreSource): string {
-  return `
-    (
-      ts_rank_cd(${metadataVectorSql(alias, source)}, to_tsquery('simple', ?), 32) +
-      similarity(${metadataTextSql(alias, source)}, ?) +
-      (0.20 * similarity(${alias}.title_text, ?)) +
-      (0.12 * similarity(${alias}.artist_text, ?)) +
-      (0.10 * similarity(${alias}.album_text, ?)) +
-      (0.05 * similarity(${alias}.version_text, ?)) +
-      (0.04 * similarity(${alias}.alias_text, ?))
-    )
-  `;
-}
-
-function metadataVectorSql(alias: string, source: MetadataScoreSource): string {
-  if (source === "indexed") {
-    return `${alias}.search_vector`;
-  }
-
-  return `
-    (
-      setweight(to_tsvector('simple', COALESCE(${alias}.title_text, '')), 'A') ||
-      setweight(to_tsvector('simple', COALESCE(${alias}.artist_text, '')), 'B') ||
-      setweight(to_tsvector('simple', COALESCE(${alias}.album_text, '')), 'B') ||
-      setweight(to_tsvector('simple', COALESCE(${alias}.version_text, '')), 'C') ||
-      setweight(to_tsvector('simple', COALESCE(${alias}.alias_text, '')), 'D')
-    )
-  `;
-}
-
-function metadataTextSql(alias: string, source: MetadataScoreSource): string {
-  if (source === "indexed") {
-    return `${alias}.search_text`;
-  }
-
-  return `
-    concat_ws(
-      E'\\n',
-      NULLIF(${alias}.title_text, ''),
-      NULLIF(${alias}.artist_text, ''),
-      NULLIF(${alias}.album_text, ''),
-      NULLIF(${alias}.version_text, ''),
-      NULLIF(${alias}.alias_text, '')
-    )
-  `;
-}
-
-function metadataScoreParams(textQuery: EffectiveTextQuery): readonly MusicDatabaseParameter[] {
-  const singleExpression = metadataScoreParamsForSingleExpression(textQuery);
-  return [...singleExpression, ...singleExpression];
-}
-
-function metadataRecallParams(textQuery: EffectiveTextQuery): readonly MusicDatabaseParameter[] {
-  return [
-    textQuery.prefixQuery,
-    textQuery.normalizedText,
-  ];
 }
 
 function metadataCandidateParams(
@@ -901,8 +844,11 @@ function searchResultRowInsertParams(input: {
 async function rerankSearchResultRows(input: {
   db: MusicDatabaseContext;
   resultSetId: string;
-  textQuery: EffectiveTextQuery;
+  textQuery: MetadataLookupQuery;
 }): Promise<void> {
+  const scoreClause = metadataScoreClause("r", "row_text", input.textQuery);
+  const recallClause = metadataRecallClause("r", "row_text", input.textQuery);
+
   await input.db.run(
     `
       WITH ranked AS (
@@ -910,10 +856,10 @@ async function rerankSearchResultRows(input: {
           result_set_id,
           row_kind,
           stable_ref_key,
-          ${metadataScoreSql("r", "row_text")} AS score_value
+          ${scoreClause.sql} AS score_value
         FROM search_result_rows r
         WHERE r.result_set_id = ?
-          AND (${metadataRecallSql("r", "row_text")})
+          AND (${recallClause.sql})
       )
       UPDATE search_result_rows r
       SET score_value = ranked.score_value,
@@ -924,41 +870,29 @@ async function rerankSearchResultRows(input: {
         AND r.stable_ref_key = ranked.stable_ref_key
     `,
     [
-      ...metadataScoreParamsForSingleExpression(input.textQuery),
+      ...scoreClause.params,
       input.resultSetId,
-      ...metadataRecallParams(input.textQuery),
+      ...recallClause.params,
     ],
   );
-}
-
-function metadataScoreParamsForSingleExpression(
-  textQuery: EffectiveTextQuery,
-): readonly MusicDatabaseParameter[] {
-  return [
-    textQuery.prefixQuery,
-    textQuery.normalizedText,
-    textQuery.normalizedText,
-    textQuery.normalizedText,
-    textQuery.normalizedText,
-    textQuery.normalizedText,
-    textQuery.normalizedText,
-  ];
 }
 
 async function pruneUnmatchedSearchResultRows(input: {
   db: MusicDatabaseContext;
   resultSetId: string;
-  textQuery: EffectiveTextQuery;
+  textQuery: MetadataLookupQuery;
 }): Promise<void> {
+  const recallClause = metadataRecallClause("r", "row_text", input.textQuery);
+
   await input.db.run(
     `
       DELETE FROM search_result_rows r
       WHERE r.result_set_id = ?
-        AND NOT (${metadataRecallSql("r", "row_text")})
+        AND NOT (${recallClause.sql})
     `,
     [
       input.resultSetId,
-      ...metadataRecallParams(input.textQuery),
+      ...recallClause.params,
     ],
   );
 }
@@ -1041,7 +975,7 @@ function searchResultPageSql(
       r.album_text AS "albumText",
       r.version_text AS "versionText",
       r.alias_text AS "aliasText",
-      ${metadataTextSql("r", "row_text")} AS "searchText",
+      ${metadataLookupTextSql("r", "row_text")} AS "searchText",
       c.material_candidate_ref_key AS candidate_cache_ref_key,
       ${comparableTimestampSql("c.expires_at")} AS candidate_expires_at
     FROM search_result_rows r
@@ -1450,7 +1384,7 @@ function validatedProviderCandidate(candidate: ProviderMaterialCandidate): Sourc
   return sourceEntity;
 }
 
-function effectiveTextQuery(text: string): EffectiveTextQuery {
+function effectiveTextQuery(text: string): MetadataLookupQuery {
   const normalizedText = normalizeSearchMetadataValue(text);
 
   if (normalizedText.length === 0) {
@@ -1464,7 +1398,6 @@ function effectiveTextQuery(text: string): EffectiveTextQuery {
 
   return {
     normalizedText,
-    tokens,
     prefixQuery: buildSearchMetadataPrefixOrQuery(normalizedText),
   };
 }
