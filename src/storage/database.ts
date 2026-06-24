@@ -1,5 +1,6 @@
 export type MusicDatabaseParameter =
   | null
+  | boolean
   | number
   | bigint
   | string

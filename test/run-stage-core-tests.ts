@@ -42,6 +42,7 @@ const testModules = [
     "./formal/projection-maintenance-job.test.js",
     "./formal/server-music-data-platform-runtime-module.test.js",
     "./formal/server-local-source-scan-adapter.test.js",
+    "./formal/music-data-platform-local-source-scan.test.js",
     "./formal/server-entrypoint.test.js",
     "./formal/stage-runtime.test.js",
     "./formal/server-host.test.js",

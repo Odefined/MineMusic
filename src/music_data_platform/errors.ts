@@ -55,7 +55,14 @@ export type MusicDataPlatformErrorCode =
   | "music_data.collection_kind_mismatch"
   | "music_data.collection_name_taken"
   | "music_data.collection_item_not_found"
-  | "music_data.scan_root_configuration_invalid";
+  | "music_data.scan_root_configuration_invalid"
+  | "music_data.scan_root_configuration_missing"
+  | "music_data.scan_root_not_configured"
+  | "music_data.scan_root_unavailable"
+  | "music_data.scan_already_active"
+  | "music_data.scan_batch_not_found"
+  | "music_data.scan_batch_invalid_state"
+  | "music_data.scan_issue_cursor_invalid";
 
 export type CreateMusicDataPlatformErrorInput = {
   code: MusicDataPlatformErrorCode;
