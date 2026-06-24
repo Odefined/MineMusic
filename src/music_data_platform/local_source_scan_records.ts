@@ -113,14 +113,20 @@ export type LocalSourceScanWorkItemRepository = {
   upsert(record: LocalSourceScanWorkItemRecord): Promise<void>;
   countPendingByBatch(input: { batchId: string }): Promise<number>;
   countByStatus(input: { batchId: string; status: LocalSourceScanWorkItemStatus }): Promise<number>;
+  countAudioFilesByBatch(input: { batchId: string }): Promise<number>;
   listPendingAudioFiles(input: { batchId: string; limit: number }): Promise<readonly LocalSourceScanWorkItemRecord[]>;
   listPendingDirectories(input: { batchId: string; limit: number }): Promise<readonly LocalSourceScanWorkItemRecord[]>;
-  setStatus(input: {
+  nextSequence(input: { batchId: string }): Promise<number>;
+  // Compare-and-set status transition. Returns true only when a row actually
+  // moved from `from` to `to`; a replay against an already-transitioned row
+  // returns false so the caller does not double-count or double-write outcomes.
+  tryClaim(input: {
     batchId: string;
     relativePath: string;
-    status: LocalSourceScanWorkItemStatus;
+    from: LocalSourceScanWorkItemStatus;
+    to: LocalSourceScanWorkItemStatus;
     updatedAt: string;
-  }): Promise<void>;
+  }): Promise<boolean>;
   deleteSucceededForBatch(input: { batchId: string }): Promise<number>;
 };
 
@@ -312,6 +318,9 @@ export function createLocalSourceScanRepositories(
     async countByStatus({ batchId, status }) {
       return countScalar(db, "SELECT COUNT(*) AS count FROM local_source_scan_work_items WHERE batch_id = ? AND status = ?", [batchId, status]);
     },
+    async countAudioFilesByBatch({ batchId }) {
+      return countScalar(db, "SELECT COUNT(*) AS count FROM local_source_scan_work_items WHERE batch_id = ? AND entry_kind = 'audio_file'", [batchId]);
+    },
     async listPendingDirectories({ batchId, limit }) {
       const rows = await db.all<LocalSourceScanWorkItemRow>(
         `
@@ -336,15 +345,24 @@ export function createLocalSourceScanRepositories(
       );
       return rows.map(workItemFromRow);
     },
-    async setStatus({ batchId, relativePath, status, updatedAt }) {
-      await db.run(
+    async nextSequence({ batchId }) {
+      const row = await db.get<{ max_sequence: number | null }>(
+        "SELECT MAX(sequence) AS max_sequence FROM local_source_scan_work_items WHERE batch_id = ?",
+        [batchId],
+      );
+      return (row?.max_sequence ?? -1) + 1;
+    },
+    async tryClaim({ batchId, relativePath, from, to, updatedAt }) {
+      const row = await db.get<{ relative_path: string }>(
         `
           UPDATE local_source_scan_work_items
           SET status = ?, updated_at = ?
-          WHERE batch_id = ? AND relative_path = ?
+          WHERE batch_id = ? AND relative_path = ? AND status = ?
+          RETURNING relative_path
         `,
-        [status, updatedAt, batchId, relativePath],
+        [to, updatedAt, batchId, relativePath, from],
       );
+      return row !== undefined;
     },
     async deleteSucceededForBatch({ batchId }) {
       const count = await countScalar(db, "SELECT COUNT(*) AS count FROM local_source_scan_work_items WHERE batch_id = ? AND status = 'succeeded'", [batchId]);

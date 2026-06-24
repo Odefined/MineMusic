@@ -1,11 +1,14 @@
 import { refKey, type Ref, type Result } from "../contracts/kernel.js";
 import type { SourceEntity, SourceTrack } from "../contracts/music_data_platform.js";
-import type { MusicDatabase } from "../storage/database.js";
+import type { MusicDatabase, MusicDatabaseTransactionContext } from "../storage/database.js";
 import { MusicDataPlatformError, type MusicDataPlatformErrorCode } from "./errors.js";
 import { createIdentityReadPort } from "./identity_read_model.js";
 import { materialKindForSourceKind } from "./material_ref.js";
 import type { MaterialRefFactory } from "./material_ref_factory.js";
-import { runSourceOfTruthWrite } from "./source_of_truth_write_commands.js";
+import {
+  runSourceOfTruthWrite,
+  type MusicDataPlatformSourceOfTruthWriteCommands,
+} from "./source_of_truth_write_commands.js";
 import type { ProjectionMaintenanceDispatcher } from "./projection_maintenance_dispatcher.js";
 import { createLocalSourceRef } from "./local_source_ref.js";
 import {
@@ -63,11 +66,105 @@ export type CreateLocalSourceResult = {
 // MusicDataPlatformError. Only these are translated to Result at the
 // createLocalSource boundary; every other throw is an invariant (source/identity
 // shape, primary-source binding) and must crash rather than become a Result.
-const CREATE_LOCAL_SOURCE_RESULT_FAILURE_CODES: ReadonlySet<MusicDataPlatformErrorCode> = new Set([
+// Shared with the Phase 26 scan admit command so scan admission preserves
+// Phase 25 failure semantics without duplicating the code set.
+export const CREATE_LOCAL_SOURCE_RESULT_FAILURE_CODES: ReadonlySet<MusicDataPlatformErrorCode> = new Set([
   "music_data.material_not_found",
   "music_data.material_not_writable",
   "music_data.record_kind_mismatch",
 ]);
+
+// Transaction-scoped Local Source registration extracted so the Phase 26 scan
+// admit command can register a verified file inside the SAME source-of-truth
+// transaction that writes the scan item and counters (atomic admit). This is
+// reuse of one owning write model, not a second registration implementation;
+// createLocalSource and scan both route entity construction, writes, and
+// binding through here. Each caller keeps its own Result failure-code mapping
+// around the shared CREATE_LOCAL_SOURCE_RESULT_FAILURE_CODES translation.
+export type RegisterLocalSourceInSourceOfTruthTransactionInput = {
+  db: MusicDatabaseTransactionContext;
+  writes: MusicDataPlatformSourceOfTruthWriteCommands;
+  materialRefFactory: MaterialRefFactory;
+  sourceInput: CreateLocalSourceInput;
+};
+
+export async function registerLocalSourceInSourceOfTruthTransaction(
+  input: RegisterLocalSourceInSourceOfTruthTransactionInput,
+): Promise<Result<CreateLocalSourceResult>> {
+  const { db, writes, materialRefFactory, sourceInput } = input;
+  const normalizedRelativePath = normalizeLocalSourceRelativePath(sourceInput.relativePath);
+  const normalizedContentMd5 = normalizeLocalSourceContentMd5(sourceInput.contentMd5);
+  const sourceRef = createLocalSourceRef({
+    rootId: sourceInput.rootId,
+    relativePath: normalizedRelativePath,
+    kind: sourceInput.kind,
+  });
+
+  // Idempotency short-circuit (mirrors candidate_commit). A local source
+  // is one root-relative path bound to ONE material; the binding is fixed once
+  // written. A replay returns the existing material. A later call that
+  // names a DIFFERENT material is a conflict (same path -> two
+  // materials), surfaced explicitly rather than silently rebinding.
+  const identityRead = createIdentityReadPort({ db });
+  const existingSourceRecord = await identityRead.getSourceRecord({ sourceRef });
+  if (existingSourceRecord !== undefined) {
+    if (
+      existingSourceRecord.entity.origin !== "local_file" ||
+      existingSourceRecord.entity.rootId !== sourceInput.rootId ||
+      existingSourceRecord.entity.relativePath !== normalizedRelativePath
+    ) {
+      return failLocalSource(
+        "music_data.local_source_identity_conflict",
+        "Local source path is already registered with different identity facts.",
+      );
+    }
+    if (existingSourceRecord.entity.contentMd5 !== normalizedContentMd5) {
+      return failLocalSource(
+        "music_data.local_source_content_drift",
+        "Local source path is already registered with different contentMd5.",
+      );
+    }
+  }
+  const existingBinding = await identityRead.findMaterialForSource({ sourceRef });
+  if (existingBinding !== undefined) {
+    if (
+      sourceInput.materialRef !== undefined &&
+      refKey(existingBinding.materialRef) !== refKey(sourceInput.materialRef)
+    ) {
+      return failLocalSource(
+        "music_data.local_source_material_conflict",
+        "Local source path is already bound to a different material.",
+      );
+    }
+    return ok({ materialRef: existingBinding.materialRef, created: false });
+  }
+
+  const localSourceEntity = buildLocalSourceEntity({
+    sourceRef,
+    rootId: sourceInput.rootId,
+    relativePath: normalizedRelativePath,
+    contentMd5: normalizedContentMd5,
+    ...(sourceInput.descriptiveMetadata === undefined ? {} : { descriptiveMetadata: sourceInput.descriptiveMetadata }),
+  });
+  await writes.identity.upsertSourceRecord({ entity: localSourceEntity });
+
+  if (sourceInput.materialRef === undefined) {
+    const materialKind = materialKindForSourceKind(sourceInput.kind);
+    const materialRef = materialRefFactory.createMaterialRef(materialKind);
+    await writes.identity.upsertMaterialRecord({ materialRef, kind: materialKind });
+    await writes.identity.bindSourceToMaterial({
+      sourceRef,
+      materialRef,
+    });
+    return ok({ materialRef, created: true });
+  }
+
+  await writes.identity.bindSourceToMaterial({
+    sourceRef,
+    materialRef: sourceInput.materialRef,
+  });
+  return ok({ materialRef: sourceInput.materialRef, created: true });
+}
 
 export function createLocalSourceCommand(
   input: CreateLocalSourceCommandInput,
@@ -87,80 +184,12 @@ export function createLocalSourceCommand(
           database: input.database,
           now: now(),
           dispatcher: input.projectionMaintenanceDispatcher,
-          fn: async (db, writes) => {
-            const normalizedRelativePath = normalizeLocalSourceRelativePath(commandInput.relativePath);
-            const normalizedContentMd5 = normalizeLocalSourceContentMd5(commandInput.contentMd5);
-            const sourceRef = createLocalSourceRef({
-              rootId: commandInput.rootId,
-              relativePath: normalizedRelativePath,
-              kind: commandInput.kind,
-            });
-
-            // Idempotency short-circuit (mirrors candidate_commit). A local source
-            // is one root-relative path bound to ONE material; the binding is fixed once
-            // written. A replay returns the existing material. A later call that
-            // names a DIFFERENT material is a conflict (same path -> two
-            // materials), surfaced explicitly rather than silently rebinding.
-            const identityRead = createIdentityReadPort({ db });
-            const existingSourceRecord = await identityRead.getSourceRecord({ sourceRef });
-            if (existingSourceRecord !== undefined) {
-              if (
-                existingSourceRecord.entity.origin !== "local_file" ||
-                existingSourceRecord.entity.rootId !== commandInput.rootId ||
-                existingSourceRecord.entity.relativePath !== normalizedRelativePath
-              ) {
-                return failLocalSource(
-                  "music_data.local_source_identity_conflict",
-                  "Local source path is already registered with different identity facts.",
-                );
-              }
-              if (existingSourceRecord.entity.contentMd5 !== normalizedContentMd5) {
-                return failLocalSource(
-                  "music_data.local_source_content_drift",
-                  "Local source path is already registered with different contentMd5.",
-                );
-              }
-            }
-            const existingBinding = await identityRead.findMaterialForSource({ sourceRef });
-            if (existingBinding !== undefined) {
-              if (
-                commandInput.materialRef !== undefined &&
-                refKey(existingBinding.materialRef) !== refKey(commandInput.materialRef)
-              ) {
-                return failLocalSource(
-                  "music_data.local_source_material_conflict",
-                  "Local source path is already bound to a different material.",
-                );
-              }
-              return ok({ materialRef: existingBinding.materialRef, created: false });
-            }
-
-            const localSourceEntity = buildLocalSourceEntity({
-              sourceRef,
-              rootId: commandInput.rootId,
-              relativePath: normalizedRelativePath,
-              contentMd5: normalizedContentMd5,
-              ...(commandInput.descriptiveMetadata === undefined ? {} : { descriptiveMetadata: commandInput.descriptiveMetadata }),
-            });
-            await writes.identity.upsertSourceRecord({ entity: localSourceEntity });
-
-            if (commandInput.materialRef === undefined) {
-              const materialKind = materialKindForSourceKind(commandInput.kind);
-              const materialRef = input.materialRefFactory.createMaterialRef(materialKind);
-              await writes.identity.upsertMaterialRecord({ materialRef, kind: materialKind });
-              await writes.identity.bindSourceToMaterial({
-                sourceRef,
-                materialRef,
-              });
-              return ok({ materialRef, created: true });
-            }
-
-            await writes.identity.bindSourceToMaterial({
-              sourceRef,
-              materialRef: commandInput.materialRef,
-            });
-            return ok({ materialRef: commandInput.materialRef, created: true });
-          },
+          fn: async (db, writes) => registerLocalSourceInSourceOfTruthTransaction({
+            db,
+            writes,
+            materialRefFactory: input.materialRefFactory,
+            sourceInput: commandInput,
+          }),
         });
       } catch (cause) {
         if (

@@ -1,7 +1,7 @@
 import type { MusicDatabaseContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertOwnerScope } from "./owner_scope.js";
-import { createLocalSourceScanRepositories } from "./local_source_scan_records.js";
+import { createLocalSourceScanRepositories, type LocalSourceScanBatchRecord, type LocalSourceScanWorkItemRecord } from "./local_source_scan_records.js";
 import type {
   LocalSourceScanBatchPhase,
   LocalSourceScanBatchStatus,
@@ -74,6 +74,7 @@ export type CreateLocalSourceScanReadPortInput = {
 
 export type LocalSourceScanReadPort = {
   getRoot(input: { rootId: string; ownerScope: string }): Promise<boolean>;
+  getBatch(input: { batchId: string }): Promise<LocalSourceScanBatchRecord | undefined>;
   getBatchSummary(input: { batchId: string }): Promise<LocalSourceScanBatchSummary | undefined>;
   listRootSummaries(input: {
     ownerScope: string;
@@ -84,6 +85,8 @@ export type LocalSourceScanReadPort = {
     cursor?: string;
     limit: number;
   }): Promise<LocalSourceScanIssuePage>;
+  listPendingDirectories(input: { batchId: string; limit: number }): Promise<readonly LocalSourceScanWorkItemRecord[]>;
+  listPendingAudioFiles(input: { batchId: string; limit: number }): Promise<readonly LocalSourceScanWorkItemRecord[]>;
 };
 
 export function createLocalSourceScanReadPort(
@@ -96,6 +99,10 @@ export function createLocalSourceScanReadPort(
       assertOwnerScope(ownerScope);
       const root = await repos.roots.get({ rootId });
       return root !== undefined && root.ownerScope === ownerScope;
+    },
+
+    async getBatch({ batchId }) {
+      return await repos.batches.get({ batchId });
     },
 
     async getBatchSummary({ batchId }) {
@@ -177,6 +184,14 @@ export function createLocalSourceScanReadPort(
       const last = page.at(-1);
       const nextCursor = hasNext && last !== undefined ? String(last.sequence) : undefined;
       return { items, ...(nextCursor === undefined ? {} : { nextCursor }) };
+    },
+
+    async listPendingDirectories({ batchId, limit }) {
+      return await repos.workItems.listPendingDirectories({ batchId, limit });
+    },
+
+    async listPendingAudioFiles({ batchId, limit }) {
+      return await repos.workItems.listPendingAudioFiles({ batchId, limit });
     },
   };
 }
