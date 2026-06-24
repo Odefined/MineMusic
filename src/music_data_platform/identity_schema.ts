@@ -9,11 +9,29 @@ export const musicDataPlatformIdentitySchema: MusicDatabaseSchemaContribution = 
         origin TEXT NOT NULL CHECK (origin IN ('provider', 'local_file')),
         provider_id TEXT,
         provider_entity_id TEXT,
+        local_root_id TEXT,
+        local_relative_path TEXT,
+        local_content_md5 TEXT,
         kind TEXT NOT NULL,
         entity_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
+    `);
+
+    await context.run(`
+      ALTER TABLE source_records
+      ADD COLUMN IF NOT EXISTS local_root_id TEXT
+    `);
+
+    await context.run(`
+      ALTER TABLE source_records
+      ADD COLUMN IF NOT EXISTS local_relative_path TEXT
+    `);
+
+    await context.run(`
+      ALTER TABLE source_records
+      ADD COLUMN IF NOT EXISTS local_content_md5 TEXT
     `);
 
     // The table-level UNIQUE is split so provider rows and local rows each have
@@ -27,8 +45,12 @@ export const musicDataPlatformIdentitySchema: MusicDatabaseSchemaContribution = 
     `);
 
     await context.run(`
-      CREATE UNIQUE INDEX IF NOT EXISTS source_records_local_md5_uidx
-      ON source_records(provider_entity_id, kind)
+      DROP INDEX IF EXISTS source_records_local_md5_uidx
+    `);
+
+    await context.run(`
+      CREATE UNIQUE INDEX IF NOT EXISTS source_records_local_root_path_uidx
+      ON source_records(local_root_id, local_relative_path, kind)
       WHERE origin = 'local_file'
     `);
 

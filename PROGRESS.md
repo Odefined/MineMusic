@@ -1245,12 +1245,12 @@ runtime composition:
 - `src/music_data_platform/localize_provider_source_job.ts` now owns the first
   Music Data Platform Background Work job type,
   `music_data_platform.localize_provider_source`, including payload validation,
-  injected provider download-source resolution, staged download, content-
-  addressed finalization, Local Source registration through `createLocalSource`,
-  localized descriptive metadata snapshotting from the provider source without
-  provider links/availability facts, matching-content idempotent success,
-  final-path collision failure, declared registration-failure cleanup, and
-  missing root config failure.
+  injected provider download-source resolution, staged download,
+  non-content-derived path finalization, Local Source registration through
+  `createLocalSource`, localized descriptive metadata snapshotting from the
+  provider source without provider links/availability facts, registered
+  same-path idempotent success, unregistered path-conflict failure, declared
+  registration-failure cleanup, and missing root config failure.
 - `test/formal/music-data-platform-localize-provider-source.test.ts` covers the
   localize submit/handler contract without importing pg-boss or Extension
   Runtime into Music Data Platform.
@@ -1403,6 +1403,31 @@ stage-core suite EXIT 0):
   `cause`; `parseStoredRef` adapts `JSON.parse`.
 - M2: spec D9 tightened — idempotent `remove` is for an already-soft-removed
   member; a never-member surfaces as `item_not_found`.
+
+## 2026-06-24: Phase 25 Local Source Root/Path Identity
+
+Phase 25 implements ADR-0042 end to end: Local Source identity is now
+`rootId + normalized relativePath`, not content md5.
+
+- Local `SourceEntity` records carry `rootId`, `relativePath`, and
+  `contentMd5`; local `providerEntityId` and platform-native `filePath` are
+  rejected at the write boundary.
+- `source_local` refs are opaque `ls_<digest(rootId, relativePath)>` refs, with
+  explicit root/path facts retained on the entity and lookup columns.
+- `source_records` local uniqueness is now `(local_root_id,
+  local_relative_path, kind)` for `origin = 'local_file'`; the old local md5
+  unique index is dropped idempotently.
+- `createLocalSource(...)` accepts `rootId`, `relativePath`, and `contentMd5`;
+  same root/path is idempotent, same root/path with a different requested
+  material is `local_source_material_conflict`, and same content at different
+  paths is allowed.
+- `localize_provider_source` writes under the Main Local Source Root
+  `downloads/` subtree using human-readable path components plus a filename
+  source key. Existing registered same path is idempotent success; an existing
+  unregistered path is `localize_final_path_collision`.
+- Formal tests cover contract shape, local-source command behavior, identity
+  schema/write guards, localize finalization, projection fixtures, runtime
+  wiring, and active-tree registration.
 
 ## Next Formal Milestones
 

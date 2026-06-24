@@ -8,17 +8,26 @@ import type {
   MaterialEntity,
   SourceEntity,
   SourceEntityKind,
-  SourceOrigin,
 } from "./music_data_platform.js";
 
 export type SourceRecord = {
   entity: SourceEntity;
-  lookup: {
-    origin: SourceOrigin;
-    providerId?: string;
-    providerEntityId?: string;
-    kind: SourceEntityKind;
-  };
+  lookup:
+    | {
+      origin: "provider";
+      providerId: string;
+      providerEntityId: string;
+      kind: SourceEntityKind;
+    }
+    | {
+      origin: "local_file";
+      providerId?: never;
+      providerEntityId?: never;
+      localRootId: string;
+      localRelativePath: string;
+      localContentMd5: string;
+      kind: SourceEntityKind;
+    };
   createdAt: string;
   updatedAt: string;
 };

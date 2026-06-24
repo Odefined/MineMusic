@@ -176,6 +176,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   write boundary, PR 24B projection producer, PR 24C `library.catalog
   { kind:"collection" }` read scope, and PR 24D `library.collection.*` agent
   tools; PR24A, PR24B, PR24C, and PR24D are implemented.
+- `docs/formal-rebuild/phase-25-local-source-root-path-identity-implementation-plan.md`:
+  implemented execution plan for ADR-0042 local-source root/path identity,
+  non-content-derived localize paths, and local root/path storage guards.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -275,7 +278,11 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/adr/0027-background-work-uses-pg-boss-behind-adapter.md`: Background
   Work uses `pg-boss` behind a MineMusic-owned adapter.
 - `docs/adr/0028-localize-uses-content-addressed-local-source-paths.md`:
-  localized audio uses content-addressed canonical Local Source paths.
+  deprecated by ADR-0042; localized audio no longer uses content-addressed
+  canonical Local Source paths.
+- `docs/adr/0042-local-source-identity-is-root-path-based-not-content-derived.md`:
+  Local Source identity is a Local Source Root id plus normalized root-relative
+  path; content hashes are non-unique facts, not identity.
 - `docs/adr/0029-library-import-uses-chained-background-work-jobs.md`:
   library import drives multi-page provider reads as chained Background Work jobs.
 - `docs/adr/0030-agent-runtime-and-workbench-interface-are-top-level-areas.md`:

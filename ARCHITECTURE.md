@@ -304,11 +304,12 @@ records, not public/domain entity contracts.
 
 `SourceEntity` is normalized provider/source fact state, discriminated by
 `origin = provider | local_file`: provider-backed sources carry a required
-(providerId, providerEntityId) pair, while local-file sources are identified by
-file md5 with no provider. It may contain explicit normalized facts,
-provider/source navigation hints such as `providerUrl`, and source-side version
-information. It does not own material identity, owner facts, playable links,
-public presentation, or raw provider payload.
+(providerId, providerEntityId) pair, while local-file sources carry a Local
+Source Root id plus a normalized root-relative path as source identity, with
+`contentMd5` as a non-unique content fact. It may contain explicit normalized
+facts, provider/source navigation hints such as `providerUrl`, and source-side
+version information. It does not own material identity, owner facts, playable
+links, public presentation, or raw provider payload.
 
 `MaterialEntity` is a MineMusic material identity anchor. It does not own
 playable links, public display links, availability, query score,

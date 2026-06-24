@@ -272,7 +272,7 @@ function wrapTransactionWithSqlInterceptor(
         },
     } as MusicDatabaseTransactionContext;
 }
-function sourceTrack(id: string, title: string): SourceTrack {
+function sourceTrack(id: string, title: string): Extract<SourceTrack, { origin: "provider" }> {
     return {
         kind: "track",
         origin: "provider",

@@ -20,6 +20,8 @@ import {
 } from "./errors.js";
 import type { IdentityReadPort } from "./identity_read_model.js";
 import type { LocalSourceCommand, LocalSourceDescriptiveMetadata } from "./local_source_commands.js";
+import { MAIN_LOCAL_SOURCE_ROOT_ID, normalizeLocalSourceRelativePath } from "./local_source_path.js";
+import { createLocalSourceRef } from "./local_source_ref.js";
 import { musicDataPlatformRefKey } from "./ref_validation.js";
 
 export const LOCALIZE_PROVIDER_SOURCE_JOB_TYPE = "music_data_platform.localize_provider_source";
@@ -142,25 +144,33 @@ export function createLocalizeProviderSourceJobHandler(
       );
     }
 
-    const finalPath = finalPathForDownload(rootDir, source.value, downloaded.actualMd5);
+    const sourceKey = sourceKeyForFilename(payload.sourceRef);
+    const target = targetPathForDownload({
+      rootDir,
+      providerSource: providerSource,
+      sourceRef: payload.sourceRef,
+      downloadSource: source.value,
+    });
     const ownsFinalFile = await finalizeDownloadedFile({
+      identityRead: input.identityRead,
       fileStore: input.fileStore,
       stagingPath,
-      finalPath,
-      actualMd5: downloaded.actualMd5,
+      finalPath: target.finalPath,
+      relativePath: target.relativePath,
     });
 
     const registered = await input.localSourceCommand.createLocalSource({
-      md5: downloaded.actualMd5,
+      rootId: MAIN_LOCAL_SOURCE_ROOT_ID,
+      relativePath: target.relativePath,
+      contentMd5: downloaded.actualMd5,
       kind: "track",
-      filePath: finalPath,
       materialRef: binding.materialRef,
-      descriptiveMetadata: descriptiveMetadataFromProviderSource(providerSource),
+      descriptiveMetadata: descriptiveMetadataFromProviderSource(providerSource, sourceKey),
     });
 
     if (!registered.ok) {
       if (ownsFinalFile) {
-        input.fileStore.remove(finalPath);
+        input.fileStore.remove(target.finalPath);
       }
 
       throw localizeError(
@@ -189,23 +199,22 @@ function assertLocalizableProviderTrackSource(input: {
 
   if (
     typeof input.source.label !== "string" ||
-    input.source.label.length === 0 ||
-    typeof input.source.title !== "string" ||
-    input.source.title.length === 0
+    input.source.label.length === 0
   ) {
     throw localizeError(
       "music_data.record_kind_mismatch",
-      "Localize provider source record must include label and title metadata.",
+      "Localize provider source record must include label metadata.",
     );
   }
 
   return input.source;
 }
 
-function descriptiveMetadataFromProviderSource(source: SourceTrack): LocalSourceDescriptiveMetadata {
+function descriptiveMetadataFromProviderSource(source: SourceTrack, sourceKey: string): LocalSourceDescriptiveMetadata {
+  const title = textOrFallback(source.title, sourceKey);
   return {
-    label: source.label,
-    title: source.title,
+    label: textOrFallback(source.label, title),
+    title,
     ...(source.artistLabels === undefined ? {} : { artistLabels: source.artistLabels }),
     ...(source.artistSourceRefs === undefined ? {} : { artistSourceRefs: source.artistSourceRefs }),
     ...(source.albumLabel === undefined ? {} : { albumLabel: source.albumLabel }),
@@ -294,20 +303,31 @@ function parsePayloadRef(value: unknown): Ref {
 }
 
 async function finalizeDownloadedFile(input: {
+  identityRead: LocalizeProviderSourceBindingLookup;
   fileStore: LocalizeProviderSourceFileStore;
   stagingPath: string;
   finalPath: string;
-  actualMd5: string;
+  relativePath: string;
 }): Promise<boolean> {
   input.fileStore.ensureDir(directoryOf(input.finalPath));
 
   if (input.fileStore.exists(input.finalPath)) {
-    const existingMd5 = (await input.fileStore.md5(input.finalPath)).toLowerCase();
-    if (existingMd5 !== input.actualMd5) {
+    const sourceRef = createLocalSourceRef({
+      rootId: MAIN_LOCAL_SOURCE_ROOT_ID,
+      relativePath: input.relativePath,
+      kind: "track",
+    });
+    const existingLocalSource = await input.identityRead.getSourceRecord({ sourceRef });
+    if (
+      existingLocalSource === undefined ||
+      existingLocalSource.entity.origin !== "local_file" ||
+      existingLocalSource.entity.rootId !== MAIN_LOCAL_SOURCE_ROOT_ID ||
+      existingLocalSource.entity.relativePath !== input.relativePath
+    ) {
       input.fileStore.remove(input.stagingPath);
       throw localizeError(
         "music_data.localize_final_path_collision",
-        `Final local source path '${input.finalPath}' exists with different content.`,
+        `Final local source path '${input.finalPath}' already exists without matching Local Source registration.`,
       );
     }
 
@@ -319,10 +339,24 @@ async function finalizeDownloadedFile(input: {
   return true;
 }
 
-function finalPathForDownload(rootDir: string, source: DownloadSource, actualMd5: string): string {
-  const ext = extensionForContainer(source.container);
-  const normalizedMd5 = actualMd5.toLowerCase();
-  return joinPath(rootDir, "tracks", normalizedMd5.slice(0, 2), `${normalizedMd5}.${ext}`);
+function targetPathForDownload(input: {
+  rootDir: string;
+  providerSource: SourceTrack;
+  sourceRef: Ref;
+  downloadSource: DownloadSource;
+}): { finalPath: string; relativePath: string } {
+  const ext = extensionForContainer(input.downloadSource.container);
+  const sourceKey = sourceKeyForFilename(input.sourceRef);
+  const artist = filenameComponent(input.providerSource.artistLabels?.[0], "Unknown Artist");
+  const album = filenameComponent(input.providerSource.albumLabel, "Unknown Album");
+  const title = filenameComponent(input.providerSource.title, sourceKey);
+  const track = trackNumberComponent(input.providerSource.trackPosition?.trackNumber);
+  const fileName = filenameComponent(`${track} - ${title} [${sourceKey}].${ext}`, `${track} - ${sourceKey}.${ext}`);
+  const relativePath = normalizeLocalSourceRelativePath(joinPath("downloads", artist, album, fileName));
+  return {
+    relativePath,
+    finalPath: joinPath(input.rootDir, relativePath),
+  };
 }
 
 function extensionForContainer(container: string): string {
@@ -339,6 +373,33 @@ function extensionForContainer(container: string): string {
 function stagingPathForJob(rootDir: string, job: BackgroundWorkJob<Record<string, unknown>>): string {
   const safeJobId = createHash("sha256").update(job.jobId).digest("hex").slice(0, 32);
   return joinPath(rootDir, ".staging", `${safeJobId}.part`);
+}
+
+function sourceKeyForFilename(sourceRef: Ref): string {
+  return filenameComponent(refKey(sourceRef).replace(/:/gu, "-"), "source");
+}
+
+function trackNumberComponent(trackNumber: number | undefined): string {
+  if (trackNumber === undefined || !Number.isInteger(trackNumber) || trackNumber <= 0) {
+    return "00";
+  }
+  return trackNumber.toString().padStart(2, "0");
+}
+
+function filenameComponent(value: string | undefined, fallback: string): string {
+  const candidate = textOrFallback(value, fallback)
+    .replace(/[\\/]/gu, " ")
+    .replace(/[\u0000-\u001f\u007f<>:"|?*]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+  const safe = candidate.length === 0 || candidate === "." || candidate === ".."
+    ? fallback
+    : candidate;
+  return safe.length > 96 ? safe.slice(0, 96).trimEnd() : safe;
+}
+
+function textOrFallback(value: string | undefined, fallback: string): string {
+  return typeof value === "string" && value.length > 0 ? value : fallback;
 }
 
 function normalizeLocalSourcesRootDir(rootDir: string): string {

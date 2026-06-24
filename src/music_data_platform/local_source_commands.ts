@@ -8,6 +8,10 @@ import type { MaterialRefFactory } from "./material_ref_factory.js";
 import { runSourceOfTruthWrite } from "./source_of_truth_write_commands.js";
 import type { ProjectionMaintenanceDispatcher } from "./projection_maintenance_dispatcher.js";
 import { createLocalSourceRef } from "./local_source_ref.js";
+import {
+  normalizeLocalSourceContentMd5,
+  normalizeLocalSourceRelativePath,
+} from "./local_source_path.js";
 
 export type CreateLocalSourceCommandInput = {
   database: MusicDatabase;
@@ -29,9 +33,10 @@ export type LocalSourceCommand = {
 // kind is "track" today: local sources are audio files. album/artist local
 // sources are future work.
 export type CreateLocalSourceInput = {
-  md5: string;
+  rootId: string;
+  relativePath: string;
+  contentMd5: string;
   kind: "track";
-  filePath: string;
   materialRef?: Ref;
   descriptiveMetadata?: LocalSourceDescriptiveMetadata;
 };
@@ -83,17 +88,34 @@ export function createLocalSourceCommand(
           now: now(),
           dispatcher: input.projectionMaintenanceDispatcher,
           fn: async (db, writes) => {
+            const normalizedRelativePath = normalizeLocalSourceRelativePath(commandInput.relativePath);
+            const normalizedContentMd5 = normalizeLocalSourceContentMd5(commandInput.contentMd5);
             const sourceRef = createLocalSourceRef({
-              md5: commandInput.md5,
+              rootId: commandInput.rootId,
+              relativePath: normalizedRelativePath,
               kind: commandInput.kind,
             });
 
             // Idempotency short-circuit (mirrors candidate_commit). A local source
-            // is one file (md5) bound to ONE material; the binding is fixed once
+            // is one root-relative path bound to ONE material; the binding is fixed once
             // written. A replay returns the existing material. A later call that
-            // names a DIFFERENT material is a conflict (same file -> two
+            // names a DIFFERENT material is a conflict (same path -> two
             // materials), surfaced explicitly rather than silently rebinding.
             const identityRead = createIdentityReadPort({ db });
+            const existingSourceRecord = await identityRead.getSourceRecord({ sourceRef });
+            if (existingSourceRecord !== undefined) {
+              if (
+                existingSourceRecord.entity.origin !== "local_file" ||
+                existingSourceRecord.entity.rootId !== commandInput.rootId ||
+                existingSourceRecord.entity.relativePath !== normalizedRelativePath ||
+                existingSourceRecord.entity.contentMd5 !== normalizedContentMd5
+              ) {
+                return failLocalSource(
+                  "music_data.local_source_identity_conflict",
+                  "Local source path is already registered with different local source facts.",
+                );
+              }
+            }
             const existingBinding = await identityRead.findMaterialForSource({ sourceRef });
             if (existingBinding !== undefined) {
               if (
@@ -102,7 +124,7 @@ export function createLocalSourceCommand(
               ) {
                 return failLocalSource(
                   "music_data.local_source_material_conflict",
-                  "Local source (md5) is already bound to a different material.",
+                  "Local source path is already bound to a different material.",
                 );
               }
               return ok({ materialRef: existingBinding.materialRef, created: false });
@@ -110,8 +132,9 @@ export function createLocalSourceCommand(
 
             const localSourceEntity = buildLocalSourceEntity({
               sourceRef,
-              md5: commandInput.md5,
-              filePath: commandInput.filePath,
+              rootId: commandInput.rootId,
+              relativePath: normalizedRelativePath,
+              contentMd5: normalizedContentMd5,
               ...(commandInput.descriptiveMetadata === undefined ? {} : { descriptiveMetadata: commandInput.descriptiveMetadata }),
             });
             await writes.identity.upsertSourceRecord({ entity: localSourceEntity });
@@ -149,27 +172,37 @@ export function createLocalSourceCommand(
 
 function buildLocalSourceEntity(input: {
   sourceRef: Ref;
-  md5: string;
-  filePath: string;
+  rootId: string;
+  relativePath: string;
+  contentMd5: string;
   descriptiveMetadata?: LocalSourceDescriptiveMetadata;
 }): SourceEntity {
-  const normalizedMd5 = input.md5.toLowerCase();
-  const descriptiveMetadata = input.descriptiveMetadata ?? placeholderLocalSourceMetadata(normalizedMd5);
+  const descriptiveMetadata = input.descriptiveMetadata ?? placeholderLocalSourceMetadata({
+    relativePath: input.relativePath,
+    sourceRef: input.sourceRef,
+  });
   const entity: SourceTrack = {
     origin: "local_file",
     sourceRef: input.sourceRef,
-    providerEntityId: normalizedMd5,
-    filePath: input.filePath,
+    rootId: input.rootId,
+    relativePath: input.relativePath,
+    contentMd5: input.contentMd5,
     kind: "track",
     ...descriptiveMetadata,
   };
   return entity;
 }
 
-function placeholderLocalSourceMetadata(normalizedMd5: string): LocalSourceDescriptiveMetadata {
+function placeholderLocalSourceMetadata(input: {
+  relativePath: string;
+  sourceRef: Ref;
+}): LocalSourceDescriptiveMetadata {
   // Bare local-file intake has no source metadata yet; a later tag import can
-  // upsert richer descriptive fields without changing md5 identity.
-  const placeholder = `Local file ${normalizedMd5.slice(0, 8)}`;
+  // upsert richer descriptive fields without changing root/path identity.
+  const fileName = input.relativePath.split("/").at(-1) ?? input.sourceRef.id;
+  const extensionIndex = fileName.lastIndexOf(".");
+  const stem = extensionIndex > 0 ? fileName.slice(0, extensionIndex) : fileName;
+  const placeholder = stem.length === 0 ? input.sourceRef.id : stem;
   return {
     label: placeholder,
     title: placeholder,

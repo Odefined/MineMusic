@@ -116,25 +116,27 @@ export type ProviderOriginSourceEntity = SourceEntitySharedFields & {
   providerEntityId: string;
 };
 
-// Local-file source: identified by file md5 (carried in providerEntityId), with
-// no provider — providerId is forbidden (never). filePath is the on-disk
-// location of the audio file, supplied verbatim by the caller (download
-// outputDir/filename or scan); MineMusic does not own a music-library root, so
-// it stores the path as given rather than interpreting absolute vs relative.
+// Local-file source: identified by a Local Source Root id plus MineMusic-
+// normalized root-relative path. contentMd5 is a non-unique content fact for
+// integrity/review surfaces, not source identity. Local sources have no provider
+// identity and do not store platform-native absolute paths.
 export type LocalFileOriginSourceEntity = SourceEntitySharedFields & {
   origin: "local_file";
   providerId?: never;
-  providerEntityId: string;
-  filePath: string;
+  providerEntityId?: never;
+  filePath?: never;
+  rootId: string;
+  relativePath: string;
+  contentMd5: string;
 };
 
 // `origin` discriminates provider-backed sources (providerId/providerEntityId
-// required) from local-file sources (md5 identity, no provider). The union
+// required) from local-file sources (root/path identity, no provider). The union
 // makes the per-origin contract unbreakable at construction: a provider entity
 // cannot omit providerId/providerEntityId, and a local entity cannot carry a
 // providerId. `origin` also lives as a source_records column, where it is the
 // partial-index predicate. Same both-places pattern the codebase uses for
-// kind/providerEntityId.
+// kind/origin-specific lookup columns.
 export type SourceEntityBase =
   | ProviderOriginSourceEntity
   | LocalFileOriginSourceEntity;

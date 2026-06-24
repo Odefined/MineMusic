@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { refKey, type Ref } from "../../src/contracts/kernel.js";
-import type { CanonicalEntity, SourceEntity } from "../../src/contracts/music_data_platform.js";
+import type { CanonicalEntity, SourceEntity, SourceTrack, SourceAlbum } from "../../src/contracts/music_data_platform.js";
 import type { MaterialRecord } from "../../src/contracts/storage.js";
 import type { MusicDatabaseContext } from "../../src/storage/index.js";
 import { isMusicDataPlatformError, musicDataPlatformIdentitySchema, type MusicDataPlatformErrorCode, type SourceToMaterialBindingRecord, type UpsertMaterialRecordInput, } from "../../src/music_data_platform/index.js";
@@ -588,7 +588,7 @@ await mergedCanonicalDatabase.transaction(async (db) => {
 });
 await mergedCanonicalDatabase.close();
 await database.close();
-function sourceTrack(id: string, label: string): SourceEntity {
+function sourceTrack(id: string, label: string): Extract<SourceTrack, { origin: "provider" }> {
     return {
         sourceRef: sourceRef(id),
         origin: "provider",
@@ -599,7 +599,7 @@ function sourceTrack(id: string, label: string): SourceEntity {
         title: label,
     };
 }
-function sourceAlbum(id: string, label: string): SourceEntity {
+function sourceAlbum(id: string, label: string): Extract<SourceAlbum, { origin: "provider" }> {
     return {
         sourceRef: sourceRefWithKind("album", id),
         origin: "provider",

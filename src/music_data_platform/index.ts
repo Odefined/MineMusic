@@ -25,6 +25,18 @@ export {
   assertSourceLibraryRef,
 } from "./source_library_ref.js";
 export {
+  createLocalSourceRef,
+  assertLocalSourceRef,
+} from "./local_source_ref.js";
+export {
+  MAIN_LOCAL_SOURCE_ROOT_ID,
+  assertLocalSourceContentMd5,
+  assertLocalSourceRootId,
+  assertNormalizedLocalSourceRelativePath,
+  normalizeLocalSourceContentMd5,
+  normalizeLocalSourceRelativePath,
+} from "./local_source_path.js";
+export {
   createOwnerMaterialRelationRef,
   assertOwnerMaterialRelationRef,
   createOwnerRelationPoolRef,

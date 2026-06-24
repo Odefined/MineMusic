@@ -101,9 +101,10 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     assert.equal(initialized.ok, true);
 
     const result = await module.localSource()?.createLocalSource({
-        md5: "0123456789abcdef0123456789abcdef",
+        rootId: "main",
+        relativePath: "downloads/Test/T2.mp3",
+        contentMd5: "0123456789abcdef0123456789abcdef",
         kind: "track",
-        filePath: "/tmp/minemusic-local-sources/t2.mp3",
         descriptiveMetadata: { label: "T2 Label", title: "T2 Title" },
     });
     assert.equal(result?.ok, true);

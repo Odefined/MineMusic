@@ -73,7 +73,7 @@ job or domain state. Slice 6 adds the Music Data Platform
 `localizeProviderSource` submit command and
 `music_data_platform.localize_provider_source` handler: compact sourceRef-based
 payloads, policy-versioned idempotency keys, injected provider download-source
-resolution, staged downloads, content-addressed finalization, Local Source
+resolution, staged downloads, non-content-derived path finalization, Local Source
 registration through `createLocalSource`, localized descriptive metadata
 snapshotting from the provider source without provider navigation,
 playable-link, or availability facts, and declared cleanup/error behavior.
@@ -199,7 +199,8 @@ Accepted vocabulary includes:
 - `SourceEntity.kind = track | album | artist`;
 - `SourceEntity.origin = provider | local_file`, discriminating provider-backed
   sources (providerId/providerEntityId required) from local-file sources
-  (md5 identity, no providerId);
+  (Local Source Root id plus normalized root-relative path identity, no
+  providerId; `contentMd5` is a non-unique content fact);
 - material/canonical kinds `recording | album | artist | work | release`;
 - first-class `VersionInfo`;
 - runtime `PlayableLink = { url, label?, requiresAccount? }` returned by

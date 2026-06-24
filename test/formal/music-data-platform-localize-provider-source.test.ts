@@ -36,7 +36,9 @@ import {
 } from "../../src/music_data_platform/localize_provider_source_job.js";
 import {
   createMaterialRefFactory,
+  createLocalSourceRef,
   createMusicDataPlatformSourceOfTruthWriteCommands,
+  MAIN_LOCAL_SOURCE_ROOT_ID,
   musicDataPlatformIdentitySchema,
   musicDataPlatformProjectionMaintenanceSchema,
 } from "../../src/music_data_platform/index.js";
@@ -277,9 +279,26 @@ function okSource(bytes: Uint8Array, overrides: Partial<DownloadSource> = {}): D
   };
 }
 
-function finalTrackPath(rootDir: string, bytes: Uint8Array, ext = "flac"): string {
-  const actualMd5 = md5(bytes);
-  return `${rootDir}/tracks/${actualMd5.slice(0, 2)}/${actualMd5}.${ext}`;
+function sourceKeyForPath(sourceRef: Ref): string {
+  return refKey(sourceRef).replace(/:/gu, "-");
+}
+
+function relativeTrackPathFor(sourceRef: Ref, ext = "flac"): string {
+  const sourceKey = sourceKeyForPath(sourceRef);
+  return `downloads/Provider Artist/Provider Album/07 - NetEase ${sourceRef.id} [${sourceKey}].${ext}`;
+}
+
+function finalTrackPath(rootDir: string, sourceRef: Ref = trackRef, ext = "flac"): string {
+  return `${rootDir}/${relativeTrackPathFor(sourceRef, ext)}`;
+}
+
+function fallbackRelativeTrackPath(sourceRef: Ref, ext = "flac"): string {
+  const sourceKey = sourceKeyForPath(sourceRef);
+  return `downloads/Unknown Artist/Unknown Album/00 - ${sourceKey} [${sourceKey}].${ext}`;
+}
+
+function unknownAlbumRelativeTrackPath(sourceRef: Ref, title: string, ext = "flac"): string {
+  return `downloads/Unknown Artist/Unknown Album/00 - ${title} [${sourceKeyForPath(sourceRef)}].${ext}`;
 }
 
 function localizeJob(input: {
@@ -360,12 +379,13 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
   assert.equal(backgroundWork.calls.length, 0);
 }
 
-// --- handler: provider source -> staged download -> content-addressed Local Source bound to material ---
+// --- handler: provider source -> staged download -> root/path Local Source bound to material ---
 {
   const database = await initializedDatabase();
   const materialRef = await seedProviderMaterial(database, trackRef);
   const audio = new Uint8Array([1, 2, 3, 5, 8, 13]);
-  const expectedFinalPath = finalTrackPath(localRoot, audio);
+  const expectedRelativePath = relativeTrackPathFor(trackRef);
+  const expectedFinalPath = finalTrackPath(localRoot, trackRef);
   const files = createMemoryLocalizeFileStore();
   const provider = createFakeDownloadSourceProvider(() => ok(okSource(audio)));
   const handler = createLocalizeProviderSourceJobHandler({
@@ -391,10 +411,15 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
     },
   ]);
   assert.deepEqual(files.files.get(expectedFinalPath), audio);
+  assert.equal(expectedFinalPath.includes(md5(audio)), false);
   assert.deepEqual([...files.files.keys()].filter((path) => path.includes("/.staging/")), []);
 
   const repositories = createIdentityRepositories({ db: database.context() });
-  const localSourceRef: Ref = { namespace: "source_local", kind: "track", id: md5(audio) };
+  const localSourceRef = createLocalSourceRef({
+    rootId: MAIN_LOCAL_SOURCE_ROOT_ID,
+    relativePath: expectedRelativePath,
+    kind: "track",
+  });
   const localSourceRecord = await repositories.sourceRecords.get({ sourceRef: localSourceRef });
   assert.equal(localSourceRecord?.entity.origin, "local_file");
   if (localSourceRecord?.entity.origin !== "local_file") {
@@ -403,8 +428,9 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
   if (localSourceRecord.entity.kind !== "track") {
     throw new Error("expected local track source");
   }
-  assert.equal(localSourceRecord.entity.filePath, expectedFinalPath);
-  assert.equal(localSourceRecord.entity.providerEntityId, md5(audio));
+  assert.equal(localSourceRecord.entity.rootId, MAIN_LOCAL_SOURCE_ROOT_ID);
+  assert.equal(localSourceRecord.entity.relativePath, expectedRelativePath);
+  assert.equal(localSourceRecord.entity.contentMd5, md5(audio));
   assert.equal(localSourceRecord.entity.label, "NetEase 1001");
   assert.equal(localSourceRecord.entity.title, "NetEase 1001");
   assert.deepEqual(localSourceRecord.entity.artistLabels, ["Provider Artist", "Featured Artist"]);
@@ -470,7 +496,7 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
             providerId: "netease",
             providerEntityId: trackRef.id,
             kind: "track",
-            label: "Provider Track",
+            label: "",
           } as unknown as SourceTrack,
           lookup: {
             origin: "provider",
@@ -498,14 +524,14 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
   assert.equal(localSource.calls.length, 0);
 }
 
-// --- handler refuses to overwrite a content-addressed final path with different content ---
+// --- handler refuses an existing unregistered final path regardless of content ---
 {
   const database = await initializedDatabase();
   await seedProviderMaterial(database, trackRef);
   const audio = new Uint8Array([21, 34, 55]);
-  const finalPath = finalTrackPath(localRoot, audio);
+  const finalPath = finalTrackPath(localRoot, trackRef);
   const files = createMemoryLocalizeFileStore(new Map([
-    [finalPath, new Uint8Array([99, 100])],
+    [finalPath, audio],
   ]));
   const provider = createFakeDownloadSourceProvider(() => ok(okSource(audio)));
   const handler = createLocalizeProviderSourceJobHandler({
@@ -525,7 +551,7 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
     () => handler(localizeJob()),
     expectMusicDataPlatformError("music_data.localize_final_path_collision"),
   );
-  assert.deepEqual(files.files.get(finalPath), new Uint8Array([99, 100]));
+  assert.deepEqual(files.files.get(finalPath), audio);
   assert.deepEqual([...files.files.keys()].filter((path) => path.includes("/.staging/")), []);
   assert.equal(await tableCount(database.context(), "source_records"), 1);
 
@@ -536,7 +562,8 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
 {
   const materialRef: Ref = { namespace: "material", kind: "recording", id: "m_fake" };
   const audio = new Uint8Array([3, 1, 4, 1, 5]);
-  const finalPath = finalTrackPath(localRoot, audio);
+  const expectedRelativePath = unknownAlbumRelativeTrackPath(trackRef, "Provider Track");
+  const finalPath = `${localRoot}/${expectedRelativePath}`;
   const files = createMemoryLocalizeFileStore();
   const provider = createFakeDownloadSourceProvider(() => ok(okSource(audio)));
   const localSource = createFakeLocalSourceCommand(() =>
@@ -585,8 +612,72 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
     expectMusicDataPlatformError("music_data.localize_local_source_registration_failed"),
   );
   assert.equal(localSource.calls.length, 1);
+  assert.deepEqual(localSource.calls[0], {
+    rootId: MAIN_LOCAL_SOURCE_ROOT_ID,
+    relativePath: expectedRelativePath,
+    contentMd5: md5(audio),
+    kind: "track",
+    materialRef,
+    descriptiveMetadata: {
+      label: "Provider Track",
+      title: "Provider Track",
+    },
+  });
   assert.equal(files.files.has(finalPath), false);
   assert.deepEqual([...files.files.keys()].filter((path) => path.includes("/.staging/")), []);
+}
+
+// --- handler uses explicit path fallbacks for missing artist/album/title facts ---
+{
+  const materialRef: Ref = { namespace: "material", kind: "recording", id: "m_fallbacks" };
+  const audio = new Uint8Array([6, 2, 6]);
+  const expectedRelativePath = fallbackRelativeTrackPath(trackRef);
+  const expectedFinalPath = `${localRoot}/${expectedRelativePath}`;
+  const files = createMemoryLocalizeFileStore();
+  const provider = createFakeDownloadSourceProvider(() => ok(okSource(audio)));
+  const localSource = createFakeLocalSourceCommand(() => ok({ materialRef, created: true }));
+  const handler = createLocalizeProviderSourceJobHandler({
+    identityRead: {
+      async findMaterialForSource() {
+        return {
+          sourceRef: trackRef,
+          materialRef,
+          createdAt: now,
+          updatedAt: now,
+        };
+      },
+      async getSourceRecord() {
+        return {
+          entity: {
+            origin: "provider",
+            sourceRef: trackRef,
+            providerId: "netease",
+            providerEntityId: trackRef.id,
+            kind: "track",
+            label: "Provider Track",
+          } as SourceTrack,
+          lookup: {
+            origin: "provider",
+            providerId: "netease",
+            providerEntityId: trackRef.id,
+            kind: "track",
+          },
+          createdAt: now,
+          updatedAt: now,
+        };
+      },
+    },
+    downloadSourceProvider: provider,
+    localSourceCommand: localSource,
+    localSourcesRootDir: localRoot,
+    fileStore: files.fileStore,
+    fetch: (async () => new Response(audio)) as typeof fetch,
+  });
+
+  await handler(localizeJob());
+  assert.deepEqual(files.files.get(expectedFinalPath), audio);
+  assert.equal(localSource.calls[0]?.relativePath, expectedRelativePath);
+  assert.equal(localSource.calls[0]?.descriptiveMetadata?.title, sourceKeyForPath(trackRef));
 }
 
 // --- handler treats missing Local Source root config as a declared localize config error ---

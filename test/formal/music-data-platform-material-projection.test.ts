@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import type { SourceAlbum, SourceArtist, SourceEntity, SourcePreferencePolicy, SourceTrack, } from "../../src/contracts/music_data_platform.js";
-import { musicDataPlatformIdentitySchema } from "../../src/music_data_platform/index.js";
+import { MAIN_LOCAL_SOURCE_ROOT_ID, createLocalSourceRef, musicDataPlatformIdentitySchema } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
 import { createMaterialProjection, rankBoundSources } from "../../src/music_data_platform/material_projection.js";
 import type { MusicDatabase } from "../../src/storage/index.js";
@@ -349,7 +349,7 @@ type LocalSourceTrack = Extract<SourceTrack, { origin: "local_file" }>;
 type SourceTrackOverrides = Partial<Omit<ProviderSourceTrack, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "title">>;
 type SourceAlbumOverrides = Partial<Omit<ProviderSourceAlbum, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "title">>;
 type SourceArtistOverrides = Partial<Omit<ProviderSourceArtist, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "name">>;
-type LocalSourceTrackOverrides = Partial<Omit<LocalSourceTrack, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "filePath" | "label" | "title">>;
+type LocalSourceTrackOverrides = Partial<Omit<LocalSourceTrack, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "filePath" | "rootId" | "relativePath" | "contentMd5" | "label" | "title">>;
 function sourceTrack(
     id: string,
     title: string,
@@ -391,13 +391,19 @@ function sourceArtist(id: string, name: string, overrides: SourceArtistOverrides
         ...overrides,
     };
 }
-function localSourceTrack(md5: string, title: string, overrides: LocalSourceTrackOverrides = {}): SourceTrack {
+function localSourceTrack(contentMd5: string, title: string, overrides: LocalSourceTrackOverrides = {}): SourceTrack {
+    const relativePath = `downloads/fixtures/${contentMd5}.mp3`;
     return {
         kind: "track",
-        sourceRef: localSourceRef("track", md5),
+        sourceRef: createLocalSourceRef({
+            rootId: MAIN_LOCAL_SOURCE_ROOT_ID,
+            relativePath,
+            kind: "track",
+        }),
         origin: "local_file",
-        providerEntityId: md5,
-        filePath: `/tmp/minemusic/${md5}.mp3`,
+        rootId: MAIN_LOCAL_SOURCE_ROOT_ID,
+        relativePath,
+        contentMd5,
         label: title,
         title,
         ...overrides,
@@ -406,13 +412,6 @@ function localSourceTrack(md5: string, title: string, overrides: LocalSourceTrac
 function sourceRef(kind: SourceEntity["kind"], id: string, providerId = "netease"): Ref {
     return {
         namespace: `source_${providerId}`,
-        kind,
-        id,
-    };
-}
-function localSourceRef(kind: SourceEntity["kind"], id: string): Ref {
-    return {
-        namespace: "source_local",
         kind,
         id,
     };

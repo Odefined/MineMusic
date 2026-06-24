@@ -352,18 +352,24 @@ Providers supply downloadable source facts; Background Work runs the job;
 Stage Interface may request the operation later, but none of those surfaces
 own the MineMusic-owned file path decision.
 Local Source output is long-lived music storage, not cache. Localize requires an
-explicit Local Source root directory, configured as `localSources.rootDir` or
-`MINEMUSIC_LOCAL_SOURCES_ROOT`; missing configuration is a declared localize
-configuration error, not an invitation to choose a default directory.
-Canonical Local Source paths are content-addressed. Human-readable track,
-artist, or album names are metadata for presentation and export, not the
-long-lived storage identity. The preferred final path shape is
-`<root>/tracks/<md5-prefix>/<md5>.<ext>`. The localize handler writes first to a
-staging path such as `<root>/.staging/<jobId>.part`, verifies the downloaded
-file, computes the actual md5, then finalizes by moving to the content-addressed
-path. If the final path already exists with matching content, localize reuses it
-as idempotent success; if it exists with different content, localize fails and
-must not overwrite it.
+explicit Main Local Source Root machine path, currently configured as
+`localSources.rootDir` or `MINEMUSIC_LOCAL_SOURCES_ROOT`; missing configuration
+is a declared localize configuration error, not an invitation to choose a
+default directory.
+Canonical Local Source paths are not content-addressed. Human-readable track,
+artist, album, and source facts may inform a MineMusic-managed download path
+under the Main Local Source Root's `downloads/` subtree, such as
+`downloads/<artist>/<album>/<track> - <title> [<source-key>].<ext>`, but the
+path must not be derived from the content hash. The localize handler writes
+first to a staging path, verifies the downloaded file, computes the actual
+content hash, then finalizes by moving to a non-content-derived root-relative
+Local Source path under `downloads/`. Missing artist or album facts use
+explicit Unknown path components; missing title falls back to the source key as
+the filename stem. If the final path already exists, localize must not infer
+identity from matching content. An existing registered Local Source at the same
+root-relative path is idempotent success; an existing file without the matching
+Local Source registration is a path conflict and fails rather than silently
+choosing a sibling path.
 
 Localize consistency does not pretend that file writes and Postgres writes are
 one atomic transaction. The handler uses staged file writes, verification,
@@ -1271,11 +1277,17 @@ _Avoid_: provider URL, source navigation URL, display link, source record link.
 ### Local Source
 
 A Source Entity whose origin is a local audio file rather than a provider.
-Source identity is file-level: one local file is one Local Source, so the same
-song held as both flac and mp3 is two Local Sources, not one. Recording-level
-identity — which song a Local Source is — is a material concern, not a source
-concern; Local Sources (and provider sources) bind to the same material by
-recording-level identity, never by collapsing several files into one source.
+Source identity is local-source-root path level: one Local Source Root id plus
+one MineMusic-normalized root-relative path is one Local Source, whether the
+file was downloaded by MineMusic or discovered by a local scan. Platform-native
+paths are translated at the root boundary and are not stored as source identity.
+Matching bytes at different root paths are different Local Sources; a content
+hash may describe the audio bytes behind them, but it does not collapse source
+identity.
+Recording-level identity — which song a Local Source is — is a material concern,
+not a source concern; Local Sources (and provider sources) bind to the same
+material by recording-level identity, never by collapsing several sources into
+one source.
 A Local Source localized from a provider source keeps the provider source's
 descriptive music metadata, but it does not inherit provider navigation,
 playable links, or availability facts.
@@ -1284,7 +1296,37 @@ not an implicit live mirror of later provider-source metadata changes.
 Local Sources enter through a local-source command, not the provider import /
 Source Library mirror.
 _Avoid_: provider source, Material, recording-level dedup key, audio fingerprint
-as source identity.
+as source identity, content hash as source identity.
+
+### Local Source Root
+
+A named configured root directory that defines a MineMusic-visible local-file
+namespace. The root id is the stable identity of that namespace; the root's
+machine path is runtime configuration that anchors platform-native filesystem
+paths and may change without changing Local Source identity. A Local Source
+Root is either the single Main Local Source Root or a configured scan root;
+Local Sources must live inside a configured root, and paths outside a root are
+not Local Sources.
+_Avoid_: arbitrary absolute path, caller-supplied path string, provider
+download output, machine path as root identity.
+
+### Main Local Source Root
+
+The single Local Source Root that MineMusic uses for its own managed local
+files. Its root id is the reserved value `main`. Localized downloads are written
+under this root's `downloads/` subtree; other Local Source Roots are scan roots
+for user-owned libraries.
+_Avoid_: managed-write capability, arbitrary download root, content-addressed
+download store.
+
+### Local Source Content Hash
+
+A checksum of the audio bytes behind a Local Source. It may support integrity
+checks, shared storage, and duplicate suggestions, but it is not Source
+identity or Material identity; several Local Sources may have the same content
+hash.
+_Avoid_: Local Source id, provider entity id, recording identity, Material
+identity.
 
 ### Source Release
 

@@ -18,6 +18,47 @@ export type _sourcePreferencePolicyShape = Expect<Equal<SourcePreferencePurpose,
 export type _sourceQueryShape = Expect<Equal<keyof Parameters<NonNullable<SourceProvider["search"]>>[0]["query"], "text" | "targetKinds" | "limit" | "offset">>;
 export type _sourceTrackPositionShape = Expect<Equal<keyof SourceTrackPosition, "discNumber" | "trackNumber" | "trackCount"> & Equal<SourceTrack["trackPosition"], SourceTrackPosition | undefined>>;
 export type _sourceEntityForbiddenKeys = Expect<Equal<ForbiddenKeys<SourceEntity, "materialRef" | "canonicalRef" | "ownerScope" | "score" | "basis" | "provenance" | "displayLinks" | "links" | "raw" | "providerFacts" | "metadata" | "notes">, never>>;
+type LocalSourceTrack = Extract<SourceTrack, { origin: "local_file" }>;
+export type _localSourceTrackShape = Expect<Equal<LocalSourceTrack["rootId"], string> & Equal<LocalSourceTrack["relativePath"], string> & Equal<LocalSourceTrack["contentMd5"], string>>;
+if (false) {
+    const localSourceTrack: LocalSourceTrack = {
+        origin: "local_file",
+        sourceRef: { namespace: "source_local", kind: "track", id: "ls_contract" },
+        rootId: "main",
+        relativePath: "downloads/Artist/Album/01 - Song.flac",
+        contentMd5: "abcdef0123456789abcdef0123456789",
+        kind: "track",
+        label: "Song",
+        title: "Song",
+    };
+    void localSourceTrack;
+    const badLocalProviderIdentity: LocalSourceTrack = {
+        origin: "local_file",
+        sourceRef: { namespace: "source_local", kind: "track", id: "ls_bad_provider" },
+        rootId: "main",
+        relativePath: "downloads/Artist/Album/02 - Song.flac",
+        contentMd5: "abcdef0123456789abcdef0123456789",
+        kind: "track",
+        label: "Song",
+        title: "Song",
+        // @ts-expect-error local source identity must not use providerEntityId
+        providerEntityId: "abcdef0123456789abcdef0123456789",
+    };
+    void badLocalProviderIdentity;
+    const badLocalFilePath: LocalSourceTrack = {
+        origin: "local_file",
+        sourceRef: { namespace: "source_local", kind: "track", id: "ls_bad_path" },
+        rootId: "main",
+        relativePath: "downloads/Artist/Album/03 - Song.flac",
+        contentMd5: "abcdef0123456789abcdef0123456789",
+        kind: "track",
+        label: "Song",
+        title: "Song",
+        // @ts-expect-error local source identity must not use platform-native filePath
+        filePath: "/tmp/song.flac",
+    };
+    void badLocalFilePath;
+}
 export type _materialEntityShape = Expect<Equal<MaterialEntityKind, "recording" | "album" | "artist" | "work" | "release"> & Equal<MaterialLifecycleStatus, "active" | "merged" | "archived"> & Equal<MaterialIdentityStatus, "canonical_confirmed" | "source_backed" | "unresolved_identity"> & Equal<MaterialAvailability, "playable" | "restricted" | "unavailable" | "unknown"> & Equal<keyof MaterialEntity, "materialRef" | "kind" | "lifecycleStatus" | "identityStatus" | "canonicalRef" | "sourceRefs" | "versionInfo" | "createdAt" | "updatedAt">>;
 export type _materialEntityForbiddenKeys = Expect<Equal<ForbiddenKeys<MaterialEntity, "links" | "playableLinks" | "displayLinks" | "availability" | "score" | "basis" | "provenance" | "ownerScope" | "collectionIds" | "aliases" | "notes" | "title" | "artists">, never>>;
 export type _musicMaterialShape = Expect<Equal<MusicMaterial, MusicRecording | MusicAlbum | MusicArtist> & Equal<keyof MusicRecording, "kind" | "materialRef" | "title" | "artistLabels" | "albumLabel" | "trackPosition" | "durationMs" | "sourceNavigationLinks" | "availability" | "versionInfo"> & Equal<keyof MusicAlbum, "kind" | "materialRef" | "title" | "artistLabels" | "releaseDate" | "sourceNavigationLinks" | "availability" | "versionInfo"> & Equal<keyof MusicArtist, "kind" | "materialRef" | "name" | "aliases" | "sourceNavigationLinks" | "availability"> & Equal<MusicRecording["kind"], "recording"> & Equal<MusicAlbum["kind"], "album"> & Equal<MusicArtist["kind"], "artist"> & Equal<ForbiddenKeys<MusicMaterial, "label" | "displayLinks" | "playableLinks" | "sourceRefs" | "canonicalRef" | "primarySourceRef">, never>>;

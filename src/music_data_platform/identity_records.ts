@@ -1,5 +1,5 @@
 import { parseRefKey, refKey, type Ref } from "../contracts/kernel.js";
-import type { CanonicalEntity, MaterialEntity, SourceEntity, SourceEntityKind, SourceOrigin } from "../contracts/music_data_platform.js";
+import type { CanonicalEntity, MaterialEntity, SourceEntity, SourceEntityKind } from "../contracts/music_data_platform.js";
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../contracts/storage.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 
@@ -31,7 +31,8 @@ export type SourceRecordRepository = {
     kind: SourceEntityKind;
   }): Promise<SourceRecord | undefined>;
   findByLocalIdentity(input: {
-    md5: string;
+    rootId: string;
+    relativePath: string;
     kind: SourceEntityKind;
   }): Promise<SourceRecord | undefined>;
 };
@@ -61,6 +62,9 @@ type SourceRecordRow = {
   origin: string;
   provider_id: string | null;
   provider_entity_id: string | null;
+  local_root_id: string | null;
+  local_relative_path: string | null;
+  local_content_md5: string | null;
   kind: SourceEntityKind;
   entity_json: string;
   created_at: string;
@@ -112,16 +116,22 @@ export function createIdentityRepositories(
             origin,
             provider_id,
             provider_entity_id,
+            local_root_id,
+            local_relative_path,
+            local_content_md5,
             kind,
             entity_json,
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(ref_key) DO UPDATE SET
             origin = excluded.origin,
             provider_id = excluded.provider_id,
             provider_entity_id = excluded.provider_entity_id,
+            local_root_id = excluded.local_root_id,
+            local_relative_path = excluded.local_relative_path,
+            local_content_md5 = excluded.local_content_md5,
             kind = excluded.kind,
             entity_json = excluded.entity_json,
             updated_at = excluded.updated_at
@@ -129,8 +139,11 @@ export function createIdentityRepositories(
         [
           refKey(record.entity.sourceRef),
           record.lookup.origin,
-          record.lookup.providerId ?? null,
-          record.lookup.providerEntityId ?? null,
+          record.lookup.origin === "provider" ? record.lookup.providerId : null,
+          record.lookup.origin === "provider" ? record.lookup.providerEntityId : null,
+          record.lookup.origin === "local_file" ? record.lookup.localRootId : null,
+          record.lookup.origin === "local_file" ? record.lookup.localRelativePath : null,
+          record.lookup.origin === "local_file" ? record.lookup.localContentMd5 : null,
           record.lookup.kind,
           JSON.stringify(record.entity),
           record.createdAt,
@@ -170,7 +183,8 @@ export function createIdentityRepositories(
       const row = await db.get<SourceRecordRow>(
         `
           SELECT * FROM source_records
-          WHERE provider_id = ?
+          WHERE origin = 'provider'
+            AND provider_id = ?
             AND provider_entity_id = ?
             AND kind = ?
         `,
@@ -184,10 +198,11 @@ export function createIdentityRepositories(
         `
           SELECT * FROM source_records
           WHERE origin = 'local_file'
-            AND provider_entity_id = ?
+            AND local_root_id = ?
+            AND local_relative_path = ?
             AND kind = ?
         `,
-        [input.md5, input.kind],
+        [input.rootId, input.relativePath, input.kind],
       );
 
       return row === undefined ? undefined : sourceRecordFromRow(row);
@@ -416,17 +431,48 @@ export function createIdentityRepositories(
 function sourceRecordFromRow(row: SourceRecordRow): SourceRecord {
   const entity = JSON.parse(row.entity_json) as SourceEntity;
   assertSourceRecordRowIntegrity(row, entity);
+  const lookup = sourceLookupFromRow(row);
   return {
     entity,
-    lookup: {
-      origin: row.origin as SourceOrigin,
-      ...(row.provider_id === null ? {} : { providerId: row.provider_id }),
-      ...(row.provider_entity_id === null ? {} : { providerEntityId: row.provider_entity_id }),
-      kind: row.kind,
-    },
+    lookup,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function sourceLookupFromRow(row: SourceRecordRow): SourceRecord["lookup"] {
+  if (row.origin === "provider") {
+    if (row.provider_id === null || row.provider_entity_id === null) {
+      throw new Error(
+        `source_records row corrupt (ref_key=${row.ref_key}): provider row must carry provider lookup columns.`,
+      );
+    }
+    return {
+      origin: "provider",
+      providerId: row.provider_id,
+      providerEntityId: row.provider_entity_id,
+      kind: row.kind,
+    };
+  }
+
+  if (row.origin === "local_file") {
+    if (row.local_root_id === null || row.local_relative_path === null || row.local_content_md5 === null) {
+      throw new Error(
+        `source_records row corrupt (ref_key=${row.ref_key}): local row must carry local lookup columns.`,
+      );
+    }
+    return {
+      origin: "local_file",
+      localRootId: row.local_root_id,
+      localRelativePath: row.local_relative_path,
+      localContentMd5: row.local_content_md5,
+      kind: row.kind,
+    };
+  }
+
+  throw new Error(
+    `source_records row corrupt (ref_key=${row.ref_key}): origin column '${row.origin}' is not a valid SourceOrigin.`,
+  );
 }
 
 function uniqueRefKeys(refs: readonly Ref[]): readonly string[] {
@@ -470,14 +516,48 @@ function assertSourceRecordRowIntegrity(row: SourceRecordRow, entity: SourceEnti
       `source_records row corrupt (ref_key=${row.ref_key}): entity kind '${String(entity.kind)}' disagrees with kind column '${row.kind}'.`,
     );
   }
-  if ((entity.providerId ?? null) !== row.provider_id) {
+  if (entity.origin === "provider") {
+    if (row.local_root_id !== null || row.local_relative_path !== null || row.local_content_md5 !== null) {
+      throw new Error(
+        `source_records row corrupt (ref_key=${row.ref_key}): provider row must not carry local lookup columns.`,
+      );
+    }
+    if (entity.providerId !== row.provider_id) {
+      throw new Error(
+        `source_records row corrupt (ref_key=${row.ref_key}): entity providerId '${String(entity.providerId)}' disagrees with provider_id column '${row.provider_id}'.`,
+      );
+    }
+    if (entity.providerEntityId !== row.provider_entity_id) {
+      throw new Error(
+        `source_records row corrupt (ref_key=${row.ref_key}): entity providerEntityId '${String(entity.providerEntityId)}' disagrees with provider_entity_id column '${row.provider_entity_id}'.`,
+      );
+    }
+    return;
+  }
+
+  if (row.provider_id !== null || row.provider_entity_id !== null) {
     throw new Error(
-      `source_records row corrupt (ref_key=${row.ref_key}): entity providerId '${String(entity.providerId)}' disagrees with provider_id column '${row.provider_id}'.`,
+      `source_records row corrupt (ref_key=${row.ref_key}): local row must not carry provider lookup columns.`,
     );
   }
-  if ((entity.providerEntityId ?? null) !== row.provider_entity_id) {
+  if (row.local_root_id === null || row.local_relative_path === null || row.local_content_md5 === null) {
     throw new Error(
-      `source_records row corrupt (ref_key=${row.ref_key}): entity providerEntityId '${String(entity.providerEntityId)}' disagrees with provider_entity_id column '${row.provider_entity_id}'.`,
+      `source_records row corrupt (ref_key=${row.ref_key}): local row must carry local lookup columns.`,
+    );
+  }
+  if (entity.rootId !== row.local_root_id) {
+    throw new Error(
+      `source_records row corrupt (ref_key=${row.ref_key}): entity rootId '${String(entity.rootId)}' disagrees with local_root_id column '${row.local_root_id}'.`,
+    );
+  }
+  if (entity.relativePath !== row.local_relative_path) {
+    throw new Error(
+      `source_records row corrupt (ref_key=${row.ref_key}): entity relativePath '${String(entity.relativePath)}' disagrees with local_relative_path column '${row.local_relative_path}'.`,
+    );
+  }
+  if (entity.contentMd5 !== row.local_content_md5) {
+    throw new Error(
+      `source_records row corrupt (ref_key=${row.ref_key}): entity contentMd5 '${String(entity.contentMd5)}' disagrees with local_content_md5 column '${row.local_content_md5}'.`,
     );
   }
 }
