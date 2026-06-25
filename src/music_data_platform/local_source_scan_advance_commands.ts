@@ -295,18 +295,43 @@ export function createLocalSourceScanAdvanceCommands(
     },
 
     async advanceReconciliation({ batchId, limit, now }) {
-      const ctx = input.database.context();
-      const scanRepos = createLocalSourceScanRepositories({ db: ctx });
-      const batch = await scanRepos.batches.get({ batchId });
-      if (batch === undefined) {
-        return { candidatesRemaining: 0 };
-      }
-      const candidates = await scanRepos.items.listDeletionCandidates({ rootId: batch.rootId, batchId, limit });
-      for (const candidate of candidates) {
-        await deleteDisappearedSource({ database: input.database, dispatcher: input.projectionMaintenanceDispatcher, batch, relativePath: candidate.relativePath, now });
-      }
-      const candidatesRemaining = await scanRepos.items.countDeletionCandidates({ rootId: batch.rootId, batchId });
-      return { candidatesRemaining };
+      // One bounded deletion chunk per call, committed as a single transaction:
+      // list candidates, delete each, and bump deletedCount once for the whole
+      // chunk (instead of a get+upsert per candidate). Reconciliation is
+      // uncancellable (D43) and driven by the single advance chain, so the batch
+      // cannot change under this transaction.
+      return await runSourceOfTruthWrite({
+        database: input.database,
+        now,
+        dispatcher: input.projectionMaintenanceDispatcher,
+        fn: async (db, writes) => {
+          const scanRepos = createLocalSourceScanRepositories({ db });
+          const batch = await scanRepos.batches.get({ batchId });
+          if (batch === undefined) {
+            return { candidatesRemaining: 0 };
+          }
+          const candidates = await scanRepos.items.listDeletionCandidates({ rootId: batch.rootId, batchId, limit });
+          let deletedCount = batch.deletedCount;
+          for (const candidate of candidates) {
+            await deleteDisappearedSourceInTransaction({
+              db,
+              writes,
+              batch,
+              relativePath: candidate.relativePath,
+            });
+            deletedCount += 1;
+          }
+          if (candidates.length > 0) {
+            await scanRepos.batches.upsert({
+              ...batch,
+              deletedCount,
+              updatedAt: now,
+            });
+          }
+          const candidatesRemaining = await scanRepos.items.countDeletionCandidates({ rootId: batch.rootId, batchId });
+          return { candidatesRemaining };
+        },
+      });
     },
 
     async finalize({ batchId, now }) {
@@ -593,48 +618,26 @@ async function countDeletionCandidates(input: {
 // survive — there is deliberately no cascade (D9). Search attribution refreshes
 // via the identity delete invalidations; scan catalog entries are removed by
 // the scan_root projection rebuild dirtied on the binding change.
-async function deleteDisappearedSource(args: {
-  database: MusicDatabase;
-  dispatcher: ProjectionMaintenanceDispatcher | undefined;
+// Delete one disappeared Local Source (binding + Source + scan membership item)
+// inside the caller's source-of-truth transaction. The caller owns the
+// deletedCount increment so a whole reconciliation chunk bumps it once. Order
+// matters only for diagnostics: remove the binding (records the material for
+// invalidation), then the Source, then the membership item.
+async function deleteDisappearedSourceInTransaction(input: {
+  db: MusicDatabaseTransactionContext;
+  writes: MusicDataPlatformSourceOfTruthWriteCommands;
   batch: LocalSourceScanBatchRecord;
   relativePath: string;
-  now: string;
 }): Promise<void> {
-  await runSourceOfTruthWrite({
-    database: args.database,
-    now: args.now,
-    dispatcher: args.dispatcher,
-    fn: async (db, writes) => {
-      const scanRepos = createLocalSourceScanRepositories({ db });
-      const sourceRef = createLocalSourceRef({ rootId: args.batch.rootId, relativePath: args.relativePath, kind: "track" });
-      // Order matters only for diagnostics: remove the binding (records the
-      // material for invalidation), then the Source, then the membership item.
-      await writes.identity.deleteBindingForSource({ sourceRef });
-      await writes.identity.deleteSourceRecord({ sourceRef });
-      await scanRepos.items.deleteByKey({ rootId: args.batch.rootId, relativePath: args.relativePath });
-      // A disappeared active item is a visibility change (active -> gone), so
-      // dirty the root-scoped scan catalog target. The identity deletes above
-      // already dirty the material-scoped target via materialScopedTargets.
-      await writes.scan.markScanItemWritten({ ownerScope: args.batch.ownerScope, rootId: args.batch.rootId });
-      // The batch is non-terminal and driven by this single advance chain, and
-      // reconciliation is uncancellable (D43), so no concurrent writer can remove
-      // it between the caller's read and this re-fetch. Trust that contract and
-      // fail loud if it is ever broken, rather than silently skipping the
-      // deleted-count increment.
-      const refreshed = await scanRepos.batches.get({ batchId: args.batch.batchId });
-      if (refreshed === undefined) {
-        throw new MusicDataPlatformError({
-          code: "music_data.scan_batch_not_found",
-          message: `Scan batch '${args.batch.batchId}' vanished during reconciliation deletion.`,
-        });
-      }
-      await scanRepos.batches.upsert({
-        ...refreshed,
-        deletedCount: refreshed.deletedCount + 1,
-        updatedAt: args.now,
-      });
-    },
-  });
+  const scanRepos = createLocalSourceScanRepositories({ db: input.db });
+  const sourceRef = createLocalSourceRef({ rootId: input.batch.rootId, relativePath: input.relativePath, kind: "track" });
+  await input.writes.identity.deleteBindingForSource({ sourceRef });
+  await input.writes.identity.deleteSourceRecord({ sourceRef });
+  await scanRepos.items.deleteByKey({ rootId: input.batch.rootId, relativePath: input.relativePath });
+  // A disappeared active item is a visibility change (active -> gone), so dirty
+  // the root-scoped scan catalog target. The identity deletes above already
+  // dirty the material-scoped target via materialScopedTargets.
+  await input.writes.scan.markScanItemWritten({ ownerScope: input.batch.ownerScope, rootId: input.batch.rootId });
 }
 
 function hasIssueOutcomes(batch: LocalSourceScanBatchRecord): boolean {
