@@ -1,5 +1,5 @@
 import { refKey, type Ref, type Result } from "../contracts/kernel.js";
-import type { SourceEntity, SourceTrack } from "../contracts/music_data_platform.js";
+import type { AudioTechnicalMetadata, SourceEntity, SourceTrack } from "../contracts/music_data_platform.js";
 import type { MusicDatabase, MusicDatabaseTransactionContext } from "../storage/database.js";
 import { MusicDataPlatformError, type MusicDataPlatformErrorCode } from "./errors.js";
 import { createIdentityReadPort } from "./identity_read_model.js";
@@ -42,6 +42,7 @@ export type CreateLocalSourceInput = {
   kind: "track";
   materialRef?: Ref;
   descriptiveMetadata?: LocalSourceDescriptiveMetadata;
+  audioTechnicalMetadata?: AudioTechnicalMetadata;
 };
 
 export type LocalSourceDescriptiveMetadata =
@@ -145,6 +146,7 @@ export async function registerLocalSourceInSourceOfTruthTransaction(
     relativePath: normalizedRelativePath,
     contentMd5: normalizedContentMd5,
     ...(sourceInput.descriptiveMetadata === undefined ? {} : { descriptiveMetadata: sourceInput.descriptiveMetadata }),
+    ...(sourceInput.audioTechnicalMetadata === undefined ? {} : { audioTechnicalMetadata: sourceInput.audioTechnicalMetadata }),
   });
   await writes.identity.upsertSourceRecord({ entity: localSourceEntity });
 
@@ -210,6 +212,7 @@ function buildLocalSourceEntity(input: {
   relativePath: string;
   contentMd5: string;
   descriptiveMetadata?: LocalSourceDescriptiveMetadata;
+  audioTechnicalMetadata?: AudioTechnicalMetadata;
 }): SourceEntity {
   const descriptiveMetadata = input.descriptiveMetadata ?? placeholderLocalSourceMetadata({
     relativePath: input.relativePath,
@@ -223,6 +226,7 @@ function buildLocalSourceEntity(input: {
     contentMd5: input.contentMd5,
     kind: "track",
     ...descriptiveMetadata,
+    ...(input.audioTechnicalMetadata === undefined ? {} : { audioTechnicalMetadata: input.audioTechnicalMetadata }),
   };
   return entity;
 }

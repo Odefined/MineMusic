@@ -211,7 +211,12 @@ async function runProcessingStep(args: {
       relativePath: file.relativePath,
     });
     const inspectOutcome: LocalSourceScanAudioInspectOutcome = inspected.ok
-      ? { kind: "ok", contentMd5: inspected.value.contentMd5, metadata: inspected.value.metadata }
+      ? {
+          kind: "ok",
+          contentMd5: inspected.value.contentMd5,
+          metadata: inspected.value.metadata,
+          ...(inspected.value.audioTechnicalMetadata === undefined ? {} : { audioTechnicalMetadata: inspected.value.audioTechnicalMetadata }),
+        }
       : { kind: "failed", code: inspected.error.code, message: inspected.error.message };
     await input.commands.recordAudioOutcome({
       batchId: batch.batchId,

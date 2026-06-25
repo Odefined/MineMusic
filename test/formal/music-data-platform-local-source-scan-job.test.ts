@@ -161,6 +161,7 @@ export async function main(): Promise<void> {
   await runWithDatabase(testUnstableAndCensusFatal);
   await runWithDatabase(testReconciliationDeletion);
   await runWithDatabase(testProcessRestartRecovery);
+  await runWithDatabase(testCancelRequestedBatchDoesNotAdvancePhase);
 }
 
 async function runWithDatabase(fn: (database: MusicDatabase) => Promise<void>): Promise<void> {
@@ -320,6 +321,47 @@ async function testProcessRestartRecovery(database: MusicDatabase): Promise<void
   await handler({ jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: "b-cancel" }, signal: controller.signal });
   const cancelSummary = await read.getBatchSummary({ batchId: "b-cancel" });
   assert.equal(cancelSummary?.status, "cancelled", "cancel_requested batch finalizes to cancelled on resume");
+}
+
+// D18/D43: a cancel that lands between the handler's top-of-invocation read and
+// a phase-advancement command's commit must not be reverted. completeCensus and
+// prepareReconciliation re-read the batch inside their own transaction and must
+// no-op on cancel_requested, leaving it for the next handler invocation to
+// finalize. (D11 permits one active batch per root, so the two cancel_requested
+// batches sit on separate roots.)
+async function testCancelRequestedBatchDoesNotAdvancePhase(database: MusicDatabase): Promise<void> {
+  await createLocalSourceScanCommands({ database, generateBatchId: () => "x" }).registerRoots({
+    ownerScope, now: FIXED_NOW, registrations: [
+      { rootId: "cancel-d", label: "Cancel Discovery", configFingerprint: "fp" },
+      { rootId: "cancel-p", label: "Cancel Processing", configFingerprint: "fp" },
+    ],
+  });
+  const repos = createLocalSourceScanRepositories({ db: database.context() });
+  const advanceCommands = createLocalSourceScanAdvanceCommands({
+    database,
+    materialRefFactory: createMaterialRefFactory(),
+    projectionMaintenanceDispatcher: undefined,
+    resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS,
+  });
+
+  // Mid-discovery with the directory frontier already exhausted: without the
+  // cancel guard, completeCensus would revert cancel_requested -> running and
+  // advance to processing, losing the user's cancellation.
+  await seedBatch(repos, { batchId: "b-cancel-d", rootId: "cancel-d", status: "cancel_requested", phase: "discovering", advanceGeneration: 1 });
+  const censusAdvanced = await advanceCommands.completeCensus({ batchId: "b-cancel-d", now: FIXED_NOW });
+  assert.equal(censusAdvanced, false, "completeCensus must not advance a cancel_requested batch");
+  const afterCensus = await repos.batches.get({ batchId: "b-cancel-d" });
+  assert.equal(afterCensus?.status, "cancel_requested");
+  assert.equal(afterCensus?.phase, "discovering");
+
+  // Mid-processing: without the cancel guard, prepareReconciliation would revert
+  // cancel_requested -> running/reconciling, where cancellation is rejected
+  // (D43), so trusted deletion would run behind the user's back.
+  await seedBatch(repos, { batchId: "b-cancel-p", rootId: "cancel-p", status: "cancel_requested", phase: "processing", advanceGeneration: 1 });
+  await advanceCommands.prepareReconciliation({ batchId: "b-cancel-p", now: FIXED_NOW });
+  const afterPrep = await repos.batches.get({ batchId: "b-cancel-p" });
+  assert.equal(afterPrep?.status, "cancel_requested", "prepareReconciliation must not revert cancel_requested");
+  assert.equal(afterPrep?.phase, "processing", "prepareReconciliation must not advance a cancel_requested batch to reconciling");
 }
 
 async function seedBatch(

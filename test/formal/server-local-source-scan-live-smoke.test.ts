@@ -267,6 +267,18 @@ export async function main(): Promise<void> {
     assert.equal(songItem?.state, "active");
     assert.equal(songItem?.observedContentMd5, expectedMd5, "real adapter content md5 recorded");
 
+    // D12: the real adapter's audio-technical facts are persisted on the Source
+    // (codec/sampleRate/bitDepth/channels), not parsed and dropped.
+    const songSourceRecord = await identityRepos.sourceRecords.get({ sourceRef: songSourceRef });
+    if (songSourceRecord?.entity.kind !== "track") {
+      throw new Error("admitted local source entity should be a track");
+    }
+    assert.equal(
+      songSourceRecord.entity.audioTechnicalMetadata?.sampleRateHz,
+      44100,
+      "audioTechnicalMetadata persisted end-to-end through the real adapter",
+    );
+
     // Projection maintenance materializes the scan_root catalog entry (D22/D25).
     const admitRun = await runner.runProjectionMaintenance();
     assert.equal(admitRun.failedCount, 0);

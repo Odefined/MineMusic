@@ -1,4 +1,5 @@
 import { refKey, type Ref, type Result } from "../contracts/kernel.js";
+import type { AudioTechnicalMetadata } from "../contracts/music_data_platform.js";
 import type { LocalSourceDescriptiveMetadata } from "./local_source_commands.js";
 import {
   CREATE_LOCAL_SOURCE_RESULT_FAILURE_CODES,
@@ -54,6 +55,7 @@ export const RECONCILIATION_DELETION_CHUNK = 16;
 export type LocalSourceScanAudioInspect = {
   contentMd5: string;
   metadata: LocalSourceDescriptiveMetadata;
+  audioTechnicalMetadata?: AudioTechnicalMetadata;
 };
 
 export type LocalSourceScanAudioInspectOutcome =
@@ -220,7 +222,11 @@ export function createLocalSourceScanAdvanceCommands(
       return await input.database.transaction(async (db) => {
         const repos = createLocalSourceScanRepositories({ db });
         const batch = await repos.batches.get({ batchId });
-        if (batch === undefined || batch.phase === "processing" || batch.phase === "reconciling") {
+        // Do not advance a cancel_requested batch: a cancel can land between the
+        // handler's top-of-invocation read and this commit, and reverting it to
+        // running would lose the user's cancellation (D18). The next handler
+        // invocation finalizes it (bumpAdvanceGeneration keeps the chain alive).
+        if (batch === undefined || batch.status === "cancel_requested" || batch.phase === "processing" || batch.phase === "reconciling") {
           return false;
         }
         const pendingDirs = await repos.workItems.countPendingDirectoriesByBatch({ batchId });
@@ -267,7 +273,12 @@ export function createLocalSourceScanAdvanceCommands(
       await input.database.transaction(async (db) => {
         const repos = createLocalSourceScanRepositories({ db });
         const batch = await repos.batches.get({ batchId });
-        if (batch === undefined || batch.phase === "reconciling" || isTerminalScanBatchStatus(batch.status)) {
+        // Phase advancement must not revert a cancel that landed between the
+        // handler's top-of-invocation read and this commit (D18). Advancing to
+        // reconciling would also make the batch uncancellable (D43), so a
+        // cancel_requested batch is left for the next handler invocation to
+        // finalize (bumpAdvanceGeneration keeps the chain alive for it).
+        if (batch === undefined || batch.status === "cancel_requested" || batch.phase === "reconciling" || isTerminalScanBatchStatus(batch.status)) {
           return;
         }
         // Deletion candidates are active items not observed in this batch's
@@ -429,6 +440,7 @@ async function recordOutcomeInTransaction(input: {
         contentMd5: input.inspect.contentMd5,
         kind: "track",
         descriptiveMetadata: input.inspect.metadata,
+        ...(input.inspect.audioTechnicalMetadata === undefined ? {} : { audioTechnicalMetadata: input.inspect.audioTechnicalMetadata }),
       },
     });
   } catch (cause) {
@@ -605,14 +617,23 @@ async function deleteDisappearedSource(args: {
       // dirty the root-scoped scan catalog target. The identity deletes above
       // already dirty the material-scoped target via materialScopedTargets.
       await writes.scan.markScanItemWritten({ ownerScope: args.batch.ownerScope, rootId: args.batch.rootId });
+      // The batch is non-terminal and driven by this single advance chain, and
+      // reconciliation is uncancellable (D43), so no concurrent writer can remove
+      // it between the caller's read and this re-fetch. Trust that contract and
+      // fail loud if it is ever broken, rather than silently skipping the
+      // deleted-count increment.
       const refreshed = await scanRepos.batches.get({ batchId: args.batch.batchId });
-      if (refreshed !== undefined) {
-        await scanRepos.batches.upsert({
-          ...refreshed,
-          deletedCount: refreshed.deletedCount + 1,
-          updatedAt: args.now,
+      if (refreshed === undefined) {
+        throw new MusicDataPlatformError({
+          code: "music_data.scan_batch_not_found",
+          message: `Scan batch '${args.batch.batchId}' vanished during reconciliation deletion.`,
         });
       }
+      await scanRepos.batches.upsert({
+        ...refreshed,
+        deletedCount: refreshed.deletedCount + 1,
+        updatedAt: args.now,
+      });
     },
   });
 }

@@ -62,21 +62,3 @@ export function canRequestScanCancellation(
 export function isCancelIdempotentStatus(status: LocalSourceScanBatchStatus): boolean {
   return status === "cancel_requested" || status === "cancelled";
 }
-
-// Phase moves only forward while running (D30).
-const PHASE_ORDER: readonly LocalSourceScanBatchPhase[] = [
-  "discovering",
-  "processing",
-  "reconciling",
-];
-
-export function phaseOrder(phase: LocalSourceScanBatchPhase): number {
-  return PHASE_ORDER.indexOf(phase);
-}
-
-export function canAdvancePhase(
-  from: LocalSourceScanBatchPhase,
-  to: LocalSourceScanBatchPhase,
-): boolean {
-  return phaseOrder(to) > phaseOrder(from);
-}
