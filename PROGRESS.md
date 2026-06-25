@@ -1461,6 +1461,14 @@ catalog integration. Design authority:
 - Formal tests cover contracts/config/adapter, the durable foundation, the state
   machine and self-driving advance, reconciliation deletion, the scan_root
   projection, process-restart recovery, and the live smoke; full suite 49/49.
+- The phase-close simplify + code-audit fixed two findings: a cancel race where
+  `completeCensus`/`prepareReconciliation` could revert a concurrent
+  `cancel_requested` (D18/D43), and `audioTechnicalMetadata` being parsed by the
+  adapter but dropped before it reached the Source entity (D12); plus removed
+  dead phase-order helpers and an over-defensive reconciliation guard. Deferred
+  follow-ups (reconciliation single-transaction consolidation, single-read
+  `inspectAudioFile` per D28, scan_root projection helper dedup) are recorded in
+  the phase-close commit.
 
 ## Next Formal Milestones
 
