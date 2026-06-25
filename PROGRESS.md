@@ -1465,10 +1465,15 @@ catalog integration. Design authority:
   `completeCensus`/`prepareReconciliation` could revert a concurrent
   `cancel_requested` (D18/D43), and `audioTechnicalMetadata` being parsed by the
   adapter but dropped before it reached the Source entity (D12); plus removed
-  dead phase-order helpers and an over-defensive reconciliation guard. Deferred
-  follow-ups (reconciliation single-transaction consolidation, single-read
-  `inspectAudioFile` per D28, scan_root projection helper dedup) are recorded in
-  the phase-close commit.
+  dead phase-order helpers and an over-defensive reconciliation guard. Five
+  deferred follow-ups were recorded in the phase-close commit; four have since
+  landed: the unread `census_complete` column was dropped (v1 unreleased, so no
+  migration), `isUniqueViolation` was shared at the storage abstraction layer,
+  the scan_root catalog INSERT...SELECT was deduped, and `advanceReconciliation`
+  was consolidated into one transaction per deletion chunk. The single-read
+  (tee) `inspectAudioFile` refactor (D28) remains deferred — it needs the
+  music-metadata stream parser to consume the full file so the content hash
+  stays complete (D31).
 
 ## Next Formal Milestones
 
