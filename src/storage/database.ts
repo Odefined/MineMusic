@@ -72,3 +72,16 @@ export class MusicDatabaseError extends Error {
 export function isMusicDatabaseError(error: unknown): error is MusicDatabaseError {
   return error instanceof MusicDatabaseError;
 }
+
+// True when an error raised by the underlying SQL engine is a unique-constraint
+// violation (ISO SQL SQLSTATE 23505). The error is the raw driver error, not a
+// MusicDatabaseError, so this duck-types the standard SQLSTATE `code` field.
+// Storage consumers use it to treat a concurrent insert that lost a
+// partial-unique-index race as idempotent reuse rather than a hard failure.
+export function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" && code === "23505";
+}

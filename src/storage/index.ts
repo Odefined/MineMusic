@@ -1,5 +1,6 @@
 export {
   isMusicDatabaseError,
+  isUniqueViolation,
   MusicDatabaseError,
 } from "./database.js";
 export type {

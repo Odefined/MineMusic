@@ -1,5 +1,6 @@
 import type { Result } from "../contracts/kernel.js";
 import type { MusicDatabase } from "../storage/database.js";
+import { isUniqueViolation } from "../storage/index.js";
 import { MusicDataPlatformError, type MusicDataPlatformErrorCode } from "./errors.js";
 import { assertOwnerScope } from "./owner_scope.js";
 import {
@@ -191,18 +192,6 @@ export function createLocalSourceScanCommands(
       });
     },
   };
-}
-
-export function isLocalSourceScanUniqueViolation(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) {
-    return false;
-  }
-  const code = (error as { code?: unknown }).code;
-  return typeof code === "string" && code === "23505";
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return isLocalSourceScanUniqueViolation(error);
 }
 
 function ok<T>(value: T): Result<T> {

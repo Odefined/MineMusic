@@ -4,6 +4,7 @@ import type {
 } from "../background_work/index.js";
 import { type Result, type StageError } from "../contracts/kernel.js";
 import type { PlatformLibraryKind } from "../contracts/music_data_platform.js";
+import { isUniqueViolation } from "../storage/index.js";
 import type { SourceLibraryImportBatchRecord } from "./source_library_records.js";
 import type { SourceLibraryImportService } from "./source_library_import.js";
 
@@ -144,14 +145,6 @@ function validateStartRequest(request: LibraryImportStartRequest): Result<void> 
 
 function isPlatformLibraryKind(value: unknown): value is PlatformLibraryKind {
   return value === "saved_source_track" || value === "saved_source_album" || value === "followed_source_artist";
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) {
-    return false;
-  }
-  const code = (error as { code?: unknown }).code;
-  return typeof code === "string" && code === "23505";
 }
 
 function ok<T>(value: T): Result<T> {
