@@ -105,12 +105,13 @@ export function createLocalSourceScanAdvanceJobHandler(
         await runProcessingStep({ input, batch, audioChunk, maxConcurrentFiles, now: now() });
       } else {
         // reconciling: bounded deletion of disappeared Sources (D7, D8, D10).
-        // When no candidates remain, finalize; otherwise fall through to bump
-        // and resubmit for the next chunk. Reconciliation is uncancellable
-        // (D43): a cancel_requested batch reaches this branch only if cancel
-        // was accepted earlier, which is rejected once reconciling begins.
-        const { candidatesRemaining } = await input.commands.advanceReconciliation({ batchId, limit: deletionChunk, now: now() });
-        if (candidatesRemaining === 0) {
+        // When a chunk deletes fewer than deletionChunk, the candidate set is
+        // exhausted — finalize; otherwise fall through to bump and resubmit for
+        // the next chunk. Reconciliation is uncancellable (D43): a
+        // cancel_requested batch reaches this branch only if cancel was accepted
+        // earlier, which is rejected once reconciling begins.
+        const { processed } = await input.commands.advanceReconciliation({ batchId, limit: deletionChunk, now: now() });
+        if (processed < deletionChunk) {
           await input.commands.finalize({ batchId, now: now() });
           return;
         }

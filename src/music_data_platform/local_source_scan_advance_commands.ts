@@ -111,7 +111,7 @@ export type LocalSourceScanAdvanceCommands = {
   // disappeared Sources (binding + Local Source + scan item, atomically each,
   // no Material/owner/Collection cascade) and return how many candidates
   // remain. The handler finalizes when zero remain (D7, D8, D10, D43).
-  advanceReconciliation(input: { batchId: string; limit: number; now: string }): Promise<{ candidatesRemaining: number }>;
+  advanceReconciliation(input: { batchId: string; limit: number; now: string }): Promise<{ processed: number }>;
 
   // Finalize a batch into completed/completed_with_issues/cancelled/failed and
   // clean ordinary successful work rows (D26).
@@ -335,8 +335,12 @@ export function createLocalSourceScanAdvanceCommands(
               updatedAt: now,
             });
           }
-          const candidatesRemaining = await scanRepos.items.countDeletionCandidates({ rootId: batch.rootId, batchId });
-          return { candidatesRemaining };
+          // Report how many candidates this chunk deleted. The handler finalizes
+          // when a chunk is partial (processed < limit), the standard
+          // pagination-exhaustion signal — avoiding a full per-step COUNT(*) over
+          // every active item. deletionCandidateCount is fixed once, in
+          // prepareReconciliation, for truthful progress.
+          return { processed: candidates.length };
         },
       });
     },

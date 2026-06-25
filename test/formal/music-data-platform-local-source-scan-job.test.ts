@@ -160,6 +160,7 @@ export async function main(): Promise<void> {
   await runWithDatabase(testEndToEndDiscoveryProcessing);
   await runWithDatabase(testUnstableAndCensusFatal);
   await runWithDatabase(testReconciliationDeletion);
+  await runWithDatabase(testReconciliationChunkedDeletion);
   await runWithDatabase(testProcessRestartRecovery);
   await runWithDatabase(testCancelRequestedBatchDoesNotAdvancePhase);
   await runWithDatabase(testRetryFinalAttemptMarksBatchFailed);
@@ -254,6 +255,62 @@ async function testReconciliationDeletion(database: MusicDatabase): Promise<void
   assert.ok(goneMaterialAfter, "D9: Material survives deletion (orphan, no cascade)");
   const presentItem = await scanRepos.items.get({ rootId, relativePath: "present.mp3" });
   assert.equal(presentItem?.state, "active");
+}
+
+// #2 chunked reconciliation: when deletion candidates span more than one chunk,
+// the handler must loop (advanceReconciliation returns processed === deletion
+// chunk, not yet exhausted) and terminate only when a partial chunk arrives.
+// Locks the `processed < deletionChunk` finalize logic at the chunk-boundary
+// edge case (D=17, deletionChunk=16 -> delete 16, loop, delete 1, finalize).
+async function testReconciliationChunkedDeletion(database: MusicDatabase): Promise<void> {
+  const rootId = "recon-chunk-lib";
+  const materialRefFactory = createMaterialRefFactory();
+  await createLocalSourceScanCommands({ database, generateBatchId: () => "x" }).registerRoots({
+    ownerScope, now: FIXED_NOW, registrations: [{ rootId, label: "Recon Chunk", configFingerprint: "fp" }],
+  });
+  // 17 prior active items, all absent from the current (empty) tree -> 17
+  // deletion candidates, spanning two chunks at the default chunk size of 16.
+  for (let i = 0; i < 17; i += 1) {
+    const relPath = `gone${i}.mp3`;
+    const md5 = i.toString(16).padStart(32, "0");
+    const key = await seedLocalSource(database, rootId, relPath, md5);
+    await seedItem(database, rootId, relPath, key, 50 + i, 5000 + i, md5);
+  }
+  const port = fakePort(dir({}));
+  const queue: { batchId: string }[] = [];
+  const advanceCommands = createLocalSourceScanAdvanceCommands({
+    database, materialRefFactory, projectionMaintenanceDispatcher: undefined,
+    resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS,
+  });
+  const service = createLocalSourceScanService({
+    database, filesystemPort: port, ownerScope, now: () => FIXED_NOW,
+    commands: createLocalSourceScanCommands({ database, generateBatchId: () => "b-chunk" }),
+  });
+  const read = createLocalSourceScanReadPort({ db: database.context() });
+  const handler = createLocalSourceScanAdvanceJobHandler({
+    read, filesystemPort: port, commands: advanceCommands, backgroundWork: fakeBackgroundWork(queue),
+    resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, now: () => FIXED_NOW,
+  });
+  const start = createLocalSourceScanStartCommand({
+    service, advanceCommands, backgroundWork: fakeBackgroundWork(queue), now: () => FIXED_NOW,
+  });
+  const batchId = unwrap(await start.submit({ rootId })).batchId;
+  const controller = new AbortController();
+  let safety = 0;
+  while (queue.length > 0 && safety < 200) {
+    safety += 1;
+    const job = queue.shift()!;
+    await handler({ jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller.signal });
+  }
+  assert.ok(safety < 200, "chunked reconciliation chain terminates");
+  const summary = unwrap(await service.getScanStatus({ batchId }));
+  assert.equal(summary.status, "completed", "chunked reconciliation completes");
+  assert.equal(summary.deleted, 17, "all 17 candidates deleted across two chunks");
+  const repos = createLocalSourceScanRepositories({ db: database.context() });
+  for (let i = 0; i < 17; i += 1) {
+    const item = await repos.items.get({ rootId, relativePath: `gone${i}.mp3` });
+    assert.equal(item, undefined, `gone${i}.mp3 scan item deleted`);
+  }
 }
 
 // D44 process-restart recovery. Runtime init resubmits every non-terminal
@@ -520,7 +577,7 @@ async function testConcurrencyBounding(database: MusicDatabase): Promise<void> {
     async completeCensus() { return false; },
     async recordAudioOutcome() { return { outcome: "imported", recorded: true }; },
     async prepareReconciliation() {},
-    async advanceReconciliation() { return { candidatesRemaining: 0 }; },
+    async advanceReconciliation() { return { processed: 0 }; },
     async finalize() {},
     async bumpAdvanceGeneration() { return undefined; },
   };
