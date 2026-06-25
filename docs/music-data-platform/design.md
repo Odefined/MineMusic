@@ -1,7 +1,7 @@
 # Music Data Platform Design
 
-> Status: Current design authority through implemented Phase 23
-> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, search metadata projection, projection maintenance core, metadata lookup search workspace/result sets, and the Library Import / Library Relation / Library Catalog stage adapter tools
+> Status: Current design authority through implemented Phase 26 local source scan (subsystem design: docs/formal-rebuild/phase-26-local-source-scan-management.md)
+> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, search metadata projection, projection maintenance core, metadata lookup search workspace/result sets, the Library Import / Library Relation / Library Catalog stage adapter tools, and local source scan runtime wiring
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Data Platform owns source/material/canonical identity records, current
@@ -720,6 +720,57 @@ owned by a non-participant active material.
 
 Material merge does not merge canonical records, update owner facts, update
 collections, rewrite projections, or touch presentation history.
+
+## Local Source Scan
+
+Local source scan ingests owner-configured on-disk audio libraries as
+file-level Local Sources bound to Materials, then keeps that membership honest
+through trusted reconciliation. The full subsystem design — startup-injected
+runtime-read-only roots, the durable batch state machine, discovery / processing
+/ reconciliation phases, per-file outcome classification, delete-on-
+disappearance, and the `scan_root` owner-catalog projection — is the authority
+of `docs/formal-rebuild/phase-26-local-source-scan-management.md`; this section
+records only the runtime-wiring facts proven by the landed code.
+
+The Server Host composition root (`createMusicDataPlatformRuntimeModule`)
+owns scan assembly:
+
+- It validates scan config, builds the root-directory resolver and the Node
+  filesystem adapter, and constructs scan commands, the scan service, and
+  advance commands.
+- It registers every configured scan root descriptor through `registerRoots`
+  (D24/D39 readiness). This runs after schema initialization and outside the
+  background-work guard, so list-root, status, and start reads work even when no
+  job backend is configured.
+- It exposes a `localSourceScan()` accessor returning the `LocalSourceScanService`.
+- When background work is available, it registers the
+  `music_data_platform.local_source_scan_advance` handler, builds the start
+  command, and runs D44 process-restart recovery.
+
+The self-driving advance job performs one bounded unit per invocation (directory
+discovery or audio processing) and submits the next job with a deterministic
+generation-keyed id `local_source_scan:advance:<batchId>:<advanceGeneration>`
+while the batch remains non-terminal, so pg-boss dedup collapses replays.
+
+Retry policy is declared at the composition root, not inherited from the queue:
+`retryLimit` 3, `retryDelay` 5 seconds, `retryBackoff` true. pg-boss's queue
+default is `retryLimit` 2 with no delay or backoff, which would exhaust a
+transient failure budget before the system recovers; the explicit policy gives
+retries breathing room and is threaded into the start command's first submit
+(generation 0), the handler's re-chain submit, and D44 recovery. The handler's
+`isFinalAttempt` reads `job.retryLimit` (populated by pg-boss from this policy)
+and marks the batch failed only on the final attempt.
+
+D44 process-restart recovery (`createLocalSourceScanRecovery`) runs at runtime
+initialization after root readiness and resubmits every non-terminal batch at
+its stored `advanceGeneration`. Because the handler bumps `advanceGeneration`
+(commit) and then submits the next job keyed on the new value, the stored
+generation always identifies the next job that should drive the batch: a
+still-in-flight job is collapsed by deterministic-id dedup, and a lost submit is
+re-driven. Terminal batches are excluded by the query; a `cancel_requested`
+batch resumes only to finalize as cancelled. This closes the crash window
+between an advance transaction commit and the next-job submit. The recovery is
+scan-only and does not retrofit source-library import.
 
 ## Out Of Scope
 

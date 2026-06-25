@@ -255,6 +255,10 @@ Music Data Platform owns formal music data truth and projections:
   not-playable, bad-match, liked, and disliked;
 - Collection membership and collection-local notes;
 - Library Import / Update persistence;
+- local source scan: ingestion of configured on-disk audio libraries as
+  file-level Local Sources bound to Materials, trusted disappearance
+  reconciliation, and the `scan_root` owner-catalog scope (subsystem design in
+  `docs/formal-rebuild/phase-26-local-source-scan-management.md`);
 - Canonical Maintenance;
 - Material Projection read models, including Source Preference Policy
   application over current source-material bindings;

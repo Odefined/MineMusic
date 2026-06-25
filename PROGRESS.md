@@ -1429,6 +1429,39 @@ Phase 25 implements ADR-0042 end to end: Local Source identity is now
   schema/write guards, localize finalization, projection fixtures, runtime
   wiring, and active-tree registration.
 
+## 2026-06-26: Phase 26 Local Source Scan Management
+
+Phase 26 implements on-disk audio library ingestion as file-level Local Sources
+bound to Materials, with trusted disappearance reconciliation and internal owner
+catalog integration. Design authority:
+`docs/formal-rebuild/phase-26-local-source-scan-management.md`.
+
+- 26A lands scan contracts, config validation (unique/ref-safe non-`main` root
+  ids, absolute paths, no root/root or root/main overlap), and the Node
+  filesystem adapter (case-insensitive audio allowlist, built-in/configured
+  exclusions, symlink ignore, no root escape).
+- 26B lands the durable foundation: scan root, batch, work-item, and issue
+  tables; the batch state machine (one active batch per root); and the
+  caller-facing scan service (list roots, start, status, cancel, paginated
+  issues).
+- 26C lands discovery and processing as a self-driving advance job (one bounded
+  unit per invocation, deterministic generation-keyed id) with per-file outcome
+  classification (imported/unchanged/drifted/unstable/failed) over the shared
+  source-of-truth registration transaction.
+- 26D lands trusted reconciliation (delete-on-disappearance removes only the
+  scan item + binding + Local Source; the bound Material survives as a
+  deliberate orphan) and the `scan_root` owner-catalog projection plus its
+  invalidation wiring.
+- 26E lands runtime wiring through the Server Host composition root: the
+  `localSourceScan()` accessor, `registerRoots` readiness, an explicit retry
+  policy (`retryLimit` 3, `retryDelay` 5s, exponential backoff) threaded through
+  the start command, the advance re-chain, and D44 process-restart recovery, plus
+  a live temporary-directory smoke (real fs + WAV + Postgres + projection runner)
+  covering start -> catalog-visible -> delete-on-disappearance.
+- Formal tests cover contracts/config/adapter, the durable foundation, the state
+  machine and self-driving advance, reconciliation deletion, the scan_root
+  projection, process-restart recovery, and the live smoke; full suite 49/49.
+
 ## Next Formal Milestones
 
 The Agent-Native Workbench PRD sequencing (Phase A in-process loop → Phase B

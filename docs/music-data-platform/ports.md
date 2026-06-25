@@ -1,7 +1,7 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority through implemented Phase 23
-> Scope: Identity write model, source-library import, owner relation, owner catalog projection, search metadata projection, projection maintenance, metadata lookup search workspace/result sets, Library Import stage adapter tools, Library Relation stage adapter tools, and Library Catalog stage adapter tools
+> Status: Current boundary authority through implemented Phase 26 local source scan runtime wiring (scan subsystem design: docs/formal-rebuild/phase-26-local-source-scan-management.md)
+> Scope: Identity write model, source-library import, owner relation, owner catalog projection, search metadata projection, projection maintenance, metadata lookup search workspace/result sets, Library Import stage adapter tools, Library Relation stage adapter tools, Library Catalog stage adapter tools, and local source scan service + advance-job/start/recovery factories
 
 Music Data Platform provides identity repositories, identity read/write
 boundaries, source-library repositories, source-library commands/read port,
@@ -14,11 +14,24 @@ Library Import stage-adapter RuntimeModule and
 metadata-only source-listing plus import drive/status tools, the Library
 Relation service/runtime module and relation get/edit tools, the Library
 Catalog read port/runtime module and list-scope/browse/sample/summary tools, a
-material ref factory, a top-level source-of-truth write facade, and error
+material ref factory, a top-level source-of-truth write facade, the local
+source scan service plus advance-job/start/recovery factories, and error
 types. It
 consumes generic Storage database ports and a
 narrow provider-library read port, but does not know concrete storage primitives or
 provider plugin implementations.
+
+The Server Host composition root (`createMusicDataPlatformRuntimeModule`) wires
+the local source scan service, advance-job handler, start command, and D44
+process-restart recovery into the `music-data-platform` runtime module, exposes
+a `localSourceScan()` accessor, and registers every configured scan root
+descriptor through `registerRoots` for readiness. The advance handler is
+registered with the retry policy declared at the composition root
+(retryLimit 3, retryDelay 5 seconds, exponential backoff); the handler, start
+command, and recovery all submit advance jobs with the deterministic
+idempotency key `local_source_scan:advance:<batchId>:<advanceGeneration>`. The
+scan subsystem design (root model, discovery/processing/reconciliation,
+projections) is the authority of the phase-26 spec, not this port list.
 
 ## Provides
 
@@ -68,6 +81,9 @@ provider plugin implementations.
 | `createProjectionMaintenanceCommands` | Internal commands/tests | Plan invalidation from typed write scopes, and mark typed projection targets dirty, clean, or failed by generation. | `src/music_data_platform/projection_maintenance_commands.ts` |
 | `createProjectionMaintenanceRecords` | Internal runner/tests | Read one target or list pending dirty/failed projection work. | `src/music_data_platform/projection_maintenance_records.ts` |
 | `createProjectionMaintenanceRunner` | Server Host scheduler helper/tests | Rebuild pending targets through owning projection commands and generation-aware completion. | `src/music_data_platform/projection_maintenance_runner.ts` |
+| `musicDataPlatformLocalSourceScanSchema` | Storage initialization callers | Creates local source scan root, batch, work-item, and issue tables. | `src/music_data_platform/local_source_scan_schema.ts` |
+| `createLocalSourceScanService` | Server Host composition/tests | Caller-facing scan service: list roots, start scan, get status, request cancellation, and list paginated issues; returns only compact summaries with no absolute paths or raw parser/storage state. | `src/music_data_platform/local_source_scan_service.ts` |
+| `createLocalSourceScanAdvanceJobHandler` / `createLocalSourceScanStartCommand` / `createLocalSourceScanRecovery` | Server Host composition | Background-work advance handler (one bounded unit per invocation, self-chains the next generation), start command (creates the batch and submits generation 0), and D44 startup recovery (resubmits non-terminal batches at their stored generation). | `src/music_data_platform/local_source_scan_job.ts` |
 | `MusicDataPlatformError` | Internal callers/tests | Music Data Platform-owned invariant errors. | `src/music_data_platform/errors.ts` |
 
 ## Consumes

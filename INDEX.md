@@ -182,7 +182,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/formal-rebuild/phase-26-local-source-scan-management.md`: grilled
   planning spec for multiple configured Scan Roots, durable background scan
   management, trusted disappeared-source deletion, and internal owner catalog
-  integration; implementation has not started.
+  integration; implemented in Phases 26A-26E (contracts/config/adapter, durable
+  foundation, discovery/processing, reconciliation/scan_root projection, and
+  runtime wiring + live smoke).
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

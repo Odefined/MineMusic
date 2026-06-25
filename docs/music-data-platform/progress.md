@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 23 library catalog tools
+> Status: Implemented through Phase 26 local source scan (subsystem design authority: docs/formal-rebuild/phase-26-local-source-scan-management.md)
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -315,6 +315,39 @@
   files.
 - Active-tree guards cover Music Data Platform root shape and forbidden
   dependencies.
+- Phase 26 local source scan runtime wiring lands the scan subsystem in the
+  Server Host composition root. `src/server/music_data_platform_runtime_module.ts`
+  validates scan config, builds the root-directory resolver and the Node
+  filesystem adapter, constructs scan commands/service/advance commands,
+  registers every configured scan root descriptor through `registerRoots`
+  (D24/D39 readiness — run after schema init and outside the background-work
+  guard so list-root/status/start reads work without a job backend), and exposes
+  a `localSourceScan()` accessor returning the `LocalSourceScanService`. The
+  service/handler/start symbols live in `src/music_data_platform/`; full
+  subsystem design is in the phase-26 spec.
+- When background work is available the same module registers the
+  `music_data_platform.local_source_scan_advance` handler, builds the start
+  command, and runs D44 process-restart recovery
+  (`createLocalSourceScanRecovery().resumeNonTerminalBatches()`) after root
+  readiness, resubmitting every non-terminal batch at its stored
+  `advanceGeneration` with the deterministic idempotency key
+  `local_source_scan:advance:<batchId>:<advanceGeneration>` (terminal batches
+  excluded; a `cancel_requested` batch resumes only to finalize cancelled). This
+  closes the crash window between an advance transaction commit and the
+  next-job submit.
+- The scan advance retry policy is declared at the composition root
+  (`LOCAL_SOURCE_SCAN_RETRY_LIMIT = 3`, `LOCAL_SOURCE_SCAN_RETRY_DELAY_SECONDS = 5`
+  seconds, `retryBackoff: true`) and threaded into the start command's first
+  submit (generation 0), the self-chaining advance re-submit, and D44 recovery.
+  pg-boss's queue default is `retryLimit` 2 with no delay or backoff; the
+  explicit policy gives transient failures breathing room and lets the handler's
+  `isFinalAttempt` mark the batch failed only on the final attempt.
+- The live temporary-directory smoke
+  (`test/formal/server-local-source-scan-live-smoke.test.ts`) drives the real
+  Node filesystem adapter, real PCM WAV bytes, a real Postgres test database,
+  and the real projection-maintenance runner through start -> catalog-visible ->
+  delete-on-disappearance (scan item + Local Source + binding deleted, bound
+  Material survives as a deliberate orphan, scan_root catalog entry removed).
 
 ## Verification
 
