@@ -9,7 +9,7 @@ import { musicDataPlatformProjectionMaintenanceSchema } from "../../src/music_da
 import { createLocalSourceScanRepositories } from "../../src/music_data_platform/local_source_scan_records.js";
 import { createLocalSourceScanCommands } from "../../src/music_data_platform/local_source_scan_commands.js";
 import { createLocalSourceScanService } from "../../src/music_data_platform/local_source_scan_service.js";
-import { createLocalSourceScanAdvanceCommands, LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE } from "../../src/music_data_platform/local_source_scan_advance_commands.js";
+import { createLocalSourceScanAdvanceCommands, LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, type LocalSourceScanAdvanceCommands } from "../../src/music_data_platform/local_source_scan_advance_commands.js";
 import {
   createLocalSourceScanAdvanceJobHandler,
   createLocalSourceScanStartCommand,
@@ -162,6 +162,9 @@ export async function main(): Promise<void> {
   await runWithDatabase(testReconciliationDeletion);
   await runWithDatabase(testProcessRestartRecovery);
   await runWithDatabase(testCancelRequestedBatchDoesNotAdvancePhase);
+  await runWithDatabase(testRetryFinalAttemptMarksBatchFailed);
+  await runWithDatabase(testSubmitRetryThreading);
+  await runWithDatabase(testConcurrencyBounding);
 }
 
 async function runWithDatabase(fn: (database: MusicDatabase) => Promise<void>): Promise<void> {
@@ -362,6 +365,175 @@ async function testCancelRequestedBatchDoesNotAdvancePhase(database: MusicDataba
   const afterPrep = await repos.batches.get({ batchId: "b-cancel-p" });
   assert.equal(afterPrep?.status, "cancel_requested", "prepareReconciliation must not revert cancel_requested");
   assert.equal(afterPrep?.phase, "processing", "prepareReconciliation must not advance a cancel_requested batch to reconciling");
+}
+
+// The phase's headline retry fix: pg-boss populates retryCount/retryLimit on the
+// job (via includeMetadata), and isFinalAttempt(retryCount >= retryLimit) gates
+// markBatchFailed so retry exhaustion — not the first transient failure —
+// terminalizes the batch. Locks both the final-attempt (mark failed) and
+// non-final (leave non-terminal, re-throw for pg-boss retry) branches.
+async function testRetryFinalAttemptMarksBatchFailed(database: MusicDatabase): Promise<void> {
+  const rootId = "retry-lib";
+  await createLocalSourceScanCommands({ database, generateBatchId: () => "x" }).registerRoots({
+    ownerScope, now: FIXED_NOW, registrations: [{ rootId, label: "Retry", configFingerprint: "fp" }],
+  });
+  const repos = createLocalSourceScanRepositories({ db: database.context() });
+  // A processing batch with one pending audio file.
+  await seedBatch(repos, { batchId: "b-retry", rootId, status: "running", phase: "processing", advanceGeneration: 0 });
+  await repos.workItems.upsert({
+    batchId: "b-retry", sequence: 0, entryKind: "audio_file", relativePath: "boom.wav",
+    status: "pending", sizeBytes: 10, modifiedAtMs: 1000, createdAt: FIXED_NOW, updatedAt: FIXED_NOW,
+  });
+  // inspectAudioFile throws a transient error so the handler's catch runs and
+  // applies the isFinalAttempt gate (a Result error would not throw and would be
+  // recorded as a deterministic per-file failure instead).
+  const throwingPort: LocalSourceScanFilesystemPort = {
+    async checkRoot() { return { ok: true, value: { availability: "available" } }; },
+    async listDirectory() { return { ok: true, value: [] }; },
+    async inspectAudioFile() { throw new Error("transient I/O boom"); },
+  };
+  const advanceCommands = createLocalSourceScanAdvanceCommands({
+    database, materialRefFactory: createMaterialRefFactory(), projectionMaintenanceDispatcher: undefined,
+    resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS,
+  });
+  const read = createLocalSourceScanReadPort({ db: database.context() });
+  const handler = createLocalSourceScanAdvanceJobHandler({
+    read, filesystemPort: throwingPort, commands: advanceCommands, backgroundWork: fakeBackgroundWork([]),
+    resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, now: () => FIXED_NOW,
+  });
+  const job = (retryCount: number, retryLimit: number) => ({
+    jobId: "j",
+    jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE,
+    payload: { batchId: "b-retry" },
+    signal: new AbortController().signal,
+    retryCount,
+    retryLimit,
+  });
+
+  // Non-final attempt (retryCount 0 < retryLimit 3): re-throws for pg-boss retry;
+  // the batch stays non-terminal (no markBatchFailed).
+  await assert.rejects(handler(job(0, 3)), /transient I\/O boom/);
+  let batch = await repos.batches.get({ batchId: "b-retry" });
+  assert.equal(batch?.status, "running", "non-final transient failure does not mark the batch failed");
+  assert.equal(batch?.failureCode, undefined);
+
+  // Final attempt (retryCount 3 >= retryLimit 3): marks the batch failed, then
+  // still re-throws so pg-boss dead-letters consistently.
+  await assert.rejects(handler(job(3, 3)), /transient I\/O boom/);
+  batch = await repos.batches.get({ batchId: "b-retry" });
+  assert.equal(batch?.status, "failed", "final-attempt transient failure marks the batch failed");
+  assert.equal(batch?.failureCode, "music_data.scan_batch_failed");
+}
+
+// submitRetry must thread into BOTH the start command's generation-0 submit and
+// the handler's re-chain submit (not just D44 recovery, already asserted in
+// testProcessRestartRecovery). Locks both hot-path submits.
+async function testSubmitRetryThreading(database: MusicDatabase): Promise<void> {
+  const rootId = "retry-submit-lib";
+  await createLocalSourceScanCommands({ database, generateBatchId: () => "x" }).registerRoots({
+    ownerScope, now: FIXED_NOW, registrations: [{ rootId, label: "SubmitRetry", configFingerprint: "fp" }],
+  });
+  const submissions: BackgroundWorkSubmitInput<{ batchId: string }>[] = [];
+  const capturingBackend: Pick<BackgroundWorkBackend, "submit"> = {
+    async submit(input) {
+      submissions.push(input as BackgroundWorkSubmitInput<{ batchId: string }>);
+      return { jobId: "job", submission: "created" as const };
+    },
+  };
+  const submitRetry = { retryLimit: 3, retryDelay: 5, retryBackoff: true };
+  const port = fakePort(dir({ "a.mp3": file("a0000000000000000000000000000000", 10, 1000) }));
+  const advanceCommands = createLocalSourceScanAdvanceCommands({
+    database, materialRefFactory: createMaterialRefFactory(), projectionMaintenanceDispatcher: undefined,
+    resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS,
+  });
+  const service = createLocalSourceScanService({
+    database, filesystemPort: port, ownerScope, now: () => FIXED_NOW,
+    commands: createLocalSourceScanCommands({ database, generateBatchId: () => "b-sr" }),
+  });
+
+  // start threads submitRetry into the generation-0 submit.
+  const start = createLocalSourceScanStartCommand({
+    service, advanceCommands, backgroundWork: capturingBackend, now: () => FIXED_NOW, submitRetry,
+  });
+  const batchId = unwrap(await start.submit({ rootId })).batchId;
+  const startSubmit = submissions.find((s) => s.idempotencyKey === localSourceScanAdvanceIdempotencyKey(batchId, 0));
+  assert.ok(startSubmit, "generation-0 submit captured");
+  assert.equal(startSubmit!.retryLimit, 3, "start submit carries retryLimit");
+  assert.equal(startSubmit!.retryBackoff, true, "start submit carries retryBackoff");
+
+  // The handler threads submitRetry into the re-chain submit. Drive one advance
+  // step (root discovery); it bumps the generation and re-submits.
+  const read = createLocalSourceScanReadPort({ db: database.context() });
+  const handler = createLocalSourceScanAdvanceJobHandler({
+    read, filesystemPort: port, commands: advanceCommands, backgroundWork: capturingBackend,
+    resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, now: () => FIXED_NOW, submitRetry,
+  });
+  await handler({
+    jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId }, signal: new AbortController().signal,
+  });
+  const rechainSubmit = submissions.find((s) => s.idempotencyKey === localSourceScanAdvanceIdempotencyKey(batchId, 1));
+  assert.ok(rechainSubmit, "re-chain generation-1 submit captured");
+  assert.equal(rechainSubmit!.retryLimit, 3, "re-chain submit carries retryLimit");
+  assert.equal(rechainSubmit!.retryBackoff, true, "re-chain submit carries retryBackoff");
+}
+
+// D35: runWithConcurrency must cap in-flight inspectAudioFile calls at
+// maxConcurrentFiles. A counting fake port records the peak in-flight count;
+// asserting peak === width fails both if the cap is too high (unbounded fan-out)
+// and if it serialized (peak never reached the configured width).
+//
+// recordAudioOutcome is faked to a no-op so the test isolates runWithConcurrency
+// itself: the real handler drives the real counting port, but no per-file DB
+// transaction runs. The test DB's transaction wrapper serializes on a single
+// active-transaction flag, so genuine inspect overlap against real
+// recordAudioOutcome would throw "transaction already active" — that guard is a
+// test-infrastructure limitation, not the concurrency cap under test.
+async function testConcurrencyBounding(database: MusicDatabase): Promise<void> {
+  const rootId = "conc-lib";
+  await createLocalSourceScanCommands({ database, generateBatchId: () => "x" }).registerRoots({
+    ownerScope, now: FIXED_NOW, registrations: [{ rootId, label: "Concurrency", configFingerprint: "fp" }],
+  });
+  const repos = createLocalSourceScanRepositories({ db: database.context() });
+  await seedBatch(repos, { batchId: "b-conc", rootId, status: "running", phase: "processing", advanceGeneration: 0 });
+  for (let i = 0; i < 6; i += 1) {
+    await repos.workItems.upsert({
+      batchId: "b-conc", sequence: i, entryKind: "audio_file", relativePath: `t${i}.wav`,
+      status: "pending", sizeBytes: 10, modifiedAtMs: 1000, createdAt: FIXED_NOW, updatedAt: FIXED_NOW,
+    });
+  }
+  let inFlight = 0;
+  let peak = 0;
+  const countingPort: LocalSourceScanFilesystemPort = {
+    async checkRoot() { return { ok: true, value: { availability: "available" } }; },
+    async listDirectory() { return { ok: true, value: [] }; },
+    async inspectAudioFile() {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      inFlight -= 1;
+      return { ok: true, value: { contentMd5: "x".repeat(32), metadata: { label: "t", title: "t" } } };
+    },
+  };
+  const fakeCommands: LocalSourceScanAdvanceCommands = {
+    async enqueueDirectoryChildren() {},
+    async markBatchFailed() {},
+    async completeCensus() { return false; },
+    async recordAudioOutcome() { return { outcome: "imported", recorded: true }; },
+    async prepareReconciliation() {},
+    async advanceReconciliation() { return { candidatesRemaining: 0 }; },
+    async finalize() {},
+    async bumpAdvanceGeneration() { return undefined; },
+  };
+  const read = createLocalSourceScanReadPort({ db: database.context() });
+  const handler = createLocalSourceScanAdvanceJobHandler({
+    read, filesystemPort: countingPort, commands: fakeCommands, backgroundWork: fakeBackgroundWork([]),
+    resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, now: () => FIXED_NOW,
+    maxConcurrentFiles: 2,
+  });
+  await handler({
+    jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: "b-conc" }, signal: new AbortController().signal,
+  });
+  assert.equal(peak, 2, "D35: in-flight inspectAudioFile calls cap at maxConcurrentFiles=2 (and reach it, not serialized)");
 }
 
 async function seedBatch(

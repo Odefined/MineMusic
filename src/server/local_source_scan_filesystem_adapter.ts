@@ -35,7 +35,13 @@ const FS_ERROR = {
 
 export function createNodeLocalSourceScanFilesystemPort(input: {
   resolveRootDir: LocalSourceScanRootDirResolver;
+  // Optional override of the node read-stream factory. Production wires node's
+  // real createReadStream; tests inject a stream that fails mid-read to exercise
+  // the D28 hash-branch error -> retryable path (a real mid-stream EIO is not
+  // portably simulable against a regular file). Defaults to node:fs.
+  createReadStream?: (path: string) => Readable;
 }): LocalSourceScanFilesystemPort {
+  const openReadStream: (path: string) => Readable = input.createReadStream ?? ((p) => createReadStream(p));
   return {
     async checkRoot({ rootId }) {
       const rootDir = input.resolveRootDir(rootId);
@@ -122,7 +128,7 @@ export function createNodeLocalSourceScanFilesystemPort(input: {
         );
       }
       const hash = createHash("md5");
-      const webStream = Readable.toWeb(createReadStream(absolutePath));
+      const webStream = Readable.toWeb(openReadStream(absolutePath));
       const [hashBranch, parseBranch] = webStream.tee();
       const [hashResult, parseResult] = await Promise.all([
         drainWebStreamForHash(hashBranch, hash).then(

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
+import { Readable } from "node:stream";
 
 import {
   EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS,
@@ -455,6 +456,44 @@ function awaitResult<T>(promise: Promise<{ ok: true; value: T } | { ok: false; e
   });
 }
 
+// A read-stream factory whose stream yields one chunk then fails mid-stream,
+// simulating a transient I/O error (EIO) that is not portably reproducible
+// against a real regular file. Used to exercise the D28 hash-branch error path.
+function makeErroringReadStream(): (path: string) => Readable {
+  return () =>
+    Readable.from(
+      (async function* (): AsyncGenerator<Buffer> {
+        yield Buffer.from("partial-bytes-before-error");
+        throw new Error("simulated mid-stream I/O failure");
+      })(),
+    );
+}
+
+// D27/D28: a mid-stream read failure on the hash branch must surface as a
+// retryable Result (transient I/O), distinct from a parse failure (file fully
+// readable but unparseable) which is deterministic. The parse-failure ->
+// retryable:false case is covered in testAdapter (notes.txt); this locks the
+// hash-failure -> retryable:true case.
+async function testHashErrorIsRetryable(tempRoot: string): Promise<void> {
+  const rootDir = path.join(tempRoot, "hasherr-root");
+  mkdirSync(rootDir, { recursive: true });
+  // A real regular file so the adapter's lstat-isFile check passes; the injected
+  // read stream controls the actual read, failing it mid-stream.
+  writeFileSync(path.join(rootDir, "track.wav"), makeWavBytes({}));
+  const port = createNodeLocalSourceScanFilesystemPort({
+    resolveRootDir: createLocalSourceScanRootDirResolver([
+      { rootId: "scan", rootDir, label: "Scan", exclusions: EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, configFingerprint: "fp" },
+    ]),
+    createReadStream: makeErroringReadStream(),
+  });
+  const result = await port.inspectAudioFile({ rootId: "scan", relativePath: "track.wav" });
+  assert.equal(result.ok, false, "mid-stream read failure surfaces as an error Result");
+  if (!result.ok) {
+    assert.equal(result.error.code, "server_host.scan_audio_parse_failed");
+    assert.equal(result.error.retryable, true, "D27/D28: mid-stream I/O failure (hash branch) is retryable, not deterministic");
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
@@ -469,6 +508,7 @@ export async function main(): Promise<void> {
 
     // Adapter test uses its own isolated root set under tempRoot.
     await testAdapter(tempRoot);
+    await testHashErrorIsRetryable(tempRoot);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
