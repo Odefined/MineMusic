@@ -774,7 +774,13 @@ async function countScalar(
   params: readonly (string | number)[],
 ): Promise<number> {
   const row = await db.get<{ count: number | string }>(sql, params);
-  return Number(row?.count ?? 0);
+  // Every caller runs SELECT COUNT(*), which always returns exactly one row on
+  // a real table. A missing row can only be a driver/system failure, not a
+  // genuine zero — surface it loudly instead of fabricating a zero count.
+  if (row === undefined) {
+    throw new Error("Scan count query returned no row where one was guaranteed.");
+  }
+  return Number(row.count);
 }
 
 function requireRecord<T>(record: T | undefined, message: string): T {

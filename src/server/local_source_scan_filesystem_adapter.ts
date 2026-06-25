@@ -175,6 +175,11 @@ function entryStat(absoluteDir: string, name: string): { sizeBytes?: number; mod
       modifiedAtMs: stats.mtimeMs,
     };
   } catch {
+    // fs-boundary owner: this adapter. A stat failure for one entry (e.g. a
+    // locked file) is intentionally not fatal to the directory listing — the
+    // entry is still discovered, just without size/mtime fast-path hints, so
+    // inspect will fully re-hash it. The absent fields are an honest "no stat
+    // available" for this entry, not a swallowed system failure for the list.
     return {};
   }
 }

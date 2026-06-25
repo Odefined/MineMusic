@@ -308,7 +308,14 @@ export function createLocalSourceScanAdvanceCommands(
           const scanRepos = createLocalSourceScanRepositories({ db });
           const batch = await scanRepos.batches.get({ batchId });
           if (batch === undefined) {
-            return { candidatesRemaining: 0 };
+            // A missing batch at the owning reconciliation boundary is corrupt
+            // state — batches are only ever upserted, never deleted — not an
+            // empty result. Fail loudly so the handler's final-attempt path
+            // marks it failed instead of silently finalizing a phantom batch.
+            throw new MusicDataPlatformError({
+              code: "music_data.scan_batch_not_found",
+              message: `Scan batch '${batchId}' was not found.`,
+            });
           }
           const candidates = await scanRepos.items.listDeletionCandidates({ rootId: batch.rootId, batchId, limit });
           let deletedCount = batch.deletedCount;
@@ -525,7 +532,9 @@ function isUnstable(batchStartedAt: string, workModifiedAtMs: number | undefined
   }
   const startedMs = Date.parse(batchStartedAt);
   if (!Number.isFinite(startedMs)) {
-    return false;
+    // startedAt is a DB-stored ISO string written by the owning start command;
+    // an unparseable value is corrupt state, not a "stable" classification.
+    throw new Error(`Scan batch startedAt '${batchStartedAt}' is not a parseable timestamp.`);
   }
   return startedMs - workModifiedAtMs < LOCAL_SOURCE_SCAN_STABILITY_WINDOW_MS;
 }
@@ -597,8 +606,9 @@ async function bumpCounter(
   // Atomic increment: per-file processing is concurrent (D35), so the batch
   // snapshot in `batch` may be stale by the time this runs. A read-modify-write
   // upsert would lose increments when two files in the same chunk both bump the
-  // same counter; the repo's atomic UPDATE serializes on the row instead.
-  void batch;
+  // same counter; the repo's atomic UPDATE serializes on the row instead. Only
+  // batch.batchId is read here; the (possibly stale) snapshot is intentionally
+  // not used for the read-modify-write.
   await repos.batches.incrementOutcomeCounter({ batchId: batch.batchId, counter: field, now });
 }
 
