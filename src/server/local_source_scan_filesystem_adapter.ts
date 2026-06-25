@@ -7,6 +7,7 @@ import type { Result } from "../contracts/kernel.js";
 import type { AudioTechnicalMetadata } from "../contracts/music_data_platform.js";
 import type { LocalSourceDescriptiveMetadata } from "../music_data_platform/local_source_commands.js";
 import { normalizeAudioTechnicalMetadata } from "../music_data_platform/audio_technical_metadata.js";
+import { compareLocalSourceScanDirectoryEntry } from "../music_data_platform/local_source_scan_filesystem_port.js";
 import type {
   LocalSourceScanDirectoryEntry,
   LocalSourceScanFilesystemPort,
@@ -75,7 +76,7 @@ export function createNodeLocalSourceScanFilesystemPort(input: {
           // Sockets, fifos, devices, etc. are neither directories to descend nor
           // audio candidates; they are not surfaced to discovery.
         }
-        entries.sort(compareByName);
+        entries.sort(compareLocalSourceScanDirectoryEntry);
         return { ok: true, value: entries };
       } catch {
         return fsError(
@@ -153,16 +154,6 @@ function entryStat(absoluteDir: string, name: string): { sizeBytes?: number; mod
   } catch {
     return {};
   }
-}
-
-function compareByName(a: LocalSourceScanDirectoryEntry, b: LocalSourceScanDirectoryEntry): number {
-  if (a.name < b.name) {
-    return -1;
-  }
-  if (a.name > b.name) {
-    return 1;
-  }
-  return 0;
 }
 
 // Resolve a MineMusic-normalized root-relative path (forward slashes, no leading

@@ -29,6 +29,24 @@ export type LocalSourceScanDirectoryEntry = {
   readonly modifiedAtMs?: number;
 };
 
+// Locale-naive byte comparison of two directory entries by `name`. This is the
+// canonical ordering for the port's "stable name order" contract (listDirectory)
+// and for MDP discovery's deterministic enqueue order; the Server Host adapter
+// and the MDP advance commands both call it instead of redefining the same
+// comparator. It deliberately does not use locale-aware collation.
+export function compareLocalSourceScanDirectoryEntry(
+  a: LocalSourceScanDirectoryEntry,
+  b: LocalSourceScanDirectoryEntry,
+): number {
+  if (a.name < b.name) {
+    return -1;
+  }
+  if (a.name > b.name) {
+    return 1;
+  }
+  return 0;
+}
+
 // Inspecting one audio file computes the full-file contentMd5 (32 lowercase
 // hex; required for drift detection D5/D31), normalized descriptive metadata
 // (D29: embedded title first, filename-stem fallback, no fabricated Unknown

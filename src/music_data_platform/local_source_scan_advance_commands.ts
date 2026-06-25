@@ -26,6 +26,7 @@ import {
   type LocalSourceScanItemRecord,
   type LocalSourceScanItemState,
 } from "./local_source_scan_records.js";
+import { compareLocalSourceScanDirectoryEntry } from "./local_source_scan_filesystem_port.js";
 import type { LocalSourceScanDirectoryEntry } from "./local_source_scan_filesystem_port.js";
 import {
   isActiveScanBatchStatus,
@@ -141,7 +142,7 @@ export function createLocalSourceScanAdvanceCommands(
       await input.database.transaction(async (db) => {
         const repos = createLocalSourceScanRepositories({ db });
         let sequence = await repos.workItems.nextSequence({ batchId });
-        const sorted = [...entries].sort(compareEntryByName);
+        const sorted = [...entries].sort(compareLocalSourceScanDirectoryEntry);
         for (const entry of sorted) {
           // Symlinks are ignored before descent or format filtering (D15).
           if (entry.kind === "symlink") {
@@ -618,14 +619,4 @@ async function deleteDisappearedSource(args: {
 
 function hasIssueOutcomes(batch: LocalSourceScanBatchRecord): boolean {
   return batch.failedCount > 0 || batch.driftedCount > 0 || batch.unstableCount > 0;
-}
-
-function compareEntryByName(a: LocalSourceScanDirectoryEntry, b: LocalSourceScanDirectoryEntry): number {
-  if (a.name < b.name) {
-    return -1;
-  }
-  if (a.name > b.name) {
-    return 1;
-  }
-  return 0;
 }
