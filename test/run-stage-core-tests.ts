@@ -46,6 +46,7 @@ const testModules = [
     "./formal/music-data-platform-local-source-scan.test.js",
     "./formal/music-data-platform-local-source-scan-job.test.js",
     "./formal/projection-maintenance-local-source-scan.test.js",
+    "./formal/server-local-source-scan-live-smoke.test.js",
     "./formal/server-entrypoint.test.js",
     "./formal/stage-runtime.test.js",
     "./formal/server-host.test.js",
