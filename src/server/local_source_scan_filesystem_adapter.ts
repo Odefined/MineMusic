@@ -1,7 +1,9 @@
-import { createHash } from "node:crypto";
+import { createHash, type Hash } from "node:crypto";
 import { createReadStream, lstatSync, readdirSync, statSync } from "node:fs";
 import * as path from "node:path";
-import { parseFile } from "music-metadata";
+import { Readable } from "node:stream";
+import type { ReadableStream } from "node:stream/web";
+import { parseStream } from "music-metadata";
 
 import type { Result } from "../contracts/kernel.js";
 import type { AudioTechnicalMetadata } from "../contracts/music_data_platform.js";
@@ -93,25 +95,18 @@ export function createNodeLocalSourceScanFilesystemPort(input: {
         return fsError(FS_ERROR.rootUnavailable, `Scan root '${rootId}' has no configured path.`, true);
       }
       const absolutePath = resolveUnderRoot(rootDir, relativePath);
-      // Bulk I/O is one sequential full-file read for the drift hash; metadata
-      // parsing reads only tag/header bytes on top of it (parseFile uses random
-      // access, not a second full pass). contentMd5 must cover the whole file
-      // (D31); a streamed hash fed to a stream parser would stop early and
-      // produce an incomplete hash, so the two are computed independently.
-      let contentMd5: string;
+      // Single file read (D28): one createReadStream, tee'd (via Web streams)
+      // into the full-file content hash and music-metadata. Reading the file
+      // twice is unacceptable for large files on slow NAS under the D35
+      // four-file concurrency default. The hash branch is drained to the end so
+      // contentMd5 covers the whole file (D31); music-metadata reads the parse
+      // branch only as far as it needs, and its tokenizer.close() closes that
+      // branch alone, leaving the hash branch to finish independently. Both
+      // branches are consumed in parallel so neither buffers the whole file.
+      let stats;
       try {
-        const stats = lstatSync(absolutePath);
-        if (!stats.isFile()) {
-          return fsError(
-            FS_ERROR.audioParseFailed,
-            `Scan path '${relativePath}' under root '${rootId}' is not a regular file.`,
-            false,
-          );
-        }
-        contentMd5 = await hashFileMd5(absolutePath);
+        stats = lstatSync(absolutePath);
       } catch (cause) {
-        // stat/hash I/O failure is transient (D27): the file may be temporarily
-        // unreadable, so Background Work can retry the bounded job.
         return fsError(
           FS_ERROR.audioParseFailed,
           `Audio file '${relativePath}' under root '${rootId}' could not be read.`,
@@ -119,23 +114,51 @@ export function createNodeLocalSourceScanFilesystemPort(input: {
           cause,
         );
       }
-      // The full hash succeeded, proving the file is readable; a parseFile
-      // failure here is a deterministic format/tag problem, not I/O.
-      let parsed: Awaited<ReturnType<typeof parseFile>>;
-      try {
-        parsed = await parseFile(absolutePath);
-      } catch (cause) {
+      if (!stats.isFile()) {
+        return fsError(
+          FS_ERROR.audioParseFailed,
+          `Scan path '${relativePath}' under root '${rootId}' is not a regular file.`,
+          false,
+        );
+      }
+      const hash = createHash("md5");
+      const webStream = Readable.toWeb(createReadStream(absolutePath));
+      const [hashBranch, parseBranch] = webStream.tee();
+      const [hashResult, parseResult] = await Promise.all([
+        drainWebStreamForHash(hashBranch, hash).then(
+          () => ({ status: "ok" as const }),
+          (error: unknown) => ({ status: "error" as const, error }),
+        ),
+        parseStream(Readable.fromWeb(parseBranch), { path: absolutePath }).then(
+          (value) => ({ status: "ok" as const, value }),
+          (error: unknown) => ({ status: "error" as const, error }),
+        ),
+      ]);
+      if (hashResult.status === "error") {
+        // Full-file read failed mid-stream (D27): the file may be temporarily
+        // unreadable, so Background Work can retry the bounded job.
+        return fsError(
+          FS_ERROR.audioParseFailed,
+          `Audio file '${relativePath}' under root '${rootId}' could not be read.`,
+          true,
+          hashResult.error,
+        );
+      }
+      if (parseResult.status === "error") {
+        // The hash branch drained the whole file, proving it is readable, so a
+        // parse failure here is a deterministic format/tag problem, not I/O.
         return fsError(
           FS_ERROR.audioParseFailed,
           `Audio file '${relativePath}' under root '${rootId}' could not be parsed.`,
           false,
-          cause,
+          parseResult.error,
         );
       }
+      const parsed = parseResult.value;
       const metadata = toDescriptiveMetadata(parsed.common, parsed.format, relativePath);
       const audioTechnicalMetadata = normalizeAudioTechnicalMetadata(toAudioTechnicalMetadata(parsed.format));
       const value: LocalSourceScanInspectResult = {
-        contentMd5,
+        contentMd5: hash.digest("hex"),
         metadata,
         ...(audioTechnicalMetadata === undefined ? {} : { audioTechnicalMetadata }),
       };
@@ -167,13 +190,13 @@ function resolveUnderRoot(rootDir: string, relativePath: string): string {
   return path.join(rootDir, ...relativePath.split("/"));
 }
 
-async function hashFileMd5(absolutePath: string): Promise<string> {
-  const hash = createHash("md5");
-  const stream = createReadStream(absolutePath);
-  for await (const chunk of stream) {
+// Drain one Web ReadableStream branch (from the inspectAudioFile tee) into an
+// in-progress hash. Used on the hash branch so contentMd5 covers the whole file
+// (D31) while music-metadata reads the other branch only as far as it needs.
+async function drainWebStreamForHash(webStream: ReadableStream, hash: Hash): Promise<void> {
+  for await (const chunk of Readable.fromWeb(webStream)) {
     hash.update(chunk as Buffer);
   }
-  return hash.digest("hex");
 }
 
 function toDescriptiveMetadata(
