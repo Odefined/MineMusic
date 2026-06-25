@@ -646,62 +646,11 @@ export function createOwnerCatalogProjectionCommands(
       // an active Material. drifted/unstable/failed items and items whose
       // Material is inactive are filtered out, so a rebuild after any of those
       // naturally drops the entry via the obsolete DELETE below.
-      await input.db.run(
-        `
-          INSERT INTO owner_material_entries (
-            entry_key,
-            owner_scope,
-            entry_kind,
-            entry_ref_key,
-            material_ref_key,
-            visibility_role,
-            active,
-            provenance_json,
-            created_at,
-            updated_at
-          )
-          SELECT
-            'ome_' || md5(
-              r.owner_scope || '|' || 'scan_root' || '|' ||
-              r.root_id || '|' || b.material_ref_key
-            ) AS entry_key,
-            r.owner_scope,
-            'scan_root' AS entry_kind,
-            r.root_id AS entry_ref_key,
-            b.material_ref_key,
-            'positive' AS visibility_role,
-            1 AS active,
-            jsonb_build_object(
-              'kind', 'scan_root',
-              'rootId', r.root_id,
-              'label', r.label,
-              'scanItemCount', COUNT(*),
-              'firstSeenAt', MIN(i.first_seen_at),
-              'lastObservedAt', MAX(i.last_observed_at),
-              'lastFileModifiedAt', ${scanRootLastFileModifiedAtSql}
-            ) AS provenance_json,
-            ? AS created_at,
-            ? AS updated_at
-          FROM local_source_scan_items i
-          JOIN local_source_scan_roots r
-            ON r.root_id = i.root_id
-          JOIN source_material_bindings b
-            ON b.source_ref_key = i.source_ref_key
-          JOIN material_records m
-            ON m.ref_key = b.material_ref_key
-          WHERE r.root_id = ?
-            AND r.owner_scope = ?
-            AND i.state = 'active'
-            AND m.lifecycle_status = 'active'
-          GROUP BY r.owner_scope, r.root_id, r.label, b.material_ref_key
-          ON CONFLICT(owner_scope, entry_kind, entry_ref_key, material_ref_key) DO UPDATE SET
-            visibility_role = excluded.visibility_role,
-            active = excluded.active,
-            provenance_json = excluded.provenance_json,
-            updated_at = excluded.updated_at
-        `,
-        [input.now, input.now, commandInput.rootId, commandInput.ownerScope],
-      );
+      await insertActiveScanRootEntries(input.db, {
+        now: input.now,
+        whereSql: SCAN_ROOT_BY_ROOT_WHERE_SQL,
+        whereParams: [commandInput.rootId, commandInput.ownerScope],
+      });
 
       await input.db.run(
         `
@@ -764,62 +713,11 @@ export function createOwnerCatalogProjectionCommands(
         [commandInput.ownerScope, materialRefKey],
       );
 
-      await input.db.run(
-        `
-          INSERT INTO owner_material_entries (
-            entry_key,
-            owner_scope,
-            entry_kind,
-            entry_ref_key,
-            material_ref_key,
-            visibility_role,
-            active,
-            provenance_json,
-            created_at,
-            updated_at
-          )
-          SELECT
-            'ome_' || md5(
-              r.owner_scope || '|' || 'scan_root' || '|' ||
-              r.root_id || '|' || b.material_ref_key
-            ) AS entry_key,
-            r.owner_scope,
-            'scan_root' AS entry_kind,
-            r.root_id AS entry_ref_key,
-            b.material_ref_key,
-            'positive' AS visibility_role,
-            1 AS active,
-            jsonb_build_object(
-              'kind', 'scan_root',
-              'rootId', r.root_id,
-              'label', r.label,
-              'scanItemCount', COUNT(*),
-              'firstSeenAt', MIN(i.first_seen_at),
-              'lastObservedAt', MAX(i.last_observed_at),
-              'lastFileModifiedAt', ${scanRootLastFileModifiedAtSql}
-            ) AS provenance_json,
-            ? AS created_at,
-            ? AS updated_at
-          FROM local_source_scan_items i
-          JOIN local_source_scan_roots r
-            ON r.root_id = i.root_id
-          JOIN source_material_bindings b
-            ON b.source_ref_key = i.source_ref_key
-          JOIN material_records m
-            ON m.ref_key = b.material_ref_key
-          WHERE r.owner_scope = ?
-            AND b.material_ref_key = ?
-            AND i.state = 'active'
-            AND m.lifecycle_status = 'active'
-          GROUP BY r.owner_scope, r.root_id, r.label, b.material_ref_key
-          ON CONFLICT(owner_scope, entry_kind, entry_ref_key, material_ref_key) DO UPDATE SET
-            visibility_role = excluded.visibility_role,
-            active = excluded.active,
-            provenance_json = excluded.provenance_json,
-            updated_at = excluded.updated_at
-        `,
-        [input.now, input.now, commandInput.ownerScope, materialRefKey],
-      );
+      await insertActiveScanRootEntries(input.db, {
+        now: input.now,
+        whereSql: SCAN_ROOT_BY_MATERIAL_WHERE_SQL,
+        whereParams: [commandInput.ownerScope, materialRefKey],
+      });
 
       return {
         scanRootItemCount,
@@ -1151,6 +1049,70 @@ async function countProjectedCollectionEntries(
     `,
     [ownerScope, collectionRefKey],
   ))?.count ?? 0);
+}
+
+// Shared WHERE fragments for the two scan_root rebuild scopes: by root (under
+// one root_id) and by material (across every root, for one material). Literal
+// SQL constants, not user input, so interpolating them into the rebuild SQL is
+// safe (same pattern as scanRootLastFileModifiedAtSql above).
+const SCAN_ROOT_BY_ROOT_WHERE_SQL = "r.root_id = ? AND r.owner_scope = ?";
+const SCAN_ROOT_BY_MATERIAL_WHERE_SQL = "r.owner_scope = ? AND b.material_ref_key = ?";
+
+// Shared INSERT...SELECT that materializes one owner_material_entries row per
+// active scan item bound to an active Material. The two rebuild scopes differ
+// only in their WHERE filter; the column list, select body, joins, grouping,
+// and ON CONFLICT update are identical and live here once.
+async function insertActiveScanRootEntries(
+  db: MusicDatabaseTransactionContext,
+  args: { now: string; whereSql: string; whereParams: readonly string[] },
+): Promise<void> {
+  await db.run(
+    `
+      INSERT INTO owner_material_entries (
+        entry_key, owner_scope, entry_kind, entry_ref_key, material_ref_key,
+        visibility_role, active, provenance_json, created_at, updated_at
+      )
+      SELECT
+        'ome_' || md5(
+          r.owner_scope || '|' || 'scan_root' || '|' ||
+          r.root_id || '|' || b.material_ref_key
+        ) AS entry_key,
+        r.owner_scope,
+        'scan_root' AS entry_kind,
+        r.root_id AS entry_ref_key,
+        b.material_ref_key,
+        'positive' AS visibility_role,
+        1 AS active,
+        jsonb_build_object(
+          'kind', 'scan_root',
+          'rootId', r.root_id,
+          'label', r.label,
+          'scanItemCount', COUNT(*),
+          'firstSeenAt', MIN(i.first_seen_at),
+          'lastObservedAt', MAX(i.last_observed_at),
+          'lastFileModifiedAt', ${scanRootLastFileModifiedAtSql}
+        ) AS provenance_json,
+        ? AS created_at,
+        ? AS updated_at
+      FROM local_source_scan_items i
+      JOIN local_source_scan_roots r
+        ON r.root_id = i.root_id
+      JOIN source_material_bindings b
+        ON b.source_ref_key = i.source_ref_key
+      JOIN material_records m
+        ON m.ref_key = b.material_ref_key
+      WHERE ${args.whereSql}
+        AND i.state = 'active'
+        AND m.lifecycle_status = 'active'
+      GROUP BY r.owner_scope, r.root_id, r.label, b.material_ref_key
+      ON CONFLICT(owner_scope, entry_kind, entry_ref_key, material_ref_key) DO UPDATE SET
+        visibility_role = excluded.visibility_role,
+        active = excluded.active,
+        provenance_json = excluded.provenance_json,
+        updated_at = excluded.updated_at
+    `,
+    [args.now, args.now, ...args.whereParams],
+  );
 }
 
 async function countActiveScanRootItemsForRoot(
