@@ -50,8 +50,10 @@ The transcript and radio truth coexist with distinct roles; this is not a
 choice between them.
 
 - **Transcript = chain of thought / soul.** It carries Radio's reasoning,
-  feel, and "why these tracks." It persists across runs (compacted, per pi's
-  native path) and is reloaded on the next `prompt`/`continue`. It is *lossy*:
+  feel, and "why these tracks." It persists across runs (compacted) and is
+  reloaded on the next `prompt`/`continue` — MineMusic-built, over a
+  Postgres-backed `SessionRepo` (PB2; the low-level `Agent` is volatile — audit
+  @0.79.10 — there is no pi-native path at our layer). It is *lossy*:
   compaction/restart/model-swap may erode it, and that degradation must be
   graceful, not catastrophic.
 - **Radio truth = durable floor.** When the transcript is eroded, radio truth

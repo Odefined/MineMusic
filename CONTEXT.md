@@ -229,6 +229,28 @@ strength and trend; they do not re-decide the class.
 _Avoid_: agent-inferred signal type, per-area reclassification, treating dismiss
 as taste feedback.
 
+### Music Experience History
+
+Music Experience-owned structured objective history of material-anchored events
+that actually happened in the music experience.
+
+Music Experience History may include concrete playback/listening outcomes,
+recommendation-batch exposures and responses, and user or agent queue/radio
+operations when they land as a specific material, batch, or session result. An
+exposure means a material became now-playing or was presented as a MusicCard;
+merely being queued or selected into a candidate batch is not an exposure. It is not Memory, not inferred taste, not UI cleanup, not
+an agent tool log, and not a debug trace. Unlanded or interrupted agent actions
+do not belong here. Memory may later consume this history when proposing
+longer-term taste entries, but the history itself remains music-experience
+history rather than long-term taste state; an exposure that never reaches
+playback is not itself a taste signal, while an active user terminal such as a
+skip or a removal is.
+
+_Avoid_: silently turning behavior into taste memory, treating card dismissal or
+panel cleanup as music-experience history, recording tool/debug traces, or
+storing only an opaque learned score with no concrete event/outcome history
+behind it.
+
 ### Speech Level
 
 The Silent / Notify / Speak level of an agent-originated message, owned by Agent
@@ -236,11 +258,13 @@ Runtime as actor behavior. It is rule-locked at both ends (routine maintenance
 is Silent; high-impact actions go Speak or proposal) while the middle — is this
 worth interrupting the user — is the actor's judgement. On a producer→surfacer
 chain (e.g. Radio→Main) that middle judgement splits across two actors on
-orthogonal axes: the producer (Radio) owns event *severity*; the surfacer (Main),
-holding the conversation context, owns whether to *interrupt now*. A high-impact
-event has a Notify floor the surfacer's restraint cannot suppress (ADR-0037 note;
-PB7). Workbench Interface only renders Notify (badges/status) and Speak (chat
-messages); it does not decide the level. A user request like "talk less" is a
+orthogonal axes: the producer (Radio) owns event *severity* and emits an
+internal typed notify request; the surfacer (Main), holding the conversation
+context, owns whether to *interrupt now*. A high-impact event has a Notify floor
+the surfacer's restraint cannot suppress (ADR-0037 note; PB7). Workbench
+Interface only renders Notify (badges/status) and Speak (chat messages) after
+Main materializes a public work projection or chat message; it is not the actor
+mailbox and it does not decide the level. A user request like "talk less" is a
 session-steering signal in chat context, not a settings surface.
 _Avoid_: Workbench deciding speech level, routine work speaking in chat, a
 separate preferences panel.

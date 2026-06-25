@@ -116,10 +116,12 @@ satisfying the write-boundary hard rule (no direct writes outside the command).
 - Owner: Music Experience (extends the existing `music_experience` area /
   RuntimeModule).
 - New code _(proposed names)_: queue/playback truth store (in-memory or minimal
-  SQLite); an owning command (e.g. `enqueue` / `playNow`) that owns the write
-  boundary (commit-time CAS serialization is Phase B — see A3 deep dive);
+  SQLite); owning commands for the two slice-1 concerns — queue mutation and
+  logical playback selection (e.g. `append` / `playNow`) — that own the write
+  boundary without collapsing the concerns into one mixed command
+  (commit-time CAS serialization is Phase B — see A3 deep dive);
   a public projection exposing current queue + now-playing; agent-facing
-  tool registrations (e.g. `music.experience.queue.add`,
+  tool registrations (e.g. `music.experience.queue.append`,
   `music.experience.playback.play`) contributed through
   `createMusicExperienceRuntimeModule`.
 - Write boundary: all mutation goes through the owning command. Orchestration,
@@ -133,7 +135,7 @@ satisfying the write-boundary hard rule (no direct writes outside the command).
 - Guards: writer-capability guard (only the command writes queue/playback);
   exact-port assertion for the projection; output-leak test on the agent-facing
   tools (compact, no raw storage shape).
-- Verification: command-level test (enqueue/playNow mutate truth + bump
+- Verification: command-level test (append/playNow mutate truth + bump
   projection); tool-level test through `dispatch`.
 
 ### A4 — wire the agent to the play/queue outcome
@@ -144,9 +146,9 @@ Goal: close the loop — a user turn drives the Main Agent to find music (existi
 - Owner: Agent Runtime (loop behavior), reaching Music Experience tools through
   `dispatch`.
 - New code: agent turn wiring that takes a user message, runs the pi loop with
-  Session Context, and lets it call the find + enqueue/play tools.
+  Session Context, and lets it call the find + append/play tools.
 - Verification: end-to-end harness — given a user message ("play something
-  upbeat"), the loop reaches a `lookup`/present then an enqueue/playNow, and the
+  upbeat"), the loop reaches a `lookup`/present then an append/playNow, and the
   queue/playback projection reflects the result. This is the Phase A exit
   criterion.
 
@@ -160,13 +162,65 @@ that audit (a single stateful `Agent` loop with a tool-execution step and
 audit on any bump (version churn is the dominant risk per ADR-0039). The package
 name is scoped (`@earendil-works/pi-agent-core`).
 
-- **Embedding choice: low-level `Agent`, not the harness.** pi ships a low-level
-  `Agent` (owns transcript, emits lifecycle events, executes tools, exposes
-  `steer`/`followUp`/`abort`) and a separate higher-level harness (on-disk
-  sessions, skills, compaction, coding-agent prompts). A1 uses the low-level
-  `Agent` and supplies MineMusic's own system prompt, tools, stream function, and
-  persistence. The harness is coding-agent-shaped and would impose session/skill
-  opinions MineMusic's runtime already owns.
+- **Embedding choice: low-level `Agent` as the engine; full `AgentHarness` not
+  adopted as runtime owner.** pi ships a low-level `Agent` (owns transcript,
+  emits lifecycle events, executes tools, exposes `steer`/`followUp`/`abort`) and
+  a separate `AgentHarness` that imports `runAgentLoop` directly — an
+  *alternative* stateful layer over the same stateless loop, not a wrapper over
+  `Agent`, shaped around an `ExecutionEnv` (filesystem + shell). MineMusic uses
+  the low-level `Agent` as the Main/Radio engine and does **not** adopt
+  `AgentHarness` as its runtime owner (the `ExecutionEnv` + harness-owned
+  session/skill/compaction runtime does not fit a music agent). This is *not* a
+  rejection of pi's harness capabilities — those are reused base-helper-first
+  (next bullet); it is a rejection of letting the unmodified `AgentHarness` own
+  MineMusic's runtime.
+
+- **Harness utility reuse — base-helper-first, no full `AgentHarness`
+  ownership.** A1a should audit and use pi's public `./base` harness helpers
+  from the pinned package for prompt template formatting, session repositories,
+  and compaction helpers. Do not interpret "reuse" as vendoring pi harness
+  directories into MineMusic: A1a should not copy a pi helper tree or maintain
+  locally modified pi source. MineMusic still owns Session Context assembly,
+  transcript persistence policy, compaction policy, actor lifecycle, Stage tool
+  dispatch, and Main↔Radio coordination. This avoids building a parallel
+  prompt/session/compaction vocabulary while keeping the runtime harness
+  MineMusic-shaped rather than letting unmodified `AgentHarness` own the
+  runtime. Main/Radio runtime modules consume MineMusic-owned interfaces exposed
+  by the Agent Runtime facade. That facade may read pi source while being
+  written and may mirror small algorithms or sub-code shapes when needed, but
+  the expected live dependency is the pinned public helper export. The
+  MineMusic-facing surface is split into narrow non-skill ports such as
+  `PromptTemplatePort`, `AgentTranscriptSessionPort`, and `AgentCompactionPort`
+  — not a single broad `PiHarnessUtilityPort`. A1a should include a
+  forbidden-import guard so raw pi helper imports stay inside the Agent Runtime
+  adapter/facade layer and adapter-focused tests. Main, Radio, Session Context
+  assembly, tool bridge, and ordinary runtime modules must consume the
+  MineMusic facade ports rather than importing
+  `@earendil-works/pi-agent-core/base` directly.
+
+  If one of the four areas cannot use a public `./base` helper directly and must
+  mirror a non-exported algorithm or copy meaningful sub-code, the implementation
+  note must record the pinned pi version, source file, why the public helper was
+  insufficient, and whether the MineMusic layer is boundary narrowing, product
+  policy, or a pi capability gap. That is an exception path, not the A1a default.
+
+- **Pi-first adaptation rule.** A1a must not build a clean-room MineMusic harness
+  for capabilities pi already provides. Each Agent Runtime facade port should
+  map to the pinned pi primitive, public export, or observed source behavior it
+  uses
+  (prompt-template helpers, session repositories, compaction helpers, etc.).
+  MineMusic-owned code may narrow or constrain pi behavior for product/runtime
+  boundaries through wrapper/adaptor code, but copied or locally modified pi
+  source is not the default integration mechanism.
+
+- **Skill support is reserved, not implemented in Phase A.** A1a should leave
+  enough Agent Runtime facade space for future pi-style skill support, but it
+  does not add `SkillCatalogPort`, a MineMusic skill root, skill selection,
+  skill catalog injection, or full `SKILL.md` body injection. If a later phase
+  needs skills, the capability should enter through Agent Runtime-owned ports
+  that preserve pi's skill semantics rather than a new MineMusic prompt-module
+  system. Main/Radio and ordinary runtime modules should not load or inject
+  skill files directly.
 
 - **Tool bridge: Stage tool → pi tool.** pi tools live in `agent.state.tools`;
   pi validates arguments against each tool's schema, then calls its
@@ -176,6 +230,19 @@ name is scoped (`@earendil-works/pi-agent-core`).
   result. pi's per-call `signal` is wired into `StageToolContext.abortSignal` so
   dispatch honors cancellation (the plumbing Phase B's cross-actor cancel builds
   on).
+
+- **Tool catalog source — same port as MCP, not pulled from StageInterface.**
+  `StageInterface` exposes only `dispatch`; the tool *catalog* (the
+  `ToolDeclaration[]` the agent sees) is a separate port the host injects at
+  assembly, sourced from `host.snapshot().interfaceContract.tools` — exactly the
+  port the MCP stdio transport already consumes (`McpStdioTransportPorts.tools`).
+  A1's bridge takes this same injected array, so Agent Runtime imports neither
+  host assembly internals nor a "list tools" method on StageInterface. Phase A
+  bridges the catalog **in full** (no slice filter), matching the MCP transport:
+  the slice-1 boundary is enforced by the system-prompt steer (A4), not by the
+  tool layer. A call to a non-slice tool that hits a non-`auto` executionGate
+  flows through the error channel below (thrown agent-facing error); a call to
+  an `auto`-pass tool runs. This keeps A1 zero-special-case relative to MCP.
 
 - **Double-gate resolution (the core A1 concern).** Two admission points exist:
   pi's `beforeToolCall` hook (can block a call) plus pi arg-validation, and the
@@ -216,23 +283,79 @@ name is scoped (`@earendil-works/pi-agent-core`).
   context's `sessionId` is MineMusic's, never pi's provider hint.
 
 - **LLM wiring.** pi delegates the model call to a stream function plus an
-  API-key resolver. A1 wires a **DeepSeek model** (a `Model` descriptor with
-  `api: 'openai-completions'`, DeepSeek `baseUrl`, `compat.thinkingFormat:
-  'deepseek'` — audit E3 confirms no new adapter is needed) through these; the key
-  resolver reads it from env/secrets. **DeepSeek is a tentative default, not a
-  grilled decision** — it is not in the Locked Sequencing Decisions and carries no
-  recorded rationale vs alternatives; since tool-call/JSON-schema adherence is
-  model-sensitive (it is the whole A1 bridge), revisit/grill the model choice if
-  A1 shows adherence problems. The model stays swappable behind the stream
-  function; a switch is a descriptor/wiring change, not a boundary change. (Pick
-  the exact model id — e.g. `deepseek-chat` — at implementation; "DeepSeek Pro
-  API" was a non-standard name.)
+  API-key resolver. Phase-A authority locks only the **openai-compatible
+  stream-function seam**: a `Model` descriptor behind pi's built-in
+  `openai-completions` path, plus runtime-provided `baseUrl`/key resolution.
+  Audit E3 confirms **DeepSeek is mechanically valid as an A1a implementation
+  candidate** (`compat.thinkingFormat: 'deepseek'`, no new adapter), but
+  Phase A does **not** canonize DeepSeek as the roadmap/spec default model.
+  The model stays swappable behind the stream function; a switch is a
+  descriptor/wiring change, not a boundary change. Pick the first concrete
+  implementation candidate and exact model id at A1a implementation time; if
+  tool-call/JSON-schema adherence is poor, swap candidates without reopening
+  Phase-A architecture.
 
 - **Confirmed not in A1's path.** pi's model is a single `Agent` loop with
   `steer`/`followUp`/`abort`/hooks and no subagent/fork/dispatch primitive.
   ADR-0032 peer-actor coordination and cross-actor cancellation are
   MineMusic-built in Phase B; A1's single Main Agent uses pi natively and needs
   none of it.
+
+## A2 Deep Dive: Read-Model Composition Seam + Session Context
+
+Grounded in ADR-0031 (Session Context defined over the in-process read model,
+never a wire format) and the Consensus four-layer boundary (owning areas →
+public projections → Workspace Protocol/Snapshot → Agent Runtime context
+assembly → Session Context). Phase A builds the first in-process layers of that
+chain, both deliberately thin.
+
+- **Two artifacts, two owners — even in slice 1.** The "read-model seam" is two
+  ownership-distinct artifacts, not one: (1) a minimal **Workspace read-model
+  composition** owned by Workbench Interface — composes owning-area projections
+  into an in-process read model (slice 1: only the A3 queue/now-playing
+  projection); (2) a minimal **Session Context** owned by Agent Runtime — the
+  agent-facing reading surface assembled over that read model. Phase A builds
+  both now despite a single area slice, to pin ownership and the import
+  direction (Agent Runtime → Workbench Interface seam → area projections)
+  before Phase C grows them. Same contract-stability philosophy as the queue
+  revision column (present now, enforced in B).
+
+- **Slice-1 Session Context is a pass-through; assembly is identity.** With one
+  area slice Session Context has nothing to select/compress/phrase (the
+  Consensus-defined essence of assembly). Its shape equals the composed read
+  model's for slice 1; assembly is a no-op, deferred to B/C. The artifact exists
+  in A to own the boundary, not to transform.
+
+- **Snapshot, not live.** Session Context is captured once at turn start as an
+  immutable snapshot; it does not reflect mid-turn mutations. An agent that
+  appends reads the effect from the tool's compact return value (`queue.append`
+  returns queue length/position), not from Session Context. Mid-turn live
+  updates are a Phase B concern (concurrent writers racing the queue);
+  single-writer Phase A has no consumer for them.
+
+- **Session Context reaches the agent via the system prompt.** pi's low-level
+  `Agent` exposes no structured workspace-context field (audit-confirmed: it
+  takes system prompt / tools / stream / persistence), so Session Context is
+  serialized into the turn's system prompt text — the agent observes current
+  queue/now-playing with no extra tool round-trip. (Content must be
+  text-serializable — trivially true for slice 1; revisited if a later slice
+  pressures prompt size.)
+
+- **What this commits Phase C to.** Phase C grows the composition artifact (more
+  slices → Workspace Snapshot + Protocol/Events + AG-UI serialization) and may
+  begin real assembly. Because the two artifacts and the snapshot-via-prompt
+  contract are already split in A, Phase C adds slices to the composition side
+  without re-pointing Session Context or rewiring the agent — the
+  no-re-pointing property ADR-0031 requires.
+
+- **Guards sharpened by the above.** forbidden-import for the Workbench
+  Interface composition (no presentation/serialization/transport — those are C);
+  forbidden-import that Session Context (Agent Runtime) imports the seam only,
+  not area internals; a test that Session Context is built from the in-process
+  seam only (no AG-UI/serialized type reachable); and a test that the agent's
+  system prompt at turn start reflects a queue change made through A3's command,
+  observed through the seam — i.e. the read→compose→assemble→inject chain is
+  live, not paper.
 
 ## A3 Deep Dive: Queue/Playback Truth + Owning Command
 
@@ -243,8 +366,11 @@ through `MusicDatabaseContext { run, all, get }`. Storage is Postgres-backed
 since Phase 21.
 
 - **Command boundary.** Queue/playback mutations go through an owning
-  `MusicExperienceQueueCommand` _(proposed: `enqueue`, `playNow`,
-  `removeFromQueue`)_. It does **not** use Music Data Platform's
+  `MusicExperienceQueueCommand` with the slice-1 command set **{`append`,
+  `playNow`}**, where `append` takes an items list (slice 1 passes batch-of-1;
+  Phase B PB6 widens to batch-of-N) — `removeFromQueue` is deferred: no slice-1 exit criterion needs
+  removal, and it returns when Radio re-sequence (Phase B) or a Workbench action
+  (Phase C) needs it. It does **not** use Music Data Platform's
   `runSourceOfTruthWrite` facade — that facade is for source-of-truth writes that
   trigger material/catalog projection invalidation. Queue/playback is Music
   Experience runtime state on a separate write path. This keeps the two areas'
@@ -260,11 +386,28 @@ since Phase 21.
   revision column lands in A3, below), so Phase B adds the predicate without a
   rewrite. A3 does not claim "the transaction serializes writers."
 
-- **Truth store + write boundary.** A new schema contribution adds the
-  queue/playback tables; a narrow repository over `MusicDatabaseContext` is the
-  only place that issues queue/playback writes, called solely from the owning
-  command. The agent, Stage handlers, and Session Context never construct the
-  repository or write directly (write-boundary hard rule).
+- **Truth store + write boundary.** A new schema contribution adds **two
+  tables**, not one mixed row-store and not a larger family of micro-tables:
+  one single-row-per-owner/workspace `music_experience_state` table for logical
+  playback + concern revisions, and one ordered `music_experience_queue_items`
+  table for queue membership rows. This matches the repo's existing
+  state-and-items table habit and keeps the slice-1 shape minimal while still
+  separating list membership from single-row state. A narrow repository over
+  `MusicDatabaseContext` is the only place that issues queue/playback writes,
+  called solely from the owning command. The agent, Stage handlers, and Session
+  Context never construct the repository or write directly (write-boundary hard
+  rule).
+
+  The minimum intended row split is:
+
+  - `music_experience_state`: owner/workspace key, `queue_revision`,
+    `playback_revision`, logical `now_playing_material_ref_key`,
+    logical `playback_status`, timestamps.
+  - `music_experience_queue_items`: owner/workspace key, ordered `position`,
+    durable `material_ref_key`, `material_ref_json`, `provenance`, timestamps.
+
+  Phase A does **not** need a third dedicated playback-history/device-output
+  table. Those belong to later phases once playback leaves the logical layer.
 
 - **Storage backing — decided: reuse Postgres.** Use the existing
   `MusicDatabase` (Postgres), not an in-memory store. Reasons: the storage layer
@@ -297,22 +440,36 @@ since Phase 21.
 
 - **Queue keys on material ref.** A queue item is stored keyed by a durable
   material ref with a provenance tag, not by a transient handle. In slice 1
-  `queue.add` accepts a library `MusicItemHandle` and resolves it to its material
-  ref; Phase B (PB4) adds radio/transient provenance and the candidate→material
+  `queue.append` accepts a list of candidate-or-`material` `MusicItemHandle`s
+  (ADR-0040; resolved to material via the shared `ResolveDurableMusicItem`
+  capability) and resolves each
+  to its material ref (slice 1 passes batch-of-1); Phase B (PB4) adds
+  radio/transient provenance and the candidate→material
   append path. This avoids a later queue-key migration. See
   `phase-B-radio-concurrency-spec.md` PB4.
 - **Playback truth is logical, not audio.** Slice-1 playback truth is a logical
   now-playing pointer + status (e.g. playing/paused), not real audio output.
   Browser/device audio authority is the separate Phase C "browser playback
   authority" follow-up. The harness observes the pointer/status change.
+  **This does not eliminate the playback concern.** Phase A keeps
+  `music.experience.playback.play` as a separate command/tool even though it only
+  updates logical playback truth. `queue.append` means "place this item in the
+  queue"; `playback.play` means "make this the current logical now-playing
+  selection." Keeping them separate preserves Music Experience concern
+  boundaries now and avoids a later split when Web/player authority lands.
+  `playback.play` does **not** require its target to be a queue member —
+  now-playing is an independent concern from queue membership, so the two
+  commands stay decoupled even though the slice-1 agent flow happens to call
+  `queue.append` before `play`.
 
 - **Projection.** A public queue/now-playing read port exposes current queue +
   now-playing for Session Context (A2). It is a direct read of queue/playback
   truth, not routed through the material projection-maintenance machinery.
 
-- **Agent-facing tools.** `music.experience.queue.add` and
+- **Agent-facing tools.** `music.experience.queue.append` and
   `music.experience.playback.play` _(proposed)_ register under the existing
   `music.experience` instrument through `createMusicExperienceRuntimeModule`.
+  They are intentionally distinct tools, not one "queue-and-play" surface.
   Output is compact (opaque item ids, queue length/position) — no raw row shape
   (agent-facing-output rule).
 
@@ -326,32 +483,54 @@ since Phase 21.
   one-off boolean. Slice-1 single-writer, low-impact, no external effect.
   Revisited under Effect proposals in Phase C.
 
+- **Descriptor declaration shape — decided.** Until issue #115 lands, the
+  queue/playback tool descriptors should declare
+  `sideEffect: { durableUserStateWrite: false, runtimeStateWrite: true, externalCall: false }`
+  with `invocationPolicy.defaultDecision: "auto"`. When the ADR-0038 contract
+  migration lands, these same tools should additionally declare
+  `sideEffect.ownerCurationWrite: false` and
+  `invocationPolicy.impactClass: "local-bounded"`. They are runtime-state
+  writes, not library-curation writes and not external/irreversible effects.
+
 ## A4 Deep Dive: Agent Turn Wiring + Tool Composition
 
 Grounded in the existing `music.experience.present` tool: it takes a
-`MusicItemHandle` (candidate or library), resolves the public handle via
-`ctx.handleMinting.resolve`, commits a candidate to the library, and returns a
-**library item handle** plus a `MusicCard`. Its descriptor explicitly punts
+`MusicItemHandle` (candidate or material), resolves the public handle via
+`ctx.handleMinting.resolve`, durable-materializes a candidate (ADR-0040:
+`present` writes a durable material identity, not a saved/library relation), and
+returns a **`material` handle** plus a `MusicCard`. Its descriptor explicitly
+punts
 playback ("play this now" → avoid; "external playback is a future Effect
 Boundary-routed workflow") — exactly the gap A3/A4 fill.
 
 - **Tool-composition seam.** The slice-1 agent flow is `music.discovery.lookup`
-  → `music.experience.present` (admits the candidate and yields a library item
-  handle) → `music.experience.queue.add(library handle)` →
-  `music.experience.playback.play`. `queue.add` accepts a **library**
-  `MusicItemHandle` and resolves it via `ctx.handleMinting.resolve({ handleKind:
-  "library", ... })`, the same veil pattern `present` uses — so the Public Handle
-  Veil is preserved across the seam (no internal anchor crosses to the agent).
-- **Admission boundary stays in present.** `queue.add` takes library handles
-  only; candidate admission stays in `present`/candidate-commit and is not
-  duplicated into the queue tool. Silent queueing of a candidate without
-  presentation (so a track can enter the queue without a card) is **deferred to
-  Phase B**, where Radio's refill needs exactly that — slice 1's Main Agent
-  reaches the queue through `present`.
+  → `music.experience.present` (durable-materializes the candidate and yields a
+  `material` handle) → `music.experience.queue.append([material handle])` →
+  `music.experience.playback.play`. `queue.append` accepts a
+  **candidate-or-`material`** `MusicItemHandle` list (slice 1: batch-of-1;
+  ADR-0040) and resolves each via the shared `ResolveDurableMusicItem`
+  capability (candidate → idempotent `commitCandidate` → `material` ref —
+  extracted from `present` now that `queue.append` is its second caller in
+  Phase A, ADR-0040/issue #113), the same veil pattern `present` uses — so the
+  Public Handle Veil is preserved across the seam (no internal anchor crosses to
+  the agent).
+  The two downstream tools are not redundant: `queue.append` mutates queue truth,
+  while `playback.play` mutates logical now-playing truth. Slice 1 may call both
+  in sequence for a "play this" user turn, but the contract boundary remains two
+  owned concerns, not one fused action.
+- **Candidate→material is a shared capability, not duplicated.** Both `present`
+  and `queue.append` resolve candidate-or-`material` handles to a durable
+  material ref through the same `ResolveDurableMusicItem` capability (candidate
+  → idempotent `commitCandidate` → material; extracted in Phase A once
+  `queue.append` is its second caller — ADR-0040/issue #113). `present` uses it
+  to materialize *and* yield a `MusicCard`; `queue.append` uses it for silent
+  entry. Slice 1's Main Agent reaches the queue through `present` (it wants the
+  card); the silent candidate-entry path is exercised and tested in Phase A,
+  and is what Phase B Radio's refill uses.
 - **Turn driving (harness).** A user turn is `agent.prompt(userMessage)` then
   `agent.waitForIdle()`; the harness then reads the queue/now-playing projection
   **through the A2 read-model seam** and asserts the outcome. The agent's tools
-  are the A1-bridged Stage tools (`lookup`, `present`, `queue.add`,
+  are the A1-bridged Stage tools (`lookup`, `present`, `queue.append`,
   `playback.play`).
 - **Speech Level deferred.** The agent produces a normal harness-visible text
   response; Speech Level (Silent/Notify/Speak) as an Agent-Runtime policy is not
@@ -374,14 +553,14 @@ exactly**; version drift is the real risk, not capability gaps.
 | pi behavior | Status @0.79.10 | Decision it backs |
 | --- | --- | --- |
 | Low-level `Agent` separate from harness (own prompt/tools/stream) | ✅ — three layers: `runAgentLoop` (stateless) < `Agent` (in-memory stateful) < `AgentHarness` (session/compaction/skills); the harness `import`s `runAgentLoop` directly and does **not** flow through `Agent` (so harness is an alternative, not an upgrade path from `Agent`) | A1 embedding choice (use low-level `Agent`) — correct |
-| `new Agent({})` works; empty default system prompt; no baked coding/skill content | ✅ | A1 "engine only, not the opinionated harness" |
+| `new Agent({})` works; empty default system prompt; no baked coding/skill content | ✅ | A1 embedding choice (low-level `Agent` as engine; `AgentHarness` not runtime owner) |
 | Tools `execute(toolCallId, params, signal?, onUpdate?)`; params schema is TypeBox = JSON Schema, passed to provider verbatim | ✅ (raw JSON Schema usable directly) | A1 bridge; **resolves the JSON-Schema→pi-schema open question — near-zero conversion** |
 | Per-tool-call `AbortSignal` provided; `abort()` flips it into in-flight tools | ✅ — but **cooperative**: pi forwards the signal, does not hard-kill; the tool/dispatch must honor it | A1 `abortSignal` wiring; **PB9** (see correction below) |
 | `prompt`/`continue`/`abort` + `waitForIdle()` loop control | ✅ | PB1/PB2 discrete runs; A4 turn driving; harness `waitForIdle` |
 | `before/afterToolCall` hooks are async and awaited; can pause the loop on an external promise | ✅ (experiment) — but **a paused hook does not auto-honor `abort()`; the hook must `Promise.race` the signal itself** | A1 double-gate; **I2 integration-layer loop pause**; PB9 |
 | Persistence / compaction / endurance | ◑ **only in the harness; low-level `Agent` has none** (`reset()` clears memory; `sessionId` is just a provider cache hint) | **D-row correction below**: MineMusic builds continuity itself (ADR-0037), it is *not* inherited from pi at our chosen layer |
 | Transcript externally readable/truncatable (`agent.state.messages` is a public writable accessor) | ✅ (experiment: `slice()` truncates, no harness/LLM) | **PB8a injected-compaction test — gate PASSES, no fall-back to after-B.** Use the direct-assignment / `transformContext` path for the deterministic LLM-free test; the full `compact()` API needs an LLM + `SessionTreeEntry[]`, so it is **not** the path for a deterministic test. Compaction is manual-only (no token-threshold auto-trigger). |
-| Injectable stream fn + per-call API-key resolver; provider registry keyed by protocol (`Api`), not brand; built-in `openai-completions` compat covers DeepSeek | ✅ | A1 model wiring; **resolves the DeepSeek open question — no new adapter** |
+| Injectable stream fn + per-call API-key resolver; provider registry keyed by protocol (`Api`), not brand; built-in `openai-completions` compat covers DeepSeek | ✅ | A1 model wiring; **resolves the openai-compatible adapter mechanics question — DeepSeek is a valid first candidate with no new adapter** |
 | Single `Agent` loop; no subagent/fork/dispatch/parent-child primitive | ✅ (exhaustively shown; re-verified at 0.79.10) | Confirms Main↔Radio coordination is MineMusic-built (ADR-0032/PB) |
 
 ### Corrections forced by the audit
@@ -391,8 +570,9 @@ exactly**; version drift is the real risk, not capability gaps.
   (compaction is native)" is **false** for the low-level `Agent` MineMusic uses:
   it is volatile (compaction + persistence live only in the harness). PB2's
   "transcript persists (compacted) and is reloaded" is therefore **not a pi
-  behavior at our layer** — MineMusic must build cross-run persistence itself, on
-  `state.messages` (or by independently importing pi's `SessionRepo`). This does
+  behavior at our layer** — MineMusic must own cross-run persistence policy
+  itself, over `state.messages` and/or an Agent-Runtime-owned adapter over pi's
+  public `SessionRepo` utilities. This does
   **not** weaken ADR-0037: continuity was already designed as a MineMusic-owned
   floor that does *not* depend on pi compaction — the audit confirms that was the
   right call, and removes the illusion that pi hands us persistence for free. See
@@ -427,7 +607,8 @@ exactly**; version drift is the real risk, not capability gaps.
   change through the owning command.
 - Guards in place: Agent Runtime forbidden-imports, dispatch-only tool access,
   Session-Context-over-read-model, queue write-capability, tool output leak.
-- No Web, Radio, concurrency, proposal, or Memory code introduced.
+- No Web, Radio, concurrency, proposal, Memory, or skill-runtime code
+  introduced.
 
 ## Open Questions Carried Into Implementation
 
@@ -439,16 +620,13 @@ exactly**; version drift is the real risk, not capability gaps.
   satisfies pi's `TSchema` and is read verbatim by providers, so it maps to
   `Tool.parameters` with a field rename, near-zero conversion. (Optional TypeBox
   rebuild only if a future provider needs the `Symbol` decorations.)
-- Exact queue/playback table shape (material-ref-keyed with a provenance
-  column), revision column, and the queue/now-playing projection read-port key
-  set. (Define the per-concern revision column against a single shared
-  `ConcernRevision` shape — see roadmap cross-cutting.)
-- Decided: queue/playback write tools auto-pass via a gate widening (ADR-0021/0022
-  precedent), recorded as ADR-0038's `local-bounded × user-intent-backed` cell,
-  not a new one-off qualifier. Open: the exact declaration mechanics.
-- DeepSeek is a **tentative default, not grilled** (no Locked-Sequencing row, no
-  recorded rationale vs alternatives). Audit E3 confirms the *mechanics* (built-in
-  `openai-completions` adapter, `compat.thinkingFormat: 'deepseek'`, `baseUrl` +
-  env key — no new adapter). Open/revisit: whether DeepSeek is the right model
-  (tool-call/JSON-schema adherence is model-sensitive), and the exact model id
-  (e.g. `deepseek-chat`).
+- Exact column names, indexes, status enum values, and queue/now-playing
+  read-port key set for the decided two-table A3 shape. The structure is
+  settled: `music_experience_state` + `music_experience_queue_items`, with the
+  per-concern revision columns defined against a single shared
+  `ConcernRevision` shape — see roadmap cross-cutting.
+- First concrete A1a model/provider candidate and exact model id. Audit E3
+  confirms DeepSeek is mechanically viable through the built-in
+  `openai-completions` adapter, but Phase A does not bless any provider/model as
+  spec-default; choose the first candidate at implementation time and replace it
+  if tool-call/JSON-schema adherence proves weak.

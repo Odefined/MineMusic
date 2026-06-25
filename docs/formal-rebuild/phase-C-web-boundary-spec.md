@@ -92,13 +92,25 @@ actor keeps working (CONTEXT.md "no blocking human-approval step"). A separate
 pre-gate denylist short-circuits categorically forbidden actions before this
 table. The Confirm Action Card (ADR-0034's fixed Confirm card) is
 **auto-emitted from the parked Proposal Unit** — handle + approve/reject actions
-+ a structured description of exactly what will execute. The agent supplies only
-a natural-language **summary field** on the command/proposal; it does not author
-the surface. Rationale: the confirm surface cannot drift from the frozen command
-that will actually run; it removes boilerplate; and park → Confirm →
-approve/reject → `ProposalResolutionEnvelope` → resume → basis re-check is a
-standard Effect-Boundary loop. Agent-authored A2UI (via Stage Tool) is reserved
-for surfaces the agent genuinely composes (Choose, info/analysis cards).
++ a structured description of exactly what will execute. The Confirm card keeps
+**both** layers, with different owners: a deterministic structured fact block
+projected from the frozen typed command, and a natural-language **summary
+field** supplied by the agent on the command/proposal. These are complementary,
+not alternative. The agent does not author the surface or the structured facts;
+it contributes only the human-language summary layer. Rationale: the confirm
+surface cannot drift from the frozen command that will actually run, while still
+keeping an agent-written explanation for user readability; it removes
+boilerplate; and park → Confirm → approve/reject →
+`ProposalResolutionEnvelope` → resume → basis re-check is a standard
+Effect-Boundary loop. Agent-authored A2UI (via Stage Tool) is reserved for
+surfaces the agent genuinely composes (Choose, info/analysis cards).
+
+**Default presentation posture.** First-version Confirm cards stay
+music-assistant-first rather than audit-panel-first: the human-language summary
+is the primary visible layer, while the structured fact block is present but
+**collapsed by default** and expandable on demand. The facts are not omitted;
+they are simply secondary in default presentation so high-impact confirmation
+does not make the whole product feel like an admin console.
 
 ### Falls out (not separate work)
 
@@ -141,5 +153,7 @@ for surfaces the agent genuinely composes (Choose, info/analysis cards).
   dimensional impact class × actor trust basis → allow / ask(park) / raise-to-
   conversation; deny is a separate pre-gate). Implementation-open: the per-tool
   impact-class assignment and the concrete denylist contents.
-- The structured "what will execute" description derived from a frozen command
-  (per command type) for the auto-emitted Confirm card.
+- The exact fixed fact groups and field names in the structured "what will
+  execute" block derived from a frozen command (per command type) for the
+  auto-emitted Confirm card. The coexistence rule is settled: structured facts
+  from the command plus agent summary, not either/or.

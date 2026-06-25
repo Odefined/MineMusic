@@ -129,12 +129,22 @@ transport on the proven concurrency model.
 
 Layered when each owning area is in scope; none block the A→B→C spine:
 
-- Memory (taste from listening outcomes) — after C. The play-history /
-  listening-outcome record (its producer, shape, and Memory consumer) is designed
-  **whole in the Memory phase**, not half-built in A/B (corrected per phase-B PB8:
-  Phase B only does queue-internal non-repetition by reading current queue). Signal
-  Class is assigned at the Workbench Action Adapter entry (a C concern), keeping
-  interface cleanup out of Memory as taste.
+- **Music Experience History (substrate)** — post-C, the first post-C step. The
+  raw play-history / listening-outcome / recommendation-response record is
+  **not Memory**; it is Music-Experience-owned objective history, specified in
+  `music-experience-history-spec.md` (the behavioral signal substrate ADR-0041
+  anticipated). Needs Phase B (queue/playback truth + command + per-concern OCC)
+  and Phase C (Workbench Action Adapter, which carries the entry-assigned Signal
+  Class that keeps interface cleanup out of History). Lands first: it unlocks
+  the PB8-deferred Radio dedup ("recently played but already left the queue"),
+  summaries, and Memory's behavior-proposal evidence. Phase B itself only does
+  queue-internal non-repetition by reading current queue; richer history lands
+  here.
+- **Memory (taste consumer)** — after Music Experience History. The Memory phase
+  designs its consumer and proposal logic against that objective history but
+  does not absorb ownership of the raw record. ADR-0041 fixes the taste
+  philosophy: behavior becomes taste only through confirmed proposals, while
+  explicit statements enter taste directly without History.
 - Recommendation batch depth beyond the slice-1 reuse of existing tools.
 - Additional provider integrations behind the formal ports.
 - **Shared `ConcernRevision` shape (define once at A3, do not abstract early).**

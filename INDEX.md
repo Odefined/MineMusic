@@ -185,6 +185,11 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   integration; implemented in Phases 26A-26E (contracts/config/adapter, durable
   foundation, discovery/processing, reconciliation/scan_root projection, and
   runtime wiring + live smoke).
+- `docs/formal-rebuild/pi-harness-reuse-conclusions.md`: source-read
+  conclusion note mapping Agent-Native Workbench harness needs to reusable
+  `@earendil-works/pi-agent-core@0.79.10` / `pi-ai@0.79.10` code surfaces;
+  records the low-level `Agent` and public-base-helper reuse posture, keeps full
+  `AgentHarness` out of scope, and defers skill runtime beyond Phase A.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -343,7 +348,11 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   idle-after-settle, writable transcript) are correctness dependencies recorded as
   an explicit engine-semantics list, not abstracted away. pi is justified as
   *inherited + audited-sufficient + shape-fit* (audit @0.79.10), not by a
-  fabricated head-to-head ranking; dominant risk is version churn (pin + re-audit).
+  fabricated head-to-head ranking; pi public `./base` harness helpers may be
+  used directly only behind Agent Runtime-owned narrow ports, with raw helper
+  imports isolated to the facade/adaptor layer; Phase A reserves space for
+  future pi-style skill support but does not implement a skill catalog/root/
+  selection path; dominant risk is version churn (pin + re-audit).
 - `docs/adr/0040-item-handle-currency-is-material-retire-library-item-kind.md`:
   the agent-facing item-handle currency unifies to a single `material` kind; the
   `library` *item-handle* kind is retired (the `library` *scope* baseline is

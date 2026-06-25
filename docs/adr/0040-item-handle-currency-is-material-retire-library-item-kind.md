@@ -90,8 +90,9 @@ currency (material); a library relation is a *fact about* a material, not a
   - Generated schemas regeneration.
 - `ResolveDurableMusicItem` (the "candidate-or-material handle → idempotent
   `commitCandidate` → current material ref" capability) is extracted from
-  `presentCandidate` when `queue.append` becomes its second real caller (PB6),
-  not earlier — same "define once at the second real user" discipline as the
+  `presentCandidate` when `queue.append` becomes its second real caller (Phase
+  A — Grill #8 moved `queue.append` from PB6 to Phase A, and Phase A's
+  `queue.append` accepts candidate handles), not earlier — same "define once at the second real user" discipline as the
   roadmap's `ConcernRevision`. Also tracked in issue #113.
 - `present`'s current `sideEffect.durableUserStateWrite: true` flag is too coarse
   — it conflates "writes durable material identity" with "changes the user's

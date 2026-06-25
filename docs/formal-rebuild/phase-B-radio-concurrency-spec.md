@@ -139,9 +139,14 @@ directive payload message) — runs exactly one bounded Radio turn via
 transcript carries Radio's chain-of-thought continuity across runs (the *soul*,
 ADR-0037) — but **persistence/compaction are not pi-provided at our layer**: the
 low-level `Agent` is volatile (audit @0.79.10 — persistence/compaction live only
-in pi's harness, which MineMusic does not use), so MineMusic persists/reloads the
-transcript itself (over `state.messages`, or by independently importing pi's
-`SessionRepo`). The transcript is lossy and **not** the authoritative continuity
+in pi's harness, which MineMusic does not use). MineMusic persists/reloads the
+transcript itself, **base-helper-first** (`pi-harness-reuse-conclusions.md`): it
+borrows pi's `SessionRepo` interface shape through an Agent Runtime facade and
+backs it with a MineMusic-built **Postgres** store (pi ships only
+`JsonlSessionRepo`/`InMemorySessionRepo`; PG is MineMusic-specific — audit line
+190). The low-level `Agent` reloads by assigning into `state.messages` from the
+`SessionRepo`-backed store at each run start; this survives process restart,
+with the radio-truth floor (PB8) as the lossy-transcript fallback. The transcript is lossy and **not** the authoritative continuity
 source anyway; the durable radio-truth floor (PB8) is — which is exactly why the
 floor was designed not to depend on pi compaction. Both trigger kinds enter
 through the same path (a wake that runs one turn).
@@ -287,9 +292,10 @@ candidate-or-material handles, commits candidates to material **internally**
 (hiding `candidate_commit`, exactly as `present` already does), and appends them
 with provenance — silent, no card. Radio uses it for batch refill; Main uses it
 for silent enqueue; `present` remains the with-card path. **`queue.append`
-*replaces* Phase A's `queue.add` (it does not coexist):** Phase A's single-handle
-`queue.add` is the batch-of-1 special case, so B generalizes the one tool in
-place rather than adding a second. No raw agent-facing commit primitive is
+is the same tool across A and B (Grill #8):** Phase A already ships
+`queue.append` as candidate-or-material, batch-of-1, with
+`ResolveDurableMusicItem` extracted (ADR-0040); Phase B only **widens** it to
+batch-of-N for Radio refill — not a replace, not a second tool. No raw agent-facing commit primitive is
 exposed; the append result reports the **minted public `material` handles** (per
 ADR-0040's unified item-handle currency) and their provenance — **never raw
 material refs** (returning an internal storage ref would violate the Public
@@ -312,8 +318,9 @@ intermediate state: invisible to the user, safe to retry (re-running
 `present` already uses (commit, then present; no rollback on partial failure).
 The shared "resolve a candidate-or-material handle to a current material via
 idempotent commit" step is extracted as a reusable capability (working name
-`ResolveDurableMusicItem`) when `queue.append` lands as its second real caller —
-not earlier (present is the only caller today). See ADR-0040 and issue #113.
+`ResolveDurableMusicItem`) in **Phase A**, where `queue.append` (moved from PB6
+by Grill #8, and accepting candidate handles) becomes `present`'s second real
+caller; Phase B reuses it. See ADR-0040 and issue #113.
 
 ### PB7 — Radio→Main is a notify signal under Speech Level, not an imperative speak
 
@@ -321,9 +328,11 @@ Radio does not command Main to speak. It emits a notify-worthy signal (it
 *proposes* a notification); the Agent-Runtime-owned **Speech Level**
 (Silent/Notify/Speak) decides whether and how it reaches the user, and Main
 performs the surfacing. This keeps Speech Level the single authority on
-user-facing speech and stops Radio from flooding the conversation. Whether the
-signal rides the agent-work projection or a typed notify message is an
-implementation detail; the contract is **signal, not imperative**. Consequence: a
+user-facing speech and stops Radio from flooding the conversation. The signal
+travels on the Agent-Runtime typed Main↔Radio channel, not by writing directly
+to the public agent-work projection; Main decides whether to materialize it as
+public work projection, badge/status, or chat speech. The contract is **signal,
+not imperative**. Consequence: a
 **minimal Speech Level** (at least Silent/Notify) enters Phase B scope — Phase A
 deferred it (no UI), but Radio→Main notification is where it first becomes
 necessary.
@@ -375,10 +384,27 @@ the interruption axis. (Rejected: Main able to push high-impact to Silent —
 violates the rule-lock; Radio fixing the level itself — then it could not consume
 "talk less," which lives only in Main's chat context.)
 
-Implementation-open: the signal shape carries Radio's suggested severity (not a
-bare fact, not a fixed level), and the transport (agent-work projection vs typed
-notify message) — see Open. Record as a note against CONTEXT.md "Speech Level" /
+Implementation-open: the typed notify-request shape carries Radio's suggested
+severity (not a bare fact, not a fixed level) plus the minimal payload Main
+needs to decide surfacing. Record as a note against CONTEXT.md "Speech Level" /
 ADR-0033, not a separate ADR.
+
+**Locked payload discipline.** The typed notify request is a **semantic** actor
+signal, not a UI surface DTO. It carries only the minimal fields Main needs to
+decide surfacing under Speech Level:
+
+- suggested severity from Radio;
+- reason code / event kind;
+- run/work correlation so Main can tie the signal back to the originating Radio
+  work;
+- optional subject handle/ref when the notification is about a concrete public
+  object;
+- a short agent summary that Main may reuse as source text.
+
+It must **not** carry badge copy, chat copy, card DTOs, A2UI payloads, work
+projection placement, or other Workbench-surface instructions. Those belong to
+Main's surfacing decision and the later Workbench/public-projection path, not
+to the internal Radio→Main mailbox.
 
 ### PB8 — Radio truth splits into commanded direction + evolved posture; continuity is layered
 
@@ -419,13 +445,14 @@ Full rationale and OCC table in ADR-0037. In Phase B terms:
 - **Near-term de-duplication scope (corrected).** Phase B avoids re-pushing a
   track that is **still in the queue** by reading current queue truth — no
   radio-truth field, no new producer. It does **not** cover "recently played but
-  already left the queue": that needs a play-history / listening-outcome record,
-  which (with its producer, shape, and the Memory consumer) is **deferred** along
-  with dedup (PB4 / Deferred), to be designed whole in the Memory phase rather
-  than half-specified here. (Earlier PB8 text claimed Radio reads "recent
-  listening outcomes"; that pulled a deferred capability into scope and is
-  withdrawn.) Identity-level merge remains free (idempotent `candidate_commit` →
-  same material ref).
+  already left the queue": that needs a Music Experience History record
+  (play-history / listening outcomes / recommendation responses), which is
+  **deferred** along with dedup (PB4 / Deferred). The later Memory phase
+  consumes that objective history; it does not own the raw record.
+  (Earlier PB8
+  text claimed Radio reads "recent listening outcomes"; that pulled a deferred
+  capability into scope and is withdrawn.) Identity-level merge remains free
+  (idempotent `candidate_commit` → same material ref).
 
 ### PB8a — Endurance verified in-harness via injected transcript erosion (gate PASSED @0.79.10)
 
@@ -555,11 +582,12 @@ phase-A pi Capability Assumptions Ledger.
 
 - Play-history / dedup: **split** (PB8). Only *queue-internal* non-repetition —
   Radio not re-pushing a track **still in the queue** — is in Phase B scope (a
-  read of current queue truth, no new record). Everything that needs a
-  play-history / listening-outcome record — "recently played but already left the
-  queue," and history-level taste dedup — is **deferred** (its producer, shape,
-  and Memory consumer designed together in the Memory phase). Identity-level merge
-  remains free (idempotent `candidate_commit` → same material ref).
+  read of current queue truth, no new record). Everything that needs a Music
+  Experience History record — "recently played but already left the queue,"
+  recommendation-response carry-over, and history-aware experience dedup — is
+  **deferred**. That deferred record is Music Experience-owned objective history;
+  Memory later consumes it for taste proposals. Identity-level merge remains free
+  (idempotent `candidate_commit` → same material ref).
 - Proposal Unit parking + confirmation: Phase C (roadmap L1). Radio's loop raises
   no blocking approval.
 - Memory / taste: after Phase C.
@@ -574,10 +602,10 @@ phase-A pi Capability Assumptions Ledger.
 
 ## Open (to drill or settle in implementation)
 
-- Notify-signal transport detail (agent-work projection vs typed notify message)
-  and how a Radio run's result surfaces to Main. The contract is settled by PB7
-  (signal under Speech Level, not imperative; carries Radio's suggested severity,
-  per the two-actor split); only the signal field shape and transport are open.
+- Exact field names and type choices for the PB7 typed notify request. The
+  semantic payload set is settled: suggested severity, reason/event code,
+  run/work correlation, optional subject handle/ref, short agent summary; no UI
+  copy or Workbench/A2UI surface payload.
 - Cross-actor cancellation cascade: mechanism and touched state are settled by
   PB9 (trigger = OCC void set; priority-directed user > Main > Radio; no rollback,
   touches only pi run lifecycle). Implementation-open: the concrete Agent-Runtime
