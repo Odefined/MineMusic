@@ -58,6 +58,7 @@ assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.localize_provider_source",
     "register:music_data_platform.library_import_advance",
     "register:music_data_platform.projection_maintenance",
+    "register:music_data_platform.local_source_scan_advance",
     "start",
 ]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
@@ -160,6 +161,7 @@ assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.localize_provider_source",
     "register:music_data_platform.library_import_advance",
     "register:music_data_platform.projection_maintenance",
+    "register:music_data_platform.local_source_scan_advance",
     "start",
     "stop",
 ]);

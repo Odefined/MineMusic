@@ -123,6 +123,12 @@ export type LocalSourceScanBatchRepository = {
   }): Promise<void>;
   findActiveByRoot(input: { rootId: string }): Promise<LocalSourceScanBatchRecord | undefined>;
   findLatestByRoot(input: { rootId: string }): Promise<LocalSourceScanBatchRecord | undefined>;
+  // D44 process-restart recovery: every non-terminal batch for an owner scope
+  // (queued / running / cancel_requested — the active-batch set). Runtime init
+  // resubmits each batch's current advance generation so a crash between an
+  // advance transaction commit and the next-job submit never strands a batch.
+  // Reconciling batches have status `running`, so they are included.
+  listNonTerminalBatches(input: { ownerScope: string }): Promise<readonly LocalSourceScanBatchRecord[]>;
 };
 
 export type LocalSourceScanWorkItemRepository = {
@@ -334,6 +340,19 @@ export function createLocalSourceScanRepositories(
         [rootId],
       );
       return row === undefined ? undefined : batchFromRow(row);
+    },
+    async listNonTerminalBatches({ ownerScope }) {
+      assertOwnerScope(ownerScope);
+      const rows = await db.all<LocalSourceScanBatchRow>(
+        `
+          SELECT * FROM local_source_scan_batches
+          WHERE owner_scope = ?
+            AND status IN ('queued', 'running', 'cancel_requested')
+          ORDER BY started_at ASC
+        `,
+        [ownerScope],
+      );
+      return rows.map(batchFromRow);
     },
   };
 

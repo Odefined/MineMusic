@@ -76,6 +76,7 @@ export type LocalSourceScanReadPort = {
   getRoot(input: { rootId: string; ownerScope: string }): Promise<boolean>;
   getBatch(input: { batchId: string }): Promise<LocalSourceScanBatchRecord | undefined>;
   getBatchSummary(input: { batchId: string }): Promise<LocalSourceScanBatchSummary | undefined>;
+  listNonTerminalBatches(input: { ownerScope: string }): Promise<readonly LocalSourceScanBatchRecord[]>;
   listRootSummaries(input: {
     ownerScope: string;
     filesystemPort: LocalSourceScanFilesystemPort;
@@ -108,6 +109,10 @@ export function createLocalSourceScanReadPort(
     async getBatchSummary({ batchId }) {
       const batch = await repos.batches.get({ batchId });
       return batch === undefined ? undefined : toLocalSourceScanBatchSummary(batch);
+    },
+
+    async listNonTerminalBatches({ ownerScope }) {
+      return await repos.batches.listNonTerminalBatches({ ownerScope });
     },
 
     async listRootSummaries({ ownerScope, filesystemPort }) {

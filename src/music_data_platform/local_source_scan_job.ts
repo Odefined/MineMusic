@@ -1,6 +1,7 @@
 import type {
   BackgroundWorkBackend,
   BackgroundWorkHandler,
+  BackgroundWorkSubmitInput,
 } from "../background_work/index.js";
 import type { Result } from "../contracts/kernel.js";
 import type { LocalSourceScanFilesystemPort } from "./local_source_scan_filesystem_port.js";
@@ -35,6 +36,23 @@ export function localSourceScanAdvanceIdempotencyKey(batchId: string, advanceGen
   return `local_source_scan:advance:${batchId}:${advanceGeneration}`;
 }
 
+// pg-boss retry policy for scan advance jobs. Unlike library import (which
+// retries provider-page reads in an in-handler backoff loop), the scan advance
+// handler performs one bounded unit per job and relies on pg-boss to retry the
+// whole job on transient failure. pg-boss's queue default is retryLimit 2 with
+// retryDelay 0 and no backoff, so transient failures (a momentarily locked DB,
+// a briefly unavailable root) are retried immediately and can exhaust the
+// budget before the system recovers. The composition root declares an explicit
+// policy with a base delay and exponential backoff so retries get breathing
+// room, and threads it into the start command, the re-chain submit, and D44
+// startup recovery. The handler's `isFinalAttempt` reads `job.retryLimit`
+// (populated by pg-boss from this policy) to mark the batch failed only on the
+// last attempt.
+export type LocalSourceScanSubmitRetry = Pick<
+  BackgroundWorkSubmitInput,
+  "retryLimit" | "retryDelay" | "retryBackoff"
+>;
+
 export type CreateLocalSourceScanAdvanceJobHandlerInput = {
   read: Pick<LocalSourceScanReadPort, "getBatch" | "listPendingDirectories" | "listPendingAudioFiles">;
   filesystemPort: LocalSourceScanFilesystemPort;
@@ -46,6 +64,10 @@ export type CreateLocalSourceScanAdvanceJobHandlerInput = {
   audioChunk?: number;
   deletionChunk?: number;
   maxConcurrentFiles?: number;
+  // Spread into the re-chain submit so pg-boss retries transient failures and
+  // `isFinalAttempt` sees a non-zero retryLimit. Optional for backward
+  // compatibility with tests that drive the handler directly.
+  submitRetry?: LocalSourceScanSubmitRetry;
 };
 
 export function createLocalSourceScanAdvanceJobHandler(
@@ -120,6 +142,7 @@ export function createLocalSourceScanAdvanceJobHandler(
         jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE,
         payload: { batchId },
         idempotencyKey: localSourceScanAdvanceIdempotencyKey(batchId, nextGeneration),
+        ...(input.submitRetry ?? {}),
       });
     } catch (cause) {
       await input.commands.markBatchFailed({
@@ -261,6 +284,9 @@ export type CreateLocalSourceScanStartCommandInput = {
   advanceCommands: Pick<LocalSourceScanAdvanceCommands, "markBatchFailed">;
   backgroundWork: Pick<BackgroundWorkBackend, "submit">;
   now?: () => string;
+  // Spread into the first advance submit (generation 0) so the opening job is
+  // retryable. Optional for backward compatibility.
+  submitRetry?: LocalSourceScanSubmitRetry;
 };
 
 export function createLocalSourceScanStartCommand(
@@ -279,6 +305,7 @@ export function createLocalSourceScanStartCommand(
           jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE,
           payload: { batchId },
           idempotencyKey: localSourceScanAdvanceIdempotencyKey(batchId, 0),
+          ...(input.submitRetry ?? {}),
         });
       } catch (cause) {
         await input.advanceCommands.markBatchFailed({
@@ -298,6 +325,46 @@ export function createLocalSourceScanStartCommand(
         };
       }
       return { ok: true, value: { batchId } };
+    },
+  };
+}
+
+// D44 process-restart recovery. Runtime initialization calls this after root
+// readiness to resubmit every non-terminal batch's current advance generation,
+// closing the crash window between an advance transaction commit and the
+// next-job submit. The handler bumps `advanceGeneration` (commit) and then
+// submits the next job keyed on the new value, so the stored generation always
+// identifies the next job that should drive the batch. Resubmitting at the
+// stored generation is therefore always correct: a still-in-flight job is
+// collapsed by pg-boss's deterministic-id dedup, and a lost submit is re-driven.
+// A cancel_requested batch resumes only to finalize as cancelled; terminal
+// batches are excluded by the query. MDP-owned so the idempotency-key format
+// and job-type constant stay out of Server Host.
+export type LocalSourceScanRecovery = {
+  resumeNonTerminalBatches(): Promise<void>;
+};
+
+export type CreateLocalSourceScanRecoveryInput = {
+  read: Pick<LocalSourceScanReadPort, "listNonTerminalBatches">;
+  backgroundWork: Pick<BackgroundWorkBackend, "submit">;
+  ownerScope: string;
+  submitRetry?: LocalSourceScanSubmitRetry;
+};
+
+export function createLocalSourceScanRecovery(
+  input: CreateLocalSourceScanRecoveryInput,
+): LocalSourceScanRecovery {
+  return {
+    async resumeNonTerminalBatches() {
+      const batches = await input.read.listNonTerminalBatches({ ownerScope: input.ownerScope });
+      for (const batch of batches) {
+        await input.backgroundWork.submit({
+          jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE,
+          payload: { batchId: batch.batchId },
+          idempotencyKey: localSourceScanAdvanceIdempotencyKey(batch.batchId, batch.advanceGeneration),
+          ...(input.submitRetry ?? {}),
+        });
+      }
     },
   };
 }

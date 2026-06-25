@@ -22,11 +22,16 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     assert.equal(module.retrievalQuery() === undefined, false);
     assert.equal(module.candidateCommit() === undefined, false);
     assert.equal(module.materialProjection() === undefined, false);
+    // The scan service is always available (reads work without a job backend);
+    // only the start command + advance handler require background work.
+    assert.equal(module.localSourceScan() === undefined, false);
+    assert.equal(module.localSourceScanStart(), undefined, "start command needs background work");
     const stopped = await stopModule(module);
     assert.equal(stopped.ok, true);
     assert.equal(module.retrievalQuery(), undefined);
     assert.equal(module.candidateCommit(), undefined);
     assert.equal(module.materialProjection(), undefined);
+    assert.equal(module.localSourceScan(), undefined);
     await database.close();
 }
 {
@@ -48,16 +53,21 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     assert.equal(initialized.ok, true);
     assert.equal(module.localizeProviderSource() === undefined, false);
     assert.equal(module.libraryImportStart() === undefined, false);
+    assert.equal(module.localSourceScan() === undefined, false, "scan service wired");
+    assert.equal(module.localSourceScanStart() === undefined, false, "scan start command wired");
     assert.deepEqual(backgroundWork.registrations.map((registration) => registration.jobType), [
         "music_data_platform.localize_provider_source",
         "music_data_platform.library_import_advance",
         "music_data_platform.projection_maintenance",
+        "music_data_platform.local_source_scan_advance",
     ]);
     assert.equal(backgroundWork.startCount, 0);
     const stopped = await stopModule(module);
     assert.equal(stopped.ok, true);
     assert.equal(module.localizeProviderSource(), undefined);
     assert.equal(module.libraryImportStart(), undefined);
+    assert.equal(module.localSourceScan(), undefined);
+    assert.equal(module.localSourceScanStart(), undefined);
     await database.close();
 }
 {

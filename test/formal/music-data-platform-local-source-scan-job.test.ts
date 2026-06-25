@@ -10,14 +10,27 @@ import { createLocalSourceScanRepositories } from "../../src/music_data_platform
 import { createLocalSourceScanCommands } from "../../src/music_data_platform/local_source_scan_commands.js";
 import { createLocalSourceScanService } from "../../src/music_data_platform/local_source_scan_service.js";
 import { createLocalSourceScanAdvanceCommands, LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE } from "../../src/music_data_platform/local_source_scan_advance_commands.js";
-import { createLocalSourceScanAdvanceJobHandler, createLocalSourceScanStartCommand } from "../../src/music_data_platform/local_source_scan_job.js";
+import {
+  createLocalSourceScanAdvanceJobHandler,
+  createLocalSourceScanStartCommand,
+  createLocalSourceScanRecovery,
+  localSourceScanAdvanceIdempotencyKey,
+} from "../../src/music_data_platform/local_source_scan_job.js";
 import { createLocalSourceScanReadPort } from "../../src/music_data_platform/local_source_scan_read_model.js";
+import type {
+  BackgroundWorkBackend,
+  BackgroundWorkSubmitInput,
+} from "../../src/background_work/backend.js";
 import { createLocalSourceCommand } from "../../src/music_data_platform/local_source_commands.js";
 import { createIdentityReadPort } from "../../src/music_data_platform/identity_read_model.js";
 import { createIdentityRepositories } from "../../src/music_data_platform/identity_records.js";
 import { createMaterialRefFactory } from "../../src/music_data_platform/material_ref_factory.js";
 import { createLocalSourceRef } from "../../src/music_data_platform/local_source_ref.js";
 import { refKey } from "../../src/contracts/kernel.js";
+import type {
+  LocalSourceScanBatchStatus,
+  LocalSourceScanBatchPhase,
+} from "../../src/music_data_platform/local_source_scan_state.js";
 import { EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, type LocalSourceScanExclusions } from "../../src/music_data_platform/local_source_scan_policy.js";
 import type {
   LocalSourceScanDirectoryEntry,
@@ -147,6 +160,7 @@ export async function main(): Promise<void> {
   await runWithDatabase(testEndToEndDiscoveryProcessing);
   await runWithDatabase(testUnstableAndCensusFatal);
   await runWithDatabase(testReconciliationDeletion);
+  await runWithDatabase(testProcessRestartRecovery);
 }
 
 async function runWithDatabase(fn: (database: MusicDatabase) => Promise<void>): Promise<void> {
@@ -236,6 +250,113 @@ async function testReconciliationDeletion(database: MusicDatabase): Promise<void
   assert.ok(goneMaterialAfter, "D9: Material survives deletion (orphan, no cascade)");
   const presentItem = await scanRepos.items.get({ rootId, relativePath: "present.mp3" });
   assert.equal(presentItem?.state, "active");
+}
+
+// D44 process-restart recovery. Runtime init resubmits every non-terminal
+// batch's current advance generation; terminal batches are excluded. A
+// cancel_requested batch resumes only to finalize cancelled.
+async function testProcessRestartRecovery(database: MusicDatabase): Promise<void> {
+  // D11 permits at most one non-terminal batch per root, so the two non-terminal
+  // batches sit on separate roots; the terminal batch may share a root.
+  const runningRootId = "recover-running";
+  const cancelRootId = "recover-cancel";
+  await createLocalSourceScanCommands({ database, generateBatchId: () => "x" }).registerRoots({
+    ownerScope, now: FIXED_NOW, registrations: [
+      { rootId: runningRootId, label: "Recover Running", configFingerprint: "fp" },
+      { rootId: cancelRootId, label: "Recover Cancel", configFingerprint: "fp" },
+    ],
+  });
+  const repos = createLocalSourceScanRepositories({ db: database.context() });
+
+  // A non-terminal batch mid-processing at advanceGeneration 2 (the next job
+  // that should drive it is generation 2).
+  await seedBatch(repos, { batchId: "b-running", rootId: runningRootId, status: "running", phase: "processing", advanceGeneration: 2 });
+  // A terminal batch must never be resubmitted.
+  await seedBatch(repos, { batchId: "b-done", rootId: runningRootId, status: "completed", advanceGeneration: 5, finishedAt: FIXED_NOW });
+  // A cancel_requested batch resumes only to finalize cancelled.
+  await seedBatch(repos, { batchId: "b-cancel", rootId: cancelRootId, status: "cancel_requested", advanceGeneration: 3, cancelRequestedAt: FIXED_NOW });
+
+  const submissions: BackgroundWorkSubmitInput<{ batchId: string }>[] = [];
+  const recoveryBackend: Pick<BackgroundWorkBackend, "submit"> = {
+    async submit(input) {
+      submissions.push(input as BackgroundWorkSubmitInput<{ batchId: string }>);
+      return { jobId: "job", submission: "created" as const };
+    },
+  };
+  const read = createLocalSourceScanReadPort({ db: database.context() });
+  const submitRetry = { retryLimit: 3, retryDelay: 5, retryBackoff: true };
+  await createLocalSourceScanRecovery({ read, backgroundWork: recoveryBackend, ownerScope, submitRetry }).resumeNonTerminalBatches();
+
+  // Non-terminal batches resubmitted at their stored generation with the retry
+  // policy; the terminal batch is excluded by the query.
+  assert.equal(submissions.length, 2, "running + cancel_requested resubmitted, terminal excluded");
+  const byBatch = new Map(submissions.map((s) => [s.payload.batchId, s]));
+  assert.equal(byBatch.has("b-done"), false, "terminal batch not resubmitted");
+  const runningSubmit = byBatch.get("b-running")!;
+  assert.equal(runningSubmit.jobType, LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE);
+  assert.equal(runningSubmit.idempotencyKey, localSourceScanAdvanceIdempotencyKey("b-running", 2));
+  assert.equal(runningSubmit.retryLimit, 3);
+  assert.equal(runningSubmit.retryBackoff, true);
+  const cancelSubmit = byBatch.get("b-cancel")!;
+  assert.equal(cancelSubmit.idempotencyKey, localSourceScanAdvanceIdempotencyKey("b-cancel", 3));
+
+  // cancel_requested resumes to cancelled: drive the submitted job through the
+  // handler, which finalizes cancel_requested without touching the filesystem.
+  const advanceCommands = createLocalSourceScanAdvanceCommands({
+    database,
+    materialRefFactory: createMaterialRefFactory(),
+    projectionMaintenanceDispatcher: undefined,
+    resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS,
+  });
+  const handler = createLocalSourceScanAdvanceJobHandler({
+    read,
+    filesystemPort: fakePort(dir({})),
+    commands: advanceCommands,
+    backgroundWork: fakeBackgroundWork([]),
+    resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS,
+    now: () => FIXED_NOW,
+  });
+  const controller = new AbortController();
+  await handler({ jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: "b-cancel" }, signal: controller.signal });
+  const cancelSummary = await read.getBatchSummary({ batchId: "b-cancel" });
+  assert.equal(cancelSummary?.status, "cancelled", "cancel_requested batch finalizes to cancelled on resume");
+}
+
+async function seedBatch(
+  repos: ReturnType<typeof createLocalSourceScanRepositories>,
+  fields: {
+    batchId: string;
+    rootId: string;
+    status: LocalSourceScanBatchStatus;
+    phase?: LocalSourceScanBatchPhase;
+    advanceGeneration: number;
+    cancelRequestedAt?: string;
+    finishedAt?: string;
+  },
+): Promise<void> {
+  await repos.batches.insert({
+    batchId: fields.batchId,
+    rootId: fields.rootId,
+    ownerScope,
+    configFingerprint: "fp",
+    status: fields.status,
+    ...(fields.phase === undefined ? {} : { phase: fields.phase }),
+    advanceGeneration: fields.advanceGeneration,
+    censusComplete: false,
+    discoveredCount: 0,
+    processedCount: 0,
+    importedCount: 0,
+    unchangedCount: 0,
+    driftedCount: 0,
+    unstableCount: 0,
+    failedCount: 0,
+    deletionCandidateCount: 0,
+    deletedCount: 0,
+    ...(fields.cancelRequestedAt === undefined ? {} : { cancelRequestedAt: fields.cancelRequestedAt }),
+    startedAt: FIXED_NOW,
+    updatedAt: FIXED_NOW,
+    ...(fields.finishedAt === undefined ? {} : { finishedAt: fields.finishedAt }),
+  });
 }
 
 async function testEndToEndDiscoveryProcessing(database: MusicDatabase): Promise<void> {

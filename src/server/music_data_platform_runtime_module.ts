@@ -60,6 +60,26 @@ import { musicDataPlatformDownloadSchema } from "../music_data_platform/download
 import { createNodeLocalizeProviderSourceFileStore, createNodeMediaFileWriter } from "../music_data_platform/download_file_writer.js";
 import { createLocalSourceCommand, type LocalSourceCommand } from "../music_data_platform/local_source_commands.js";
 import { musicDataPlatformLocalSourceScanSchema } from "../music_data_platform/local_source_scan_schema.js";
+import {
+  createLocalSourceScanService,
+  type LocalSourceScanService,
+} from "../music_data_platform/local_source_scan_service.js";
+import { createLocalSourceScanCommands } from "../music_data_platform/local_source_scan_commands.js";
+import {
+  createLocalSourceScanAdvanceCommands,
+  LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE,
+} from "../music_data_platform/local_source_scan_advance_commands.js";
+import {
+  createLocalSourceScanStartCommand,
+  createLocalSourceScanAdvanceJobHandler,
+  createLocalSourceScanRecovery,
+  type LocalSourceScanStartCommand,
+} from "../music_data_platform/local_source_scan_job.js";
+import { createLocalSourceScanReadPort } from "../music_data_platform/local_source_scan_read_model.js";
+import {
+  EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS,
+  type LocalSourceScanExclusions,
+} from "../music_data_platform/local_source_scan_policy.js";
 import { MusicDataPlatformError } from "../music_data_platform/errors.js";
 import {
   createMetadataLookupRetrievalQueryService,
@@ -93,6 +113,11 @@ import {
   mineMusicLocalSourcesRootDir,
 } from "./config.js";
 import {
+  validateLocalSourceScanConfig,
+  createLocalSourceScanRootDirResolver,
+} from "./local_source_scan_config.js";
+import { createNodeLocalSourceScanFilesystemPort } from "./local_source_scan_filesystem_adapter.js";
+import {
   createProjectionMaintenanceJobHandler,
   PROJECTION_MAINTENANCE_JOB_TYPE,
   type ProjectionMaintenanceDispatcher,
@@ -110,6 +135,23 @@ const LIBRARY_IMPORT_RETRY = { limit: 3, backoffMs: 1000 };
 const PROJECTION_MAINTENANCE_RETRY_LIMIT = 3;
 const PROJECTION_MAINTENANCE_RETRY_DELAY_SECONDS = 5;
 
+// Local source scan advance retry tuning. Unlike library import (in-handler
+// backoff), the scan advance handler does one bounded unit per job and relies
+// on pg-boss to retry the whole job. pg-boss's queue default (retryLimit 2,
+// retryDelay 0, no backoff) retries immediately with no breathing room, so a
+// transient failure outlasting the instant retries exhausts the budget and
+// fails the batch. This explicit policy adds a base delay and exponential
+// backoff and lifts the budget, and is shared by the start command's first
+// submit, the handler's re-chain submit, and D44 startup recovery. The
+// handler's isFinalAttempt reads job.retryLimit (populated from this policy).
+const LOCAL_SOURCE_SCAN_RETRY_LIMIT = 3;
+const LOCAL_SOURCE_SCAN_RETRY_DELAY_SECONDS = 5;
+const LOCAL_SOURCE_SCAN_SUBMIT_RETRY = {
+  retryLimit: LOCAL_SOURCE_SCAN_RETRY_LIMIT,
+  retryDelay: LOCAL_SOURCE_SCAN_RETRY_DELAY_SECONDS,
+  retryBackoff: true,
+};
+
 export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   sourceLibraryImport(): SourceLibraryImportService | undefined;
   sourceLibraryRead(): SourceLibraryReadPort | undefined;
@@ -125,6 +167,8 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   lookupCursorStore(): LookupCursorStore | undefined;
   download(): DownloadCommands | undefined;
   localSource(): LocalSourceCommand | undefined;
+  localSourceScan(): LocalSourceScanService | undefined;
+  localSourceScanStart(): LocalSourceScanStartCommand | undefined;
   localizeProviderSource(): LocalizeProviderSourceCommand | undefined;
 };
 
@@ -155,6 +199,8 @@ export function createMusicDataPlatformRuntimeModule(
   let lookupCursorStore: LookupCursorStore | undefined;
   let downloadCommand: DownloadCommands | undefined;
   let localSourceCommand: LocalSourceCommand | undefined;
+  let localSourceScanService: LocalSourceScanService | undefined;
+  let localSourceScanStartCommand: LocalSourceScanStartCommand | undefined;
   let localizeProviderSourceCommand: LocalizeProviderSourceCommand | undefined;
   const ownsDatabase = input.database === undefined;
 
@@ -192,6 +238,40 @@ export function createMusicDataPlatformRuntimeModule(
           ],
         });
         const materialRefFactory = input.materialRefFactory ?? createMaterialRefFactory();
+        // Local source scan: validate startup-injected roots (D3/D41), build the
+        // filesystem port + owning commands + caller-facing service, and register
+        // durable root descriptors (D24/D39 readiness). The service is always
+        // available so list/status/cancel reads work without a job backend; the
+        // start command, advance handler, and D44 recovery wire only when
+        // background work is present (below).
+        const scanConfig = validateLocalSourceScanConfig(input.config);
+        const scanRootDirResolver = createLocalSourceScanRootDirResolver(scanConfig.roots);
+        const scanExclusionsByRoot = new Map(scanConfig.roots.map((root) => [root.rootId, root.exclusions]));
+        const scanFilesystemPort = createNodeLocalSourceScanFilesystemPort({
+          resolveRootDir: scanRootDirResolver,
+        });
+        const scanCommands = createLocalSourceScanCommands({
+          database,
+          generateBatchId: () =>
+            `scan_${createHash("sha256").update(`${Date.now()}-${randomUUID()}`).digest("base64url").slice(0, 16)}`,
+        });
+        await scanCommands.registerRoots({
+          ownerScope: DEFAULT_OWNER_SCOPE,
+          now: new Date().toISOString(),
+          registrations: scanConfig.roots.map((root) => ({
+            rootId: root.rootId,
+            label: root.label,
+            configFingerprint: root.configFingerprint,
+          })),
+        });
+        const scanService = createLocalSourceScanService({
+          database,
+          filesystemPort: scanFilesystemPort,
+          commands: scanCommands,
+          ownerScope: DEFAULT_OWNER_SCOPE,
+          now: () => new Date().toISOString(),
+        });
+        localSourceScanService = scanService;
         sourceLibraryReadPort = createSourceLibraryReadPort({
           db: database.context(),
         });
@@ -281,6 +361,50 @@ export function createMusicDataPlatformRuntimeModule(
               retryLimit: PROJECTION_MAINTENANCE_RETRY_LIMIT,
             }),
           });
+          // Local source scan advance job (D42): register the self-driving
+          // handler, wire the start command, and resume non-terminal batches
+          // (D44) before workers start. The handler reads the durable batch
+          // phase, advances one bounded unit, and re-chains with a deterministic
+          // generation-keyed id while the batch stays non-terminal.
+          const scanReadPort = createLocalSourceScanReadPort({ db: database.context() });
+          const resolveScanExclusions = (rootId: string): LocalSourceScanExclusions =>
+            scanExclusionsByRoot.get(rootId) ?? EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS;
+          const scanAdvanceCommands = createLocalSourceScanAdvanceCommands({
+            database,
+            materialRefFactory,
+            projectionMaintenanceDispatcher,
+            resolveExclusions: resolveScanExclusions,
+          });
+          localSourceScanStartCommand = createLocalSourceScanStartCommand({
+            service: scanService,
+            advanceCommands: scanAdvanceCommands,
+            backgroundWork: input.backgroundWork,
+            submitRetry: LOCAL_SOURCE_SCAN_SUBMIT_RETRY,
+            now: () => new Date().toISOString(),
+          });
+          input.backgroundWork.registerHandler({
+            jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE,
+            handler: createLocalSourceScanAdvanceJobHandler({
+              read: scanReadPort,
+              filesystemPort: scanFilesystemPort,
+              commands: scanAdvanceCommands,
+              backgroundWork: input.backgroundWork,
+              resolveExclusions: resolveScanExclusions,
+              maxConcurrentFiles: scanConfig.maxConcurrentFilesPerRoot,
+              submitRetry: LOCAL_SOURCE_SCAN_SUBMIT_RETRY,
+              now: () => new Date().toISOString(),
+            }),
+          });
+          // D44: resubmit every non-terminal batch's current advance generation
+          // so a crash between an advance commit and the next-job submit never
+          // strands a batch. Idempotent via the deterministic generation-keyed
+          // job id; cancel_requested batches resume only to finalize cancelled.
+          await createLocalSourceScanRecovery({
+            read: scanReadPort,
+            backgroundWork: input.backgroundWork,
+            ownerScope: DEFAULT_OWNER_SCOPE,
+            submitRetry: LOCAL_SOURCE_SCAN_SUBMIT_RETRY,
+          }).resumeNonTerminalBatches();
         }
         materialProjection = createMaterialProjection({
           db: database.context(),
@@ -357,6 +481,8 @@ export function createMusicDataPlatformRuntimeModule(
         retrievalQueryService = undefined;
         downloadCommand = undefined;
         localSourceCommand = undefined;
+        localSourceScanService = undefined;
+        localSourceScanStartCommand = undefined;
         localizeProviderSourceCommand = undefined;
         await closeOwnedDatabase();
         return {
@@ -389,6 +515,8 @@ export function createMusicDataPlatformRuntimeModule(
         retrievalQueryService = undefined;
         downloadCommand = undefined;
         localSourceCommand = undefined;
+        localSourceScanService = undefined;
+        localSourceScanStartCommand = undefined;
         localizeProviderSourceCommand = undefined;
 
         return {
@@ -449,6 +577,12 @@ export function createMusicDataPlatformRuntimeModule(
     },
     localSource() {
       return localSourceCommand;
+    },
+    localSourceScan() {
+      return localSourceScanService;
+    },
+    localSourceScanStart() {
+      return localSourceScanStartCommand;
     },
     localizeProviderSource() {
       return localizeProviderSourceCommand;
