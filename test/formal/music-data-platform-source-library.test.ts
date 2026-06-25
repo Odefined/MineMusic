@@ -3,6 +3,7 @@ import { refKey, type Ref, type Result } from "../../src/contracts/kernel.js";
 import type { PlatformLibraryCandidate, PlatformLibraryReadInput, PlatformLibraryReadResult, SourceEntity } from "../../src/contracts/music_data_platform.js";
 import { DEFAULT_OWNER_SCOPE, createSearchMetadataProjectionRecords, createMaterialRefFactory, createOwnerCatalogRecords, createProjectionMaintenanceRecords, createProjectionMaintenanceRunner, createSourceLibraryRef, createSourceLibraryImportService, isMusicDataPlatformError, musicDataPlatformIdentitySchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformCollectionSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformSearchMetadataProjectionSchema, musicDataPlatformSourceLibrarySchema, type PlatformLibraryReadPort, type SourceLibraryImportBatchRecord, type SourceLibraryImportItemOutcomeRecord, type SourceLibraryImportService, type SourceLibraryRecord, type SourceLibraryItemRecord, type SourceLibraryCommands, type SourceLibraryReadPort, } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
+import { musicDataPlatformLocalSourceScanSchema } from "../../src/music_data_platform/local_source_scan_schema.js";
 import { createSourceLibraryCommands } from "../../src/music_data_platform/source_library_commands.js";
 import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
 import type { MusicDatabase } from "../../src/storage/index.js";
@@ -1011,6 +1012,7 @@ assert.deepEqual((await createProjectionMaintenanceRecords({ db: projectionMaint
     .sort(), [
     "owner_catalog_collection_material",
     "owner_catalog_relation_material",
+    "owner_catalog_scan_root_material",
     "owner_catalog_source_library_material",
     "search_metadata",
 ]);
@@ -1018,8 +1020,8 @@ assert.deepEqual(await createProjectionMaintenanceRunner({
     database: projectionMaintenanceDatabase,
     now: "2026-06-08T01:16:00.000Z",
 }).runProjectionMaintenance(), {
-    selectedCount: 4,
-    rebuiltCount: 4,
+    selectedCount: 5,
+    rebuiltCount: 5,
     failedCount: 0,
     skippedStaleGenerationCount: 0,
 });
@@ -1474,6 +1476,7 @@ async function initializedDatabase(): Promise<MusicDatabase> {
             musicDataPlatformSearchMetadataProjectionSchema,
             musicDataPlatformSourceLibrarySchema,
             musicDataPlatformProjectionMaintenanceSchema,
+            musicDataPlatformLocalSourceScanSchema,
         ],
     });
     return database;

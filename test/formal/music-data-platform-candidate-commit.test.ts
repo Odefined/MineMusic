@@ -3,6 +3,7 @@ import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import type { ProviderMaterialCandidate, SourceTrack } from "../../src/contracts/music_data_platform.js";
 import { createCandidateCommitCommand, createMaterialRefFactory, createProviderMaterialCandidateRef, musicDataPlatformIdentitySchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformRetrievalResultSetSchema, } from "../../src/music_data_platform/index.js";
 import { createIdentityRepositories } from "../../src/music_data_platform/identity_records.js";
+import { musicDataPlatformLocalSourceScanSchema } from "../../src/music_data_platform/local_source_scan_schema.js";
 import { createProjectionMaintenanceRecords } from "../../src/music_data_platform/projection_maintenance_records.js";
 import { createRetrievalResultSetRecords, type MaterialCandidateCacheRecord, } from "../../src/music_data_platform/retrieval_result_set_records.js";
 import { type MusicDatabase, type MusicDatabaseContext } from "../../src/storage/index.js";
@@ -69,6 +70,7 @@ const now = "2026-06-17T12:00:00.000Z";
     assert.deepEqual(projectionKinds, [
         "owner_catalog_collection_material",
         "owner_catalog_relation_material",
+        "owner_catalog_scan_root_material",
         "owner_catalog_source_library_material",
         "search_metadata",
     ]);
@@ -131,6 +133,7 @@ async function initializedDatabase(): Promise<MusicDatabase> {
         schemas: [
             musicDataPlatformIdentitySchema,
             musicDataPlatformProjectionMaintenanceSchema,
+            musicDataPlatformLocalSourceScanSchema,
             musicDataPlatformRetrievalResultSetSchema,
         ],
     });

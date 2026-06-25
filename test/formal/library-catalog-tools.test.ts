@@ -92,6 +92,11 @@ const catalog: LibraryCatalogReadPort = {
         // integration test (library-catalog-collection-scope.test.ts); this mock
         // returns an empty set so the existing unit assertions are unaffected.
         return [];
+      case "scan_root":
+        // scan_root is an internal-only catalog scope (D23), never reaching the
+        // Stage Interface catalog tools; covered by projection-maintenance-local-
+        // source-scan.test.ts. Return empty so unit assertions are unaffected.
+        return [];
     }
   },
 };

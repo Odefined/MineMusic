@@ -13,7 +13,14 @@ export type LibraryCatalogReadScope =
   // `targetKind` set => single-kind Collection filtered to that kind; omitted =>
   // mixed Collection using the library baseline. Work/release Collections never
   // reach the read port (D7 catalog-invisible), so no CollectionKind is needed.
-  | { kind: "collection"; ref: Ref; targetKind?: LibraryCatalogMaterialKind };
+  | { kind: "collection"; ref: Ref; targetKind?: LibraryCatalogMaterialKind }
+  // Phase 26 (D23): internal per-root scan catalog scope. Sibling non-library
+  // scopes key their subject as a Ref, but a scan root's durable identity is a
+  // bare ref-safe rootId string (ADR-0042), and owner_material_entries stores it
+  // directly in entry_ref_key (not as a refKey). Carrying a bare rootId here
+  // avoids fabricating a Ref shape the projection does not use; the durable key
+  // remains rootId. Not exposed through Stage Interface scope schemas.
+  | { kind: "scan_root"; rootId: string; materialKind: LibraryCatalogMaterialKind };
 
 export type LibraryCatalogRecord = {
   materialRef: Ref;
@@ -90,6 +97,28 @@ function catalogSql(scope: LibraryCatalogReadScope): string {
     `;
   }
 
+  if (scope.kind === "scan_root") {
+    return `
+      SELECT
+        c.material_ref_key,
+        m.kind AS material_kind,
+        COALESCE(e.provenance_json ->> 'lastFileModifiedAt', c.recently_added_at) AS recently_added_at
+      FROM owner_material_catalog_view c
+      JOIN material_records m
+        ON m.ref_key = c.material_ref_key
+      JOIN owner_material_entries e
+        ON e.owner_scope = c.owner_scope
+        AND e.material_ref_key = c.material_ref_key
+        AND e.entry_kind = 'scan_root'
+        AND e.entry_ref_key = ?
+        AND e.visibility_role = 'positive'
+        AND e.active = 1
+      WHERE c.owner_scope = ?
+        AND m.kind = ?
+      ORDER BY COALESCE(e.provenance_json ->> 'lastFileModifiedAt', c.recently_added_at) DESC, c.material_ref_key ASC
+    `;
+  }
+
   const scopeFilter = scope.kind === "library"
     ? ""
     : `
@@ -142,6 +171,12 @@ function catalogParameters(
         ownerScope,
         "owner_relation",
         refKey(scope.ref),
+        scope.materialKind,
+      ];
+    case "scan_root":
+      return [
+        scope.rootId,
+        ownerScope,
         scope.materialKind,
       ];
     case "collection":

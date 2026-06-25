@@ -135,6 +135,18 @@ export async function dispatchProjectionTarget(input: {
         materialRef: payload.materialRef,
       });
       return;
+    case "owner_catalog_scan_root":
+      await input.ownerCatalogProjectionCommands.rebuildScanRootEntriesForRoot({
+        ownerScope: payload.ownerScope,
+        rootId: payload.rootId,
+      });
+      return;
+    case "owner_catalog_scan_root_material":
+      await input.ownerCatalogProjectionCommands.rebuildScanRootEntriesForMaterial({
+        ownerScope: payload.ownerScope,
+        materialRef: payload.materialRef,
+      });
+      return;
     case "owner_catalog_collection":
       await input.ownerCatalogProjectionCommands.rebuildCollectionEntries({
         ownerScope: payload.ownerScope,

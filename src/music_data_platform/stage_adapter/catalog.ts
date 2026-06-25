@@ -704,6 +704,12 @@ function serializableScope(scope: LibraryCatalogReadScope): SerializableCatalogS
         refKey: refKey(scope.ref),
         ...(scope.targetKind === undefined ? {} : { targetKind: scope.targetKind }),
       };
+    case "scan_root":
+      // scan_root is an internal-only catalog scope (D23) never exposed through
+      // Stage Interface scope schemas or availability. Reaching the Stage Adapter
+      // serialization path with one is a boundary violation; fail loudly rather
+      // than fabricate a serializable form.
+      throw new Error("Internal scan_root catalog scope is not serializable for Stage Interface.");
   }
 }
 

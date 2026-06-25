@@ -10,6 +10,7 @@ import { assertCollectionRef } from "./collection_ref.js";
 import { parseStoredRef } from "./collection_records.js";
 import { assertOwnerScope } from "./owner_scope.js";
 import { assertSourceLibraryRef } from "./source_library_ref.js";
+import { assertLocalSourceRootId } from "./local_source_path.js";
 
 export type CreateOwnerCatalogProjectionCommandsInput = {
   db: MusicDatabaseTransactionContext;
@@ -59,6 +60,22 @@ export type CollectionEntryProjectionSummary = {
   obsoleteEntryDeleteCount: number;
 };
 
+export type RebuildScanRootEntriesForRootInput = {
+  ownerScope: string;
+  rootId: string;
+};
+
+export type RebuildScanRootEntriesForMaterialInput = {
+  ownerScope: string;
+  materialRef: Ref;
+};
+
+export type ScanRootEntryProjectionSummary = {
+  scanRootItemCount: number;
+  projectedEntryCount: number;
+  obsoleteEntryDeleteCount: number;
+};
+
 export type OwnerCatalogProjectionCommands = {
   rebuildSourceLibraryEntriesForLibrary(
     input: RebuildSourceLibraryEntriesForLibraryInput,
@@ -72,6 +89,17 @@ export type OwnerCatalogProjectionCommands = {
   rebuildCollectionEntries(
     input: RebuildCollectionEntriesInput,
   ): Promise<CollectionEntryProjectionSummary>;
+  // Phase 26 (D22, D25): rebuild every active scan_root owner catalog entry for
+  // one root (root-scoped) or one material across all roots (material-scoped).
+  // Only active scan items joined to a current source-material binding and an
+  // active Material project; drifted/unstable/failed items and disappeared
+  // memberships are dropped by the obsolete-entry DELETE.
+  rebuildScanRootEntriesForRoot(
+    input: RebuildScanRootEntriesForRootInput,
+  ): Promise<ScanRootEntryProjectionSummary>;
+  rebuildScanRootEntriesForMaterial(
+    input: RebuildScanRootEntriesForMaterialInput,
+  ): Promise<ScanRootEntryProjectionSummary>;
   // Resolves the collection refs whose active membership currently includes a
   // material, so the material-scoped projection dispatch can rebuild each
   // owning collection (plan: the resolution belongs in the producer, keeping
@@ -84,6 +112,16 @@ export type OwnerCatalogProjectionCommands = {
 type SourceLibraryScopeRow = {
   owner_scope: string;
 };
+
+const scanRootLastFileModifiedAtSql = `
+              CASE
+                WHEN MAX(i.observed_modified_at_ms) IS NULL THEN NULL
+                ELSE to_char(
+                  timezone('UTC', to_timestamp(MAX(i.observed_modified_at_ms) / 1000.0)),
+                  'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                )
+              END
+            `;
 
 export function createOwnerCatalogProjectionCommands(
   input: CreateOwnerCatalogProjectionCommandsInput,
@@ -588,6 +626,211 @@ export function createOwnerCatalogProjectionCommands(
       // a failed rebuild target, matching collection_records' own read contract.
       return rows.map((row) => parseStoredRef(row.collection_ref_json, row.collection_ref_key));
     },
+    async rebuildScanRootEntriesForRoot(commandInput) {
+      assertOwnerScope(commandInput.ownerScope);
+      assertLocalSourceRootId(commandInput.rootId);
+
+      const scanRootItemCount = await countActiveScanRootItemsForRoot(
+        input.db,
+        commandInput.ownerScope,
+        commandInput.rootId,
+      );
+      const obsoleteEntryDeleteCount = await countObsoleteScanRootEntriesForRoot(
+        input.db,
+        commandInput.ownerScope,
+        commandInput.rootId,
+      );
+
+      // INSERT...SELECT: one owner_material_entries row per active scan item
+      // (state='active') under the root, joined through its current binding to
+      // an active Material. drifted/unstable/failed items and items whose
+      // Material is inactive are filtered out, so a rebuild after any of those
+      // naturally drops the entry via the obsolete DELETE below.
+      await input.db.run(
+        `
+          INSERT INTO owner_material_entries (
+            entry_key,
+            owner_scope,
+            entry_kind,
+            entry_ref_key,
+            material_ref_key,
+            visibility_role,
+            active,
+            provenance_json,
+            created_at,
+            updated_at
+          )
+          SELECT
+            'ome_' || md5(
+              r.owner_scope || '|' || 'scan_root' || '|' ||
+              r.root_id || '|' || b.material_ref_key
+            ) AS entry_key,
+            r.owner_scope,
+            'scan_root' AS entry_kind,
+            r.root_id AS entry_ref_key,
+            b.material_ref_key,
+            'positive' AS visibility_role,
+            1 AS active,
+            jsonb_build_object(
+              'kind', 'scan_root',
+              'rootId', r.root_id,
+              'label', r.label,
+              'scanItemCount', COUNT(*),
+              'firstSeenAt', MIN(i.first_seen_at),
+              'lastObservedAt', MAX(i.last_observed_at),
+              'lastFileModifiedAt', ${scanRootLastFileModifiedAtSql}
+            ) AS provenance_json,
+            ? AS created_at,
+            ? AS updated_at
+          FROM local_source_scan_items i
+          JOIN local_source_scan_roots r
+            ON r.root_id = i.root_id
+          JOIN source_material_bindings b
+            ON b.source_ref_key = i.source_ref_key
+          JOIN material_records m
+            ON m.ref_key = b.material_ref_key
+          WHERE r.root_id = ?
+            AND r.owner_scope = ?
+            AND i.state = 'active'
+            AND m.lifecycle_status = 'active'
+          GROUP BY r.owner_scope, r.root_id, r.label, b.material_ref_key
+          ON CONFLICT(owner_scope, entry_kind, entry_ref_key, material_ref_key) DO UPDATE SET
+            visibility_role = excluded.visibility_role,
+            active = excluded.active,
+            provenance_json = excluded.provenance_json,
+            updated_at = excluded.updated_at
+        `,
+        [input.now, input.now, commandInput.rootId, commandInput.ownerScope],
+      );
+
+      await input.db.run(
+        `
+          DELETE FROM owner_material_entries
+          WHERE owner_scope = ?
+            AND entry_kind = 'scan_root'
+            AND entry_ref_key = ?
+            AND NOT EXISTS (
+              SELECT 1
+              FROM local_source_scan_items i
+              JOIN source_material_bindings b
+                ON b.source_ref_key = i.source_ref_key
+              JOIN material_records m
+                ON m.ref_key = b.material_ref_key
+              WHERE i.root_id = ?
+                AND i.state = 'active'
+                AND m.lifecycle_status = 'active'
+                AND b.material_ref_key = owner_material_entries.material_ref_key
+            )
+        `,
+        [commandInput.ownerScope, commandInput.rootId, commandInput.rootId],
+      );
+
+      return {
+        scanRootItemCount,
+        projectedEntryCount: await countProjectedScanRootEntriesForRoot(
+          input.db,
+          commandInput.ownerScope,
+          commandInput.rootId,
+        ),
+        obsoleteEntryDeleteCount,
+      };
+    },
+    async rebuildScanRootEntriesForMaterial(commandInput) {
+      assertOwnerScope(commandInput.ownerScope);
+      assertMaterialRef(commandInput.materialRef);
+      const materialRefKey = refKey(commandInput.materialRef);
+      const scanRootItemCount = await countActiveScanRootItemsForMaterial(
+        input.db,
+        commandInput.ownerScope,
+        materialRefKey,
+      );
+      const obsoleteEntryDeleteCount = await countObsoleteScanRootEntriesForMaterial(
+        input.db,
+        commandInput.ownerScope,
+        materialRefKey,
+      );
+
+      // Material-scoped rebuild: drop every scan_root entry for this material
+      // (across all roots) then re-insert for roots where the material is
+      // currently active. A Material going inactive, or its binding moving away,
+      // is reflected by the INSERT producing no row for that root.
+      await input.db.run(
+        `
+          DELETE FROM owner_material_entries
+          WHERE owner_scope = ?
+            AND entry_kind = 'scan_root'
+            AND material_ref_key = ?
+        `,
+        [commandInput.ownerScope, materialRefKey],
+      );
+
+      await input.db.run(
+        `
+          INSERT INTO owner_material_entries (
+            entry_key,
+            owner_scope,
+            entry_kind,
+            entry_ref_key,
+            material_ref_key,
+            visibility_role,
+            active,
+            provenance_json,
+            created_at,
+            updated_at
+          )
+          SELECT
+            'ome_' || md5(
+              r.owner_scope || '|' || 'scan_root' || '|' ||
+              r.root_id || '|' || b.material_ref_key
+            ) AS entry_key,
+            r.owner_scope,
+            'scan_root' AS entry_kind,
+            r.root_id AS entry_ref_key,
+            b.material_ref_key,
+            'positive' AS visibility_role,
+            1 AS active,
+            jsonb_build_object(
+              'kind', 'scan_root',
+              'rootId', r.root_id,
+              'label', r.label,
+              'scanItemCount', COUNT(*),
+              'firstSeenAt', MIN(i.first_seen_at),
+              'lastObservedAt', MAX(i.last_observed_at),
+              'lastFileModifiedAt', ${scanRootLastFileModifiedAtSql}
+            ) AS provenance_json,
+            ? AS created_at,
+            ? AS updated_at
+          FROM local_source_scan_items i
+          JOIN local_source_scan_roots r
+            ON r.root_id = i.root_id
+          JOIN source_material_bindings b
+            ON b.source_ref_key = i.source_ref_key
+          JOIN material_records m
+            ON m.ref_key = b.material_ref_key
+          WHERE r.owner_scope = ?
+            AND b.material_ref_key = ?
+            AND i.state = 'active'
+            AND m.lifecycle_status = 'active'
+          GROUP BY r.owner_scope, r.root_id, r.label, b.material_ref_key
+          ON CONFLICT(owner_scope, entry_kind, entry_ref_key, material_ref_key) DO UPDATE SET
+            visibility_role = excluded.visibility_role,
+            active = excluded.active,
+            provenance_json = excluded.provenance_json,
+            updated_at = excluded.updated_at
+        `,
+        [input.now, input.now, commandInput.ownerScope, materialRefKey],
+      );
+
+      return {
+        scanRootItemCount,
+        projectedEntryCount: await countProjectedScanRootEntriesForMaterial(
+          input.db,
+          commandInput.ownerScope,
+          materialRefKey,
+        ),
+        obsoleteEntryDeleteCount,
+      };
+    },
   };
 }
 
@@ -907,5 +1150,149 @@ async function countProjectedCollectionEntries(
         AND visibility_role = 'positive'
     `,
     [ownerScope, collectionRefKey],
+  ))?.count ?? 0);
+}
+
+async function countActiveScanRootItemsForRoot(
+  db: MusicDatabaseTransactionContext,
+  ownerScope: string,
+  rootId: string,
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM local_source_scan_items i
+      JOIN local_source_scan_roots r
+        ON r.root_id = i.root_id
+      JOIN source_material_bindings b
+        ON b.source_ref_key = i.source_ref_key
+      JOIN material_records m
+        ON m.ref_key = b.material_ref_key
+      WHERE r.root_id = ?
+        AND r.owner_scope = ?
+        AND i.state = 'active'
+        AND m.lifecycle_status = 'active'
+    `,
+    [rootId, ownerScope],
+  ))?.count ?? 0);
+}
+
+async function countObsoleteScanRootEntriesForRoot(
+  db: MusicDatabaseTransactionContext,
+  ownerScope: string,
+  rootId: string,
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM owner_material_entries
+      WHERE owner_scope = ?
+        AND entry_kind = 'scan_root'
+        AND entry_ref_key = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM local_source_scan_items i
+          JOIN source_material_bindings b
+            ON b.source_ref_key = i.source_ref_key
+          JOIN material_records m
+            ON m.ref_key = b.material_ref_key
+          WHERE i.root_id = ?
+            AND i.state = 'active'
+            AND m.lifecycle_status = 'active'
+            AND b.material_ref_key = owner_material_entries.material_ref_key
+        )
+    `,
+    [ownerScope, rootId, rootId],
+  ))?.count ?? 0);
+}
+
+async function countProjectedScanRootEntriesForRoot(
+  db: MusicDatabaseTransactionContext,
+  ownerScope: string,
+  rootId: string,
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM owner_material_entries
+      WHERE owner_scope = ?
+        AND entry_kind = 'scan_root'
+        AND entry_ref_key = ?
+        AND active = 1
+        AND visibility_role = 'positive'
+    `,
+    [ownerScope, rootId],
+  ))?.count ?? 0);
+}
+
+async function countActiveScanRootItemsForMaterial(
+  db: MusicDatabaseTransactionContext,
+  ownerScope: string,
+  materialRefKey: string,
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM local_source_scan_items i
+      JOIN local_source_scan_roots r
+        ON r.root_id = i.root_id
+      JOIN source_material_bindings b
+        ON b.source_ref_key = i.source_ref_key
+      JOIN material_records m
+        ON m.ref_key = b.material_ref_key
+      WHERE r.owner_scope = ?
+        AND b.material_ref_key = ?
+        AND i.state = 'active'
+        AND m.lifecycle_status = 'active'
+    `,
+    [ownerScope, materialRefKey],
+  ))?.count ?? 0);
+}
+
+async function countObsoleteScanRootEntriesForMaterial(
+  db: MusicDatabaseTransactionContext,
+  ownerScope: string,
+  materialRefKey: string,
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM owner_material_entries
+      WHERE owner_scope = ?
+        AND entry_kind = 'scan_root'
+        AND material_ref_key = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM local_source_scan_items i
+          JOIN source_material_bindings b
+            ON b.source_ref_key = i.source_ref_key
+          JOIN material_records m
+            ON m.ref_key = b.material_ref_key
+          WHERE i.root_id = owner_material_entries.entry_ref_key
+            AND i.state = 'active'
+            AND m.lifecycle_status = 'active'
+            AND b.material_ref_key = owner_material_entries.material_ref_key
+        )
+    `,
+    [ownerScope, materialRefKey],
+  ))?.count ?? 0);
+}
+
+async function countProjectedScanRootEntriesForMaterial(
+  db: MusicDatabaseTransactionContext,
+  ownerScope: string,
+  materialRefKey: string,
+): Promise<number> {
+  return Number((await db.get<{ count: number | string }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM owner_material_entries
+      WHERE owner_scope = ?
+        AND entry_kind = 'scan_root'
+        AND material_ref_key = ?
+        AND active = 1
+        AND visibility_role = 'positive'
+    `,
+    [ownerScope, materialRefKey],
   ))?.count ?? 0);
 }

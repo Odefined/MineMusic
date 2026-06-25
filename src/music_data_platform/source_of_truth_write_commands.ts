@@ -13,6 +13,10 @@ import {
   type CollectionCommands,
 } from "./collection_commands.js";
 import {
+  createLocalSourceScanWriteCommands,
+  type LocalSourceScanWriteCommands,
+} from "./local_source_scan_write_commands.js";
+import {
   createProjectionMaintenanceCommands,
   type ProjectionInvalidationCommands,
   type ProjectionMaintenanceInvalidatedTarget,
@@ -41,6 +45,7 @@ export type MusicDataPlatformSourceOfTruthWriteCommands = {
   sourceLibrary: SourceLibraryCommands;
   ownerRelations: OwnerMaterialRelationCommands;
   collections: CollectionCommands;
+  scan: LocalSourceScanWriteCommands;
 };
 
 export function createMusicDataPlatformSourceOfTruthWriteCommands(
@@ -86,9 +91,13 @@ export function createMusicDataPlatformSourceOfTruthWriteCommands(
     now: input.now,
     projectionInvalidationCommands,
   });
+  const scan = createLocalSourceScanWriteCommands({
+    projectionInvalidationCommands,
+  });
 
   return {
     identity,
+    scan,
     sourceLibrary: {
       createImportBatch(commandInput) {
         assertWorkflowFacingOwnerScope(commandInput.ownerScope);

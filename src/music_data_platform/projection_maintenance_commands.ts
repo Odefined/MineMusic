@@ -18,6 +18,7 @@ import {
   musicDataPlatformRefKey,
 } from "./ref_validation.js";
 import { assertSourceLibraryRef } from "./source_library_ref.js";
+import { assertLocalSourceRootId } from "./local_source_path.js";
 
 export type ProjectionMaintenanceKind =
   | "owner_catalog_source_library"
@@ -25,6 +26,8 @@ export type ProjectionMaintenanceKind =
   | "owner_catalog_relation_material"
   | "owner_catalog_collection"
   | "owner_catalog_collection_material"
+  | "owner_catalog_scan_root"
+  | "owner_catalog_scan_root_material"
   | "search_metadata";
 
 export type ProjectionMaintenanceTargetStatus =
@@ -71,6 +74,17 @@ export type ProjectionSourceWrite =
       ownerScope: string;
       collectionKind: CollectionKind;
       collectionRef: Ref;
+    }
+  | {
+      // Phase 26 (D22, D25): a scan item active-visibility change
+      // (newly active, or active -> drifted/unstable/failed/disappeared) dirties
+      // the root-scoped scan catalog target so owner_catalog_scan_root rebuilds
+      // for the affected root. rootId is the durable scan-root identity (never
+      // rootDir). The material-scoped target is owned by material lifecycle /
+      // binding writes (see materialScopedTargets), not by this root write.
+      writeKind: "scan_item_written";
+      ownerScope: string;
+      rootId: string;
     };
 
 export type ProjectionMaintenanceInvalidationInput = {
@@ -127,6 +141,16 @@ export type ProjectionMaintenanceTargetInput =
     }
   | {
       projectionKind: "owner_catalog_collection_material";
+      ownerScope: string;
+      materialRef: Ref;
+    }
+  | {
+      projectionKind: "owner_catalog_scan_root";
+      ownerScope: string;
+      rootId: string;
+    }
+  | {
+      projectionKind: "owner_catalog_scan_root_material";
       ownerScope: string;
       materialRef: Ref;
     }
@@ -201,6 +225,11 @@ type OwnerCatalogCollectionPayload = {
 type OwnerCatalogMaterialPayload = {
   ownerScope: string;
   materialRef: RefPayload;
+};
+
+type OwnerCatalogScanRootPayload = {
+  ownerScope: string;
+  rootId: string;
 };
 
 type SearchMetadataPayload = {
@@ -350,6 +379,8 @@ export function assertProjectionMaintenanceKind(
     value !== "owner_catalog_relation_material" &&
     value !== "owner_catalog_collection" &&
     value !== "owner_catalog_collection_material" &&
+    value !== "owner_catalog_scan_root" &&
+    value !== "owner_catalog_scan_root_material" &&
     value !== "search_metadata"
   ) {
     throw invalidProjectionMaintenanceKind(
@@ -403,7 +434,8 @@ export function parseProjectionMaintenanceTargetPayload(input: {
     }
     case "owner_catalog_source_library_material":
     case "owner_catalog_relation_material":
-    case "owner_catalog_collection_material": {
+    case "owner_catalog_collection_material":
+    case "owner_catalog_scan_root_material": {
       const payload = requireObjectPayload(parsed);
       assertExactObjectKeys(payload, ["ownerScope", "materialRef"]);
       const ownerScope = requireStringField(payload.ownerScope, "ownerScope");
@@ -414,6 +446,19 @@ export function parseProjectionMaintenanceTargetPayload(input: {
         projectionKind: input.projectionKind,
         ownerScope,
         materialRef,
+      };
+    }
+    case "owner_catalog_scan_root": {
+      const payload = requireObjectPayload(parsed);
+      assertExactObjectKeys(payload, ["ownerScope", "rootId"]);
+      const ownerScope = requireStringField(payload.ownerScope, "ownerScope");
+      assertOwnerScope(ownerScope);
+      const rootId = requireStringField(payload.rootId, "rootId");
+      assertLocalSourceRootId(rootId);
+      return {
+        projectionKind: input.projectionKind,
+        ownerScope,
+        rootId,
       };
     }
     case "search_metadata": {
@@ -481,6 +526,24 @@ function buildNormalizedTargetPayloadJson(input: ProjectionMaintenanceTargetInpu
     case "search_metadata": {
       assertMaterialRef(input.materialRef);
       const payload: SearchMetadataPayload = {
+        materialRef: normalizedRefPayload(input.materialRef),
+      };
+      return JSON.stringify(payload);
+    }
+    case "owner_catalog_scan_root": {
+      assertOwnerScope(input.ownerScope);
+      assertLocalSourceRootId(input.rootId);
+      const payload: OwnerCatalogScanRootPayload = {
+        ownerScope: input.ownerScope,
+        rootId: input.rootId,
+      };
+      return JSON.stringify(payload);
+    }
+    case "owner_catalog_scan_root_material": {
+      assertOwnerScope(input.ownerScope);
+      assertMaterialRef(input.materialRef);
+      const payload: OwnerCatalogMaterialPayload = {
+        ownerScope: input.ownerScope,
         materialRef: normalizedRefPayload(input.materialRef),
       };
       return JSON.stringify(payload);
@@ -649,6 +712,21 @@ async function planProjectionInvalidationTargets(
         ownerScope: write.ownerScope,
         collectionRef: write.collectionRef,
       }];
+    case "scan_item_written":
+      // Phase 26 (D22, D25): a scan item visibility change dirties exactly the
+      // root-scoped scan catalog target. The root rebuild re-projects every
+      // active scan item under the root, so a single dirty suffices for any
+      // visibility transition (newly active, or active -> hidden/disappeared).
+      // The material-scoped owner_catalog_scan_root_material target is dirtied
+      // by material lifecycle / binding writes via materialScopedTargets, not
+      // by this root write.
+      assertOwnerScope(write.ownerScope);
+      assertLocalSourceRootId(write.rootId);
+      return [{
+        projectionKind: "owner_catalog_scan_root",
+        ownerScope: write.ownerScope,
+        rootId: write.rootId,
+      }];
   }
 }
 
@@ -673,6 +751,15 @@ function materialScopedTargets(
     // target is part of the standard material-scoped set.
     {
       projectionKind: "owner_catalog_collection_material",
+      ownerScope,
+      materialRef,
+    },
+    // Phase 26 (D25): a material lifecycle / binding change can alter the active
+    // visibility or projected facts of a scan_root catalog entry (e.g. a material
+    // going inactive hides its scan_root entry), so the scan-root material-scoped
+    // target is part of the standard material-scoped set.
+    {
+      projectionKind: "owner_catalog_scan_root_material",
       ownerScope,
       materialRef,
     },

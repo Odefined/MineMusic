@@ -21,6 +21,8 @@ export const musicDataPlatformProjectionMaintenanceSchema: MusicDatabaseSchemaCo
           'owner_catalog_relation_material',
           'owner_catalog_collection',
           'owner_catalog_collection_material',
+          'owner_catalog_scan_root',
+          'owner_catalog_scan_root_material',
           'search_metadata'
         )),
         CHECK (status IN ('dirty', 'failed')),
@@ -47,6 +49,8 @@ export const musicDataPlatformProjectionMaintenanceSchema: MusicDatabaseSchemaCo
         'owner_catalog_relation_material',
         'owner_catalog_collection',
         'owner_catalog_collection_material',
+        'owner_catalog_scan_root',
+        'owner_catalog_scan_root_material',
         'search_metadata'
       ))
     `);

@@ -59,6 +59,7 @@ import { createDownloadCommands, type DownloadCommands, type DownloadSourceProvi
 import { musicDataPlatformDownloadSchema } from "../music_data_platform/download_schema.js";
 import { createNodeLocalizeProviderSourceFileStore, createNodeMediaFileWriter } from "../music_data_platform/download_file_writer.js";
 import { createLocalSourceCommand, type LocalSourceCommand } from "../music_data_platform/local_source_commands.js";
+import { musicDataPlatformLocalSourceScanSchema } from "../music_data_platform/local_source_scan_schema.js";
 import { MusicDataPlatformError } from "../music_data_platform/errors.js";
 import {
   createMetadataLookupRetrievalQueryService,
@@ -182,6 +183,7 @@ export function createMusicDataPlatformRuntimeModule(
             musicDataPlatformOwnerCatalogViewSchema,
             musicDataPlatformSearchMetadataProjectionSchema,
             musicDataPlatformProjectionMaintenanceSchema,
+            musicDataPlatformLocalSourceScanSchema,
             musicDataPlatformRetrievalResultSetSchema,
             musicDataPlatformSearchResultSetSchema,
             musicDataPlatformDownloadSchema,

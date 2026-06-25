@@ -87,6 +87,12 @@ export const musicDataPlatformOwnerCatalogViewSchema: MusicDatabaseSchemaContrib
           ),
           MAX(
             CASE
+              WHEN e.provenance_json ->> 'lastFileModifiedAt' IS NOT NULL
+              THEN e.provenance_json ->> 'lastFileModifiedAt'
+            END
+          ),
+          MAX(
+            CASE
               WHEN e.provenance_json ->> 'lastRelationUpdatedAt' IS NOT NULL
               THEN e.provenance_json ->> 'lastRelationUpdatedAt'
             END

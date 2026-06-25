@@ -55,14 +55,22 @@ async function registerTwoRoots(database: MusicDatabase): Promise<void> {
 }
 
 export async function main(): Promise<void> {
+  // Each sub-test gets its own database. Several sub-tests start a scan on a
+  // shared root and leave the batch active (to exercise the active-guard or the
+  // cancellation state machine); sharing one database would let one sub-test's
+  // active batch trip another's startScan with scan_already_active.
+  await runWithDatabase(testRegisterRootsAndReadiness);
+  await runWithDatabase(testStartScanAndActiveGuard);
+  await runWithDatabase(testStatusProgressAndNotFound);
+  await runWithDatabase(testCancellationStateMachine);
+  await runWithDatabase(testIssuePagination);
+  await runWithDatabase(testListRoots);
+}
+
+async function runWithDatabase(fn: (database: MusicDatabase) => Promise<void>): Promise<void> {
   const database = await initializedDatabase();
   try {
-    await testRegisterRootsAndReadiness(database);
-    await testStartScanAndActiveGuard(database);
-    await testStatusProgressAndNotFound(database);
-    await testCancellationStateMachine(database);
-    await testIssuePagination(database);
-    await testListRoots(database);
+    await fn(database);
   } finally {
     await database.close();
   }
@@ -96,6 +104,7 @@ async function testRegisterRootsAndReadiness(database: MusicDatabase): Promise<v
 }
 
 async function testStartScanAndActiveGuard(database: MusicDatabase): Promise<void> {
+  await registerTwoRoots(database);
   const port = fakeFilesystemPort(new Set(["lib-a", "lib-b"]));
   let counter = 0;
   const service = createLocalSourceScanService({
@@ -150,6 +159,7 @@ async function testStartScanAndActiveGuard(database: MusicDatabase): Promise<voi
 }
 
 async function testStatusProgressAndNotFound(database: MusicDatabase): Promise<void> {
+  await registerTwoRoots(database);
   const port = fakeFilesystemPort(new Set(["lib-b"]));
   let counter = 100;
   const service = createLocalSourceScanService({
@@ -188,6 +198,7 @@ async function testStatusProgressAndNotFound(database: MusicDatabase): Promise<v
 }
 
 async function testCancellationStateMachine(database: MusicDatabase): Promise<void> {
+  await registerTwoRoots(database);
   const port = fakeFilesystemPort(new Set(["lib-a"]));
   let counter = 200;
   const makeService = () => createLocalSourceScanService({
@@ -253,6 +264,7 @@ async function testCancellationStateMachine(database: MusicDatabase): Promise<vo
 }
 
 async function testIssuePagination(database: MusicDatabase): Promise<void> {
+  await registerTwoRoots(database);
   const port = fakeFilesystemPort(new Set(["lib-a"]));
   let counter = 300;
   const service = createLocalSourceScanService({
@@ -295,6 +307,7 @@ async function testIssuePagination(database: MusicDatabase): Promise<void> {
 }
 
 async function testListRoots(database: MusicDatabase): Promise<void> {
+  await registerTwoRoots(database);
   const port = fakeFilesystemPort(new Set(["lib-a"])); // lib-b unavailable
   const service = createLocalSourceScanService({
     database,
@@ -310,3 +323,8 @@ async function testListRoots(database: MusicDatabase): Promise<void> {
   // No absolute path leaks (rootDir never stored); label present.
   assert.equal(byId.get("lib-a")?.label, "Library A");
 }
+
+// The stage-core runner imports each module without invoking `main`; this
+// top-level call executes the suite (ESM top-level await resolves in the
+// runner's `await import(...)`).
+await main();

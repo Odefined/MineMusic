@@ -220,8 +220,7 @@ export type {
   ListCollectionsInput,
 } from "./collection_records.js";
 // The Collection write-boundary factory is intentionally NOT exported here: it
-// is reachable only through source_of_truth_write_commands, and the active-tree
-// barrel denylist enforces that.
+// is reachable only through source_of_truth_write_commands.
 export type {
   AddCollectionItemInput,
   CollectionCommands,

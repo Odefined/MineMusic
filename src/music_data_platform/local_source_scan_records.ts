@@ -101,17 +101,33 @@ export type LocalSourceScanRootRepository = {
   upsert(record: LocalSourceScanRootRecord): Promise<LocalSourceScanRootRecord>;
 };
 
+export type LocalSourceScanBatchOutcomeCounter =
+  | "importedCount"
+  | "unchangedCount"
+  | "driftedCount"
+  | "unstableCount"
+  | "failedCount";
+
 export type LocalSourceScanBatchRepository = {
   get(input: { batchId: string }): Promise<LocalSourceScanBatchRecord | undefined>;
   insert(record: LocalSourceScanBatchRecord): Promise<LocalSourceScanBatchRecord>;
   upsert(record: LocalSourceScanBatchRecord): Promise<LocalSourceScanBatchRecord>;
+  // Atomically increment one outcome counter and processed_count by 1. Per-file
+  // processing runs concurrently (D35), so a read-modify-write upsert would lose
+  // increments when two files in the same chunk both bump the same counter; this
+  // issues a single atomic `col = col + 1` UPDATE.
+  incrementOutcomeCounter(input: {
+    batchId: string;
+    counter: LocalSourceScanBatchOutcomeCounter;
+    now: string;
+  }): Promise<void>;
   findActiveByRoot(input: { rootId: string }): Promise<LocalSourceScanBatchRecord | undefined>;
   findLatestByRoot(input: { rootId: string }): Promise<LocalSourceScanBatchRecord | undefined>;
 };
 
 export type LocalSourceScanWorkItemRepository = {
   upsert(record: LocalSourceScanWorkItemRecord): Promise<void>;
-  countPendingByBatch(input: { batchId: string }): Promise<number>;
+  countPendingDirectoriesByBatch(input: { batchId: string }): Promise<number>;
   countByStatus(input: { batchId: string; status: LocalSourceScanWorkItemStatus }): Promise<number>;
   countAudioFilesByBatch(input: { batchId: string }): Promise<number>;
   listPendingAudioFiles(input: { batchId: string; limit: number }): Promise<readonly LocalSourceScanWorkItemRecord[]>;
@@ -147,6 +163,12 @@ export type LocalSourceScanItemRepository = {
 
 export type LocalSourceScanIssueRepository = {
   insert(record: LocalSourceScanIssueRecord): Promise<void>;
+  // Next stable issue sequence for a batch. Issues have their own PK space
+  // (batch_id, sequence) independent of work-item sequences, so allocating an
+  // issue sequence from the work-items counter collides when a batch records
+  // more than one issue (the work-item MAX does not advance on an issue insert).
+  // Reads the issues table's own MAX+1.
+  nextSequence(input: { batchId: string }): Promise<number>;
   // Paginated issue read in stable sequence order (D33). Returns rows strictly
   // after `afterSequence` (undefined starts from the beginning).
   listForBatch(input: {
@@ -155,6 +177,17 @@ export type LocalSourceScanIssueRepository = {
     limit: number;
   }): Promise<readonly LocalSourceScanIssueRecord[]>;
   countForBatch(input: { batchId: string }): Promise<number>;
+};
+
+// Maps the typed outcome-counter selector to its column. The column is chosen
+// from a fixed safe map (never interpolated from caller input), so the atomic
+// UPDATE has no injection surface.
+const OUTCOME_COUNTER_COLUMNS: Record<LocalSourceScanBatchOutcomeCounter, string> = {
+  importedCount: "imported_count",
+  unchangedCount: "unchanged_count",
+  driftedCount: "drifted_count",
+  unstableCount: "unstable_count",
+  failedCount: "failed_count",
 };
 
 export function createLocalSourceScanRepositories(
@@ -264,6 +297,19 @@ export function createLocalSourceScanRepositories(
       );
       return requireRecord(await batches.get({ batchId: record.batchId }), "scan batch upsert did not return a stored record");
     },
+    async incrementOutcomeCounter({ batchId, counter, now }) {
+      const column = OUTCOME_COUNTER_COLUMNS[counter];
+      await db.run(
+        `
+          UPDATE local_source_scan_batches
+          SET ${column} = ${column} + 1,
+              processed_count = processed_count + 1,
+              updated_at = ?
+          WHERE batch_id = ?
+        `,
+        [now, batchId],
+      );
+    },
     async findActiveByRoot({ rootId }) {
       const row = await db.get<LocalSourceScanBatchRow>(
         `
@@ -320,8 +366,12 @@ export function createLocalSourceScanRepositories(
         ],
       );
     },
-    async countPendingByBatch({ batchId }) {
-      return countScalar(db, "SELECT COUNT(*) AS count FROM local_source_scan_work_items WHERE batch_id = ? AND status = 'pending'", [batchId]);
+    async countPendingDirectoriesByBatch({ batchId }) {
+      return countScalar(
+        db,
+        "SELECT COUNT(*) AS count FROM local_source_scan_work_items WHERE batch_id = ? AND status = 'pending' AND entry_kind = 'directory'",
+        [batchId],
+      );
     },
     async countByStatus({ batchId, status }) {
       return countScalar(db, "SELECT COUNT(*) AS count FROM local_source_scan_work_items WHERE batch_id = ? AND status = ?", [batchId, status]);
@@ -498,6 +548,13 @@ export function createLocalSourceScanRepositories(
           record.createdAt,
         ],
       );
+    },
+    async nextSequence({ batchId }) {
+      const row = await db.get<{ max_sequence: number | null }>(
+        "SELECT MAX(sequence) AS max_sequence FROM local_source_scan_issues WHERE batch_id = ?",
+        [batchId],
+      );
+      return (row?.max_sequence ?? -1) + 1;
     },
     async listForBatch({ batchId, afterSequence, limit }) {
       const rows = afterSequence === undefined

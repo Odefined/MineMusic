@@ -5,7 +5,8 @@ import { assertOwnerScope } from "./owner_scope.js";
 export type OwnerMaterialEntryKind =
   | "source_library"
   | "collection"
-  | "owner_relation";
+  | "owner_relation"
+  | "scan_root";
 
 export type OwnerMaterialEntryVisibilityRole =
   | "positive"

@@ -452,8 +452,10 @@ Every active Scan Root membership projects a positive
 - Existing material lifecycle and blocked-relation filters apply unchanged.
 - Deleting disappeared membership invalidates and removes the corresponding
   active catalog entry.
-- Scan Root entries carry root provenance and local first-seen/added timing;
-  they do not reuse `source_library` entry kind or provider provenance.
+- Scan Root entries carry root provenance, local first-seen/last-observed scan
+  timing, and the aggregated file-system modified time used as local catalog
+  recency; they do not reuse `source_library` entry kind or provider
+  provenance.
 - The `owner_material_entries.entry_kind` CHECK constraint gains `scan_root`
   (current values are `source_library`, `collection`, `owner_relation`). The
   existing `UNIQUE(owner_scope, entry_kind, entry_ref_key, material_ref_key)`
@@ -472,9 +474,10 @@ carrying a bare `rootId` string. Implementation pins the choice; the durable key
 remains `rootId` either way.
 
 The scope selects active `scan_root` owner catalog entries belonging to the
-requested root and uses ordinary catalog ordering. Phase 26 verifies this read
-port directly but does not add `scan_root` to Stage Interface scope schemas or
-availability output.
+requested root and orders them by the root entry's file-system modified-time
+recency rather than unrelated owner-wide catalog provenance. Phase 26 verifies
+this read port directly but does not add `scan_root` to Stage Interface scope
+schemas or availability output.
 
 ### D24. Persist root descriptors without machine paths - [grilled] [invariant]
 
@@ -1300,8 +1303,9 @@ change. Source binding deletion must not leave stale Source attribution in
 
 The owner catalog projection joins active Scan Root items through current
 source-material bindings and active Materials. Provenance contains `kind =
-scan_root`, `rootId`, label where useful internally, first-seen/added time, and
-last observed time; it contains no absolute path.
+scan_root`, `rootId`, label where useful internally, first-seen scan time, last
+observed scan time, and the aggregated file-system modified time used for local
+catalog recency; it contains no absolute path.
 
 ## Error Semantics
 

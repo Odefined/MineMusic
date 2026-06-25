@@ -2,6 +2,7 @@ import { inspect } from "node:util";
 import { performance } from "node:perf_hooks";
 
 const testModules = [
+    "./formal/postgres-test-support.test.js",
     "./formal/formal-contracts.test.js",
     "./formal/stage-interface-tool-frame.test.js",
     "./formal/music-experience-present.test.js",
@@ -44,6 +45,7 @@ const testModules = [
     "./formal/server-local-source-scan-adapter.test.js",
     "./formal/music-data-platform-local-source-scan.test.js",
     "./formal/music-data-platform-local-source-scan-job.test.js",
+    "./formal/projection-maintenance-local-source-scan.test.js",
     "./formal/server-entrypoint.test.js",
     "./formal/stage-runtime.test.js",
     "./formal/server-host.test.js",

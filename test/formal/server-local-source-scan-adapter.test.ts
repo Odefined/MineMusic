@@ -391,7 +391,7 @@ async function testAdapter(tempRoot: string): Promise<void> {
   const albumByName = new Map(albumListing.map((e) => [e.name, e]));
   assert.deepEqual(
     [...albumByName.keys()].sort(),
-    [".hidden.wav", "link.wav", "notes.txt", "Sub", "titled.wav"],
+    [".hidden.wav", "Sub", "link.wav", "notes.txt", "titled.wav"],
   );
   const sub = albumByName.get("Sub")!;
   assert.equal(sub.kind, "directory");
@@ -473,3 +473,8 @@ export async function main(): Promise<void> {
     rmSync(tempRoot, { recursive: true, force: true });
   }
 }
+
+// The stage-core runner imports each module without invoking `main`; this
+// top-level call executes the suite (ESM top-level await resolves in the
+// runner's `await import(...)`).
+await main();

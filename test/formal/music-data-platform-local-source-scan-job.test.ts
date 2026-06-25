@@ -140,11 +140,19 @@ function unwrap<T>(result: Result<T>): T {
 }
 
 export async function main(): Promise<void> {
+  // Each sub-test gets its own database. registerRoots enforces D39 readiness
+  // (every durable root for the owner scope must appear in the current call), so
+  // sharing one database across sub-tests would let one test's registered root
+  // trip another's readiness check.
+  await runWithDatabase(testEndToEndDiscoveryProcessing);
+  await runWithDatabase(testUnstableAndCensusFatal);
+  await runWithDatabase(testReconciliationDeletion);
+}
+
+async function runWithDatabase(fn: (database: MusicDatabase) => Promise<void>): Promise<void> {
   const database = await initializedDatabase();
   try {
-    await testEndToEndDiscoveryProcessing(database);
-    await testUnstableAndCensusFatal(database);
-    await testReconciliationDeletion(database);
+    await fn(database);
   } finally {
     await database.close();
   }
@@ -164,13 +172,18 @@ async function drain(database: MusicDatabase, queue: { batchId: string }[], hand
 async function testReconciliationDeletion(database: MusicDatabase): Promise<void> {
   const rootId = "recon-lib";
   const materialRefFactory = createMaterialRefFactory();
+  // Register the root before seeding prior-batch items: local_source_scan_items
+  // has an FK to local_source_scan_roots, so the root descriptor must exist first.
+  await createLocalSourceScanCommands({ database, generateBatchId: () => "x" }).registerRoots({
+    ownerScope, now: FIXED_NOW, registrations: [{ rootId, label: "Recon", configFingerprint: "fp" }],
+  });
   // gone.mp3 was previously imported (Source+Material+binding+active item);
   // it is absent from the current tree, so a trusted scan must delete it.
-  const goneKey = await seedLocalSource(database, rootId, "gone.mp3", "md5-gone");
+  const goneKey = await seedLocalSource(database, rootId, "gone.mp3", "a0000000000000000000000000000000");
   const goneSourceRef = createLocalSourceRef({ rootId, relativePath: "gone.mp3", kind: "track" });
-  await seedItem(database, rootId, "gone.mp3", goneKey, 50, 5000, "md5-gone");
+  await seedItem(database, rootId, "gone.mp3", goneKey, 50, 5000, "a0000000000000000000000000000000");
 
-  const tree = dir({ "present.mp3": file("md5-present", 60, 6000) });
+  const tree = dir({ "present.mp3": file("b0000000000000000000000000000000", 60, 6000) });
   const port = fakePort(tree);
   const queue: { batchId: string }[] = [];
   const advanceCommands = createLocalSourceScanAdvanceCommands({
@@ -189,8 +202,6 @@ async function testReconciliationDeletion(database: MusicDatabase): Promise<void
   const start = createLocalSourceScanStartCommand({
     service, advanceCommands, backgroundWork: fakeBackgroundWork(queue), now: () => FIXED_NOW,
   });
-  const baseCommands = createLocalSourceScanCommands({ database, generateBatchId: () => "x" });
-  await baseCommands.registerRoots({ ownerScope, now: FIXED_NOW, registrations: [{ rootId, label: "Recon", configFingerprint: "fp" }] });
   const batchId = unwrap(await start.submit({ rootId })).batchId;
 
   // Capture gone's binding + Material BEFORE the scan deletes them.
@@ -229,23 +240,28 @@ async function testReconciliationDeletion(database: MusicDatabase): Promise<void
 
 async function testEndToEndDiscoveryProcessing(database: MusicDatabase): Promise<void> {
   const rootId = "lib";
+  // Register the root before seeding prior-batch items: local_source_scan_items
+  // has an FK to local_source_scan_roots, so the root descriptor must exist first.
+  await createLocalSourceScanCommands({ database, generateBatchId: () => "x" }).registerRoots({
+    ownerScope, now: FIXED_NOW, registrations: [{ rootId, label: "Lib", configFingerprint: "fp" }],
+  });
   // Pre-seed unchanged (matching evidence) and drifted (changed content) Sources.
-  const unchangedKey = await seedLocalSource(database, rootId, "unchanged.mp3", "md5-unchanged");
-  await seedItem(database, rootId, "unchanged.mp3", unchangedKey, 100, 1000, "md5-unchanged");
-  const driftedKey = await seedLocalSource(database, rootId, "drifted.mp3", "md5-original");
-  await seedItem(database, rootId, "drifted.mp3", driftedKey, 999, 9999, "md5-original");
+  const unchangedKey = await seedLocalSource(database, rootId, "unchanged.mp3", "c0000000000000000000000000000000");
+  await seedItem(database, rootId, "unchanged.mp3", unchangedKey, 100, 1000, "c0000000000000000000000000000000");
+  const driftedKey = await seedLocalSource(database, rootId, "drifted.mp3", "d0000000000000000000000000000000");
+  await seedItem(database, rootId, "drifted.mp3", driftedKey, 999, 9999, "d0000000000000000000000000000000");
 
   // Tree: two new files (one nested), unchanged, drifted (new content), corrupt,
   // a non-audio file, a symlink, and an excluded directory.
   const tree = dir({
-    "new1.mp3": file("md5-new1", 10, 5000),
-    "unchanged.mp3": file("md5-unchanged", 100, 1000),
-    "drifted.mp3": file("md5-drifted", 200, 2000),
-    "corrupt.mp3": file("md5-corrupt", 30, 3000, true),
-    "notes.txt": file("md5-notes", 5, 4000),
+    "new1.mp3": file("10000000000000000000000000000000", 10, 5000),
+    "unchanged.mp3": file("c0000000000000000000000000000000", 100, 1000),
+    "drifted.mp3": file("e0000000000000000000000000000000", 200, 2000),
+    "corrupt.mp3": file("f0000000000000000000000000000000", 30, 3000, true),
+    "notes.txt": file("30000000000000000000000000000000", 5, 4000),
     "link.mp3": { kind: "symlink" },
-    Sub: dir({ "new2.mp3": file("md5-new2", 20, 6000) }),
-    Excluded: dir({ "hidden.mp3": file("md5-hidden", 40, 7000) }),
+    Sub: dir({ "new2.mp3": file("20000000000000000000000000000000", 20, 6000) }),
+    Excluded: dir({ "hidden.mp3": file("40000000000000000000000000000000", 40, 7000) }),
   });
 
   const port = fakePort(tree);
@@ -270,9 +286,7 @@ async function testEndToEndDiscoveryProcessing(database: MusicDatabase): Promise
     service, advanceCommands, backgroundWork: fakeBackgroundWork(queue), now: () => FIXED_NOW,
   });
 
-  // Register the root, then start (submits the first advance job).
-  const baseCommands = createLocalSourceScanCommands({ database, generateBatchId: () => "x" });
-  await baseCommands.registerRoots({ ownerScope, now: FIXED_NOW, registrations: [{ rootId, label: "Lib", configFingerprint: "fp" }] });
+  // Start (submits the first advance job). The root was registered above.
   const started = unwrap(await start.submit({ rootId }));
   const batchId = started.batchId;
 
@@ -301,7 +315,7 @@ async function testEndToEndDiscoveryProcessing(database: MusicDatabase): Promise
   const repos = createLocalSourceScanRepositories({ db: database.context() });
   const driftedItem = await repos.items.get({ rootId, relativePath: "drifted.mp3" });
   assert.equal(driftedItem?.state, "drifted");
-  assert.equal(driftedItem?.observedContentMd5, "md5-drifted", "drift evidence recorded without updating Source");
+  assert.equal(driftedItem?.observedContentMd5, "e0000000000000000000000000000000", "drift evidence recorded without updating Source");
   const corruptItem = await repos.items.get({ rootId, relativePath: "corrupt.mp3" });
   assert.equal(corruptItem?.state, "failed");
   const newItem = await repos.items.get({ rootId, relativePath: "new1.mp3" });
@@ -315,7 +329,7 @@ async function testEndToEndDiscoveryProcessing(database: MusicDatabase): Promise
 async function testUnstableAndCensusFatal(database: MusicDatabase): Promise<void> {
   // Unstable: a file modified at the batch start instant.
   const rootId = "unstable-lib";
-  const tree = dir({ "fresh.mp3": file("md5-fresh", 10, FIXED_NOW_MS) });
+  const tree = dir({ "fresh.mp3": file("50000000000000000000000000000000", 10, FIXED_NOW_MS) });
   const port = fakePort(tree);
   const queue: { batchId: string }[] = [];
   const materialRefFactory = createMaterialRefFactory();
@@ -336,7 +350,12 @@ async function testUnstableAndCensusFatal(database: MusicDatabase): Promise<void
     service, advanceCommands, backgroundWork: fakeBackgroundWork(queue), now: () => FIXED_NOW,
   });
   const baseCommands = createLocalSourceScanCommands({ database, generateBatchId: () => "x" });
-  await baseCommands.registerRoots({ ownerScope, now: FIXED_NOW, registrations: [{ rootId, label: "Unstable", configFingerprint: "fp" }] });
+  // Register both roots for this sub-test in one readiness call (D39 requires
+  // the call to cover every durable root for the owner scope).
+  await baseCommands.registerRoots({ ownerScope, now: FIXED_NOW, registrations: [
+    { rootId, label: "Unstable", configFingerprint: "fp" },
+    { rootId: "fatal-lib", label: "Fatal", configFingerprint: "fp" },
+  ] });
   const started = unwrap(await start.submit({ rootId }));
   const batchId = started.batchId;
   const controller = new AbortController();
@@ -383,7 +402,6 @@ async function testUnstableAndCensusFatal(database: MusicDatabase): Promise<void
   const start2 = createLocalSourceScanStartCommand({
     service: service2, advanceCommands: advanceCommands2, backgroundWork: fakeBackgroundWork(queue2), now: () => FIXED_NOW,
   });
-  await baseCommands.registerRoots({ ownerScope, now: FIXED_NOW, registrations: [{ rootId: rootId2, label: "Fatal", configFingerprint: "fp" }] });
   const started2 = unwrap(await start2.submit({ rootId: rootId2 }));
   const batchId2 = started2.batchId;
   const controller2 = new AbortController();
@@ -397,3 +415,8 @@ async function testUnstableAndCensusFatal(database: MusicDatabase): Promise<void
   assert.equal(summary2.status, "failed", "unreadable directory is census-fatal");
   assert.equal(summary2.failureCode, "music_data.scan_directory_unreadable");
 }
+
+// The stage-core runner imports each module without invoking `main`; this
+// top-level call executes the suite (ESM top-level await resolves in the
+// runner's `await import(...)`).
+await main();

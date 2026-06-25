@@ -222,7 +222,7 @@ export function createLocalSourceScanAdvanceCommands(
         if (batch === undefined || batch.phase === "processing" || batch.phase === "reconciling") {
           return false;
         }
-        const pendingDirs = await repos.workItems.countPendingByBatch({ batchId });
+        const pendingDirs = await repos.workItems.countPendingDirectoriesByBatch({ batchId });
         if (pendingDirs > 0) {
           return false;
         }
@@ -374,11 +374,12 @@ async function recordOutcomeInTransaction(input: {
   if (isUnstable(batch.startedAt, input.workModifiedAtMs)) {
     const recorded = await repos.workItems.tryClaim({ batchId: input.batchId, relativePath: input.relativePath, from: "pending", to: "issue", updatedAt: input.now });
     if (recorded) {
-      const sequence = await repos.workItems.nextSequence({ batchId: input.batchId });
+      const sequence = await repos.issues.nextSequence({ batchId: input.batchId });
       await repos.issues.insert({ batchId: input.batchId, sequence, relativePath: input.relativePath, issueKind: "unstable", code: "music_data.scan_file_unstable", message: "File was modified within the stability window.", createdAt: input.now });
       await upsertItem(repos, { rootId, relativePath: input.relativePath, existing: existingItem, state: "unstable", batchId: input.batchId, sizeBytes: input.workSizeBytes, modifiedAtMs: input.workModifiedAtMs, contentMd5: undefined, sourceRefKey: undefined, preserveExistingBinding: false, now: input.now });
       await bumpCounter(repos, batch, "unstableCount", input.now);
     }
+    await emitScanVisibilityInvalidation({ writes: input.writes, ownerScope: batch.ownerScope, rootId, oldState: existingItem?.state, newState: "unstable", recorded });
     return { outcome: "unstable", recorded };
   }
 
@@ -395,6 +396,7 @@ async function recordOutcomeInTransaction(input: {
       await upsertItem(repos, { rootId, relativePath: input.relativePath, existing: existingItem, state: "active", batchId: input.batchId, sizeBytes: input.workSizeBytes, modifiedAtMs: input.workModifiedAtMs, contentMd5: undefined, sourceRefKey: undefined, preserveExistingBinding: true, now: input.now });
       await bumpCounter(repos, batch, "unchangedCount", input.now);
     }
+    await emitScanVisibilityInvalidation({ writes: input.writes, ownerScope: batch.ownerScope, rootId, oldState: existingItem?.state, newState: "active", recorded });
     return { outcome: "unchanged", recorded };
   }
 
@@ -402,11 +404,12 @@ async function recordOutcomeInTransaction(input: {
   if (input.inspect.kind === "failed") {
     const recorded = await repos.workItems.tryClaim({ batchId: input.batchId, relativePath: input.relativePath, from: "pending", to: "issue", updatedAt: input.now });
     if (recorded) {
-      const sequence = await repos.workItems.nextSequence({ batchId: input.batchId });
+      const sequence = await repos.issues.nextSequence({ batchId: input.batchId });
       await repos.issues.insert({ batchId: input.batchId, sequence, relativePath: input.relativePath, issueKind: "failed", code: input.inspect.code, message: input.inspect.message, createdAt: input.now });
       await upsertItem(repos, { rootId, relativePath: input.relativePath, existing: existingItem, state: "failed", batchId: input.batchId, sizeBytes: input.workSizeBytes, modifiedAtMs: input.workModifiedAtMs, contentMd5: undefined, sourceRefKey: undefined, preserveExistingBinding: true, now: input.now });
       await bumpCounter(repos, batch, "failedCount", input.now);
     }
+    await emitScanVisibilityInvalidation({ writes: input.writes, ownerScope: batch.ownerScope, rootId, oldState: existingItem?.state, newState: "failed", recorded });
     return { outcome: "failed", recorded };
   }
 
@@ -433,10 +436,11 @@ async function recordOutcomeInTransaction(input: {
       // is a per-file failure, not an invariant crash.
       const recorded = await repos.workItems.tryClaim({ batchId: input.batchId, relativePath: input.relativePath, from: "pending", to: "issue", updatedAt: input.now });
       if (recorded) {
-        const sequence = await repos.workItems.nextSequence({ batchId: input.batchId });
+        const sequence = await repos.issues.nextSequence({ batchId: input.batchId });
         await repos.issues.insert({ batchId: input.batchId, sequence, relativePath: input.relativePath, issueKind: "failed", code: cause.code, message: cause.message, createdAt: input.now });
         await bumpCounter(repos, batch, "failedCount", input.now);
       }
+      await emitScanVisibilityInvalidation({ writes: input.writes, ownerScope: batch.ownerScope, rootId, oldState: existingItem?.state, newState: "failed", recorded });
       return { outcome: "failed", recorded };
     }
     throw cause;
@@ -446,21 +450,23 @@ async function recordOutcomeInTransaction(input: {
     if (registration.error.code === "music_data.local_source_content_drift") {
       const recorded = await repos.workItems.tryClaim({ batchId: input.batchId, relativePath: input.relativePath, from: "pending", to: "issue", updatedAt: input.now });
       if (recorded) {
-        const sequence = await repos.workItems.nextSequence({ batchId: input.batchId });
+        const sequence = await repos.issues.nextSequence({ batchId: input.batchId });
         await repos.issues.insert({ batchId: input.batchId, sequence, relativePath: input.relativePath, issueKind: "drifted", code: "music_data.local_source_content_drift", message: "File content changed at the same path; the Source snapshot was not updated.", createdAt: input.now });
         await upsertItem(repos, { rootId, relativePath: input.relativePath, existing: existingItem, state: "drifted", batchId: input.batchId, sizeBytes: input.workSizeBytes, modifiedAtMs: input.workModifiedAtMs, contentMd5: input.inspect.contentMd5, sourceRefKey: undefined, preserveExistingBinding: true, now: input.now });
         await bumpCounter(repos, batch, "driftedCount", input.now);
       }
+      await emitScanVisibilityInvalidation({ writes: input.writes, ownerScope: batch.ownerScope, rootId, oldState: existingItem?.state, newState: "drifted", recorded });
       return { outcome: "drifted", recorded };
     }
     // Other registration Result failures (identity/material conflict) are
     // per-file failures surfaced as issues rather than crashes.
     const recorded = await repos.workItems.tryClaim({ batchId: input.batchId, relativePath: input.relativePath, from: "pending", to: "issue", updatedAt: input.now });
     if (recorded) {
-      const sequence = await repos.workItems.nextSequence({ batchId: input.batchId });
+      const sequence = await repos.issues.nextSequence({ batchId: input.batchId });
       await repos.issues.insert({ batchId: input.batchId, sequence, relativePath: input.relativePath, issueKind: "failed", code: registration.error.code, message: registration.error.message, createdAt: input.now });
       await bumpCounter(repos, batch, "failedCount", input.now);
     }
+    await emitScanVisibilityInvalidation({ writes: input.writes, ownerScope: batch.ownerScope, rootId, oldState: existingItem?.state, newState: "failed", recorded });
     return { outcome: "failed", recorded };
   }
 
@@ -472,6 +478,7 @@ async function recordOutcomeInTransaction(input: {
     await upsertItem(repos, { rootId, relativePath: input.relativePath, existing: existingItem, state: "active", batchId: input.batchId, sizeBytes: input.workSizeBytes, modifiedAtMs: input.workModifiedAtMs, contentMd5: input.inspect.contentMd5, sourceRefKey, preserveExistingBinding: false, now: input.now });
     await bumpCounter(repos, batch, created ? "importedCount" : "unchangedCount", input.now);
   }
+  await emitScanVisibilityInvalidation({ writes: input.writes, ownerScope: batch.ownerScope, rootId, oldState: existingItem?.state, newState: "active", recorded });
   return { outcome: created ? "imported" : "unchanged", recorded };
 }
 
@@ -484,6 +491,30 @@ function isUnstable(batchStartedAt: string, workModifiedAtMs: number | undefined
     return false;
   }
   return startedMs - workModifiedAtMs < LOCAL_SOURCE_SCAN_STABILITY_WINDOW_MS;
+}
+
+// Phase 26 (D25): the root-scoped scan catalog target is dirtied only when an
+// item's active visibility actually changes. Re-observing an already-active
+// unchanged item, or a replay that did not transition the work row (recorded ===
+// false), is not a visibility change, so it must not trigger a root rebuild.
+// This keeps a re-scan of a stable library from emitting one rebuild per file.
+async function emitScanVisibilityInvalidation(args: {
+  writes: MusicDataPlatformSourceOfTruthWriteCommands;
+  ownerScope: string;
+  rootId: string;
+  oldState: LocalSourceScanItemState | undefined;
+  newState: LocalSourceScanItemState;
+  recorded: boolean;
+}): Promise<void> {
+  if (!args.recorded) {
+    return;
+  }
+  const oldVisible = args.oldState === "active";
+  const newVisible = args.newState === "active";
+  if (oldVisible === newVisible) {
+    return;
+  }
+  await args.writes.scan.markScanItemWritten({ ownerScope: args.ownerScope, rootId: args.rootId });
 }
 
 async function upsertItem(
@@ -526,7 +557,12 @@ async function bumpCounter(
   field: "importedCount" | "unchangedCount" | "driftedCount" | "unstableCount" | "failedCount",
   now: string,
 ): Promise<void> {
-  await repos.batches.upsert({ ...batch, [field]: batch[field] + 1, processedCount: batch.processedCount + 1, updatedAt: now });
+  // Atomic increment: per-file processing is concurrent (D35), so the batch
+  // snapshot in `batch` may be stale by the time this runs. A read-modify-write
+  // upsert would lose increments when two files in the same chunk both bump the
+  // same counter; the repo's atomic UPDATE serializes on the row instead.
+  void batch;
+  await repos.batches.incrementOutcomeCounter({ batchId: batch.batchId, counter: field, now });
 }
 
 async function countDeletionCandidates(input: {
@@ -564,6 +600,10 @@ async function deleteDisappearedSource(args: {
       await writes.identity.deleteBindingForSource({ sourceRef });
       await writes.identity.deleteSourceRecord({ sourceRef });
       await scanRepos.items.deleteByKey({ rootId: args.batch.rootId, relativePath: args.relativePath });
+      // A disappeared active item is a visibility change (active -> gone), so
+      // dirty the root-scoped scan catalog target. The identity deletes above
+      // already dirty the material-scoped target via materialScopedTargets.
+      await writes.scan.markScanItemWritten({ ownerScope: args.batch.ownerScope, rootId: args.batch.rootId });
       const refreshed = await scanRepos.batches.get({ batchId: args.batch.batchId });
       if (refreshed !== undefined) {
         await scanRepos.batches.upsert({
