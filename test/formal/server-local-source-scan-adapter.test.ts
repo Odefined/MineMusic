@@ -494,6 +494,30 @@ async function testHashErrorIsRetryable(tempRoot: string): Promise<void> {
   }
 }
 
+// #3 resolveUnderRoot self-defends: a ".." path that would escape the root
+// throws loudly (programmer error / normalization bypass) instead of reading
+// outside the root. The check is lexical (path.resolve), so it fires before
+// any filesystem access. Locks the defense-in-depth guard at the fs boundary.
+async function testEscapeRejected(tempRoot: string): Promise<void> {
+  const rootDir = path.join(tempRoot, "escape-root");
+  mkdirSync(rootDir, { recursive: true });
+  const port = createNodeLocalSourceScanFilesystemPort({
+    resolveRootDir: createLocalSourceScanRootDirResolver([
+      { rootId: "scan", rootDir, label: "Scan", exclusions: EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, configFingerprint: "fp" },
+    ]),
+  });
+  await assert.rejects(
+    port.inspectAudioFile({ rootId: "scan", relativePath: "../outside.wav" }),
+    /resolves outside root/,
+    "inspectAudioFile rejects a root-escaping relative path",
+  );
+  await assert.rejects(
+    port.listDirectory({ rootId: "scan", relativeDirectoryPath: "../outside" }),
+    /resolves outside root/,
+    "listDirectory rejects a root-escaping relative directory path",
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
@@ -509,6 +533,7 @@ export async function main(): Promise<void> {
     // Adapter test uses its own isolated root set under tempRoot.
     await testAdapter(tempRoot);
     await testHashErrorIsRetryable(tempRoot);
+    await testEscapeRejected(tempRoot);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
