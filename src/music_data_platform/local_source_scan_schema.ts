@@ -36,7 +36,6 @@ export const musicDataPlatformLocalSourceScanSchema: MusicDatabaseSchemaContribu
         status TEXT NOT NULL,
         phase TEXT,
         advance_generation INTEGER NOT NULL,
-        census_complete BOOLEAN NOT NULL,
         discovered_count INTEGER NOT NULL,
         processed_count INTEGER NOT NULL,
         imported_count INTEGER NOT NULL,

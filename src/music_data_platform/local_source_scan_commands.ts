@@ -121,7 +121,6 @@ export function createLocalSourceScanCommands(
           configFingerprint: root.configFingerprint,
           status: "queued",
           advanceGeneration: 0,
-          censusComplete: false,
           discoveredCount: 0,
           processedCount: 0,
           importedCount: 0,

@@ -1078,7 +1078,6 @@ config_fingerprint
 status
 phase
 advance_generation
-census_complete
 discovered_count
 processed_count
 imported_count
@@ -1213,9 +1212,11 @@ Within `running`, phase moves only forward:
 discovering -> processing -> reconciling -> terminal
 ```
 
-`census_complete` is written only by the command that proves directory-work
-exhaustion. `reconciling` is reachable only when `census_complete = true` and
-all audio-file work is terminal. Cancellation never moves into reconciliation.
+The forward phase transitions are driven by work exhaustion, not by a separate
+census flag: `completeCensus` advances discovering -> processing when no pending
+directory work remains (fixing the discovered-file total), and
+`prepareReconciliation` advances processing -> reconciling when no pending audio
+work remains. Cancellation never moves into reconciliation.
 
 ## End-To-End Workflow
 

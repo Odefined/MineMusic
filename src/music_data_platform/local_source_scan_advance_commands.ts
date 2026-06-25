@@ -84,9 +84,9 @@ export type LocalSourceScanAdvanceCommands = {
     now: string;
   }): Promise<void>;
 
-  // Complete the census when no pending directory work remains: set
-  // census_complete, fix the discovered audio-file total, and advance to
-  // processing. Returns true if the transition happened this call.
+  // Complete the census when no pending directory work remains: fix the
+  // discovered audio-file total, and advance to processing. Returns true if
+  // the transition happened this call.
   completeCensus(input: { batchId: string; now: string }): Promise<boolean>;
 
   // Record one audio file's outcome atomically (D4, D5, D16, D27, D31). The job
@@ -241,7 +241,6 @@ export function createLocalSourceScanAdvanceCommands(
           ...batch,
           status: "running",
           phase: "processing",
-          censusComplete: true,
           discoveredCount: discovered,
           updatedAt: now,
         });

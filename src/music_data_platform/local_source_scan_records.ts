@@ -23,7 +23,6 @@ export type LocalSourceScanBatchRecord = {
   status: LocalSourceScanBatchStatus;
   phase?: LocalSourceScanBatchPhase;
   advanceGeneration: number;
-  censusComplete: boolean;
   discoveredCount: number;
   processedCount: number;
   importedCount: number;
@@ -257,12 +256,12 @@ export function createLocalSourceScanRepositories(
         `
           INSERT INTO local_source_scan_batches (
             batch_id, root_id, owner_scope, config_fingerprint, status, phase,
-            advance_generation, census_complete, discovered_count, processed_count,
+            advance_generation, discovered_count, processed_count,
             imported_count, unchanged_count, drifted_count, unstable_count, failed_count,
             deletion_candidate_count, deleted_count, failure_code, failure_message,
             cancel_requested_at, started_at, updated_at, finished_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         batchParams(record),
       );
@@ -273,17 +272,16 @@ export function createLocalSourceScanRepositories(
         `
           INSERT INTO local_source_scan_batches (
             batch_id, root_id, owner_scope, config_fingerprint, status, phase,
-            advance_generation, census_complete, discovered_count, processed_count,
+            advance_generation, discovered_count, processed_count,
             imported_count, unchanged_count, drifted_count, unstable_count, failed_count,
             deletion_candidate_count, deleted_count, failure_code, failure_message,
             cancel_requested_at, started_at, updated_at, finished_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(batch_id) DO UPDATE SET
             status = excluded.status,
             phase = excluded.phase,
             advance_generation = excluded.advance_generation,
-            census_complete = excluded.census_complete,
             discovered_count = excluded.discovered_count,
             processed_count = excluded.processed_count,
             imported_count = excluded.imported_count,
@@ -612,7 +610,6 @@ type LocalSourceScanBatchRow = {
   status: LocalSourceScanBatchStatus;
   phase: LocalSourceScanBatchPhase | null;
   advance_generation: number;
-  census_complete: boolean;
   discovered_count: number;
   processed_count: number;
   imported_count: number;
@@ -685,7 +682,6 @@ function batchParams(record: LocalSourceScanBatchRecord): readonly (string | num
     record.status,
     record.phase ?? null,
     record.advanceGeneration,
-    record.censusComplete,
     record.discoveredCount,
     record.processedCount,
     record.importedCount,
@@ -713,7 +709,6 @@ function batchFromRow(row: LocalSourceScanBatchRow): LocalSourceScanBatchRecord 
     status: row.status,
     ...(row.phase === null ? {} : { phase: row.phase }),
     advanceGeneration: row.advance_generation,
-    censusComplete: row.census_complete,
     discoveredCount: row.discovered_count,
     processedCount: row.processed_count,
     importedCount: row.imported_count,

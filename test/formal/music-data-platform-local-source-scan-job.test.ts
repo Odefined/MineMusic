@@ -384,7 +384,6 @@ async function seedBatch(
     status: fields.status,
     ...(fields.phase === undefined ? {} : { phase: fields.phase }),
     advanceGeneration: fields.advanceGeneration,
-    censusComplete: false,
     discoveredCount: 0,
     processedCount: 0,
     importedCount: 0,
