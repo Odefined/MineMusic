@@ -2,7 +2,7 @@ import type {
   MusicExperienceQueuePlaybackCommand,
 } from "../contracts/music_experience.js";
 import type { MusicDatabase } from "../storage/database.js";
-import { assertMaterialRef } from "../music_data_platform/material_ref.js";
+import { assertMaterialRef } from "../music_data_platform/index.js";
 import {
   createMusicExperienceQueuePlaybackRecords,
 } from "./records.js";

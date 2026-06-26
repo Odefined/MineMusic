@@ -322,6 +322,14 @@ idempotent commit" step is extracted as a reusable capability (working name
 by Grill #8, and accepting candidate handles) becomes `present`'s second real
 caller; Phase B reuses it. See ADR-0040 and issue #113.
 
+**PB6 must define the widened batch semantics explicitly.** Phase A's caller
+still passes batch-of-1. When Radio widens `queue.append` to batch-of-N, the
+Music Experience append transaction is all-or-nothing, but any candidate commits
+that completed before a later item fails have already landed in Music Data
+Platform. That partial candidate-materialization is acceptable only because the
+commit is idempotent and user-invisible; PB6 tests must assert the intended retry
+semantics instead of implying one cross-owner atomic transaction.
+
 ### PB7 — Radio→Main is a notify signal under Speech Level, not an imperative speak
 
 Radio does not command Main to speak. It emits a notify-worthy signal (it

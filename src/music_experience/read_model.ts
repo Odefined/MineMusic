@@ -4,7 +4,10 @@ import type {
   WorkbenchMusicItemSummary,
 } from "../contracts/workbench_interface.js";
 import type { MusicMaterial } from "../contracts/music_data_platform.js";
-import type { MaterialProjection } from "../music_data_platform/index.js";
+import {
+  isMusicDataPlatformError,
+  type MaterialProjection,
+} from "../music_data_platform/index.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 import {
   createMusicExperienceQueuePlaybackRecords,
@@ -35,13 +38,12 @@ export function createMusicExperienceReadModel(
         ...snapshot.queue.map((item) => item.materialRef),
         ...(snapshot.playback.materialRef === undefined ? [] : [snapshot.playback.materialRef]),
       ]);
-      const materials = await input.materialProjection.projectMusicMaterials({ materialRefs });
       const summaries = new Map<string, WorkbenchMusicItemSummary>();
 
       for (const materialRef of materialRefs) {
-        const material = materials.get(refKey(materialRef));
+        const material = await projectMaterialForRead(input.materialProjection, materialRef);
         if (material === undefined) {
-          throw new Error(`Music Experience read model could not project queued material ${refKey(materialRef)}.`);
+          continue;
         }
 
         const publicId = await input.materialHandles.mintMaterialHandle({
@@ -61,16 +63,36 @@ export function createMusicExperienceReadModel(
 
       return {
         revision: snapshot.queueRevision,
-        queue: snapshot.queue.map((item) => ({
-          ...requireSummary(summaries, item.materialRef),
-          position: item.position,
-        })),
-        ...(snapshot.playback.materialRef === undefined
-          ? {}
-          : { nowPlaying: requireSummary(summaries, snapshot.playback.materialRef) }),
+        queue: snapshot.queue.flatMap((item) => {
+          const summary = summaries.get(refKey(item.materialRef));
+          return summary === undefined
+            ? []
+            : [{
+                ...summary,
+                position: item.position,
+              }];
+        }),
+        ...nowPlayingSlice(snapshot.playback.materialRef, summaries),
       };
     },
   };
+}
+
+async function projectMaterialForRead(
+  materialProjection: MaterialProjection,
+  materialRef: Ref,
+): Promise<MusicMaterial | undefined> {
+  try {
+    return await materialProjection.projectMusicMaterial({ materialRef });
+  } catch (error) {
+    if (isMusicDataPlatformError(error) && (
+      error.code === "music_data.material_source_binding_invalid" ||
+      error.code === "music_data.source_not_found"
+    )) {
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 function uniqueMaterialRefs(refs: readonly Ref[]): readonly Ref[] {
@@ -81,15 +103,19 @@ function uniqueMaterialRefs(refs: readonly Ref[]): readonly Ref[] {
   return [...byKey.values()];
 }
 
-function requireSummary(
+function nowPlayingSlice(
+  materialRef: Ref | undefined,
   summaries: ReadonlyMap<string, WorkbenchMusicItemSummary>,
-  materialRef: Ref,
-): WorkbenchMusicItemSummary {
+): { nowPlaying: WorkbenchMusicItemSummary } | Record<string, never> {
+  if (materialRef === undefined) {
+    return {};
+  }
+
   const summary = summaries.get(refKey(materialRef));
   if (summary === undefined) {
-    throw new Error(`Music Experience read model summary missing for material ${refKey(materialRef)}.`);
+    return {};
   }
-  return summary;
+  return { nowPlaying: summary };
 }
 
 function musicItemSummaryFromMaterial(material: MusicMaterial): {

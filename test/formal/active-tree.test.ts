@@ -378,6 +378,9 @@ function musicExperienceBoundaryFailure(edge: ArchitectureImportEdge): string | 
     if (edge.toArea === "stage_core" || edge.toArea === "server" || edge.toArea === "effect_boundary" || edge.toArea === "music_intelligence" || edge.toArea === "extension") {
         return `Music Experience non-adapter modules must not import ${edge.toArea}: ${formatEdge(edge)}`;
     }
+    if (edge.toArea === "music_data_platform" && edge.toFile !== "src/music_data_platform/index.ts") {
+        return `Music Experience may import Music Data Platform only through its public barrel: ${formatEdge(edge)}`;
+    }
     return undefined;
 }
 function isStageAdapterPublicProjectionImport(edge: ArchitectureImportEdge, area: string): boolean {

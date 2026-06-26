@@ -404,6 +404,11 @@ since Phase 21.
   revision column lands in A3, below), so Phase B adds the predicate without a
   rewrite. A3 does not claim "the transaction serializes writers."
 
+  **Phase B carry-forward:** do not treat the Postgres adapter's
+  `transactionActive` process-local guard as a queue/playback concurrency
+  mechanism. PB3/PB6 must add the per-concern CAS predicate and an explicit
+  position-generation strategy for contended appends.
+
 - **Truth store + write boundary.** A new schema contribution adds **two
   tables**, not one mixed row-store and not a larger family of micro-tables:
   one single-row-per-owner/workspace `music_experience_state` table for logical
@@ -423,6 +428,12 @@ since Phase 21.
     logical `playback_status`, timestamps.
   - `music_experience_queue_items`: owner/workspace key, ordered `position`,
     durable `material_ref_key`, `material_ref_json`, `provenance`, timestamps.
+
+  Slice 1 stores `playback_revision` and may return it from
+  `music.experience.playback.play`, but the Workbench read-model seam exposes
+  only the slice's single `revision` until PB3/PB6 define the per-concern
+  revision exposure contract. Do not infer that playback has no concern
+  revision; it is intentionally latent at the read seam in A3.
 
   Phase A does **not** need a third dedicated playback-history/device-output
   table. Those belong to later phases once playback leaves the logical layer.
@@ -468,7 +479,17 @@ since Phase 21.
 - **Playback truth is logical, not audio.** Slice-1 playback truth is a logical
   now-playing pointer + status (e.g. playing/paused), not real audio output.
   Browser/device audio authority is the separate Phase C "browser playback
-  authority" follow-up. The harness observes the pointer/status change.
+  authority" follow-up. The future `PlaybackSourceResolver` lives there: it
+  resolves a Music Experience logical now-playing `materialRef` through current
+  survivor resolution and playback policy into a short-lived playback source for
+  the Web/player controller. A3/A4 must not pretend that setting
+  `playback.play` has resolved playable links, opened a local file/provider URL,
+  selected a device, or started audible playback. The harness observes the
+  pointer/status change.
+  Material Projection remains a display/read-model projection: it may use
+  `local_file` sources for descriptive metadata, but it must not become the
+  owner of playback source resolution or leak local path/root locators/playable
+  URLs into agent-facing display output.
   **This does not eliminate the playback concern.** Phase A keeps
   `music.experience.playback.play` as a separate command/tool even though it only
   updates logical playback truth. `queue.append` means "place this item in the
@@ -545,11 +566,19 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
   entry. Slice 1's Main Agent reaches the queue through `present` (it wants the
   card); the silent candidate-entry path is exercised and tested in Phase A,
   and is what Phase B Radio's refill uses.
+  Any future write path that persists material-scoped Music Experience state
+  must keep routing material handles through Material Projection /
+  `ResolveDurableMusicItem` before writing. The handle registry anchor is only a
+  private veil anchor, not current domain truth; this is the ADR-0019 survivor
+  discipline carried into queue/playback and later playback/radio writes.
 - **Turn driving (harness).** A user turn is `agent.prompt(userMessage)` then
   `agent.waitForIdle()`; the harness then reads the queue/now-playing projection
   **through the A2 read-model seam** and asserts the outcome. The agent's tools
   are the A1-bridged Stage tools (`lookup`, `present`, `queue.append`,
-  `playback.play`).
+  `playback.play`). A4 must capture the Session Context once at the start of
+  each user turn and inject that snapshot into the agent prompt for that turn;
+  do not reuse a single adapter/system-prompt instance across turns without a
+  refresh path.
 - **Speech Level deferred.** The agent produces a normal harness-visible text
   response; Speech Level (Silent/Notify/Speak) as an Agent-Runtime policy is not
   enforced in slice 1 (no UI to be silent toward; the harness reads the

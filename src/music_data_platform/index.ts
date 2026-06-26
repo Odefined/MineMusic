@@ -12,6 +12,9 @@ export {
 export {
   createMaterialRefFactory,
 } from "./material_ref_factory.js";
+export {
+  assertMaterialRef,
+} from "./material_ref.js";
 export type {
   CreateMaterialRefFactoryInput,
   MaterialRefFactory,

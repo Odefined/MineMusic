@@ -132,6 +132,48 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 
 {
   const database = await initializedMusicExperienceDatabase();
+  const staleMaterialRef: Ref = {
+    namespace: "material",
+    kind: "recording",
+    id: "a3_stale_read_model_recording",
+  };
+  await seedRecording(database, staleMaterialRef, "A3 Stale Song", ["Stale Artist"]);
+
+  const command = createMusicExperienceQueuePlaybackCommand({ database });
+  await command.append({
+    ownerScope,
+    materialRefs: [staleMaterialRef],
+    provenance: "main_agent",
+    now,
+  });
+  await command.playNow({
+    ownerScope,
+    materialRef: staleMaterialRef,
+    now,
+  });
+  await deleteRecordingBinding(database, staleMaterialRef);
+
+  const readModel = createMusicExperienceReadModel({
+    db: database.context(),
+    materialProjection: createMaterialProjection({ db: database.context() }),
+    materialHandles: {
+      mintMaterialHandle() {
+        throw new Error("Stale unprojectable material must not be minted into a Workbench handle.");
+      },
+    },
+  });
+  const workbenchSlice = await readModel.readMusicExperience({ ownerScope });
+
+  assert.deepEqual(workbenchSlice, {
+    revision: 1,
+    queue: [],
+  });
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
   await seedRecording(database, materialRef, "A3 Dispatch Song", ["Dispatch Artist"]);
   await seedRecording(database, secondMaterialRef, "A3 Dispatch Song Two", ["Dispatch Artist Two"]);
   const materialProjection = createMaterialProjection({ db: database.context() });
@@ -543,6 +585,22 @@ async function mergeMaterials(
     await writes.mergeMaterialRecord({
       loserMaterialRef: loserRef,
       winnerMaterialRef: winnerRef,
+    });
+  });
+}
+
+async function deleteRecordingBinding(
+  database: MusicDatabase,
+  ref: Ref,
+): Promise<void> {
+  await database.transaction(async (db) => {
+    const writes = createIdentityWriteCommands({
+      db,
+      now,
+      projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+    });
+    await writes.deleteBindingForSource({
+      sourceRef: sourceTrack(ref.id, "stale binding source").sourceRef,
     });
   });
 }
