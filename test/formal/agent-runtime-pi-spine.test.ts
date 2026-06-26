@@ -2,20 +2,36 @@ import assert from "node:assert/strict";
 
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 
-import type { Result } from "../../src/contracts/kernel.js";
+import type { Ref, Result } from "../../src/contracts/kernel.js";
 import type {
   InstrumentDescriptor,
   JsonSchema,
+  MusicDiscoveryLookupOutput,
   StageToolContext,
   ToolCallOutput,
   ToolDeclaration,
 } from "../../src/contracts/stage_interface.js";
+import type {
+  RetrievalQueryHit,
+  RetrievalQueryInput,
+  RetrievalQueryResult,
+  RetrievalQueryService,
+} from "../../src/music_intelligence/index.js";
 import {
   createMineMusicPiAgent,
   createStageToolBridge,
   toPiToolName,
   type StageToolDispatchPort,
 } from "../../src/agent_runtime/index.js";
+import {
+  createInMemoryMusicScopeAvailabilityPort,
+  createMusicDiscoveryLookupRegistration,
+  musicDiscoveryInstrument,
+  musicDiscoveryLookupDescriptor,
+} from "../../src/music_intelligence/stage_adapter/index.js";
+import {
+  createStageInterface,
+} from "../../src/stage_interface/index.js";
 
 const testInstrument: InstrumentDescriptor = {
   id: "agent.test",
@@ -230,6 +246,138 @@ assert.equal(piToolName, "agent_test_lookup");
 }
 
 {
+  const lookupPiToolName = toPiToolName(musicDiscoveryLookupDescriptor.name);
+  const lookupQueryCalls: RetrievalQueryInput[] = [];
+  const mintedAnchors: unknown[] = [];
+  const materialRef = ref("material", "recording", "m_agent_runtime_lookup");
+  const retrievalQuery: RetrievalQueryService = {
+    async query(input) {
+      lookupQueryCalls.push(input);
+      return retrievalResult({
+        input,
+        hits: [
+          materialHit({
+            materialRef,
+            title: "whoo",
+            artistsText: "Nemophila",
+            album: "Seize the Fate",
+            versionText: "live",
+          }),
+        ],
+      });
+    },
+  };
+  const stageInterface = createStageInterface({
+    instruments: [musicDiscoveryInstrument],
+    registrations: [
+      createMusicDiscoveryLookupRegistration({
+        retrievalQuery,
+        scopeAvailability: createInMemoryMusicScopeAvailabilityPort({
+          sourceLibraries: [],
+          relations: [],
+          providers: [],
+          collections: [],
+        }),
+      }),
+    ],
+  });
+  let streamCallCount = 0;
+  const agent = createMineMusicPiAgent({
+    systemPrompt: "You are a MineMusic test agent.",
+    tools: [musicDiscoveryLookupDescriptor],
+    dispatch: {
+      dispatch(input) {
+        return stageInterface.dispatch(input.ctx, {
+          toolName: input.toolName,
+          payload: input.payload,
+        });
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return createLookupContext(input.sessionId, input.requestId, mintedAnchors, input.abortSignal);
+      },
+    },
+    stageSessionId: "stage-session",
+    providerSessionId: "provider-session",
+    agentOptions: {
+      streamFn() {
+        streamCallCount += 1;
+        const message = streamCallCount === 1
+          ? assistantMessageWithToolCall("tool-call-real-lookup", lookupPiToolName, {
+              lookupText: "whoo",
+              targetKind: "recording",
+              scopes: [{ kind: "library" }],
+              limit: 1,
+            })
+          : assistantTextMessage("done");
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: streamCallCount === 1 ? "toolUse" : "stop",
+          message,
+        });
+      },
+    },
+  });
+
+  assert.equal(lookupPiToolName, "music_discovery_lookup");
+  assert.equal(agent.state.tools[0]?.name, lookupPiToolName);
+
+  await agent.prompt("lookup whoo");
+
+  assert.equal(streamCallCount, 2);
+  assert.deepEqual(lookupQueryCalls, [
+    {
+      ownerScope: "local",
+      text: "whoo",
+      materialKind: "recording",
+      pools: {
+        anyOf: [{ kind: "local_catalog" }],
+      },
+      order: "text_relevance",
+      limit: 1,
+      sessionId: "stage-session",
+    },
+  ]);
+  assert.deepEqual(mintedAnchors, [
+    {
+      materialRef: "material:recording:m_agent_runtime_lookup",
+    },
+  ]);
+
+  const toolResult = agent.state.messages.find((message) => message.role === "toolResult");
+  assert.equal(toolResult?.toolName, lookupPiToolName);
+  assert.equal(toolResult?.isError, false);
+  assert.equal(toolResult?.content[0]?.type, "text");
+  assert.equal(toolResult?.content[0]?.text, "1 item(s) returned; end of results.");
+  assert.equal(toolResult?.details?.toolName, musicDiscoveryLookupDescriptor.name);
+
+  const output = toolResult?.details?.result as MusicDiscoveryLookupOutput | undefined;
+  assert.deepEqual(output, {
+    items: [
+      {
+        handle: {
+          kind: "material",
+          id: "public_material_1",
+        },
+        description: {
+          label: "whoo - Nemophila",
+          title: "whoo",
+          artistsText: "Nemophila",
+          album: "Seize the Fate",
+          versionText: "live",
+        },
+      },
+    ],
+  });
+  assertPiLookupOutputIsVeiled(output);
+}
+
+{
   let streamCallCount = 0;
   const agent = createMineMusicPiAgent({
     systemPrompt: "You are a MineMusic test agent.",
@@ -332,6 +480,100 @@ function createMinimalContext(
       },
     },
   };
+}
+
+function createLookupContext(
+  sessionId: string,
+  requestId: string,
+  mintedAnchors: unknown[],
+  abortSignal?: AbortSignal,
+): StageToolContext {
+  return {
+    ...createMinimalContext(sessionId, requestId, abortSignal),
+    handleMinting: {
+      async mint(input) {
+        mintedAnchors.push(input.internalAnchor);
+        return `public_${input.handleKind}_${mintedAnchors.length}`;
+      },
+      async resolve() {
+        return undefined;
+      },
+    },
+  };
+}
+
+function retrievalResult(input: {
+  input: RetrievalQueryInput;
+  hits: readonly RetrievalQueryHit[];
+}): RetrievalQueryResult {
+  return {
+    query: {
+      ownerScope: input.input.ownerScope ?? "local",
+      ...(input.input.text === undefined ? {} : { text: input.input.text }),
+      ...(input.input.materialKind === undefined ? {} : { materialKind: input.input.materialKind }),
+      ...(input.input.pools === undefined ? {} : { pools: input.input.pools }),
+      order: "text_relevance",
+    },
+    basis: {
+      ownerCatalogVisibilityApplied: true,
+      blockedMaterialsExcluded: true,
+    },
+    hits: input.hits,
+    page: {
+      limit: input.input.limit ?? 20,
+    },
+  };
+}
+
+function materialHit(input: {
+  materialRef: Ref;
+  title?: string;
+  artistsText?: string;
+  album?: string;
+  versionText?: string;
+}): RetrievalQueryHit {
+  return {
+    kind: "material",
+    materialRef: input.materialRef,
+    materialKind: "recording",
+    display: {
+      ...(input.title === undefined ? {} : { title: input.title }),
+      ...(input.artistsText === undefined ? {} : { artistsText: input.artistsText }),
+      ...(input.album === undefined ? {} : { album: input.album }),
+      ...(input.versionText === undefined ? {} : { versionText: input.versionText }),
+    },
+    pools: {
+      matched: [],
+    },
+    basis: {
+      textMatched: true,
+      poolFilterApplied: true,
+      positivePoolMatched: true,
+    },
+  };
+}
+
+function ref(namespace: string, kind: string, id: string): Ref {
+  return {
+    namespace,
+    kind,
+    id,
+  };
+}
+
+function assertPiLookupOutputIsVeiled(output: MusicDiscoveryLookupOutput | undefined): void {
+  assert.ok(output !== undefined);
+  const text = JSON.stringify(output);
+  for (const forbidden of [
+    "m_agent_runtime_lookup",
+    "materialRef",
+    "materialCandidateRef",
+    "sourceRef",
+    "canonicalRef",
+    "internal_cursor",
+  ]) {
+    assert.equal(text.includes(forbidden), false, `pi lookup output leaked internal token '${forbidden}'`);
+  }
 }
 
 function assistantMessageWithToolCall(id: string, name: string, args: Record<string, unknown>) {
