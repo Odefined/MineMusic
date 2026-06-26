@@ -309,13 +309,16 @@ function agentRuntimeBoundaryFailure(edge: ArchitectureImportEdge): string | und
             ? undefined
             : `Agent Runtime may import only Stage Interface public pure helper modules, not arbitrary Stage Interface internals: ${formatEdge(edge)}`;
     }
+    if (edge.toArea === "workbench_interface") {
+        return `Agent Runtime must read Workbench Interface through the seam contract/port (src/contracts/workbench_interface.ts), not import the composition root: ${formatEdge(edge)}`;
+    }
     if (edge.toArea === "server" || edge.toArea === "stage_core" || edge.toArea === "music_data_platform" || edge.toArea === "music_intelligence" || edge.toArea === "music_experience" || edge.toArea === "extension" || edge.toArea === "storage" || edge.toArea === "background_work" || edge.toArea === "effect_boundary") {
         return `Agent Runtime must not import ${edge.toArea}; compose Stage tools through injected descriptors, context factory, and dispatch ports: ${formatEdge(edge)}`;
     }
     return undefined;
 }
 function workbenchInterfaceBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
-    if (edge.toArea === "server" || edge.toArea === "stage_core" || edge.toArea === "stage_interface" || edge.toArea === "agent_runtime" || edge.toArea === "music_data_platform" || edge.toArea === "music_intelligence" || edge.toArea === "music_experience" || edge.toArea === "extension" || edge.toArea === "storage" || edge.toArea === "background_work" || edge.toArea === "effect_boundary") {
+    if (edge.toArea === "server" || edge.toArea === "stage_core" || edge.toArea === "stage_interface" || edge.toArea === "agent_runtime" || edge.toArea === "music_data_platform" || edge.toArea === "music_intelligence" || edge.toArea === "music_experience" || edge.toArea === "extension" || edge.toArea === "storage" || edge.toArea === "background_work" || edge.toArea === "effect_boundary" || edge.toArea === "memory") {
         return `Workbench Interface A2 must compose only through injected read-model ports, not import ${edge.toArea}: ${formatEdge(edge)}`;
     }
     return undefined;

@@ -18,9 +18,7 @@ export type WorkbenchQueueEntry = WorkbenchMusicItemSummary & {
   position: number;
 };
 
-export type WorkbenchNowPlaying = WorkbenchMusicItemSummary & {
-  queuePosition?: number;
-};
+export type WorkbenchNowPlaying = WorkbenchMusicItemSummary;
 
 export type WorkbenchMusicExperienceSlice = {
   revision: WorkbenchConcernRevision;

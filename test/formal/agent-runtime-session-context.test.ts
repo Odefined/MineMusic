@@ -49,7 +49,6 @@ const composer = createWorkspaceReadModelComposer({
           },
           label: "whoo",
           artistsText: "Nemophila",
-          queuePosition: 1,
         },
         queue: [
           {
@@ -93,7 +92,6 @@ assert.deepEqual(sessionContext, {
       },
       label: "whoo",
       artistsText: "Nemophila",
-      queuePosition: 1,
     },
     queue: [
       {
