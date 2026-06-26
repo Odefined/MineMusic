@@ -71,6 +71,11 @@ const queuePlaybackErrors = [
     retryable: true,
     suggestedFixTemplate: "Retry the action if it is still desired.",
   },
+  {
+    code: "queue_full",
+    retryable: false,
+    suggestedFixTemplate: "Play or remove queued items before adding more music.",
+  },
 ] as const;
 
 export const musicExperienceQueueAppendDescriptor: ToolDeclaration = {
@@ -209,16 +214,19 @@ async function handleQueueAppend(
     provenance: "main_agent",
     now: ctx.clock(),
   });
+  if (!appended.ok) {
+    return appended;
+  }
 
   return {
     ok: true,
     value: {
-      items: await Promise.all(appended.appended.map(async (item) => ({
+      items: await Promise.all(appended.value.appended.map(async (item) => ({
         item: await mintMaterialItemHandle(ctx, item.materialRef),
         position: item.position,
       }))),
-      queueLength: appended.queueLength,
-      queueRevision: appended.queueRevision,
+      queueLength: appended.value.queueLength,
+      queueRevision: appended.value.queueRevision,
     },
   };
 }

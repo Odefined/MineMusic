@@ -2,6 +2,12 @@ import assert from "node:assert/strict";
 
 import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import type { MusicMaterial, SourceTrack } from "../../src/contracts/music_data_platform.js";
+import {
+  MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
+} from "../../src/contracts/music_experience.js";
+import type {
+  MusicExperienceQueueAppendCommandOutput,
+} from "../../src/contracts/music_experience.js";
 import type {
   MusicExperiencePlaybackPlayOutput,
   MusicExperienceQueueAppendOutput,
@@ -49,6 +55,7 @@ assert.equal(musicExperienceQueueAppendDescriptor.name, "music.experience.queue.
 assert.equal(musicExperienceQueueAppendDescriptor.sideEffect.runtimeStateWrite, true);
 assert.equal(musicExperienceQueueAppendDescriptor.sideEffect.durableUserStateWrite, false);
 assert.equal(musicExperienceQueueAppendDescriptor.invocationPolicy.defaultDecision, "auto");
+assert.equal(musicExperienceQueueAppendDescriptor.errors.some((error) => error.code === "queue_full"), true);
 assert.equal(musicExperiencePlaybackPlayDescriptor.name, "music.experience.playback.play");
 assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.runtimeStateWrite, true);
 assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, false);
@@ -93,10 +100,11 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     provenance: "main_agent",
     now,
   });
+  const appendedOutput = expectAppendOutput(appended);
 
-  assert.equal(appended.queueRevision, 1);
-  assert.equal(appended.queueLength, 1);
-  assert.deepEqual(appended.appended, [
+  assert.equal(appendedOutput.queueRevision, 1);
+  assert.equal(appendedOutput.queueLength, 1);
+  assert.deepEqual(appendedOutput.appended, [
     {
       position: 1,
       materialRef,
@@ -136,12 +144,13 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   await seedRecording(database, staleMaterialRef, "A3 Stale Song", ["Stale Artist"]);
 
   const command = createMusicExperienceQueuePlaybackCommand({ database });
-  await command.append({
+  const appended = await command.append({
     ownerScope,
     materialRefs: [staleMaterialRef],
     provenance: "main_agent",
     now,
   });
+  expectAppendOutput(appended);
   await command.playNow({
     ownerScope,
     materialRef: staleMaterialRef,
@@ -164,6 +173,91 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     revision: 1,
     queue: [],
   });
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const capacityMaterialRef: Ref = {
+    namespace: "material",
+    kind: "recording",
+    id: "a3_queue_capacity_recording",
+  };
+  await seedRecording(database, capacityMaterialRef, "A3 Capacity Song", ["Capacity Artist"]);
+
+  const command = createMusicExperienceQueuePlaybackCommand({ database });
+  const fillToCapacity = await command.append({
+    ownerScope,
+    materialRefs: Array.from({ length: MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH }, () => capacityMaterialRef),
+    provenance: "main_agent",
+    now,
+  });
+  const filled = expectAppendOutput(fillToCapacity);
+  assert.equal(filled.queueLength, MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH);
+  assert.equal(filled.appended.length, MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH);
+
+  const overCapacity = await command.append({
+    ownerScope,
+    materialRefs: [capacityMaterialRef],
+    provenance: "main_agent",
+    now,
+  });
+
+  assert.equal(overCapacity.ok, false);
+  if (!overCapacity.ok) {
+    assert.equal(overCapacity.error.code, "queue_full");
+    assert.equal(overCapacity.error.area, "music_experience");
+  }
+
+  const snapshot = await createMusicExperienceQueuePlaybackRecords({
+    db: database.context(),
+  }).read({ ownerScope });
+  assert.equal(snapshot.queue.length, MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH);
+
+  const materialProjection = createMaterialProjection({
+    db: database.context(),
+  });
+  const handleMinting = createStageInterfaceHandleMintingPort({
+    db: database.context(),
+    clock: () => now,
+    publicIdFactory: () => "mh_a3_queue_full",
+  });
+  const materialHandleId = await handleMinting.mint({
+    ownerScope,
+    handleKind: "material",
+    internalAnchor: {
+      materialRef: refKey(capacityMaterialRef),
+    },
+  });
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: [
+      createMusicExperienceQueueAppendRegistration({
+        candidateCommit: unusedCandidateCommit(),
+        materialProjection,
+        queuePlayback: command,
+      }),
+    ],
+  });
+  const queueFullResult = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "a3-queue-full-session",
+    requestId: "a3-queue-full-request",
+    clock: () => now,
+    handleMinting,
+  }), {
+    toolName: "music.experience.queue.append",
+    payload: {
+      items: [
+        {
+          kind: "material",
+          id: materialHandleId,
+        },
+      ],
+    },
+  });
+  expectToolError(queueFullResult, "queue_full");
 
   await database.close();
 }
@@ -895,6 +989,13 @@ function output<T>(result: { ok: true; value: ToolCallOutput } | { ok: false }):
     throw new Error("expected tool call to succeed");
   }
   return result.value.result as T;
+}
+
+function expectAppendOutput(result: Awaited<ReturnType<ReturnType<typeof createMusicExperienceQueuePlaybackCommand>["append"]>>): MusicExperienceQueueAppendCommandOutput {
+  if (!result.ok) {
+    throw new Error(`expected queue append to succeed, got ${result.error.code}`);
+  }
+  return result.value;
 }
 
 function expectToolError(result: { ok: true } | { ok: false; error: { code: string } }, code: string): void {

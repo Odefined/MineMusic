@@ -523,11 +523,12 @@ since Phase 21.
   now-playing for Session Context (A2). It is a direct read of queue/playback
   truth, not routed through the material projection-maintenance machinery.
   Slice 1 may expose the full small queue, but A4 must not inject an unbounded
-  queue into the agent prompt. Before live turn wiring relies on this projection
-  for Session Context, either cap the Workbench read projection or expose a
-  bounded shape such as `nowPlaying`, `queueHead`, `queueTail`, `queueLength`, and
-  `revision`. The database truth may retain the full queue; the Workbench /
-  Session Context surface must stay prompt-bounded.
+  queue into the agent prompt. A4 enforces this by bounding the Music Experience
+  logical queue itself: the owning queue command rejects appends above
+  `MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH = 100` with `queue_full`, so Workbench /
+  Session Context may expose the full queue without hiding unbounded state in a
+  prompt renderer. The database truth still stores ordinary queue rows; the
+  product queue invariant keeps the prompt surface bounded.
 
 - **Agent-facing tools.** `music.experience.queue.append` and
   `music.experience.playback.play` _(proposed)_ register under the existing
@@ -613,7 +614,9 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
 - **Speech Level deferred.** The agent produces a normal harness-visible text
   response; Speech Level (Silent/Notify/Speak) as an Agent-Runtime policy is not
   enforced in slice 1 (no UI to be silent toward; the harness reads the
-  response).
+  response). The A4 turn facade returns the pi-produced messages for the turn
+  plus the final assistant text when present; it does not create a parallel
+  transcript model.
 - **System prompt.** A minimal music-agent system prompt naming the available
   instruments and the play/queue intent. Content, not a boundary — refined in
   implementation.
@@ -683,9 +686,15 @@ exactly**; version drift is the real risk, not capability gaps.
   Context capture/identity assembly over that seam, system-prompt rendering, and
   guards proving no AG-UI/web/transport or area-internal imports. A3 supplies
   the real queue/playback truth behind the projection port.
-- PR A3a: queue/playback truth + owning command + projection (command tests).
-- PR A3b: agent-facing queue/play tool registrations + gate posture + guards.
-- PR A4: agent turn wiring + end-to-end harness.
+- PR A3a/A3b: **implemented** — queue/playback truth + owning command +
+  projection, agent-facing queue/play tool registrations, gate posture, survivor
+  projection discipline, cooperative abort checks, hard queue length cap
+  (`queue_full`), and guards.
+- PR A4: **implemented** — long-lived pi `Agent` turn session, turn-start
+  Session Context refresh through `state.systemPrompt`, pi `prompt()` /
+  `waitForIdle()` loop delegation, harness-visible response/messages, and
+  deterministic end-to-end harness over `lookup -> present -> queue.append ->
+  playback.play`.
 
 ## Exit Criteria
 
