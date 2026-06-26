@@ -422,7 +422,9 @@ play/open/skip events, feedback binding, dedupe, external action intent, and
 listening outcomes/history. The Phase 17
 `music.experience.present` consumption tool renders a `MusicCard` and, for a
 candidate handle, implicitly invokes the Music Data Platform Candidate Commit
-owning command (ADR-0011) to admit the item to the library before presentation;
+owning command (ADR-0011) to commit the candidate to a durable material identity
+before presentation (not to admit it to the library; library admission happens
+only via explicit save/import/relation/collection commands, per ADR-0040);
 presented recommendation history remains a later Music Experience concern.
 
 Radio Mode state belongs in Music Experience. Session Context may include a

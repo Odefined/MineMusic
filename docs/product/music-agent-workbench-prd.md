@@ -65,6 +65,22 @@ workflow model later.
 
 ## UI Framework
 
+### Co-Present Chat, Radio, And Playback
+
+Chat and Radio are co-present interaction modes in one music experience. Neither
+is the primary product root.
+
+Chat handles expression, explanation, correction, choice, negotiation, and
+object-focused discussion. Radio handles continuous listening, queue continuity,
+direction evolution, and lightweight steering. Music Playback is the shared
+listening result both modes act through. Functional Cards and Workbench state let
+Chat, Radio, and Playback share the same objects, actions, and outcomes instead
+of becoming separate products.
+
+The first version should avoid both failure modes: Chat must not become the only
+main experience or a tool log, and Radio must not become an isolated mode that
+cannot be discussed, corrected, or steered through Chat.
+
 ### Fixed Core Components
 
 The product always keeps two primary frontend components present:

@@ -614,8 +614,12 @@ exactly**; version drift is the real risk, not capability gaps.
 
 - pi version pin: the engine is audited at 0.79.10 (ADR-0039 +
   `pi-agent-core-capability-audit-0.79.10.md`); PR-A1a pins the exact version and
-  re-runs the audit on any bump. The embedding surface is resolved in "A1 Deep
-  Dive" and the pi Capability Ledger.
+  re-runs the audit on any bump — landing the audit's runtime experiments
+  (abort/signal forwarding with dispatch honoring it, a paused hook racing the
+  abort signal, tool-error → throw → pi `isError` result) as an automated
+  conformance test so a bump is blocked by CI, not only by a manual re-read of
+  the audit doc. The embedding surface is resolved in "A1 Deep Dive" and the pi
+  Capability Ledger.
 - Stage JSON-Schema → pi tool-schema: **resolved by audit (B2)** — raw JSON Schema
   satisfies pi's `TSchema` and is read verbatim by providers, so it maps to
   `Tool.parameters` with a field rename, near-zero conversion. (Optional TypeBox
