@@ -63,9 +63,3 @@ export type MusicExperienceQueuePlaybackCommand = {
   append(input: MusicExperienceQueueAppendCommandInput): Promise<MusicExperienceQueueAppendCommandOutput>;
   playNow(input: MusicExperiencePlaybackPlayCommandInput): Promise<MusicExperiencePlaybackPlayCommandOutput>;
 };
-
-export type MusicExperienceProjectionReadPort = {
-  readMusicExperience(input: {
-    ownerScope: string;
-  }): Promise<MusicExperienceSnapshot>;
-};

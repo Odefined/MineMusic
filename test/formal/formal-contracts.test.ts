@@ -3,7 +3,7 @@ import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEnt
 import type { AgentSessionContext } from "../../src/contracts/agent_runtime.js";
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../../src/contracts/storage.js";
 import type { ConcernRevision, Ref, Result, StageError } from "../../src/contracts/kernel.js";
-import type { MusicExperiencePlaybackSnapshot, MusicExperiencePlaybackStatus, MusicExperienceProjectionReadPort, MusicExperienceQueueItemProvenance, MusicExperienceQueueItemSnapshot, MusicExperienceQueuePlaybackCommand, MusicExperienceSnapshot } from "../../src/contracts/music_experience.js";
+import type { MusicExperiencePlaybackSnapshot, MusicExperiencePlaybackStatus, MusicExperienceQueueItemProvenance, MusicExperienceQueueItemSnapshot, MusicExperienceQueuePlaybackCommand, MusicExperienceSnapshot } from "../../src/contracts/music_experience.js";
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
 import type { WorkbenchMusicExperienceReadPort, WorkbenchMusicExperienceSlice, WorkspaceReadModel, WorkspaceReadModelReader } from "../../src/contracts/workbench_interface.js";
 import type { LibraryImportLibraryKind, LibraryImportListSourcesInput, LibraryImportListSourcesOutput, LibraryRelationItemInput, LibraryRelationStateOutput, MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePresentInput, MusicExperiencePresentOutput, PublicDisplayLink, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration, ToolInvocationPolicy, MusicItemHandle } from "../../src/contracts/stage_interface.js";
@@ -85,7 +85,6 @@ export type _musicExperiencePresentShapes = Expect<Equal<keyof MusicExperiencePr
 export type _concernRevisionShape = Expect<Equal<ConcernRevision, number>>;
 export type _musicExperienceTruthShapes = Expect<Equal<MusicExperiencePlaybackStatus, "playing" | "paused"> & Equal<MusicExperienceQueueItemProvenance, "main_agent" | "user" | "radio_agent"> & Equal<keyof MusicExperienceQueueItemSnapshot, "position" | "materialRef" | "provenance"> & Equal<keyof MusicExperiencePlaybackSnapshot, "status" | "materialRef"> & Equal<keyof MusicExperienceSnapshot, "queueRevision" | "playbackRevision" | "queue" | "playback">>;
 export type _musicExperienceCommandPortShape = Expect<Equal<keyof MusicExperienceQueuePlaybackCommand, "append" | "playNow">>;
-export type _musicExperienceProjectionReadPortShape = Expect<Equal<keyof MusicExperienceProjectionReadPort, "readMusicExperience">>;
 // ADR-0040 guard #1: the item-handle currency is exactly {material, candidate};
 // the "library" item-handle kind is retired and must not reappear. ("library"
 // survives only as a MusicScope baseline, not as an item-handle kind.)

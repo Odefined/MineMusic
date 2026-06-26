@@ -43,6 +43,11 @@ const materialRef: Ref = {
   kind: "recording",
   id: "a3_recording_1",
 };
+const secondMaterialRef: Ref = {
+  namespace: "material",
+  kind: "recording",
+  id: "a3_recording_2",
+};
 
 assert.equal(musicExperienceQueueAppendDescriptor.name, "music.experience.queue.append");
 assert.equal(musicExperienceQueueAppendDescriptor.sideEffect.runtimeStateWrite, true);
@@ -51,6 +56,35 @@ assert.equal(musicExperienceQueueAppendDescriptor.invocationPolicy.defaultDecisi
 assert.equal(musicExperiencePlaybackPlayDescriptor.name, "music.experience.playback.play");
 assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.runtimeStateWrite, true);
 assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, false);
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const records = createMusicExperienceQueuePlaybackRecords({
+    db: database.context(),
+  });
+
+  const snapshot = await records.read({ ownerScope });
+
+  assert.deepEqual(snapshot, {
+    queueRevision: 0,
+    playbackRevision: 0,
+    queue: [],
+    playback: {
+      status: "paused",
+    },
+  });
+  const stateRow = await database.context().get<{ count: number }>(
+    `
+      SELECT COUNT(*)::int AS count
+      FROM music_experience_state
+      WHERE owner_scope = ?
+    `,
+    [ownerScope],
+  );
+  assert.equal(stateRow?.count, 0);
+
+  await database.close();
+}
 
 {
   const database = await initializedMusicExperienceDatabase();
@@ -99,6 +133,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 {
   const database = await initializedMusicExperienceDatabase();
   await seedRecording(database, materialRef, "A3 Dispatch Song", ["Dispatch Artist"]);
+  await seedRecording(database, secondMaterialRef, "A3 Dispatch Song Two", ["Dispatch Artist Two"]);
   const materialProjection = createMaterialProjection({ db: database.context() });
   const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
   let publicIdCount = 0;
@@ -112,6 +147,13 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     handleKind: "material",
     internalAnchor: {
       materialRef: refKey(materialRef),
+    },
+  });
+  const secondMaterialHandleId = await handleMinting.mint({
+    ownerScope,
+    handleKind: "material",
+    internalAnchor: {
+      materialRef: refKey(secondMaterialRef),
     },
   });
   const stageInterface = createStageInterface({
@@ -145,12 +187,16 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
           kind: "material",
           id: materialHandleId,
         },
+        {
+          kind: "material",
+          id: secondMaterialHandleId,
+        },
       ],
     },
   });
   assert.equal(appendResult.ok, true);
   const appendOutput = output<MusicExperienceQueueAppendOutput>(appendResult);
-  assert.equal(appendOutput.queueLength, 1);
+  assert.equal(appendOutput.queueLength, 2);
   assert.equal(appendOutput.queueRevision, 1);
   assert.deepEqual(appendOutput.items, [
     {
@@ -159,6 +205,13 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
         id: materialHandleId,
       },
       position: 1,
+    },
+    {
+      item: {
+        kind: "material",
+        id: secondMaterialHandleId,
+      },
+      position: 2,
     },
   ]);
   assertPublicToolOutput(appendOutput);
@@ -210,6 +263,15 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
         label: "A3 Dispatch Song",
         artistsText: "Dispatch Artist",
       },
+      {
+        position: 2,
+        item: {
+          kind: "material",
+          id: secondMaterialHandleId,
+        },
+        label: "A3 Dispatch Song Two",
+        artistsText: "Dispatch Artist Two",
+      },
     ],
     nowPlaying: {
       item: {
@@ -220,6 +282,138 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
       artistsText: "Dispatch Artist",
     },
   });
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const candidateMaterialRef: Ref = {
+    namespace: "material",
+    kind: "recording",
+    id: "a3_candidate_committed_recording",
+  };
+  const materialCandidateRef: Ref = {
+    namespace: "material_candidate",
+    kind: "provider_candidate",
+    id: "mc_a3_queue_candidate",
+  };
+  await seedRecording(database, candidateMaterialRef, "A3 Candidate Queue Song", ["Candidate Artist"]);
+
+  const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
+  let publicIdCount = 0;
+  const candidateHandles = candidateHandlesFor({
+    publicId: "mh_a3_candidate_handle",
+    materialCandidateRef,
+  });
+  const handleMinting = createStageInterfaceHandleMintingPort({
+    db: database.context(),
+    clock: () => now,
+    candidateHandles,
+    publicIdFactory: () => `mh_a3_candidate_${++publicIdCount}`,
+  });
+  const candidateHandleId = await handleMinting.mint({
+    ownerScope,
+    handleKind: "candidate",
+    internalAnchor: {
+      materialCandidateRef: refKey(materialCandidateRef),
+    },
+  });
+  let committedCandidateRef: Ref | undefined;
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: [
+      createMusicExperienceQueueAppendRegistration({
+        candidateCommit: {
+          async commitCandidate(input) {
+            committedCandidateRef = input.materialCandidateRef;
+            return {
+              ok: true,
+              value: {
+                materialRef: candidateMaterialRef,
+                created: true,
+              },
+            };
+          },
+        },
+        materialProjection: createMaterialProjection({ db: database.context() }),
+        queuePlayback,
+      }),
+    ],
+  });
+
+  const appendResult = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "a3-candidate-session",
+    requestId: "a3-candidate-request",
+    clock: () => now,
+    handleMinting,
+  }), {
+    toolName: "music.experience.queue.append",
+    payload: {
+      items: [
+        {
+          kind: "candidate",
+          id: candidateHandleId,
+        },
+      ],
+    },
+  });
+
+  assert.equal(appendResult.ok, true);
+  assert.deepEqual(committedCandidateRef, materialCandidateRef);
+  const appendOutput = output<MusicExperienceQueueAppendOutput>(appendResult);
+  assert.equal(appendOutput.queueLength, 1);
+  assert.equal(appendOutput.items[0]?.position, 1);
+  assertPublicToolOutput(appendOutput);
+  const resolvedOutput = await handleMinting.resolve({
+    ownerScope,
+    handleKind: "material",
+    publicId: appendOutput.items[0]!.item.id,
+  }) as { materialRef: string };
+  assert.equal(resolvedOutput.materialRef, refKey(candidateMaterialRef));
+
+  const snapshot = await createMusicExperienceQueuePlaybackRecords({
+    db: database.context(),
+  }).read({ ownerScope });
+  assert.deepEqual(snapshot.queue[0]?.materialRef, candidateMaterialRef);
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
+  const handleMinting = createStageInterfaceHandleMintingPort({
+    db: database.context(),
+    clock: () => now,
+    publicIdFactory: () => "mh_a3_invalid",
+  });
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: [
+      createMusicExperienceQueueAppendRegistration({
+        candidateCommit: unusedCandidateCommit(),
+        materialProjection: createMaterialProjection({ db: database.context() }),
+        queuePlayback,
+      }),
+    ],
+  });
+
+  const appendResult = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "a3-invalid-session",
+    requestId: "a3-invalid-request",
+    clock: () => now,
+    handleMinting,
+  }), {
+    toolName: "music.experience.queue.append",
+    payload: {
+      items: [],
+    },
+  });
+
+  expectToolError(appendResult, "invalid_input");
 
   await database.close();
 }
@@ -358,6 +552,32 @@ function output<T>(result: { ok: true; value: ToolCallOutput } | { ok: false }):
     throw new Error("expected tool call to succeed");
   }
   return result.value.result as T;
+}
+
+function expectToolError(result: { ok: true } | { ok: false; error: { code: string } }, code: string): void {
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error.code, code);
+  }
+}
+
+function candidateHandlesFor(input: {
+  publicId: string;
+  materialCandidateRef: Ref;
+}): NonNullable<Parameters<typeof createStageInterfaceHandleMintingPort>[0]["candidateHandles"]> {
+  return {
+    async mint() {
+      return input.publicId;
+    },
+    async resolve(resolveInput) {
+      if (resolveInput.publicId !== input.publicId) {
+        return undefined;
+      }
+      return {
+        materialCandidateRef: refKey(input.materialCandidateRef),
+      };
+    },
+  };
 }
 
 function assertPublicToolOutput(value: unknown): void {

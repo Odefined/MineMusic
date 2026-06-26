@@ -63,7 +63,7 @@ export function createMusicExperienceQueuePlaybackRecords(
   return {
     async read(readInput) {
       const key = workspaceKey(readInput.ownerScope, workspaceId);
-      const state = await ensureState({ db, key, now: new Date().toISOString() });
+      const state = await readState({ db, key });
       const rows = await db.all<QueueItemRow>(
         `
           SELECT position, material_ref_key, material_ref_json, provenance
@@ -74,6 +74,14 @@ export function createMusicExperienceQueuePlaybackRecords(
         `,
         [key.ownerScope, key.workspaceId],
       );
+
+      if (state === undefined) {
+        if (rows.length !== 0) {
+          throw new Error("Music Experience queue rows exist without a state row.");
+        }
+
+        return emptySnapshot();
+      }
 
       return {
         queueRevision: state.queue_revision,
@@ -191,7 +199,20 @@ async function ensureState(input: {
     [input.key.ownerScope, input.key.workspaceId, input.now, input.now],
   );
 
-  const row = await input.db.get<StateRow>(
+  const row = await readState(input);
+
+  if (row === undefined) {
+    throw new Error("Music Experience state row was not created.");
+  }
+
+  return row;
+}
+
+async function readState(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+}): Promise<StateRow | undefined> {
+  return input.db.get<StateRow>(
     `
       SELECT queue_revision, playback_revision, now_playing_material_ref_key,
         now_playing_material_ref_json, playback_status
@@ -201,12 +222,6 @@ async function ensureState(input: {
     `,
     [input.key.ownerScope, input.key.workspaceId],
   );
-
-  if (row === undefined) {
-    throw new Error("Music Experience state row was not created.");
-  }
-
-  return row;
 }
 
 async function updateQueueRevision(input: {
@@ -329,6 +344,17 @@ function workspaceKey(ownerScope: string, workspaceId: string): MusicExperienceW
   }
 
   return { ownerScope, workspaceId };
+}
+
+function emptySnapshot(): MusicExperienceSnapshot {
+  return {
+    queueRevision: 0,
+    playbackRevision: 0,
+    queue: [],
+    playback: {
+      status: "paused",
+    },
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

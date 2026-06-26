@@ -172,7 +172,7 @@ function candidateNotFound(message: string): Result<never> {
   });
 }
 
-function materialNotFound(message: string): Result<never> {
+export function materialNotFound(message: string): Result<never> {
   return musicExperienceFail({
     code: "material_not_found",
     message,

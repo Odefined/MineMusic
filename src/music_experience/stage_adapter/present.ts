@@ -19,8 +19,8 @@ import type {
   MaterialProjection,
 } from "../../music_data_platform/index.js";
 import {
+  materialNotFound,
   mintMaterialItemHandle,
-  musicExperienceFail,
   resolveDurableMusicItem,
 } from "./durable_item_resolution.js";
 
@@ -160,13 +160,4 @@ async function presentMaterial(
       card: musicCardFromMusicMaterial(material),
     },
   };
-}
-
-function materialNotFound(message: string): Result<never> {
-  return musicExperienceFail({
-    code: "material_not_found",
-    message,
-    retryable: true,
-    suggestedFix: "Retry with a current material handle or look up the item again.",
-  });
 }
