@@ -225,6 +225,11 @@ export function createStageInterface(input: CreateStageInterfaceInput): StageInt
           );
         }
 
+        const publicTextViolation = declaredHandlerErrorPublicTextViolation(registration.descriptor, handled.error);
+        if (publicTextViolation !== undefined) {
+          return publicTextViolation;
+        }
+
         return {
           ok: false,
           error: normalizeDeclaredHandlerError(registration.descriptor, handled.error),
@@ -363,33 +368,38 @@ function normalizeDeclaredHandlerError(
     throw new Error(`Cannot normalize undeclared error '${error.code}'.`);
   }
 
-  const message = safePublicFreeText(error.message)
-    ? error.message
-    : `Tool '${descriptor.name}' returned declared error '${declaration.code}'.`;
-  const suggestedFix = safeSuggestedFix(error.suggestedFix, declaration);
+  const suggestedFix = error.suggestedFix ?? declaration.suggestedFixTemplate;
 
   return {
     code: declaration.code,
-    message,
+    message: error.message,
     area: descriptor.ownerArea,
     retryable: declaration.retryable,
     ...(suggestedFix === undefined ? {} : { suggestedFix }),
   };
 }
 
-function safeSuggestedFix(
-  suggestedFix: string | undefined,
-  declaration: ToolDeclaredError,
-): string | undefined {
-  if (suggestedFix === undefined) {
-    return declaration.suggestedFixTemplate;
+function declaredHandlerErrorPublicTextViolation(
+  descriptor: ToolDeclaration,
+  error: StageError,
+): Result<never> | undefined {
+  if (!safePublicFreeText(error.message)) {
+    return fail(
+      "stage_interface.invalid_output",
+      `Tool '${descriptor.name}' declared error '${error.code}' message exposes internal anchors.`,
+      false,
+    );
   }
 
-  if (!safePublicFreeText(suggestedFix)) {
-    return declaration.suggestedFixTemplate;
+  if (error.suggestedFix !== undefined && !safePublicFreeText(error.suggestedFix)) {
+    return fail(
+      "stage_interface.invalid_output",
+      `Tool '${descriptor.name}' declared error '${error.code}' suggestedFix exposes internal anchors.`,
+      false,
+    );
   }
 
-  return suggestedFix;
+  return undefined;
 }
 
 function safePublicFreeText(value: string): boolean {

@@ -746,7 +746,7 @@ if (!declaredNormalizationResult.ok) {
     assert.equal(declaredNormalizationResult.error.retryable, false);
     assert.equal(declaredNormalizationResult.error.suggestedFix, "safe handler fix");
 }
-const declaredLeakScrubInterface = createStageInterface({
+const declaredMessageLeakInterface = createStageInterface({
     instruments: [instrument],
     registrations: [
         {
@@ -758,24 +758,51 @@ const declaredLeakScrubInterface = createStageInterface({
                     message: "leaked materialRef material:recording:m_internal",
                     area: "stage_core",
                     retryable: false,
+                    suggestedFix: "use safe public text",
+                },
+            }),
+        },
+    ],
+});
+const declaredMessageLeakResult = await declaredMessageLeakInterface.dispatch(testStageToolContext(), {
+    toolName: descriptor.name,
+    payload: {},
+});
+assert.equal(declaredMessageLeakResult.ok, false);
+if (!declaredMessageLeakResult.ok) {
+    assert.equal(declaredMessageLeakResult.error.code, "stage_interface.invalid_output");
+    assert.equal(declaredMessageLeakResult.error.message, "Tool 'stage.test.ping' declared error 'invalid_input' message exposes internal anchors.");
+    assert.equal(JSON.stringify(declaredMessageLeakResult.error).includes("materialRef"), false);
+    assert.equal(JSON.stringify(declaredMessageLeakResult.error).includes("material:recording:m_internal"), false);
+}
+const declaredSuggestedFixLeakInterface = createStageInterface({
+    instruments: [instrument],
+    registrations: [
+        {
+            descriptor,
+            handler: async (): Promise<Result<unknown>> => ({
+                ok: false,
+                error: {
+                    code: "invalid_input",
+                    message: "safe public error message",
+                    area: "stage_core",
+                    retryable: false,
                     suggestedFix: "retry without sourceRef source_netease:track:1901371647",
                 },
             }),
         },
     ],
 });
-const declaredLeakScrubResult = await declaredLeakScrubInterface.dispatch(testStageToolContext(), {
+const declaredSuggestedFixLeakResult = await declaredSuggestedFixLeakInterface.dispatch(testStageToolContext(), {
     toolName: descriptor.name,
     payload: {},
 });
-assert.equal(declaredLeakScrubResult.ok, false);
-if (!declaredLeakScrubResult.ok) {
-    assert.equal(declaredLeakScrubResult.error.code, "invalid_input");
-    assert.equal(declaredLeakScrubResult.error.message, "Tool 'stage.test.ping' returned declared error 'invalid_input'.");
-    assert.equal(declaredLeakScrubResult.error.suggestedFix, "Call this test tool with an empty object.");
-    assert.equal(JSON.stringify(declaredLeakScrubResult.error).includes("materialRef"), false);
-    assert.equal(JSON.stringify(declaredLeakScrubResult.error).includes("sourceRef"), false);
-    assert.equal(JSON.stringify(declaredLeakScrubResult.error).includes("source_netease"), false);
+assert.equal(declaredSuggestedFixLeakResult.ok, false);
+if (!declaredSuggestedFixLeakResult.ok) {
+    assert.equal(declaredSuggestedFixLeakResult.error.code, "stage_interface.invalid_output");
+    assert.equal(declaredSuggestedFixLeakResult.error.message, "Tool 'stage.test.ping' declared error 'invalid_input' suggestedFix exposes internal anchors.");
+    assert.equal(JSON.stringify(declaredSuggestedFixLeakResult.error).includes("sourceRef"), false);
+    assert.equal(JSON.stringify(declaredSuggestedFixLeakResult.error).includes("source_netease"), false);
 }
 // F1: a success-path output whose VALUE carries an internal anchor is rejected by the runtime veil
 // (the schema-shape check alone cannot inspect string contents).
