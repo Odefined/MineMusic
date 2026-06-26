@@ -123,10 +123,7 @@ async function handleMusicExperiencePresent(
   ports: CreateMusicExperiencePresentRegistrationInput,
 ): Promise<Result<MusicExperiencePresentOutput>> {
   const input = payload as MusicExperiencePresentInput;
-  const materialRef = await resolveDurableMusicItem(ctx, input.item, {
-    candidateCommit: ports.candidateCommit,
-    materialProjection: ports.materialProjection,
-  });
+  const materialRef = await resolveDurableMusicItem(ctx, input.item, ports);
 
   if (!materialRef.ok) {
     return materialRef;

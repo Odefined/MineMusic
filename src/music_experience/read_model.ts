@@ -124,21 +124,13 @@ function musicItemSummaryFromMaterial(material: MusicMaterial): {
 } {
   switch (material.kind) {
     case "recording":
-      {
-        const artists = material.artistLabels ?? [];
-        return {
-          label: material.title,
-          ...(artists.length === 0 ? {} : { artistsText: artists.join(", ") }),
-        };
-      }
-    case "album":
-      {
-        const artists = material.artistLabels ?? [];
-        return {
-          label: material.title,
-          ...(artists.length === 0 ? {} : { artistsText: artists.join(", ") }),
-        };
-      }
+    case "album": {
+      const artists = material.artistLabels ?? [];
+      return {
+        label: material.title,
+        ...(artists.length === 0 ? {} : { artistsText: artists.join(", ") }),
+      };
+    }
     case "artist":
       return {
         label: material.name,

@@ -191,26 +191,14 @@ function invalidInput(message: string): Result<never> {
 }
 
 function isProviderMaterialCandidateRef(ref: Ref): boolean {
-  return isRefShape(ref) &&
-    ref.namespace === "material_candidate" &&
+  return ref.namespace === "material_candidate" &&
     ref.kind === "provider_candidate" &&
     ref.id.startsWith("mc_");
 }
 
 function isPresentableMaterialRef(ref: Ref): boolean {
-  return isRefShape(ref) &&
-    ref.namespace === "material" &&
-    (
-      ref.kind === "recording" ||
-      ref.kind === "album" ||
-      ref.kind === "artist"
-    );
-}
-
-function isRefShape(ref: Ref): boolean {
-  return typeof ref.namespace === "string" &&
-    typeof ref.kind === "string" &&
-    typeof ref.id === "string";
+  return ref.namespace === "material" &&
+    (ref.kind === "recording" || ref.kind === "album" || ref.kind === "artist");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
