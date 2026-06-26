@@ -25,11 +25,11 @@ export function createMusicExperienceQueuePlaybackCommand(
 
       return input.database.transaction(async (db) => {
         const records = createMusicExperienceQueuePlaybackRecords({ db });
-        const snapshot = await records.read({
+        const queueLength = await records.countQueue({
           ownerScope: commandInput.ownerScope,
         });
 
-        if (snapshot.queue.length + commandInput.materialRefs.length > MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH) {
+        if (queueLength + commandInput.materialRefs.length > MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH) {
           return {
             ok: false,
             error: {

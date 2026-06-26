@@ -773,11 +773,13 @@ restored as compatibility layers.
   queue/now-playing runtime state, with `music.experience.queue.append` and
   `music.experience.playback.play` exposed as Stage tools through the existing
   execution gate. The queue has a hard product/runtime cap of 100 items enforced
-  by the owning command (`queue_full`). A4 adds a MineMusic Main Agent turn
-  session over a long-lived pi `Agent`: each user turn captures Session Context
-  through the Workbench read-model seam, refreshes `state.systemPrompt`, runs pi
-  `prompt()` / `waitForIdle()`, returns the pi-produced turn messages/final
-  assistant text, and observes queue/playback outcome through the same seam.
+  by the owning command (`queue_full`); ADR-0044 records this as an explicit
+  decision replacing Phase A's earlier read-side-only bounded projection plan.
+  A4 adds a MineMusic Main Agent turn session over a long-lived pi `Agent`: each
+  user turn captures Session Context through the Workbench read-model seam,
+  refreshes `state.systemPrompt`, runs pi `prompt()` / `waitForIdle()`, returns
+  the pi-produced turn messages/final assistant text, and observes
+  queue/playback outcome through the same seam.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection

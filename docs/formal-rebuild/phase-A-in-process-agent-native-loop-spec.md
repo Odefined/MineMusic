@@ -522,13 +522,15 @@ since Phase 21.
 - **Projection.** A public queue/now-playing read port exposes current queue +
   now-playing for Session Context (A2). It is a direct read of queue/playback
   truth, not routed through the material projection-maintenance machinery.
-  Slice 1 may expose the full small queue, but A4 must not inject an unbounded
-  queue into the agent prompt. A4 enforces this by bounding the Music Experience
-  logical queue itself: the owning queue command rejects appends above
+  The original A3 projection note allowed the database truth to retain a full
+  queue while A4 bounded the Workbench/Session Context read side
+  (`queueHead`/`queueTail`/`queueLength`). ADR-0044 explicitly changes that
+  plan: the Music Experience logical queue itself is bounded runtime state. The
+  owning queue command rejects appends above
   `MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH = 100` with `queue_full`, so Workbench /
-  Session Context may expose the full queue without hiding unbounded state in a
-  prompt renderer. The database truth still stores ordinary queue rows; the
-  product queue invariant keeps the prompt surface bounded.
+  Session Context may expose the full queue without hiding unbounded product
+  state in a prompt renderer. The database table still stores ordinary queue
+  rows; the product invariant keeps both queue state and prompt surface bounded.
 
 - **Agent-facing tools.** `music.experience.queue.append` and
   `music.experience.playback.play` _(proposed)_ register under the existing

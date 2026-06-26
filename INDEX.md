@@ -191,7 +191,7 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   records the low-level `Agent` and root-exported-helper reuse posture, keeps full
   `AgentHarness` out of scope, and defers skill runtime beyond Phase A.
 - `docs/formal-rebuild/phase-A-in-process-agent-native-loop-spec.md`: Phase A
-  in-process agent-native loop spec. PR A1a/A1b/A2/A3 has landed the
+  in-process agent-native loop spec. PR A1a/A1b/A2/A3/A4 has landed the
   `src/agent_runtime` pi spine and Stage tool bridge over injected
   `ToolDeclaration[]`, injected `dispatch`, and an injected Stage tool context
   factory, with provider-safe pi tool-name mapping and provider/Stage session
@@ -200,8 +200,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   `src/workbench_interface` in-process read-model seam and Agent Runtime
   Session Context capture/rendering over it; A3 added Music Experience
   queue/playback Postgres truth, owning commands, Workbench read projection, and
-  Stage tools. A4 end-to-end turn wiring, Radio, Memory, skill runtime, and Web
-  remain out of scope.
+  Stage tools; A4 added the long-lived pi Main Agent turn session with
+  turn-start Session Context refresh and harness-visible response text. Radio,
+  Memory, skill runtime, and Web remain out of scope.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -311,6 +312,10 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/adr/0043-trusted-local-scan-deletes-disappeared-sources-without-material-cascade.md`:
   only a Trusted Complete Scan deletes disappeared scan membership, binding,
   and Local Source; Material and owner facts survive, with no restore tombstone.
+- `docs/adr/0044-music-experience-queue-is-bounded-runtime-state.md`: Music
+  Experience queue length is a bounded runtime-state invariant enforced by the
+  owning queue command (`MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH = 100`, `queue_full`),
+  explicitly replacing Phase A's earlier read-side-only bounded projection plan.
 - `docs/adr/0029-library-import-uses-chained-background-work-jobs.md`:
   library import drives multi-page provider reads as chained Background Work jobs.
 - `docs/adr/0030-agent-runtime-and-workbench-interface-are-top-level-areas.md`:

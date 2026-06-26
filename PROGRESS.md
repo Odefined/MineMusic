@@ -1517,7 +1517,9 @@ catalog integration. Design authority:
   compact public handles/positions/revisions. The Workbench read-model seam can
   now read the Music Experience projection from real queue/playback state. The
   queue is bounded at 100 items by the owning command and returns `queue_full`
-  instead of allowing unbounded prompt growth.
+  instead of allowing unbounded prompt growth; ADR-0044 records this as an
+  explicit Phase A4 decision replacing the earlier read-side-only bounded
+  projection plan.
 - A4 adds `createMineMusicMainAgentSession`, a MineMusic-owned turn facade over
   a long-lived pi `Agent`. Each `runUserTurn` captures fresh Session Context
   through the A2 Workbench read-model seam, refreshes the pi
