@@ -3,7 +3,9 @@
 // Workbench-owned composed read shapes and narrow owner-area projection ports;
 // AG-UI/web wire shapes belong to the future Web boundary.
 
-export type WorkbenchConcernRevision = number;
+import type { ConcernRevision } from "./kernel.js";
+
+export type WorkbenchConcernRevision = ConcernRevision;
 
 export type WorkbenchMusicItemSummary = {
   item: {

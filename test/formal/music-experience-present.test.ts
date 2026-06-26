@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { refKey, type Ref, type Result } from "../../src/contracts/kernel.js";
 import type { ProviderMaterialCandidate, SourceTrack, } from "../../src/contracts/music_data_platform.js";
+import type { MusicExperienceQueuePlaybackCommand } from "../../src/contracts/music_experience.js";
 import type { MusicExperiencePresentOutput, ToolCallOutput, } from "../../src/contracts/stage_interface.js";
 import { createMemoryStageToolAuditPort, createConservativeStageToolExecutionGate, } from "../../src/effect_boundary/index.js";
 import { createCandidateCommitCommand, createMaterialProjection, createMaterialRefFactory, createProviderMaterialCandidateRef, musicDataPlatformIdentitySchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformRetrievalResultSetSchema, type CandidateCommitCommand, type MaterialProjection, } from "../../src/music_data_platform/index.js";
@@ -410,6 +411,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     const module = createMusicExperienceRuntimeModule({
         candidateCommit: stubCandidateCommit(),
         materialProjection: stubMaterialProjection(),
+        queuePlayback: stubQueuePlaybackCommand(),
     });
     const initialized = await module.initialize({});
     assert.equal(initialized.ok, true);
@@ -417,7 +419,11 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
         throw new Error("expected Music Experience runtime module to initialize");
     }
     assert.deepEqual(initialized.value.instruments, [musicExperienceInstrument]);
-    assert.equal(initialized.value.tools?.[0]?.descriptor.name, "music.experience.present");
+    assert.deepEqual(initialized.value.tools?.map((tool) => tool.descriptor.name), [
+        "music.experience.present",
+        "music.experience.queue.append",
+        "music.experience.playback.play",
+    ]);
 }
 async function initializedPresentDatabase(): Promise<MusicDatabase> {
     const database = await openUninitializedPostgresTestMusicDatabase();
@@ -518,6 +524,16 @@ function stubMaterialProjection(): MaterialProjection {
         },
         async projectMusicMaterials() {
             return new Map();
+        },
+    };
+}
+function stubQueuePlaybackCommand(): MusicExperienceQueuePlaybackCommand {
+    return {
+        append() {
+            throw new Error("Music Experience queue command should not be called by this test.");
+        },
+        playNow() {
+            throw new Error("Music Experience playback command should not be called by this test.");
         },
     };
 }

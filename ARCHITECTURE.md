@@ -140,6 +140,14 @@ item — library admission stays explicit (ADR-0040). Agent Runtime owns Speech 
 Signal Class at entry (cleanup, playback behavior, session steering, or explicit
 preference) so interface cleanup never reaches Memory as taste.
 
+Resolving a public item handle reveals only the private anchor that was minted
+behind the Public Handle Veil. It is not proof that the anchor is the current
+domain identity. Any material-scoped write, continued workflow, or fresh durable
+item-handle mint must pass the anchor through the owning resolver/projection
+before it is persisted or re-emitted; for material handles that means Material
+Projection / `ResolveDurableMusicItem`, and the survivor `materialRef` returned
+by that projection is the value to use (ADR-0019, ADR-0040).
+
 Background Work is runtime infrastructure owned through Stage Core / Server
 Host composition, not a top-level formal area and not a generic workflow layer.
 Owning areas register typed job handlers through a MineMusic-owned
@@ -171,7 +179,7 @@ preflight port, invokes handlers that return payloads only, and wraps
 The Phase 16B safety layer keeps the public-agent veil enforceable before the
 first Music Discovery tool ships. Stage Interface owns the output-schema and
 sample-output leak guards, the owner-bound public handle registry, the
-`HandleMintingPort` implementation for durable `library` handles, and declared
+`HandleMintingPort` implementation for durable `material` handles, and declared
 handler-error normalization. Candidate handles delegate to the runtime
 candidate-cache adapter rather than gaining a new durable store. Effect Boundary
 owns the `StageToolExecutionGate` stub and audit seam: read-only auto tools may
@@ -199,7 +207,7 @@ metadata; it returns public Music Scope handles plus descriptions and must not
 call provider APIs or refresh provider account state. Lookup normalizes public
 Music Scopes into the Music Intelligence Metadata Lookup Search adapter, which
 uses Music Data Platform search metadata and result-window ports, mints public
-`library` / `candidate` item handles through `StageToolContext.handleMinting`,
+`material` / `candidate` item handles through `StageToolContext.handleMinting`,
 and wraps internal lookup cursors through the Stage Interface-owned
 registry-backed `LookupCursorStore` (ADR-0024).
 
@@ -374,7 +382,7 @@ consumption tool such as `music.experience.present` from durable material
 facts after any implicit Candidate Commit. It is not a provider candidate,
 not a query-engine internal result, not `MaterialEntity`, and not the domain
 `MusicMaterial`. It is renamed from `MaterialCard`: the agent-visible
-presentation object follows the `music` naming used for library item handles,
+presentation object follows the `music` naming used for material item handles,
 keeping `material` for internal anchors.
 
 Phase 0 does not decide the exact public query hit shape; the `MusicCard` key

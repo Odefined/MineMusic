@@ -128,6 +128,8 @@ try {
         "music_discovery_list_scopes",
         "music_discovery_lookup",
         "music_experience_present",
+        "music_experience_queue_append",
+        "music_experience_playback_play",
         "stage_runtime_status",
     ]);
     // Every listed tool carries a stitched description, inputSchema, outputSchema,
@@ -171,7 +173,7 @@ try {
         };
     };
     assert.equal(callResult.structuredContent.status, "ready");
-    assert.equal(callResult.structuredContent.interface.toolCount, 25);
+    assert.equal(callResult.structuredContent.interface.toolCount, 27);
     assert.equal(callResult.content.length, 1);
     assert.equal(callResult.content[0]?.type, "text");
     assert.equal(callResult.content[0]?.text.startsWith("Runtime ready"), true);

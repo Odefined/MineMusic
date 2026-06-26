@@ -8,6 +8,7 @@ import { musicDataPlatformRetrievalResultSetSchema, } from "../../src/music_data
 import { musicDataPlatformSearchMetadataProjectionSchema, } from "../../src/music_data_platform/search_metadata_projection_schema.js";
 import { musicDataPlatformSearchResultSetSchema, } from "../../src/music_data_platform/search_result_set_schema.js";
 import { musicDataPlatformSourceLibrarySchema, } from "../../src/music_data_platform/source_library_schema.js";
+import { musicExperienceQueuePlaybackSchema, } from "../../src/music_experience/schema.js";
 import { PostgresMusicDatabase, type PostgresMusicDatabaseSchemaContribution, } from "../../src/storage/index.js";
 import { stageInterfaceHandleRegistrySchema, } from "../../src/stage_interface/handle_registry_schema.js";
 import { stageInterfaceLookupCursorRegistrySchema, } from "../../src/stage_interface/lookup_cursor_registry_schema.js";
@@ -28,6 +29,7 @@ await database.initialize({
         musicDataPlatformRetrievalResultSetSchema,
         musicDataPlatformSearchResultSetSchema,
         musicDataPlatformDownloadSchema,
+        musicExperienceQueuePlaybackSchema,
         stageInterfaceHandleRegistrySchema,
         stageInterfaceLookupCursorRegistrySchema,
     ] as unknown as readonly PostgresMusicDatabaseSchemaContribution[],
@@ -98,5 +100,27 @@ const collectionItemsTable = await context.get<{
 `);
 if (collectionItemsTable === undefined) {
     throw new Error("collection_items table was not initialized");
+}
+const musicExperienceStateTable = await context.get<{
+    table_name: string;
+}>(`
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name = 'music_experience_state'
+`);
+if (musicExperienceStateTable === undefined) {
+    throw new Error("music_experience_state table was not initialized");
+}
+const musicExperienceQueueItemsTable = await context.get<{
+    table_name: string;
+}>(`
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name = 'music_experience_queue_items'
+`);
+if (musicExperienceQueueItemsTable === undefined) {
+    throw new Error("music_experience_queue_items table was not initialized");
 }
 await database.close();

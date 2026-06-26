@@ -3,7 +3,7 @@
 // importing stage_core (stage_core assembles Stage Interface contributions,
 // not the reverse).
 
-import type { FormalArea, Result } from "./kernel.js";
+import type { ConcernRevision, FormalArea, Result } from "./kernel.js";
 
 export type InstrumentDescriptor = {
   id: string;
@@ -614,6 +614,35 @@ export type MusicExperiencePresentInput = {
 export type MusicExperiencePresentOutput = {
   item: Extract<MusicItemHandle, { kind: "material" }>;
   card: MusicCard;
+};
+
+export type MusicExperienceQueueAppendInput = {
+  /** Slice-1 single candidate or durable material item to append to the logical MineMusic queue. Phase B widens this to batch-of-N. */
+  items: readonly [MusicItemHandle];
+};
+
+export type MusicExperienceQueueAppendOutputItem = {
+  item: Extract<MusicItemHandle, { kind: "material" }>;
+  position: number;
+};
+
+export type MusicExperienceQueueAppendOutput = {
+  items: readonly MusicExperienceQueueAppendOutputItem[];
+  queueLength: number;
+  queueRevision: ConcernRevision;
+};
+
+export type MusicExperiencePlaybackStatus = "playing" | "paused";
+
+export type MusicExperiencePlaybackPlayInput = {
+  /** Candidate or durable material item to make the current logical now-playing selection. */
+  item: MusicItemHandle;
+};
+
+export type MusicExperiencePlaybackPlayOutput = {
+  item: Extract<MusicItemHandle, { kind: "material" }>;
+  status: Extract<MusicExperiencePlaybackStatus, "playing">;
+  playbackRevision: ConcernRevision;
 };
 
 export type MusicDiscoveryLookupItemDescription = PublicHandleDescription & {

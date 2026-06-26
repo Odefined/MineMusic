@@ -6,6 +6,7 @@ const testModules = [
     "./formal/formal-contracts.test.js",
     "./formal/stage-interface-tool-frame.test.js",
     "./formal/music-experience-present.test.js",
+    "./formal/music-experience-queue-playback.test.js",
     "./formal/library-import-list-sources.test.js",
     "./formal/library-import-control.test.js",
     "./formal/library-import-agent-path.test.js",

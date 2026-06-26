@@ -118,11 +118,15 @@ saved/favorite relation scopes.
 Phase 17 adds the internal Music Data Platform Candidate Commit owning command
 (ADR-0011), Material Projection (`materialRef` -> `MusicMaterial`), the Effect
 Boundary auto-pass widening for presentation-driven admission (ADR-0021), and
-the `music.experience.present` consumption tool that returns a stable library
+the `music.experience.present` consumption tool that returns a stable material
 handle and a leak-free `MusicCard`. Material Projection now applies
 Source Preference Policy to current bound sources at read time and no longer
 exposes `primarySourceRef` in `MusicMaterial`; Music Data Platform identity
 writes no longer accept or persist durable `primarySourceRef` / `makePrimary`.
+Public item-handle resolution reveals only the minted private anchor; material
+scoped writes, continued workflows, and fresh durable item-handle minting must
+use Material Projection / `ResolveDurableMusicItem` and persist or emit the
+survivor `materialRef`, not a stale handle anchor.
 Phase 18A introduces the `library.`
 Public Agent Protocol namespace, keeps Library Import owned by Music Data
 Platform rather than a new top-level area, and adds the initially empty
@@ -134,7 +138,7 @@ metadata audit while unqualified durable writes still route to `ask`.
 Phase 18C-E add all four `library.import.*` tools: metadata-only source
 listing, page-by-page start/continue import drive tools, and a read-only status
 tool over durable import batches. Phase 19 adds all seven
-`library.relation.*` tools over durable library item handles: read-only `get`,
+`library.relation.*` tools over durable material item handles: read-only `get`,
 plus save/unsave/favorite/unfavorite/block/unblock edit tools. The edit tools
 write only local MineMusic owner-relation facts through Music Data Platform
 source-of-truth commands, return only current saved/favorite/blocked booleans,
@@ -764,6 +768,11 @@ restored as compatibility layers.
 - `docs/adr/0030-agent-runtime-and-workbench-interface-are-top-level-areas.md`
   records Agent Runtime and Workbench Interface as formal top-level areas, with
   Session Context as an Agent Runtime-owned context view.
+- Phase A3 queue/playback truth has landed in Music Experience:
+  `music_experience_state` and `music_experience_queue_items` persist logical
+  queue/now-playing runtime state, with `music.experience.queue.append` and
+  `music.experience.playback.play` exposed as Stage tools through the existing
+  execution gate. A4 end-to-end agent turn wiring is still pending.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection
@@ -799,7 +808,8 @@ restored as compatibility layers.
 - `docs/adr/0019-veil-ownership-split-and-handle-scheme.md` records the Public
   Handle Veil split into a Stage Interface–owned `HandleMintingPort` (cross-cutting
   identity veil) plus per-tool label synthesis, and the registry-minted short
-  opaque library handle id scheme.
+  opaque material handle id scheme. Handle resolution only reveals the minted
+  anchor; current material identity must come from the owning resolver/projection.
 - `docs/adr/0020-declared-error-vocabulary-and-fail-whole-recovery.md` records
   the declared per-tool public error vocabulary and fail-whole multi-scope
   recovery with named-scope recoverable errors.

@@ -10,6 +10,7 @@ import type { ExtensionRuntime, ExtensionRuntimeSnapshot, MineMusicPlugin, Plugi
 import { createExtensionRuntime, sourceProviderSlot } from "../../src/extension/index.js";
 import { createMusicDiscoveryRuntimeModule, } from "../../src/music_intelligence/stage_adapter/index.js";
 import { isMusicIntelligenceError, type MusicIntelligenceErrorCode, } from "../../src/music_intelligence/index.js";
+import { createMusicExperienceQueuePlaybackCommand } from "../../src/music_experience/index.js";
 import { createExtensionRuntimeRetrievalProviderSearchPort, createMusicDataPlatformRuntimeModule, createMusicExperienceServerRuntimeModule, createMineMusicExtensionRuntime, createServerHost, createStageToolContextAssembly, } from "../../src/server/index.js";
 import { createExtensionRuntimeModule, createStageRuntime, } from "../../src/stage_core/index.js";
 import { createPostgresTestSchema, postgresTestDatabaseUrl } from "../support/postgres.js";
@@ -142,6 +143,8 @@ assert.deepEqual(host.snapshot().interfaceContract.tools.map((tool) => tool.name
     "music.discovery.list_scopes",
     "music.discovery.lookup",
     "music.experience.present",
+    "music.experience.queue.append",
+    "music.experience.playback.play",
     "stage.runtime.status",
 ]);
 const listedImportSources = await host.dispatch(testStageToolContext(), {
@@ -266,7 +269,16 @@ const fixtureRuntime = createStageRuntime({
             },
         }),
         createMusicExperienceServerRuntimeModule({
-            ports: fixtureMusicDataPlatformModule,
+            ports: {
+                candidateCommit: () => fixtureMusicDataPlatformModule.candidateCommit(),
+                materialProjection: () => fixtureMusicDataPlatformModule.materialProjection(),
+                queuePlayback: () => {
+                    const database = fixtureMusicDataPlatformModule.database();
+                    return database === undefined
+                        ? undefined
+                        : createMusicExperienceQueuePlaybackCommand({ database });
+                },
+            },
         }),
     ],
 });

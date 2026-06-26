@@ -22,6 +22,10 @@ export type StageWarning = {
   area: FormalArea;
 };
 
+// Monotonic per-area/per-concern revision captured as Agent Work Basis and,
+// from Phase B onward, compared by owning commands at commit time.
+export type ConcernRevision = number;
+
 export type FormalArea =
   | "server_host"
   | "stage_interface"

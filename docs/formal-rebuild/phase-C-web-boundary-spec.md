@@ -141,7 +141,17 @@ does not make the whole product feel like an admin console.
 - Bounded delta-replay buffer (ADR-0036): until resnapshot cost proves
   insufficient.
 - Playback output-device authority: separate Music Experience ↔ Web player
-  follow-up (ADR-0036).
+  follow-up (ADR-0036). This follow-up should introduce a
+  `PlaybackSourceResolver` boundary: `materialRef -> current survivor -> choose
+  bound source by playback policy -> local source target or provider
+  `SourceProvider.getPlayableLinks(...)` -> short-lived `PlaybackSource` ->
+  Web/player controller`. It must not be folded into Phase A's
+  `music.experience.playback.play`, which only mutates logical playback truth,
+  and it must not be agent-invented text that claims audio played before the
+  Web/player surface verifies it. Do not patch the gap by stuffing local paths,
+  root ids, relative paths, playable URLs, or source locators into
+  `MusicMaterial` / Material Projection; display projection and playback/access
+  resolution stay separate.
 - Open-ended/Declarative A2UI generation beyond the fixed catalog: future
   graduation path is preserved by the MineMusic-owned card DTO + version-pinned
   A2UI serializer (ADR-0034), not built in v1.

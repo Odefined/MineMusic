@@ -1028,7 +1028,7 @@ Phase 17 ships the first durable-write consumption path:
   `admissionDrivenByPresentation = true`.
 - `music.experience.present` is contributed by Music Experience through
   `src/music_experience/stage_adapter/`: candidate handles resolve to material
-  candidates, pass through Candidate Commit, mint stable library handles, project
+  candidates, pass through Candidate Commit, mint stable material handles, project
   durable material, and return a leak-free `MusicCard`.
 - Generated Stage Interface schemas now include `MusicCard`,
   `MusicExperiencePresentInput`, and `MusicExperiencePresentOutput`; tests guard
@@ -1317,10 +1317,10 @@ MineMusic owner catalog projection:
   `src/music_data_platform/stage_adapter/catalog.ts` and lists only
   catalog-usable `library`, `source_library`, and `relation` scopes.
   Provider scopes and the aggregate `all` scope are excluded.
-- `library.catalog.browse` returns compact public library item handles plus
-  descriptions, supports newest-first time order and dictionary order, caps
-  `limit` at 100, and stores cursor replay through the existing Stage
-  Interface `LookupCursorStore`.
+- `library.catalog.browse` returns compact public catalog items with material
+  handles plus descriptions, supports newest-first time order and dictionary
+  order, caps `limit` at 100, and stores cursor replay through the existing
+  Stage Interface `LookupCursorStore`.
 - `library.catalog.sample` requires a caller-provided `seed` and `count` capped
   at 100; same owner library state, scope, count, and seed select the same
   materials.
@@ -1365,7 +1365,7 @@ Work Basis OCC + Web) remains deferred to Phase B/C.
   catalog scope list.
 - `library.collection.*` adds the seven agent edit tools (get/create/rename/add/
   remove/move/delete) over the fact table, behind the D9 Public Handle Veil
-  (opaque scope handle, minted library item handles; no collectionRef /
+  (opaque scope handle, minted material item handles; no collectionRef /
   materialRef / position leak). The six durable-write tools carry a
   `collectionDrivenByUserRequest` Effect Boundary auto-pass flag; `get` is
   read-only.
@@ -1508,8 +1508,16 @@ catalog integration. Design authority:
   port; Agent Runtime captures an immutable `AgentSessionContext` from that
   seam and renders it into the pi system prompt. Guards now prove the seam does
   not import AG-UI/web/transport or area internals, and exact port/key-set tests
-  pin the slice-1 read shape. No host entrypoint, real queue/playback command,
-  Radio, Memory, skill runtime, or Web behavior is implemented yet.
+  pin the slice-1 read shape.
+- A3 adds Music Experience queue/playback truth behind `music_experience_state`
+  and `music_experience_queue_items`, with `MusicExperienceQueuePlaybackCommand`
+  owning `append` and `playNow` writes through `database.transaction(...)`.
+  The Stage tools `music.experience.queue.append` and
+  `music.experience.playback.play` auto-pass as runtime-state writes and return
+  compact public handles/positions/revisions. The Workbench read-model seam can
+  now read the Music Experience projection from real queue/playback state. A4
+  end-to-end agent turn wiring, Radio, Memory, skill runtime, and Web behavior
+  are still unimplemented.
 
 ## Next Formal Milestones
 

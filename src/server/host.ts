@@ -1,4 +1,4 @@
-import type { Result } from "../contracts/kernel.js";
+import { refKey, type Result } from "../contracts/kernel.js";
 import type { StageRuntimeSnapshot } from "../contracts/stage_core.js";
 import type {
   StageToolContext,
@@ -24,6 +24,10 @@ import {
   createMusicExperienceServerRuntimeModule,
 } from "./music_experience_runtime_module.js";
 import {
+  createMusicExperienceQueuePlaybackCommand,
+  createMusicExperienceReadModel,
+} from "../music_experience/index.js";
+import {
   createLibraryImportServerRuntimeModule,
 } from "./library_import_runtime_module.js";
 import {
@@ -37,6 +41,7 @@ import {
 } from "./library_collection_runtime_module.js";
 import { createStageToolContextAssembly } from "./stage_tool_context_assembly.js";
 import type { StageToolContextFactory } from "../stage_interface/index.js";
+import type { WorkbenchMusicExperienceReadPort } from "../contracts/workbench_interface.js";
 import type { SourceLibraryImportService } from "../music_data_platform/index.js";
 import type { RetrievalQueryService } from "../music_intelligence/index.js";
 import {
@@ -59,6 +64,7 @@ export type ServerHost = {
   retrievalQuery(): RetrievalQueryService | undefined;
   localizeProviderSource(): LocalizeProviderSourceCommand | undefined;
   toolContextFactory(): StageToolContextFactory | undefined;
+  musicExperienceRead(): WorkbenchMusicExperienceReadPort | undefined;
 };
 
 export type CreateServerHostInput = {
@@ -124,6 +130,15 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
           ports: {
             candidateCommit: () => musicDataPlatformModule.candidateCommit(),
             materialProjection: () => musicDataPlatformModule.materialProjection(),
+            queuePlayback: () => {
+              const database = musicDataPlatformModule.database();
+
+              if (database === undefined) {
+                return undefined;
+              }
+
+              return createMusicExperienceQueuePlaybackCommand({ database });
+            },
           },
         });
   const libraryImportModule: RuntimeModule | undefined =
@@ -206,6 +221,35 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     },
     toolContextFactory() {
       return stageToolContextFactory;
+    },
+    musicExperienceRead() {
+      const database = musicDataPlatformModule?.database();
+      const materialProjection = musicDataPlatformModule?.materialProjection();
+      const handleMinting = musicDataPlatformModule?.handleMinting();
+
+      if (
+        database === undefined ||
+        materialProjection === undefined ||
+        handleMinting === undefined
+      ) {
+        return undefined;
+      }
+
+      return createMusicExperienceReadModel({
+        db: database.context(),
+        materialProjection,
+        materialHandles: {
+          mintMaterialHandle(input) {
+            return handleMinting.mint({
+              ownerScope: input.ownerScope,
+              handleKind: "material",
+              internalAnchor: {
+                materialRef: refKey(input.materialRef),
+              },
+            });
+          },
+        },
+      });
     },
   };
 }

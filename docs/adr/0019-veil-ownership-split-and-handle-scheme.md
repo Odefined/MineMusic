@@ -56,15 +56,27 @@ Split the veil by concern.
    `contracts/public_music_description.ts`, while `<area>/stage_adapter/*` may.
    This keeps helper reuse from polluting domain core with Stage Interface DTOs.
 
-3. **Handle id scheme.** `library` handle ids are registry-minted short opaque
+3. **Handle id scheme.** `material` handle ids are registry-minted short opaque
    ids backed by a durable, **owner-bound** store: each binding is
    `{ publicId, ownerScope, handleKind, internalAnchor, issuedAt, expiresAt? }`,
    so a handle minted for owner A cannot resolve for owner B (owner isolation is
    load-bearing — MineMusic is owner-scoped throughout). `candidate` handle ids
    continue to resolve through the existing runtime candidate cache. Tests must
-   cover: cross-owner resolution fails; a library id never equals a materialRef /
+   cover: cross-owner resolution fails; a material id never equals a materialRef /
    refKey / db key; an expired candidate returns `candidate_expired`; an unknown
    handle returns a declared public error, not an internal not-found.
+
+4. **Handle resolution is not current domain resolution.** Reverse-resolving a
+   public handle reveals only the private anchor originally minted behind the
+   veil. It does not prove that the anchor is still the current domain identity
+   or safe to persist. A handler that will write material-scoped state, continue
+   a material workflow, or mint a fresh durable item handle must route the anchor
+   through the owning area resolver/projection before using it. For material
+   handles, Material Projection / `ResolveDurableMusicItem` must follow merges
+   and return the survivor `materialRef`; the raw anchor is not current truth.
+   If the owning resolver cannot produce a current public-safe material, the
+   tool returns its declared public error instead of treating handle-registry
+   resolution as enough validation.
 
 There is intentionally no single `PresentationPort.veil(...)` that bundles
 minting with label synthesis.
@@ -115,7 +127,7 @@ minting with label synthesis.
 - The Tool Frame Ownership table and the "Stage Interface presentation" wording
   are corrected: Stage Interface owns the veil contract and handle minting;
   per-tool label synthesis is a contributing-handler responsibility.
-- Library handles are short, opaque, stable, and reverse-resolvable; the agent
+- Material handles are short, opaque, stable, and reverse-resolvable; the agent
   pays no per-handle token tax for statelessness.
 - Amends the veil ownership claims in the Stage Interface Tool Frame; composes
   with ADR-0016 and ADR-0017 (descriptor/handler/router split).

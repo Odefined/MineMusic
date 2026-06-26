@@ -50,6 +50,13 @@ reference. The `"library"` **item-handle** kind is retired.
   the library" is answered by each tool's own semantics/validation, **not**
   presupposed by the handle kind. Reading the relation state of a
   never-admitted material is legal and returns `saved:false, favorite:false`.
+- Resolving a `material` item handle is not enough to prove current material
+  identity. The public handle registry only returns the minted anchor; any
+  material-scoped write, continued workflow, or fresh durable item-handle mint
+  must pass that anchor through Material Projection / `ResolveDurableMusicItem`
+  and use the projected survivor `materialRef`. This applies to
+  `music.experience.present`, queue append, playback, `library.relation.*`,
+  `library.collection.*`, catalog output, and future material-scoped tools.
 
 This is the precise form of PB4's existing statement that "a library handle is
 just a material that also has a library relation": there is one durable item
@@ -89,7 +96,8 @@ currency (material); a library relation is a *fact about* a material, not a
     `resultSummary` ("library item" → "material"); output kind.
   - Generated schemas regeneration.
 - `ResolveDurableMusicItem` (the "candidate-or-material handle → idempotent
-  `commitCandidate` → current material ref" capability) is extracted from
+  `commitCandidate` or Material Projection → current survivor material ref"
+  capability) is extracted from
   `presentCandidate` when `queue.append` becomes its second real caller (Phase
   A — Grill #8 moved `queue.append` from PB6 to Phase A, and Phase A's
   `queue.append` accepts candidate handles), not earlier — same "define once at the second real user" discipline as the
