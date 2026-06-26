@@ -86,6 +86,7 @@ export const runtimeStatusToolOutputSchema = {
       "type": "string",
       "enum": [
         "stage_core",
+        "agent_runtime",
         "extension",
         "music_data_platform",
         "music_intelligence",
@@ -131,6 +132,7 @@ export const runtimeStatusToolOutputSchema = {
         "server_host",
         "stage_interface",
         "stage_core",
+        "agent_runtime",
         "extension",
         "music_data_platform",
         "music_intelligence",

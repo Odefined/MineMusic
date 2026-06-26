@@ -138,9 +138,9 @@ directive payload message) — runs exactly one bounded Radio turn via
 `prompt`/`continue`: select + batch-append + emit a result, then end. The
 transcript carries Radio's chain-of-thought continuity across runs (the *soul*,
 ADR-0037) — but **persistence/compaction are not pi-provided at our layer**: the
-low-level `Agent` is volatile (audit @0.79.10 — persistence/compaction live only
+low-level `Agent` is volatile (audit @0.80.2 — persistence/compaction live only
 in pi's harness, which MineMusic does not use). MineMusic persists/reloads the
-transcript itself, **base-helper-first** (`pi-harness-reuse-conclusions.md`): it
+transcript itself, **root-export-helper-first** (`pi-harness-reuse-conclusions.md`): it
 borrows pi's `SessionRepo` interface shape through an Agent Runtime facade and
 backs it with a MineMusic-built **Postgres** store (pi ships only
 `JsonlSessionRepo`/`InMemorySessionRepo`; PG is MineMusic-specific — audit line
@@ -454,7 +454,7 @@ Full rationale and OCC table in ADR-0037. In Phase B terms:
   capability into scope and is withdrawn.) Identity-level merge remains free
   (idempotent `candidate_commit` → same material ref).
 
-### PB8a — Endurance verified in-harness via injected transcript erosion (gate PASSED @0.79.10)
+### PB8a — Endurance verified in-harness via injected transcript erosion (gate PASSED @0.80.2)
 
 Posture and the layered-continuity floor are built in Phase B and verified by the
 deterministic harness **injecting transcript erosion** and asserting Radio
@@ -462,8 +462,8 @@ rebuilds direction from the floor (commanded + posture) without drift — turnin
 ADR-0032's load-bearing endurance risk into a Phase B risk-down.
 
 The prerequisite gate is **passed**, verified against
-`@earendil-works/pi-agent-core@0.79.10` (audit:
-`pi-agent-core-capability-audit-0.79.10.md`): `agent.state.messages` is a public
+`@earendil-works/pi-agent-core@0.80.2` (audit:
+`pi-agent-core-capability-audit-0.80.2.md`): `agent.state.messages` is a public
 writable accessor and direct truncation works LLM-free (runtime-verified). The
 deterministic, LLM-free injection uses **direct `state.messages` assignment** (or
 the per-turn `transformContext` hook) — **not** pi's full `compact()` API, which
@@ -528,7 +528,7 @@ one `Agent`; Agent Runtime owns the cascade across actors.
 - **What state the cascade touches: only pi run lifecycle.** It does not mutate or
   clean any persistent state; persistent consistency is entirely the transaction +
   basis-check machinery above.
-- **Two implementation requirements from the pi audit (@0.79.10).** (a)
+- **Two implementation requirements from the pi audit (@0.80.2).** (a)
   **Cancellation is cooperative**: `pi.abort()` flips the per-call `AbortSignal`
   but does **not** hard-kill an in-flight tool — so "abort touches only pi run
   lifecycle" holds *only if* `dispatch`/the tool honors `signal`. dispatch must

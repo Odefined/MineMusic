@@ -83,6 +83,7 @@ assert.equal(await pathExists(join(repositoryRoot, "src/music_intelligence")), t
 assert.equal(await pathExists(join(repositoryRoot, "src/music_experience")), true, "formal Music Experience root must exist once music.experience.present lands");
 assert.equal(await pathExists(join(repositoryRoot, "src/effect_boundary")), true, "formal Effect Boundary root must exist once StageToolExecutionGate implementation lands");
 assert.equal(await pathExists(join(repositoryRoot, "src/background_work")), true, "formal Background Work runtime infrastructure root must exist once Phase 21 queue backend lands");
+assert.equal(await pathExists(join(repositoryRoot, "src/agent_runtime")), true, "formal Agent Runtime root must exist once Phase A1a pi spine lands");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/background_work")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
@@ -126,6 +127,13 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/effect_bounda
     "src/effect_boundary/index.ts",
     "src/effect_boundary/stage_tool_execution_gate.ts",
 ], "formal Effect Boundary root must stay focused on StageToolExecutionGate policy/audit seams");
+assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/agent_runtime")))
+    .map((file) => relative(repositoryRoot, file))
+    .sort(), [
+    "src/agent_runtime/index.ts",
+    "src/agent_runtime/pi_engine.ts",
+    "src/agent_runtime/stage_tool_bridge.ts",
+], "formal Agent Runtime root must stay focused on the pi engine facade and Stage tool bridge in A1a");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_experience")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
@@ -229,6 +237,9 @@ function sourceBoundaryFailure(edge: ArchitectureImportEdge): string | undefined
     if (edge.fromArea === "music_experience") {
         return musicExperienceBoundaryFailure(edge);
     }
+    if (edge.fromArea === "agent_runtime") {
+        return agentRuntimeBoundaryFailure(edge);
+    }
     return undefined;
 }
 function externalPackageBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
@@ -237,6 +248,9 @@ function externalPackageBoundaryFailure(edge: ArchitectureImportEdge): string | 
     }
     if (edge.specifier === "pg-boss" && edge.fromFile !== "src/background_work/pg_boss_backend.ts") {
         return `Only the Background Work pg-boss adapter may import pg-boss directly: ${formatEdge(edge)}`;
+    }
+    if (edge.specifier === "@earendil-works/pi-agent-core" && !isUnderPath(edge.fromFile, "src/agent_runtime")) {
+        return `Only Agent Runtime may import pi-agent-core directly: ${formatEdge(edge)}`;
     }
     return undefined;
 }
@@ -252,6 +266,12 @@ function musicDataPlatformBoundaryFailure(edge: ArchitectureImportEdge): string 
     }
     if (isUnderPath(edge.toFile, "src/storage/postgres")) {
         return `Music Data Platform must not import concrete storage adapter internals: ${formatEdge(edge)}`;
+    }
+    return undefined;
+}
+function agentRuntimeBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
+    if (edge.toArea === "server" || edge.toArea === "stage_core" || edge.toArea === "music_data_platform" || edge.toArea === "music_intelligence" || edge.toArea === "music_experience" || edge.toArea === "extension" || edge.toArea === "storage" || edge.toArea === "background_work" || edge.toArea === "effect_boundary") {
+        return `Agent Runtime must not import ${edge.toArea}; compose Stage tools through injected descriptors, context factory, and dispatch ports: ${formatEdge(edge)}`;
     }
     return undefined;
 }

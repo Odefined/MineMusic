@@ -187,9 +187,15 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   runtime wiring + live smoke).
 - `docs/formal-rebuild/pi-harness-reuse-conclusions.md`: source-read
   conclusion note mapping Agent-Native Workbench harness needs to reusable
-  `@earendil-works/pi-agent-core@0.79.10` / `pi-ai@0.79.10` code surfaces;
-  records the low-level `Agent` and public-base-helper reuse posture, keeps full
+  `@earendil-works/pi-agent-core@0.80.2` / `pi-ai@0.80.2` code surfaces;
+  records the low-level `Agent` and root-exported-helper reuse posture, keeps full
   `AgentHarness` out of scope, and defers skill runtime beyond Phase A.
+- `docs/formal-rebuild/phase-A-in-process-agent-native-loop-spec.md`: Phase A
+  in-process agent-native loop spec. PR A1a has landed the first
+  `src/agent_runtime` pi spine and Stage tool bridge over injected
+  `ToolDeclaration[]`, injected `dispatch`, and an injected Stage tool context
+  factory; A2 Session Context, A3 queue/playback commands, A4 end-to-end turn
+  wiring, Radio, Memory, skill runtime, and Web remain out of scope.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -347,10 +353,10 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   semantics (cooperative abort, await-in-hook pause + manual abort race,
   idle-after-settle, writable transcript) are correctness dependencies recorded as
   an explicit engine-semantics list, not abstracted away. pi is justified as
-  *inherited + audited-sufficient + shape-fit* (audit @0.79.10), not by a
-  fabricated head-to-head ranking; pi public `./base` harness helpers may be
-  used directly only behind Agent Runtime-owned narrow ports, with raw helper
-  imports isolated to the facade/adaptor layer; Phase A reserves space for
+  *inherited + audited-sufficient + shape-fit* (audit @0.80.2), not by a
+  fabricated head-to-head ranking; pi root-exported harness helpers may be used
+  directly only behind Agent Runtime-owned narrow ports, with raw helper imports
+  isolated to the facade/adaptor layer; Phase A reserves space for
   future pi-style skill support but does not implement a skill catalog/root/
   selection path; dominant risk is version churn (pin + re-audit).
 - `docs/adr/0040-item-handle-currency-is-material-retire-library-item-kind.md`:

@@ -1,41 +1,41 @@
-# pi-agent-core Capability Audit — `@earendil-works/pi-agent-core@0.79.10`
+# pi-agent-core Capability Audit — `@earendil-works/pi-agent-core@0.80.2`
 
 > Status: Research / verification artifact. Authority: this document is a **first-hand
 > evidence record** against the installed package, produced to settle the pi Capability
 > Assumptions Ledger in `phase-A-in-process-agent-native-loop-spec.md` and the PB8a
 > prerequisite gate in `phase-B-radio-concurrency-spec.md`. It is **input** to the
 > engine-choice ADR and the phase-A/B specs, not architecture authority itself.
-> Date: 2026-06-23. Auditor method: read installed `.d.ts` + compiled `.js` source only;
-> ran two minimal runtime reproductions. No README/CHANGELOG/blog/training-memory used as
-> a conclusion basis.
+> Date: 2026-06-26. Auditor method: read installed `.d.ts` + compiled `.js` source only;
+> ran two minimal runtime reproductions against the installed package. No
+> README/CHANGELOG/blog/training-memory used as a conclusion basis.
 
 ## 0. Package confirmation + version
 
 | field | value | evidence |
 | --- | --- | --- |
 | scoped name | `@earendil-works/pi-agent-core` | `npm view` (resolved exactly, no typo-squat confusion) |
-| **exact version audited** | **0.79.10** (latest `dist-tags.latest`) | `node_modules/@earendil-works/pi-agent-core/package.json` `"version": "0.79.10"`; verified by every citing agent |
+| **exact version audited** | **0.80.2** (latest `dist-tags.latest`) | `node_modules/@earendil-works/pi-agent-core/package.json` `"version": "0.80.2"`; verified by every citing agent |
 | license | MIT | `npm view ... license` |
 | maintainers | mitsuhiko (Armin Ronacher), badlogic (Mario Zechner), rwachtler | credible, active |
 | repo | github.com/earendil-works/pi | `repository.url` |
-| published | 2026-06-22 (7h before audit) | `time.0.79.10` |
-| deps | `@earendil-works/pi-ai@^0.79.10`, `ignore`, `typebox@1.1.38`, `yaml` | `package.json` |
+| published | 2026-06-23 | `npm view @earendil-works/pi-agent-core time --json`, `time.0.80.2` |
+| deps | `@earendil-works/pi-ai@^0.80.2`, `ignore`, `typebox@1.1.38`, `yaml` | `package.json` |
 | companion pkg | `@earendil-works/pi-ai` — owns Model/Transport/Tool schema + all provider adapters | `node_modules/@earendil-works/pi-ai` |
-| maturity signal | 24 versions in ~6 weeks (0.74.0 2026-05-07 → 0.79.10 2026-06-22); `dist-tags.legacy-node20: 0.74.2` ⇒ has already done a Node-version compatibility split | `npm view ... time` / `dist-tags` |
+| maturity signal | 26 versions in ~7 weeks (0.74.0 2026-05-07 → 0.80.2 2026-06-23); `dist-tags.legacy-node20: 0.74.2` ⇒ has already done a Node-version compatibility split | `npm view ... time` / `dist-tags` |
 
 **Maturity read:** very actively iterated, single credible vendor group, MIT, has a vitest
-harness. The 6-week / 24-version cadence plus an existing `legacy-node20` tag means
+harness. The ~7-week / 26-version cadence plus an existing `legacy-node20` tag means
 **breaking changes are frequent** — MineMusic must pin exactly and re-run this audit on
 upgrade. This is the main supply-chain risk, not capability gaps.
 
-The package was installed into the repo root (`npm install ... --no-save`); it is **not**
-yet in `package.json` (PR-A1a adds it). The audit below is the PR-A1a/PR-B verification
-gate, executed in advance.
+The package is now pinned in `package.json` / `package-lock.json` by PR-A1a
+preparation work. The audit below is the PR-A1a/PR-B verification gate for that
+pin.
 
 ## 1. Per-assumption adjudication
 
 Legend: ✅ 成立 · ❌ 不成立 · ◑ 部分成立 · ❓ 类型无法确认. Every row is backed by a
-first-hand `file:line` citation from `node_modules/@earendil-works/pi-agent-core@0.79.10`
+first-hand `file:line` citation from `node_modules/@earendil-works/pi-agent-core@0.80.2`
 (or the companion `pi-ai`). Paths are relative to that package's `dist/` unless prefixed
 `pi-ai/`.
 
@@ -45,7 +45,7 @@ first-hand `file:line` citation from `node_modules/@earendil-works/pi-agent-core
 | --- | --- | --- | --- |
 | **A1** | ✅ 成立 (with one important nuance) | Low-level `Agent` class: `agent.d.ts:30-117` (impl `agent.js:86-401`). It "owns the current transcript, emits lifecycle events, executes tools, and exposes queueing APIs for steering and follow-up messages" (`agent.d.ts:24-29`). Separate higher harness `AgentHarness`: `harness/agent-harness.d.ts:4` (impl `harness/agent-harness.js:125`). **Nuance:** the harness does **not** wrap/instantiate `Agent` — it imports the stateless loop directly: `harness/agent-harness.js:2 import { runAgentLoop } from "../agent-loop.js"` and calls it at `:510`. Three layers: `runAgentLoop` (stateless) < `Agent` (in-memory stateful) < `AgentHarness` (session/compaction/skills). | The phase-A mental model "low-level Agent + higher harness" is correct **as a layer list**, but the implicit "harness is built on Agent" is **false** — they are two *independent* stateful layers over one stateless loop (`runAgentLoop`). Choosing `Agent` gives none of the harness; choosing `AgentHarness` does **not** flow through `Agent`'s `processEvents`/`state.messages`/`reset`. For MineMusic (which chose the low-level `Agent`) this is fine and confirms the harness is not a seamless upgrade path. |
 | **A2** | ✅ 成立 | `AgentOptions` (`agent.d.ts:5-23`): **every field optional** (`initialState?`, `streamFn?`, `getApiKey?`, `beforeToolCall?`, `afterToolCall?`, `prepareNextTurn?`, `transport?`, `sessionId?`, …). Constructor `constructor(options?: AgentOptions)` (`agent.d.ts:55`, `agent.js:111 constructor(options = {})`). Defaults (`agent.js:112-129`): `streamFn ?? streamSimple`, `systemPrompt ?? ""`, `messages ?? []`. **No** required `session`/`env`/`skills`/`systemPrompt` — contrast `AgentHarnessOptions` (`types.d.ts:585-613`) where `env`/`session`/`model` are mandatory. | Confirmed: `new Agent({ initialState: { systemPrompt, model, tools, messages }, streamFn })` is a fully caller-driven engine with zero harness coupling and **no baked-in prompt** (`agent.js:273 systemPrompt: this._state.systemPrompt`). |
-| **A3** | ✅ 成立 (load-bearing) | `Agent` fields (`agent.js:87-110`): `_state, listeners, steeringQueue, followUpQueue, convertToLlm, transformContext, streamFn, getApiKey, onPayload, onResponse, beforeToolCall, afterToolCall, prepareNextTurn, activeRun, sessionId, thinkingBudgets, transport, …` — **no** `session`, `compact`, compaction-settings, branch, or persistence member. `sessionId` is just a provider-cache hint (`agent.d.ts:45-46`, forwarded at `agent.js:283`). `reset()` clears in-memory only (`agent.js:208-216`). Compaction/session/jsonl implementations live **only** under `harness/` (`base.js:4-12` is a pure re-export facade from `./harness/compaction/*` and `./harness/session/*`). Adversarial skeptic: `rg "compact\|shouldCompact\|persist\|session\|save\|load\|jsonl"` in `agent.js`/`agent-loop.js` = NONE; `agent-loop.js:5` only imports `@earendil-works/pi-ai/base`. | **Compaction + persistence + endurance are harness-only. The low-level `Agent` is volatile.** See §3 (load-bearing) and the falsification of ledger-row-6 in §4. |
+| **A3** | ✅ 成立 (load-bearing) | `Agent` fields (`agent.js:87-110`): `_state, listeners, steeringQueue, followUpQueue, convertToLlm, transformContext, streamFn, getApiKey, onPayload, onResponse, beforeToolCall, afterToolCall, prepareNextTurn, activeRun, sessionId, thinkingBudgets, transport, …` — **no** `session`, `compact`, compaction-settings, branch, or persistence member. `sessionId` is just a provider-cache hint (`agent.d.ts:45-46`, forwarded at `agent.js:283`). `reset()` clears in-memory only (`agent.js:208-216`). Compaction/session/jsonl implementations live **only** under `harness/` (`index.d.ts:1-19` re-exports low-level agent, loop, AgentHarness, compaction, session, prompt-template, skill, and utility helpers). Adversarial skeptic: `rg "compact\|shouldCompact\|persist\|session\|save\|load\|jsonl"` in `agent.js`/`agent-loop.js` = NONE; `agent-loop.js` imports only the pi-ai compatibility stream/schema helpers, not harness persistence. | **Compaction + persistence + endurance are harness-only. The low-level `Agent` is volatile.** See §3 (load-bearing) and the falsification of ledger-row-6 in §4. |
 
 ### B. Tool-call bridge
 
@@ -87,19 +87,19 @@ first-hand `file:line` citation from `node_modules/@earendil-works/pi-agent-core
 | id | verdict | evidence | notes |
 | --- | --- | --- | --- |
 | **F1** | ◑ 部分成立 | At the **prompt/skill layer**, pi is general-purpose: the only baked-in system prompt is `"You are a helpful assistant."` (`agent-harness.js:275`, fallback only) plus the internal compaction summarizer prompt (`compaction.js:282`); skills/prompt-templates are **caller-loaded** (`skills.js:18 loadSkills` reads caller `SKILL.md` dirs; `system-prompt.js:3-4` returns `""` when no skills). rg for `coding agent\|file edit\|bash skill\|built-in skill` = ZERO. **But** the **harness infrastructure** is opinionated toward agentic shell/file work: `ExecutionEnv extends FileSystem, Shell` (`types.d.ts:228`), a `bashExecution` custom message role (`messages.d.ts:7-17`), and `CompactionPreparation.fileOps` tracking read/written/edited files (`types.d.ts:556-560`). | For MineMusic — which uses the **low-level `Agent`, not the harness** — none of the coding-shaped infrastructure is in play; `new Agent({})` has an empty prompt and no tools. The "coding-agent" flavor lives entirely in the harness layer MineMusic is skipping. So for MineMusic's purpose pi behaves as a general-purpose agent-loop engine. |
-| **F2** | — (signals, not verdict) | v0.79.10 (latest), MIT, ~6 weeks old with 24 releases, `legacy-node20:0.74.2` tag (already did one Node-version compat split), maintained by Armin Ronacher et al., vitest test harness present. | **High churn ⇒ high breaking-change risk.** Pin exactly; re-audit on any bump. This is the dominant supply risk, ahead of any capability gap. |
+| **F2** | — (signals, not verdict) | v0.80.2 (latest), MIT, ~7 weeks old with 26 releases, `legacy-node20:0.74.2` tag (already did one Node-version compat split), maintained by Armin Ronacher et al., vitest test harness present. | **High churn ⇒ high breaking-change risk.** Pin exactly; re-audit on any bump. This is the dominant supply risk, ahead of any capability gap. |
 | **F3** | — (structural) | pi = single in-process agent-loop (`runAgentLoop`) + a stateful `Agent` wrapper + transport-abstracted `StreamFn` + an optional opinionated `AgentHarness` (session/compaction/skills). No graph/handoff abstraction. | For "embed in-process as an engine": pi gives a **complete, overridable** loop with lifecycle/steering/abort/hooks/compaction/session out of the box — more batteries than Vercel AI SDK's lower-level primitives, less prescriptive than OpenAI Agents SDK's handoffs or LangGraph's graph. Structural trade-offs vs those: **(a)** no native multi-agent/subagent primitive (you build coordination); **(b)** the harness duplicates session/compaction MineMusic will partly rebuild anyway (because MineMusic skips the harness for the low-level `Agent`); **(c)** single young vendor vs SDK ecosystems. Net: pi is a good *engine* (the loop), a skippable *harness*, and a non-solution for *coordination*. |
 
 ## 2. The three load-bearing answers (MineMusic is most blocked on these)
 
 **C4 — subagent / fork primitive? → NO. ✅ proven.**
 There is exactly one agent loop. No subagent/fork/dispatch/parent-child/spawn primitive
-exists anywhere in `@earendil-works/pi-agent-core@0.79.10` or `@earendil-works/pi-ai`. The
+exists anywhere in `@earendil-works/pi-agent-core@0.80.2` or `@earendil-works/pi-ai`. The
 only agent-named classes are `Agent`, `AgentHarness`, `AgentHarnessError`; the only internal
 `new Agent(` is a JSDoc example; the only `fork` is `SessionRepo.fork` (transcript-session
 branching); every `spawn` is `node:child_process` shell. ⇒ Main↔Radio coordination
 (ADR-0032) is entirely MineMusic-built. **No rework needed — this was already assumed true
-and is now verified at 0.79.10.**
+and is now verified at 0.80.2.**
 
 **D3 — programmatic compaction OR external transcript truncation? → YES (truncation; and
 more). ✅ runtime-verified.**
@@ -119,7 +119,7 @@ assignment / `transformContext` path is the right one.)
 The low-level `Agent` has **no** compaction, **no** persistence, **no** endurance. It holds
 `state.messages` in memory; `reset()` clears them (`agent.js:208-216`); `sessionId` is a
 provider-cache hint, not a store. All compaction/session/jsonl code lives under `harness/`
-(`base.js:4-12` only re-exports it); `AgentHarness` owns `compact()` (idle-gated,
+(`index.d.ts:1-19` re-exports those harness helper surfaces); `AgentHarness` owns `compact()` (idle-gated,
 `agent-harness.js:627`) and per-message persistence + per-turn reload. ⇒ Since MineMusic
 uses the low-level `Agent`, it inherits **none** of pi's endurance — persistence, compaction
 triggering, and context-growth management are all MineMusic's to build (over `state.messages`
@@ -144,7 +144,7 @@ contradicts or must refine. Each names the owning doc and the required action.
 2. **PB8a's posture can be upgraded from "prerequisite-gated, may fall back to after-B" to
    "gate passes."**
    Owner: `phase-B-radio-concurrency-spec.md` PB8a (line ~285).
-   Action: record that the externally-truncatable-transcript path is verified at 0.79.10
+   Action: record that the externally-truncatable-transcript path is verified at 0.80.2
    (direct `state.messages` assignment, LLM-free; plus `transformContext` for per-turn).
    PB8a's injected-compaction endurance test proceeds in Phase B.
 
@@ -207,23 +207,23 @@ Nothing on the critical path (A1–F3) remains type-unconfirmed.
   over `state.messages` + its own Postgres (which it already prefers per A3 Deep Dive).
 - The PB8a endurance-test gate **passes**; the one ledger row that overstated pi
   ("compaction is native") is the only planning correction that changes a decision.
-- Dominant risk is **version churn** (24 releases in 6 weeks, existing Node-version split
+- Dominant risk is **version churn** (26 releases in ~7 weeks, existing Node-version split
   tag), not capability. Pin exactly; re-audit on bump.
 
 ---
 
 ### Audit provenance (first-hand sources read)
 
-`node_modules/@earendil-works/pi-agent-core@0.79.10/dist/`: `index.d.ts`, `base.d.ts`,
+`node_modules/@earendil-works/pi-agent-core@0.80.2/dist/`: `index.d.ts`,
 `agent.d.ts`/`.js`, `agent-loop.d.ts`/`.js`, `types.d.ts`, `proxy.d.ts`/`.js`, `node.d.ts`,
 `harness/agent-harness.d.ts`/`.js`, `harness/types.d.ts`, `harness/system-prompt.*`,
 `harness/skills.*`, `harness/prompt-templates.*`, `harness/messages.*`,
 `harness/compaction/compaction.d.ts`/`.js`, `harness/compaction/branch-summarization.*`,
 `harness/compaction/utils.*`, `harness/session/{session,jsonl-repo,jsonl-storage,memory-repo,
 memory-storage,repo-utils}.*`, `harness/env/nodejs.*`.
-`node_modules/@earendil-works/pi-ai/dist/`: `base.d.ts`, `index.d.ts`, `stream.d.ts`,
+`node_modules/@earendil-works/pi-ai/dist/`: `index.d.ts`, `stream.d.ts`,
 `types.d.ts`, `env-api-keys.*`, `register-builtins.*`, `api-registry.*`,
-`providers/openai-completions.*`, `providers/anthropic.*`, `providers/faux.*`.
-Runtime: `/tmp/pi-exp-truncate.mjs`, `/tmp/pi-exp-abort.mjs` (both executed against the
-installed 0.79.10; the abort run drove the loop with pi-ai's built-in `faux` provider, no real
-LLM key).
+`providers/openai-completions.*`, `providers/anthropic.*`.
+Runtime: two `node --input-type=module` experiments executed against the
+installed 0.80.2: one tool-call/signal/transcript assignment round trip, and one
+paused-hook abort experiment. Both used a local fake `streamFn`, no real LLM key.

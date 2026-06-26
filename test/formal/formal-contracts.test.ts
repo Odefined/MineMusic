@@ -85,7 +85,7 @@ export type _musicExperiencePresentShapes = Expect<Equal<keyof MusicExperiencePr
 export type _musicItemHandleKindSet = Expect<Equal<MusicItemHandle["kind"], "material" | "candidate">>;
 export type _stageRuntimeStatusShape = Expect<Equal<StageRuntimeStatus, "created" | "initializing" | "ready" | "failed" | "stopping" | "stopped">>;
 export type _runtimeModuleStatusShape = Expect<Equal<RuntimeModuleStatus, "created" | "initializing" | "initialized" | "stopping" | "stopped" | "failed">>;
-export type _runtimeModuleOwnerAreas = Expect<Equal<RuntimeModuleOwnerArea, "stage_core" | "extension" | "music_data_platform" | "music_intelligence" | "music_experience" | "memory" | "effect_boundary">>;
+export type _runtimeModuleOwnerAreas = Expect<Equal<RuntimeModuleOwnerArea, "stage_core" | "agent_runtime" | "extension" | "music_data_platform" | "music_intelligence" | "music_experience" | "memory" | "effect_boundary">>;
 export type _runtimeSnapshotShapes = Expect<Equal<keyof RuntimeErrorSummary, "code" | "message" | "area"> & Equal<keyof RuntimeModuleSnapshot, "id" | "ownerArea" | "status" | "error"> & Equal<keyof StageRuntimeSnapshot, "status" | "modules" | "interfaceContract" | "error" | "cleanupErrors"> & Equal<ForbiddenKeys<StageRuntimeSnapshot, "handlers" | "config" | "providerDescriptors" | "dbPath">, never>>;
 const sourceRef: Ref = {
     namespace: "source_netease",

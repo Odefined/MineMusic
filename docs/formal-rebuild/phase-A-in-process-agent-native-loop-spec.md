@@ -56,8 +56,14 @@ Goal: embed the Main Agent as a single pi-agent-core loop and complete one
 round trip `pi tool call -> dispatch -> music.discovery.lookup -> result back to
 pi`, with zero new domain code.
 
-- Owner: Agent Runtime (new). Introduces pi-agent-core as a dependency (not yet
-  in `package.json`).
+PR A1a has landed the first spine slice: `src/agent_runtime` contains the
+MineMusic-owned pi `Agent` factory and Stage-tool bridge; the bridge consumes an
+injected `ToolDeclaration[]`, injected `dispatch`, and an injected
+Stage-tool-context factory, with no Server Host, Stage Core, domain, storage, or
+presentation imports.
+
+- Owner: Agent Runtime (new). Owns the pinned pi-agent-core dependency in
+  `package.json`.
 - New code: pi engine adapter; a minimal embedded-agent `StageToolContext`
   (synthetic agent `sessionId`/`requestId`, `ownerScope`); wiring that feeds pi
   tool-call requests into `dispatch` and tool results back into the loop.
@@ -156,7 +162,7 @@ Goal: close the loop — a user turn drives the Main Agent to find music (existi
 
 The engine choice (pi behind the deliberately leaky Agent Runtime port) is
 recorded in **ADR-0039**, backed by the first-hand audit
-`pi-agent-core-capability-audit-0.79.10.md`. The resolutions below follow from
+`pi-agent-core-capability-audit-0.80.2.md`. The resolutions below follow from
 that audit (a single stateful `Agent` loop with a tool-execution step and
 `before/afterToolCall` hooks). The exact version pin is a PR-A1a task; re-run the
 audit on any bump (version churn is the dominant risk per ADR-0039). The package
@@ -171,16 +177,16 @@ name is scoped (`@earendil-works/pi-agent-core`).
   the low-level `Agent` as the Main/Radio engine and does **not** adopt
   `AgentHarness` as its runtime owner (the `ExecutionEnv` + harness-owned
   session/skill/compaction runtime does not fit a music agent). This is *not* a
-  rejection of pi's harness capabilities — those are reused base-helper-first
+  rejection of pi's harness capabilities — those are reused root-export-helper-first
   (next bullet); it is a rejection of letting the unmodified `AgentHarness` own
   MineMusic's runtime.
 
-- **Harness utility reuse — base-helper-first, no full `AgentHarness`
-  ownership.** A1a should audit and use pi's public `./base` harness helpers
-  from the pinned package for prompt template formatting, session repositories,
-  and compaction helpers. Do not interpret "reuse" as vendoring pi harness
-  directories into MineMusic: A1a should not copy a pi helper tree or maintain
-  locally modified pi source. MineMusic still owns Session Context assembly,
+- **Harness utility reuse — root-export-helper-first, no full `AgentHarness`
+  ownership.** A1a should audit and use pi's root-exported harness helpers from
+  `@earendil-works/pi-agent-core` for prompt template formatting, session
+  repositories, and compaction helpers. Do not interpret "reuse" as vendoring pi
+  harness directories into MineMusic: A1a should not copy a pi helper tree or
+  maintain locally modified pi source. MineMusic still owns Session Context assembly,
   transcript persistence policy, compaction policy, actor lifecycle, Stage tool
   dispatch, and Main↔Radio coordination. This avoids building a parallel
   prompt/session/compaction vocabulary while keeping the runtime harness
@@ -195,10 +201,9 @@ name is scoped (`@earendil-works/pi-agent-core`).
   forbidden-import guard so raw pi helper imports stay inside the Agent Runtime
   adapter/facade layer and adapter-focused tests. Main, Radio, Session Context
   assembly, tool bridge, and ordinary runtime modules must consume the
-  MineMusic facade ports rather than importing
-  `@earendil-works/pi-agent-core/base` directly.
+  MineMusic facade ports rather than importing pi harness helpers directly.
 
-  If one of the four areas cannot use a public `./base` helper directly and must
+  If one of the four areas cannot use a public root-exported helper directly and must
   mirror a non-exported algorithm or copy meaningful sub-code, the implementation
   note must record the pinned pi version, source file, why the public helper was
   insufficient, and whether the MineMusic layer is boundary narrowing, product
@@ -226,7 +231,7 @@ name is scoped (`@earendil-works/pi-agent-core`).
   pi validates arguments against each tool's schema, then calls its
   `execute(toolCallId, params, signal)` returning a tool result. A1 wraps each
   Stage tool as a pi tool whose `execute` calls `StageInterface.dispatch(ctx,
-  { toolName, arguments: params })` and maps the `ToolCallOutput` to pi's tool
+  { toolName, payload: params })` and maps the `ToolCallOutput` to pi's tool
   result. pi's per-call `signal` is wired into `StageToolContext.abortSignal` so
   dispatch honors cancellation (the plumbing Phase B's cross-actor cancel builds
   on).
@@ -540,17 +545,17 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
   instruments and the play/queue intent. Content, not a boundary — refined in
   implementation.
 
-## pi Capability Ledger (audited against 0.79.10)
+## pi Capability Ledger (audited against 0.80.2)
 
 A dependency map: every pi-agent-core behavior the Phase A/B design leans on, and
-which decision it backs. **Audited 2026 against `@earendil-works/pi-agent-core@0.79.10`
+which decision it backs. **Audited 2026 against `@earendil-works/pi-agent-core@0.80.2`
 by reading first-party `.d.ts`/source + two runtime experiments** (see
-`pi-agent-core-capability-audit-0.79.10.md`). Status reflects that audit, not an
-open question. **Re-run the audit on any version bump** — pi shipped 24 versions
-in 6 weeks (0.74→0.79) and has done one Node-compat split, so **pin the version
+`pi-agent-core-capability-audit-0.80.2.md`). Status reflects that audit, not an
+open question. **Re-run the audit on any version bump** — pi shipped 26 versions
+in about 7 weeks (0.74→0.80) and has done one Node-compat split, so **pin the version
 exactly**; version drift is the real risk, not capability gaps.
 
-| pi behavior | Status @0.79.10 | Decision it backs |
+| pi behavior | Status @0.80.2 | Decision it backs |
 | --- | --- | --- |
 | Low-level `Agent` separate from harness (own prompt/tools/stream) | ✅ — three layers: `runAgentLoop` (stateless) < `Agent` (in-memory stateful) < `AgentHarness` (session/compaction/skills); the harness `import`s `runAgentLoop` directly and does **not** flow through `Agent` (so harness is an alternative, not an upgrade path from `Agent`) | A1 embedding choice (use low-level `Agent`) — correct |
 | `new Agent({})` works; empty default system prompt; no baked coding/skill content | ✅ | A1 embedding choice (low-level `Agent` as engine; `AgentHarness` not runtime owner) |
@@ -561,7 +566,7 @@ exactly**; version drift is the real risk, not capability gaps.
 | Persistence / compaction / endurance | ◑ **only in the harness; low-level `Agent` has none** (`reset()` clears memory; `sessionId` is just a provider cache hint) | **D-row correction below**: MineMusic builds continuity itself (ADR-0037), it is *not* inherited from pi at our chosen layer |
 | Transcript externally readable/truncatable (`agent.state.messages` is a public writable accessor) | ✅ (experiment: `slice()` truncates, no harness/LLM) | **PB8a injected-compaction test — gate PASSES, no fall-back to after-B.** Use the direct-assignment / `transformContext` path for the deterministic LLM-free test; the full `compact()` API needs an LLM + `SessionTreeEntry[]`, so it is **not** the path for a deterministic test. Compaction is manual-only (no token-threshold auto-trigger). |
 | Injectable stream fn + per-call API-key resolver; provider registry keyed by protocol (`Api`), not brand; built-in `openai-completions` compat covers DeepSeek | ✅ | A1 model wiring; **resolves the openai-compatible adapter mechanics question — DeepSeek is a valid first candidate with no new adapter** |
-| Single `Agent` loop; no subagent/fork/dispatch/parent-child primitive | ✅ (exhaustively shown; re-verified at 0.79.10) | Confirms Main↔Radio coordination is MineMusic-built (ADR-0032/PB) |
+| Single `Agent` loop; no subagent/fork/dispatch/parent-child primitive | ✅ (exhaustively shown; re-verified at 0.80.2) | Confirms Main↔Radio coordination is MineMusic-built (ADR-0032/PB) |
 
 ### Corrections forced by the audit
 
@@ -590,10 +595,11 @@ exactly**; version drift is the real risk, not capability gaps.
   passed**: `state.messages` truncation gives the deterministic
   transcript-erosion injection PB8a needs, LLM-free.
 
-## PR Split (proposed)
+## PR Split
 
-- PR A1a: pi dependency + engine adapter skeleton + embedded context, lookup
-  round trip (harness).
+- PR A1a: **implemented** — pi dependency + exact version pin, engine adapter
+  skeleton, Stage tool bridge, dispatch-only tool path, signal forwarding, and
+  deterministic pi-loop harness.
 - PR A1b: double-gate / veil / synthetic-session resolution + guards.
 - PR A2: minimal Workbench Interface read-model seam (one area slice) + Session
   Context over it + guards.
@@ -612,9 +618,9 @@ exactly**; version drift is the real risk, not capability gaps.
 
 ## Open Questions Carried Into Implementation
 
-- pi version pin: the engine is audited at 0.79.10 (ADR-0039 +
-  `pi-agent-core-capability-audit-0.79.10.md`); PR-A1a pins the exact version and
-  re-runs the audit on any bump — landing the audit's runtime experiments
+- pi version pin: the engine is audited and pinned at 0.80.2 (ADR-0039 +
+  `pi-agent-core-capability-audit-0.80.2.md`); PR-A1a re-runs the audit on any
+  bump — landing the audit's runtime experiments
   (abort/signal forwarding with dispatch honoring it, a paused hook racing the
   abort signal, tool-error → throw → pi `isError` result) as an automated
   conformance test so a bump is blocked by CI, not only by a manual re-read of
