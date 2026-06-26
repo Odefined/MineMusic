@@ -194,8 +194,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   in-process agent-native loop spec. PR A1a has landed the first
   `src/agent_runtime` pi spine and Stage tool bridge over injected
   `ToolDeclaration[]`, injected `dispatch`, and an injected Stage tool context
-  factory; A2 Session Context, A3 queue/playback commands, A4 end-to-end turn
-  wiring, Radio, Memory, skill runtime, and Web remain out of scope.
+  factory, with provider-safe pi tool-name mapping and provider/Stage session
+  separation; A2 Session Context, A3 queue/playback commands, A4 end-to-end
+  turn wiring, Radio, Memory, skill runtime, and Web remain out of scope.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

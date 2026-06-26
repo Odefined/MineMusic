@@ -59,8 +59,9 @@ pi`, with zero new domain code.
 PR A1a has landed the first spine slice: `src/agent_runtime` contains the
 MineMusic-owned pi `Agent` factory and Stage-tool bridge; the bridge consumes an
 injected `ToolDeclaration[]`, injected `dispatch`, and an injected
-Stage-tool-context factory, with no Server Host, Stage Core, domain, storage, or
-presentation imports.
+Stage-tool-context factory, maps internal dotted tool names to provider-safe pi
+tool names, keeps provider and Stage session ids separate, and has no Server
+Host, Stage Core, domain, storage, or presentation imports.
 
 - Owner: Agent Runtime (new). Owns the pinned pi-agent-core dependency in
   `package.json`.
@@ -234,7 +235,9 @@ name is scoped (`@earendil-works/pi-agent-core`).
   { toolName, payload: params })` and maps the `ToolCallOutput` to pi's tool
   result. pi's per-call `signal` is wired into `StageToolContext.abortSignal` so
   dispatch honors cancellation (the plumbing Phase B's cross-actor cancel builds
-  on).
+  on). The pi-facing tool name is provider-safe (`.` and any other non
+  `[a-zA-Z0-9_-]` character mapped to `_`); dispatch still receives the internal
+  dotted Stage tool name.
 
 - **Tool catalog source — same port as MCP, not pulled from StageInterface.**
   `StageInterface` exposes only `dispatch`; the tool *catalog* (the
@@ -598,8 +601,9 @@ exactly**; version drift is the real risk, not capability gaps.
 ## PR Split
 
 - PR A1a: **implemented** — pi dependency + exact version pin, engine adapter
-  skeleton, Stage tool bridge, dispatch-only tool path, signal forwarding, and
-  deterministic pi-loop harness.
+  skeleton, Stage tool bridge, provider-safe pi tool names, distinct provider
+  and Stage session ids, dispatch-only tool path, signal forwarding, and
+  deterministic pi-loop success/error harness.
 - PR A1b: double-gate / veil / synthetic-session resolution + guards.
 - PR A2: minimal Workbench Interface read-model seam (one area slice) + Session
   Context over it + guards.

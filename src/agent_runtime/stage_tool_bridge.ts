@@ -31,32 +31,40 @@ export type CreateStageToolBridgeInput = {
   tools: readonly ToolDeclaration[];
   dispatch: StageToolDispatchPort;
   contextFactory: AgentRuntimeStageToolContextFactoryPort;
-  sessionId: string;
+  stageSessionId: string;
   requestIdForToolCall?: (input: {
-    toolName: string;
+    internalToolName: string;
+    piToolName: string;
     toolCallId: string;
   }) => string;
 };
 
 export function createStageToolBridge(input: CreateStageToolBridgeInput): AgentTool<TSchema, ToolCallOutput>[] {
-  return input.tools.map((descriptor) => createPiToolForStageTool({ ...input, descriptor }));
+  assertUniquePiToolNames(input.tools);
+  return input.tools.map((descriptor) => createPiToolForStageTool({
+    ...input,
+    descriptor,
+    piToolName: toPiToolName(descriptor.name),
+  }));
 }
 
 function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
   descriptor: ToolDeclaration;
+  piToolName: string;
 }): AgentTool<TSchema, ToolCallOutput> {
   const { descriptor } = input;
 
   return {
-    name: descriptor.name,
+    name: input.piToolName,
     label: descriptor.label,
     description: stageToolDescription(descriptor),
     parameters: descriptor.inputSchema as TSchema,
     async execute(toolCallId, params, signal): Promise<AgentToolResult<ToolCallOutput>> {
       const ctx = input.contextFactory.createToolContext({
-        sessionId: input.sessionId,
+        sessionId: input.stageSessionId,
         requestId: input.requestIdForToolCall?.({
-          toolName: descriptor.name,
+          internalToolName: descriptor.name,
+          piToolName: input.piToolName,
           toolCallId,
         }) ?? toolCallId,
         ...(signal === undefined ? {} : { abortSignal: signal }),
@@ -77,6 +85,33 @@ function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
       };
     },
   };
+}
+
+export function toPiToolName(internalName: string): string {
+  const piToolName = internalName.replace(/[^a-zA-Z0-9_-]/gu, "_");
+
+  if (!/^[a-zA-Z0-9_-]{1,64}$/u.test(piToolName)) {
+    throw new Error(`Stage tool name '${internalName}' cannot be mapped to a provider-safe pi tool name.`);
+  }
+
+  return piToolName;
+}
+
+function assertUniquePiToolNames(tools: readonly ToolDeclaration[]): void {
+  const seen = new Map<string, string>();
+
+  for (const tool of tools) {
+    const piToolName = toPiToolName(tool.name);
+    const prior = seen.get(piToolName);
+
+    if (prior !== undefined) {
+      throw new Error(
+        `Stage tool names '${prior}' and '${tool.name}' both map to pi tool name '${piToolName}'.`,
+      );
+    }
+
+    seen.set(piToolName, tool.name);
+  }
 }
 
 function stageToolDescription(descriptor: ToolDeclaration): string {

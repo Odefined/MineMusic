@@ -15,21 +15,22 @@ export type CreateMineMusicPiAgentInput = {
   tools: readonly ToolDeclaration[];
   dispatch: StageToolDispatchPort;
   contextFactory: AgentRuntimeStageToolContextFactoryPort;
-  sessionId: string;
+  stageSessionId: string;
+  providerSessionId?: string;
   agentOptions?: Omit<AgentOptions, "initialState" | "sessionId">;
 };
 
 export function createMineMusicPiAgent(input: CreateMineMusicPiAgentInput): Agent {
   return new Agent({
     ...input.agentOptions,
-    sessionId: input.sessionId,
+    ...(input.providerSessionId === undefined ? {} : { sessionId: input.providerSessionId }),
     initialState: {
       systemPrompt: input.systemPrompt,
       tools: createStageToolBridge({
         tools: input.tools,
         dispatch: input.dispatch,
         contextFactory: input.contextFactory,
-        sessionId: input.sessionId,
+        stageSessionId: input.stageSessionId,
       }),
     },
   });

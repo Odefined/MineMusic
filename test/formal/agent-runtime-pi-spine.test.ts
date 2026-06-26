@@ -13,6 +13,7 @@ import type {
 import {
   createMineMusicPiAgent,
   createStageToolBridge,
+  toPiToolName,
   type StageToolDispatchPort,
 } from "../../src/agent_runtime/index.js";
 
@@ -73,6 +74,10 @@ const descriptor: ToolDeclaration = {
   },
 };
 
+const piToolName = toPiToolName(descriptor.name);
+
+assert.equal(piToolName, "agent_test_lookup");
+
 {
   let dispatched:
     | {
@@ -106,10 +111,10 @@ const descriptor: ToolDeclaration = {
         return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
       },
     },
-    sessionId: "agent-session",
+    stageSessionId: "stage-session",
   });
 
-  assert.equal(tool?.name, descriptor.name);
+  assert.equal(tool?.name, piToolName);
   assert.equal(tool?.parameters, descriptor.inputSchema);
 
   const output = await tool?.execute("tool-call-1", { query: "x" }, controller.signal);
@@ -122,7 +127,7 @@ const descriptor: ToolDeclaration = {
   assert.equal(output?.content[0]?.text, "answer=found");
   assert.equal(dispatched?.toolName, descriptor.name);
   assert.deepEqual(dispatched?.payload, { query: "x" });
-  assert.equal(dispatched?.ctx.sessionId, "agent-session");
+  assert.equal(dispatched?.ctx.sessionId, "stage-session");
   assert.equal(dispatched?.ctx.requestId, "tool-call-1");
   assert.equal(dispatched?.ctx.abortSignal, controller.signal);
 }
@@ -153,7 +158,7 @@ const descriptor: ToolDeclaration = {
         return createMinimalContext(input.sessionId, input.requestId);
       },
     },
-    sessionId: "agent-session",
+    stageSessionId: "stage-session",
   });
 
   await assert.rejects(
@@ -190,12 +195,13 @@ const descriptor: ToolDeclaration = {
         return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
       },
     },
-    sessionId: "agent-session",
+    stageSessionId: "stage-session",
+    providerSessionId: "provider-session",
     agentOptions: {
       streamFn() {
         streamCallCount += 1;
         const message = streamCallCount === 1
-          ? assistantMessageWithToolCall("tool-call-3", descriptor.name, { query: "x" })
+          ? assistantMessageWithToolCall("tool-call-3", piToolName, { query: "x" })
           : assistantTextMessage("done");
         return fakeAssistantMessageEventStream({
           type: "done",
@@ -207,18 +213,74 @@ const descriptor: ToolDeclaration = {
   });
 
   assert.equal(agent.state.systemPrompt, "You are a MineMusic test agent.");
+  assert.equal(agent.sessionId, "provider-session");
   assert.equal(agent.state.tools.length, 1);
+  assert.equal(agent.state.tools[0]?.name, piToolName);
 
   await agent.prompt("lookup x");
 
   assert.equal(streamCallCount, 2);
   const toolResult = agent.state.messages.find((message) => message.role === "toolResult");
-  assert.equal(toolResult?.toolName, descriptor.name);
+  assert.equal(toolResult?.toolName, piToolName);
   assert.equal(toolResult?.isError, false);
   assert.deepEqual(toolResult?.details, {
     toolName: descriptor.name,
     result: { answer: "from-pi" },
   });
+}
+
+{
+  let streamCallCount = 0;
+  const agent = createMineMusicPiAgent({
+    systemPrompt: "You are a MineMusic test agent.",
+    tools: [descriptor],
+    dispatch: {
+      async dispatch(): Promise<Result<ToolCallOutput>> {
+        return {
+          ok: false,
+          error: {
+            code: "agent.test.bad_query",
+            message: "Bad query.",
+            area: "agent_runtime",
+            retryable: false,
+            suggestedFix: "Use a better query.",
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
+      },
+    },
+    stageSessionId: "stage-session",
+    agentOptions: {
+      streamFn() {
+        streamCallCount += 1;
+        const message = streamCallCount === 1
+          ? assistantMessageWithToolCall("tool-call-4", piToolName, { query: "" })
+          : assistantTextMessage("done");
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: streamCallCount === 1 ? "toolUse" : "stop",
+          message,
+        });
+      },
+    },
+  });
+
+  await agent.prompt("lookup x");
+
+  assert.equal(streamCallCount, 2);
+  const toolResult = agent.state.messages.find((message) => message.role === "toolResult");
+  assert.equal(toolResult?.toolName, piToolName);
+  assert.equal(toolResult?.isError, true);
+  assert.equal(toolResult?.content[0]?.type, "text");
+  assert.match(toolResult?.content[0]?.text ?? "", /Bad query\.\nSuggested fix: Use a better query\./u);
 }
 
 function createMinimalContext(

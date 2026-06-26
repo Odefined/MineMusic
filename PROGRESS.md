@@ -1482,18 +1482,22 @@ catalog integration. Design authority:
 - A new `src/agent_runtime` formal source root owns the MineMusic pi `Agent`
   factory and Stage-tool bridge. The bridge wraps injected Stage
   `ToolDeclaration[]` descriptors as pi tools, passes raw Stage JSON Schema to
-  pi `Tool.parameters`, creates per-call Stage tool contexts through an injected
-  factory, forwards pi's per-tool `AbortSignal`, and calls only the injected
-  dispatch port with `{ toolName, payload }`.
+  pi `Tool.parameters`, maps dotted Stage tool names to provider-safe pi tool
+  names, creates per-call Stage tool contexts through an injected factory,
+  keeps provider-session and Stage-tool-session ids separate, forwards pi's
+  per-tool `AbortSignal`, and calls only the injected dispatch port with
+  `{ toolName, payload }`.
 - Guard coverage now pins `agent_runtime` into the active tree, rejects
   `@earendil-works/pi-agent-core` imports outside `src/agent_runtime`, and
   forbids Agent Runtime imports of Server Host, Stage Core, domain, storage,
   background work, and Effect Boundary internals.
-- The deterministic A1a harness verifies direct bridge dispatch, signal
-  forwarding into `StageToolContext.abortSignal`, `Result.err` translation into
-  pi tool failure by throwing, and a fake pi loop round trip through the bridge.
-  No host entrypoint, Session Context read model, queue/playback command, Radio,
-  Memory, skill runtime, or Web behavior is implemented yet.
+- The deterministic A1a harness verifies direct bridge dispatch, provider-safe
+  tool-name mapping, provider/Stage session separation, signal forwarding into
+  `StageToolContext.abortSignal`, `Result.err` translation into a pi
+  `isError: true` tool result, and fake pi loop success/error round trips
+  through the bridge. No host entrypoint, Session Context read model,
+  queue/playback command, Radio, Memory, skill runtime, or Web behavior is
+  implemented yet.
 
 ## Next Formal Milestones
 
