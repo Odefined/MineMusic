@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEntityKind, MaterialIdentityStatus, MaterialLifecycleStatus, MusicAlbum, MusicArtist, MusicMaterial, MusicRecording, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, PlayableLink, ProviderMaterialCandidate, SourceAlbum, SourceArtist, SourceEntity, SourceEntityKind, SourceLibraryImportBatchStatus, SourceLibraryImportCompletionReason, SourceLibraryImportItemOutcome, SourceNavigationLink, SourcePreferencePolicy, SourcePreferencePurpose, SourcePreferenceSelector, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../src/contracts/music_data_platform.js";
+import type { AgentSessionContext } from "../../src/contracts/agent_runtime.js";
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../../src/contracts/storage.js";
 import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
+import type { WorkbenchMusicExperienceReadPort, WorkbenchMusicExperienceSlice, WorkspaceReadModel, WorkspaceReadModelReader } from "../../src/contracts/workbench_interface.js";
 import type { LibraryImportLibraryKind, LibraryImportListSourcesInput, LibraryImportListSourcesOutput, LibraryRelationItemInput, LibraryRelationStateOutput, MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePresentInput, MusicExperiencePresentOutput, PublicDisplayLink, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration, ToolInvocationPolicy, MusicItemHandle } from "../../src/contracts/stage_interface.js";
 import { assertRefSafe, refKey } from "../../src/contracts/kernel.js";
 import { hasPrefixOrV1Token, tokenizePrefixOrV1Text } from "../../src/contracts/music_data_platform.js";
@@ -85,8 +87,13 @@ export type _musicExperiencePresentShapes = Expect<Equal<keyof MusicExperiencePr
 export type _musicItemHandleKindSet = Expect<Equal<MusicItemHandle["kind"], "material" | "candidate">>;
 export type _stageRuntimeStatusShape = Expect<Equal<StageRuntimeStatus, "created" | "initializing" | "ready" | "failed" | "stopping" | "stopped">>;
 export type _runtimeModuleStatusShape = Expect<Equal<RuntimeModuleStatus, "created" | "initializing" | "initialized" | "stopping" | "stopped" | "failed">>;
-export type _runtimeModuleOwnerAreas = Expect<Equal<RuntimeModuleOwnerArea, "stage_core" | "agent_runtime" | "extension" | "music_data_platform" | "music_intelligence" | "music_experience" | "memory" | "effect_boundary">>;
+export type _runtimeModuleOwnerAreas = Expect<Equal<RuntimeModuleOwnerArea, "stage_core" | "agent_runtime" | "workbench_interface" | "extension" | "music_data_platform" | "music_intelligence" | "music_experience" | "memory" | "effect_boundary">>;
 export type _runtimeSnapshotShapes = Expect<Equal<keyof RuntimeErrorSummary, "code" | "message" | "area"> & Equal<keyof RuntimeModuleSnapshot, "id" | "ownerArea" | "status" | "error"> & Equal<keyof StageRuntimeSnapshot, "status" | "modules" | "interfaceContract" | "error" | "cleanupErrors"> & Equal<ForbiddenKeys<StageRuntimeSnapshot, "handlers" | "config" | "providerDescriptors" | "dbPath">, never>>;
+export type _workbenchMusicExperienceSliceShape = Expect<Equal<keyof WorkbenchMusicExperienceSlice, "revision" | "queue" | "nowPlaying">>;
+export type _workspaceReadModelShape = Expect<Equal<keyof WorkspaceReadModel, "ownerScope" | "capturedAt" | "musicExperience">>;
+export type _agentSessionContextIsOverWorkspaceReadModel = Expect<Equal<AgentSessionContext, WorkspaceReadModel>>;
+export type _workbenchMusicExperienceReadPortShape = Expect<Equal<keyof WorkbenchMusicExperienceReadPort, "readMusicExperience">>;
+export type _workspaceReadModelReaderShape = Expect<Equal<keyof WorkspaceReadModelReader, "readWorkspace">>;
 const sourceRef: Ref = {
     namespace: "source_netease",
     kind: "track",

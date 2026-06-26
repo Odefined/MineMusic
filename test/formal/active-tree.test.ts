@@ -90,6 +90,7 @@ assert.equal(await pathExists(join(repositoryRoot, "src/music_experience")), tru
 assert.equal(await pathExists(join(repositoryRoot, "src/effect_boundary")), true, "formal Effect Boundary root must exist once StageToolExecutionGate implementation lands");
 assert.equal(await pathExists(join(repositoryRoot, "src/background_work")), true, "formal Background Work runtime infrastructure root must exist once Phase 21 queue backend lands");
 assert.equal(await pathExists(join(repositoryRoot, "src/agent_runtime")), true, "formal Agent Runtime root must exist once Phase A1a pi spine lands");
+assert.equal(await pathExists(join(repositoryRoot, "src/workbench_interface")), true, "formal Workbench Interface root must exist once Phase A2 read-model seam lands");
 const piAgentCoreVersion = packageJson.dependencies?.["@earendil-works/pi-agent-core"];
 assert.equal(typeof piAgentCoreVersion, "string", "pi-agent-core must be a direct dependency while Agent Runtime uses pi");
 assert.match(piAgentCoreVersion ?? "", /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u, "pi-agent-core must be exact-pinned, not a semver range");
@@ -144,8 +145,15 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/agent_runtime
     .sort(), [
     "src/agent_runtime/index.ts",
     "src/agent_runtime/pi_engine.ts",
+    "src/agent_runtime/session_context.ts",
     "src/agent_runtime/stage_tool_bridge.ts",
-], "formal Agent Runtime root must stay focused on the pi engine facade and Stage tool bridge in A1a");
+], "formal Agent Runtime root must stay focused on the pi engine facade, Stage tool bridge, and Session Context in Phase A");
+assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/workbench_interface")))
+    .map((file) => relative(repositoryRoot, file))
+    .sort(), [
+    "src/workbench_interface/index.ts",
+    "src/workbench_interface/read_model.ts",
+], "formal Workbench Interface root must stay focused on the in-process read-model seam in A2");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_experience")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
@@ -160,11 +168,13 @@ assert.deepEqual(architectureGraph.unresolvedRelativeSpecifiers.map(formatEdge).
 // one-directional DAG.
 const contractsDagAllowlist: Readonly<Record<string, readonly string[]>> = {
     "src/contracts/kernel.ts": [],
+    "src/contracts/agent_runtime.ts": ["./workbench_interface.js"],
     "src/contracts/music_data_platform.ts": ["./kernel.js"],
     "src/contracts/storage.ts": ["./kernel.js", "./music_data_platform.js"],
     "src/contracts/public_music_description.ts": ["./music_data_platform.js", "./stage_interface.js"],
     "src/contracts/stage_interface.ts": ["./kernel.js"],
     "src/contracts/stage_core.ts": ["./kernel.js", "./stage_interface.js"],
+    "src/contracts/workbench_interface.ts": [],
     "src/contracts/generated/stage_interface_schemas.ts": ["../stage_interface.js"],
 };
 const musicIntelligenceAllowedMusicDataPlatformBarrelImports = new Set([
@@ -261,6 +271,9 @@ function sourceBoundaryFailure(edge: ArchitectureImportEdge): string | undefined
     if (edge.fromArea === "agent_runtime") {
         return agentRuntimeBoundaryFailure(edge);
     }
+    if (edge.fromArea === "workbench_interface") {
+        return workbenchInterfaceBoundaryFailure(edge);
+    }
     return undefined;
 }
 function externalPackageBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
@@ -296,8 +309,17 @@ function agentRuntimeBoundaryFailure(edge: ArchitectureImportEdge): string | und
             ? undefined
             : `Agent Runtime may import only Stage Interface public pure helper modules, not arbitrary Stage Interface internals: ${formatEdge(edge)}`;
     }
+    if (edge.toArea === "workbench_interface") {
+        return `Agent Runtime must read Workbench Interface through the seam contract/port (src/contracts/workbench_interface.ts), not import the composition root: ${formatEdge(edge)}`;
+    }
     if (edge.toArea === "server" || edge.toArea === "stage_core" || edge.toArea === "music_data_platform" || edge.toArea === "music_intelligence" || edge.toArea === "music_experience" || edge.toArea === "extension" || edge.toArea === "storage" || edge.toArea === "background_work" || edge.toArea === "effect_boundary") {
         return `Agent Runtime must not import ${edge.toArea}; compose Stage tools through injected descriptors, context factory, and dispatch ports: ${formatEdge(edge)}`;
+    }
+    return undefined;
+}
+function workbenchInterfaceBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
+    if (edge.toArea === "server" || edge.toArea === "stage_core" || edge.toArea === "stage_interface" || edge.toArea === "agent_runtime" || edge.toArea === "music_data_platform" || edge.toArea === "music_intelligence" || edge.toArea === "music_experience" || edge.toArea === "extension" || edge.toArea === "storage" || edge.toArea === "background_work" || edge.toArea === "effect_boundary" || edge.toArea === "memory") {
+        return `Workbench Interface A2 must compose only through injected read-model ports, not import ${edge.toArea}: ${formatEdge(edge)}`;
     }
     return undefined;
 }

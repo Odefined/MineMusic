@@ -1474,7 +1474,7 @@ catalog integration. Design authority:
   to a single Web-stream tee'd read (D28) so the content hash and music-metadata
   share one file open instead of violating the single-read contract.
 
-## Phase A1a/A1b: Agent Runtime Pi Spine And Guards
+## Phase A1a/A1b/A2: Agent Runtime Pi Spine, Guards, And Session Context Seam
 
 - `@earendil-works/pi-agent-core` is pinned at `0.80.2`; the package audit and
   ADR/spec references have been refreshed against the current root-exported pi
@@ -1501,9 +1501,15 @@ catalog integration. Design authority:
   `isError: true` tool result, fake pi loop success/error round trips through
   the bridge, Stage `ask` decisions flowing from dispatch without invoking the
   handler, and synthetic Stage-tool session ids staying separate from pi
-  provider-session ids. No host entrypoint, Session Context read model,
-  queue/playback command, Radio, Memory, skill runtime, or Web behavior is
-  implemented yet.
+  provider-session ids.
+- A2 adds the minimal `src/workbench_interface` formal root and
+  `src/contracts/workbench_interface.ts`. Workbench Interface composes an
+  in-process `WorkspaceReadModel` from an injected Music Experience projection
+  port; Agent Runtime captures an immutable `AgentSessionContext` from that
+  seam and renders it into the pi system prompt. Guards now prove the seam does
+  not import AG-UI/web/transport or area internals, and exact port/key-set tests
+  pin the slice-1 read shape. No host entrypoint, real queue/playback command,
+  Radio, Memory, skill runtime, or Web behavior is implemented yet.
 
 ## Next Formal Milestones
 
