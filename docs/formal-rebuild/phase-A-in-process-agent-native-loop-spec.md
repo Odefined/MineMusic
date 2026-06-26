@@ -619,8 +619,11 @@ exactly**; version drift is the real risk, not capability gaps.
   facade, Stage `executionGate` verified as the single domain-admission path,
   tool-result veil cannot be bypassed by pi `afterToolCall`, and synthetic
   Stage-tool session ids remain separate from pi provider-session ids.
-- PR A2: minimal Workbench Interface read-model seam (one area slice) + Session
-  Context over it + guards.
+- PR A2: **implemented** — minimal Workbench Interface in-process read-model
+  seam over an injected Music Experience projection port, Agent Runtime Session
+  Context capture/identity assembly over that seam, system-prompt rendering, and
+  guards proving no AG-UI/web/transport or area-internal imports. A3 supplies
+  the real queue/playback truth behind the projection port.
 - PR A3a: queue/playback truth + owning command + projection (command tests).
 - PR A3b: agent-facing queue/play tool registrations + gate posture + guards.
 - PR A4: agent turn wiring + end-to-end harness.

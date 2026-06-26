@@ -6,6 +6,16 @@ export type {
   MineMusicPiAgentAdapterOptions,
 } from "./pi_engine.js";
 export {
+  assembleAgentSessionContext,
+  captureAgentSessionContext,
+  renderAgentSessionContextForSystemPrompt,
+  renderSystemPromptWithSessionContext,
+} from "./session_context.js";
+export type {
+  AgentSessionContext,
+  CaptureAgentSessionContextInput,
+} from "./session_context.js";
+export {
   createStageToolBridge,
   toPiToolName,
 } from "./stage_tool_bridge.js";

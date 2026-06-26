@@ -6,6 +6,10 @@ import {
 
 import type { ToolDeclaration } from "../contracts/stage_interface.js";
 import {
+  renderSystemPromptWithSessionContext,
+  type AgentSessionContext,
+} from "./session_context.js";
+import {
   createStageToolBridge,
   type AgentRuntimeStageToolContextFactoryPort,
   type StageToolDispatchPort,
@@ -24,6 +28,7 @@ export type CreateMineMusicPiAgentAdapterInput = {
   dispatch: StageToolDispatchPort;
   contextFactory: AgentRuntimeStageToolContextFactoryPort;
   stageSessionId: string;
+  sessionContext?: AgentSessionContext;
   llmProviderSessionId?: string;
   agentOptions: MineMusicPiAgentAdapterOptions;
 };
@@ -35,7 +40,12 @@ export function createMineMusicPiAgentAdapter(input: CreateMineMusicPiAgentAdapt
     ...input.agentOptions,
     ...(input.llmProviderSessionId === undefined ? {} : { sessionId: input.llmProviderSessionId }),
     initialState: {
-      systemPrompt: input.systemPrompt,
+      systemPrompt: input.sessionContext === undefined
+        ? input.systemPrompt
+        : renderSystemPromptWithSessionContext({
+            systemPrompt: input.systemPrompt,
+            sessionContext: input.sessionContext,
+          }),
       tools: createStageToolBridge({
         tools: input.tools,
         dispatch: input.dispatch,
