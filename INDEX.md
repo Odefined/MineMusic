@@ -201,8 +201,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Session Context capture/rendering over it; A3 added Music Experience
   queue/playback Postgres truth, owning commands, Workbench read projection, and
   Stage tools; A4 added the long-lived pi Main Agent turn session with
-  turn-start Session Context refresh and harness-visible response text. Radio,
-  Memory, skill runtime, and Web remain out of scope.
+  turn-start Session Context refresh and harness-visible pi final assistant
+  message/status/error/text. Radio, Memory, skill runtime, and Web remain out of
+  scope.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

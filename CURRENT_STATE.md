@@ -778,8 +778,8 @@ restored as compatibility layers.
   A4 adds a MineMusic Main Agent turn session over a long-lived pi `Agent`: each
   user turn captures Session Context through the Workbench read-model seam,
   refreshes `state.systemPrompt`, runs pi `prompt()` / `waitForIdle()`, returns
-  the pi-produced turn messages/final assistant text, and observes
-  queue/playback outcome through the same seam.
+  the pi-produced turn messages plus final assistant status/error/text, and
+  observes queue/playback outcome through the same seam.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection

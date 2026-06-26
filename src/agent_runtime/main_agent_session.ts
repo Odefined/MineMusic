@@ -11,6 +11,9 @@ import {
   type AgentSessionContext,
 } from "./session_context.js";
 
+export type MineMusicMainAgentAssistantMessage = Extract<AgentMessage, { role: "assistant" }>;
+export type MineMusicMainAgentTurnStopReason = MineMusicMainAgentAssistantMessage["stopReason"];
+
 export type CreateMineMusicMainAgentSessionInput = Omit<
   CreateMineMusicPiAgentAdapterInput,
   "systemPrompt" | "sessionContext"
@@ -26,8 +29,16 @@ export type RunMineMusicMainAgentTurnInput = {
 
 export type MineMusicMainAgentTurnResult = {
   sessionContext: AgentSessionContext;
+  /**
+   * Messages appended by pi during this user turn. This is the pi-owned
+   * transcript slice and may include user, assistant, tool-result, error, or
+   * aborted messages.
+   */
   newMessages: readonly AgentMessage[];
-  assistantResponseText?: string;
+  finalAssistantMessage: MineMusicMainAgentAssistantMessage | undefined;
+  stopReason: MineMusicMainAgentTurnStopReason | undefined;
+  errorMessage: string | undefined;
+  assistantResponseText: string | undefined;
   readModelAfterTurn: WorkspaceReadModel;
 };
 
@@ -59,36 +70,49 @@ function createMainAgentSessionController(input: {
   ownerScope: string;
   readModel: WorkspaceReadModelReader;
 }): MineMusicMainAgentSession {
+  let activeTurn = false;
+
   return {
     async runUserTurn(turnInput) {
-      if (input.agent.state.isStreaming) {
-        throw new Error("Cannot start a MineMusic Main Agent turn while the pi Agent is already running.");
+      if (activeTurn) {
+        throw new Error(
+          "MineMusic Main Agent turn facade is serial in Phase A4; pi steer()/followUp() queueing is intentionally not exposed through this facade yet.",
+        );
       }
 
-      const sessionContext = await captureAgentSessionContext({
-        ownerScope: input.ownerScope,
-        readModel: input.readModel,
-      });
-
-      input.agent.state.systemPrompt = renderSystemPromptWithSessionContext({
-        systemPrompt: input.baseSystemPrompt,
-        sessionContext,
-      });
-
-      const firstNewMessageIndex = input.agent.state.messages.length;
-      await input.agent.prompt(turnInput.userMessage);
-      await input.agent.waitForIdle();
-      const newMessages = input.agent.state.messages.slice(firstNewMessageIndex);
-      const responseText = assistantResponseText(newMessages);
-
-      return {
-        sessionContext,
-        newMessages,
-        ...(responseText === undefined ? {} : { assistantResponseText: responseText }),
-        readModelAfterTurn: await input.readModel.readWorkspace({
+      activeTurn = true;
+      try {
+        const sessionContext = await captureAgentSessionContext({
           ownerScope: input.ownerScope,
-        }),
-      };
+          readModel: input.readModel,
+        });
+
+        input.agent.state.systemPrompt = renderSystemPromptWithSessionContext({
+          systemPrompt: input.baseSystemPrompt,
+          sessionContext,
+        });
+
+        const firstNewMessageIndex = input.agent.state.messages.length;
+        await input.agent.prompt(turnInput.userMessage);
+        await input.agent.waitForIdle();
+        const newMessages = input.agent.state.messages.slice(firstNewMessageIndex);
+        const finalAssistant = finalAssistantMessage(newMessages);
+        const responseText = finalAssistant === undefined ? undefined : assistantResponseText(finalAssistant);
+
+        return {
+          sessionContext,
+          newMessages,
+          finalAssistantMessage: finalAssistant,
+          stopReason: finalAssistant?.stopReason,
+          errorMessage: finalAssistant?.errorMessage,
+          assistantResponseText: responseText,
+          readModelAfterTurn: await input.readModel.readWorkspace({
+            ownerScope: input.ownerScope,
+          }),
+        };
+      } finally {
+        activeTurn = false;
+      }
     },
     abort() {
       input.agent.abort();
@@ -99,16 +123,17 @@ function createMainAgentSessionController(input: {
   };
 }
 
-function assistantResponseText(messages: readonly AgentMessage[]): string | undefined {
-  const assistant = messages
-    .slice()
-    .reverse()
-    .find((message) => message.role === "assistant");
-
-  if (assistant === undefined) {
-    return undefined;
+function finalAssistantMessage(messages: readonly AgentMessage[]): MineMusicMainAgentAssistantMessage | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === "assistant") {
+      return message;
+    }
   }
+  return undefined;
+}
 
+function assistantResponseText(assistant: MineMusicMainAgentAssistantMessage): string | undefined {
   const text = assistant.content
     .filter((content): content is { type: "text"; text: string } => content.type === "text")
     .map((content) => content.text)

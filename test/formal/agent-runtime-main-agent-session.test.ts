@@ -15,6 +15,7 @@ import type {
 } from "../../src/contracts/stage_interface.js";
 import type {
   WorkspaceReadModel,
+  WorkspaceReadModelReader,
   WorkbenchMusicExperienceSlice,
 } from "../../src/contracts/workbench_interface.js";
 import {
@@ -66,6 +67,12 @@ import {
   createWorkspaceReadModelComposer,
 } from "../../src/workbench_interface/index.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
+import {
+  assistantErrorMessage,
+  assistantMessageWithToolCall,
+  assistantTextMessage,
+  fakeAssistantMessageEventStream,
+} from "./helpers/pi-agent-message-fixtures.js";
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 const ownerScope = "local";
@@ -169,6 +176,109 @@ assert.match(observedProviderContexts[1]?.systemPrompt ?? "", /musicExperience\.
 assert.match(observedProviderContexts[1]?.systemPrompt ?? "", /1\. whoo - Nemophila \(material public_material_1\)/u);
 assert.match(observedProviderContexts[1]?.messagesJson ?? "", /first turn/u);
 assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
+
+{
+  let markStreamEntered: () => void = () => {};
+  const streamEntered = new Promise<void>((resolve) => {
+    markStreamEntered = resolve;
+  });
+  let releaseStream: () => void = () => {};
+  const streamReleased = new Promise<void>((resolve) => {
+    releaseStream = resolve;
+  });
+  const serialSession = createMineMusicMainAgentSession({
+    baseSystemPrompt: "You are the MineMusic Main Agent.",
+    ownerScope,
+    readModel: emptyReadModel(),
+    tools: [],
+    dispatch: {
+      async dispatch() {
+        throw new Error("No Stage dispatch is expected in the serial turn contract test.");
+      },
+    },
+    contextFactory: {
+      createToolContext() {
+        throw new Error("No Stage tool context is expected in the serial turn contract test.");
+      },
+    },
+    stageSessionId: "stage-session-serial",
+    llmProviderSessionId: "provider-session-serial",
+    agentOptions: {
+      streamFn() {
+        const message = assistantTextMessage("first turn done");
+        return ({
+          async *[Symbol.asyncIterator]() {
+            markStreamEntered();
+            await streamReleased;
+            yield {
+              type: "done" as const,
+              reason: "stop" as const,
+              message,
+            };
+          },
+          async result() {
+            await streamReleased;
+            return message;
+          },
+        } as unknown) as ReturnType<StreamFn>;
+      },
+    },
+  });
+
+  const firstTurn = serialSession.runUserTurn({
+    userMessage: "first",
+  });
+  await streamEntered;
+
+  await assert.rejects(
+    () => serialSession.runUserTurn({ userMessage: "second" }),
+    /MineMusic Main Agent turn facade is serial.*steer\(\)\/followUp\(\).*not exposed/u,
+  );
+
+  releaseStream();
+  assert.equal((await firstTurn).assistantResponseText, "first turn done");
+}
+
+{
+  const abortedSession = createMineMusicMainAgentSession({
+    baseSystemPrompt: "You are the MineMusic Main Agent.",
+    ownerScope,
+    readModel: emptyReadModel(),
+    tools: [],
+    dispatch: {
+      async dispatch() {
+        throw new Error("No Stage dispatch is expected in the aborted turn contract test.");
+      },
+    },
+    contextFactory: {
+      createToolContext() {
+        throw new Error("No Stage tool context is expected in the aborted turn contract test.");
+      },
+    },
+    stageSessionId: "stage-session-aborted",
+    llmProviderSessionId: "provider-session-aborted",
+    agentOptions: {
+      streamFn() {
+        const error = assistantErrorMessage("aborted", "Request was aborted.");
+        return fakeAssistantMessageEventStream({
+          type: "error",
+          reason: "aborted",
+          error,
+        });
+      },
+    },
+  });
+
+  const turn = await abortedSession.runUserTurn({
+    userMessage: "abort-visible",
+  });
+
+  assert.equal(turn.assistantResponseText, undefined);
+  assert.equal(turn.stopReason, "aborted");
+  assert.equal(turn.errorMessage, "Request was aborted.");
+  assert.equal(turn.finalAssistantMessage?.stopReason, "aborted");
+  assert.equal(turn.newMessages.at(-1), turn.finalAssistantMessage);
+}
 
 {
   const now = "2026-06-27T01:00:00.000Z";
@@ -343,61 +453,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
   await database.close();
 }
 
-function assistantTextMessage(text: string) {
-  return {
-    role: "assistant" as const,
-    content: [{ type: "text" as const, text }],
-    api: "openai" as const,
-    provider: "openai" as const,
-    model: "fake",
-    usage: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 0,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-    },
-    stopReason: "stop" as const,
-    timestamp: 0,
-  };
-}
-
-function assistantMessageWithToolCall(id: string, name: string, args: Record<string, unknown>) {
-  return {
-    role: "assistant" as const,
-    content: [{ type: "toolCall" as const, id, name, arguments: args }],
-    api: "openai" as const,
-    provider: "openai" as const,
-    model: "fake",
-    usage: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 0,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-    },
-    stopReason: "toolUse" as const,
-    timestamp: 0,
-  };
-}
-
-function fakeAssistantMessageEventStream(event: {
-  type: "done";
-  reason: "toolUse" | "stop";
-  message: ReturnType<typeof assistantTextMessage> | ReturnType<typeof assistantMessageWithToolCall>;
-}): ReturnType<StreamFn> {
-  return ({
-    async *[Symbol.asyncIterator]() {
-      yield event;
-    },
-    result() {
-      return Promise.resolve(event.message);
-    },
-  } as unknown) as ReturnType<StreamFn>;
-}
-
 function nextA4AssistantMessage(
   streamCallCount: number,
   lastOutput: ToolCallOutput | undefined,
@@ -473,6 +528,22 @@ function nextA4AssistantMessage(
 
   expectToolOutput(lastOutput, "music.experience.playback.play");
   return assistantTextMessage("Queued and set logical playback.");
+}
+
+function emptyReadModel(): WorkspaceReadModelReader {
+  return {
+    async readWorkspace(input): Promise<WorkspaceReadModel> {
+      assert.equal(input.ownerScope, ownerScope);
+      return {
+        ownerScope,
+        capturedAt: "2026-06-27T00:00:00.000Z",
+        musicExperience: {
+          revision: 0,
+          queue: [],
+        },
+      };
+    },
+  };
 }
 
 function lastToolCallOutput(messages: unknown): ToolCallOutput | undefined {

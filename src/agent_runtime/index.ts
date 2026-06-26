@@ -3,8 +3,10 @@ export {
 } from "./main_agent_session.js";
 export type {
   CreateMineMusicMainAgentSessionInput,
+  MineMusicMainAgentAssistantMessage,
   MineMusicMainAgentSession,
   MineMusicMainAgentTurnResult,
+  MineMusicMainAgentTurnStopReason,
   RunMineMusicMainAgentTurnInput,
 } from "./main_agent_session.js";
 export {

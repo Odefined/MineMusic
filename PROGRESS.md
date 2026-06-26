@@ -1526,7 +1526,7 @@ catalog integration. Design authority:
   `state.systemPrompt` at the user-turn boundary, then delegates loop control to
   pi `prompt()` / `waitForIdle()` while preserving pi-owned transcript,
   lifecycle, queueing, abort, and tool execution behavior. The facade returns
-  the pi-produced turn messages plus final assistant text when present. The
+  the pi-produced turn messages plus final assistant status/error/text. The
   formal A4 harness drives `lookup -> present -> queue.append -> playback.play`
   through the A1-bridged Stage tools and verifies the Music Experience read
   projection reflects the queue/now-playing outcome. Radio, Memory, skill

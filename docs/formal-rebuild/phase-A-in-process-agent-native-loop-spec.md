@@ -609,16 +609,23 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
   pi snapshots the current `state.systemPrompt`, `state.messages`, and
   `state.tools` when `prompt()` enters `runAgentLoop`, so A4 can update the
   MineMusic-rendered system prompt at the user-turn boundary while preserving
-  pi-owned transcript, lifecycle, queueing, abort, and `waitForIdle()` behavior.
-  Do not replace that with a clean-room local harness loop or per-turn Agent
-  shell unless a fresh pi-source audit proves the installed pi behavior cannot
-  support the required MineMusic boundary.
+  pi-owned transcript, lifecycle, abort, and `waitForIdle()` behavior. The A4
+  user-turn facade is deliberately serial and does not expose pi `steer()` /
+  `followUp()` queueing yet; if a later slice wants mid-run user input it should
+  add that as an explicit Agent Runtime facade capability instead of accidentally
+  bypassing the turn boundary. Do not replace this flow with a clean-room local
+  harness loop or per-turn Agent shell unless a fresh pi-source audit proves the
+  installed pi behavior cannot support the required MineMusic boundary.
 - **Speech Level deferred.** The agent produces a normal harness-visible text
   response; Speech Level (Silent/Notify/Speak) as an Agent-Runtime policy is not
   enforced in slice 1 (no UI to be silent toward; the harness reads the
   response). The A4 turn facade returns the pi-produced messages for the turn
-  plus the final assistant text when present; it does not create a parallel
-  transcript model.
+  plus the final assistant message, `stopReason`, `errorMessage` when pi reports
+  one, and final assistant text when present; it does not create a parallel
+  transcript model. `newMessages` is the pi-owned transcript slice appended by
+  the `prompt()` run, so it may include user, assistant, tool-result, error, or
+  aborted messages. The facade does not translate pi aborted/error assistant
+  messages into a fabricated successful chat response.
 - **System prompt.** A minimal music-agent system prompt naming the available
   instruments and the play/queue intent. Content, not a boundary — refined in
   implementation.
