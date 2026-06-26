@@ -66,6 +66,11 @@ const queuePlaybackErrors = [
     retryable: false,
     suggestedFixTemplate: "Retry with item as a material or candidate MusicItemHandle.",
   },
+  {
+    code: "operation_aborted",
+    retryable: true,
+    suggestedFixTemplate: "Retry the action if it is still desired.",
+  },
 ] as const;
 
 export const musicExperienceQueueAppendDescriptor: ToolDeclaration = {
@@ -158,23 +163,44 @@ async function handleQueueAppend(
   payload: unknown,
   ports: CreateMusicExperienceQueuePlaybackRegistrationInput,
 ): Promise<Result<MusicExperienceQueueAppendOutput>> {
+  const abortedAtEntry = failIfAborted(ctx.abortSignal);
+  if (abortedAtEntry !== undefined) {
+    return abortedAtEntry;
+  }
+
   const input = payload as MusicExperienceQueueAppendInput;
-  if (input.items.length === 0) {
+  if (input.items.length !== 1) {
     return musicExperienceFail({
       code: "invalid_input",
-      message: "Queue append requires at least one item.",
+      message: "Queue append requires exactly one item in Phase A.",
       retryable: false,
-      suggestedFix: "Retry with one or more material or candidate MusicItemHandles.",
+      suggestedFix: "Retry with exactly one material or candidate MusicItemHandle.",
     });
   }
 
   const materialRefs: Ref[] = [];
   for (const item of input.items) {
+    const abortedBeforeResolve = failIfAborted(ctx.abortSignal);
+    if (abortedBeforeResolve !== undefined) {
+      return abortedBeforeResolve;
+    }
+
     const resolved = await resolveDurableMusicItem(ctx, item, ports);
     if (!resolved.ok) {
       return resolved;
     }
+
+    const abortedAfterResolve = failIfAborted(ctx.abortSignal);
+    if (abortedAfterResolve !== undefined) {
+      return abortedAfterResolve;
+    }
+
     materialRefs.push(resolved.value);
+  }
+
+  const abortedBeforeAppend = failIfAborted(ctx.abortSignal);
+  if (abortedBeforeAppend !== undefined) {
+    return abortedBeforeAppend;
   }
 
   const appended = await ports.queuePlayback.append({
@@ -202,10 +228,20 @@ async function handlePlaybackPlay(
   payload: unknown,
   ports: CreateMusicExperienceQueuePlaybackRegistrationInput,
 ): Promise<Result<MusicExperiencePlaybackPlayOutput>> {
+  const abortedAtEntry = failIfAborted(ctx.abortSignal);
+  if (abortedAtEntry !== undefined) {
+    return abortedAtEntry;
+  }
+
   const input = payload as MusicExperiencePlaybackPlayInput;
   const resolved = await resolveDurableMusicItem(ctx, input.item, ports);
   if (!resolved.ok) {
     return resolved;
+  }
+
+  const abortedBeforePlay = failIfAborted(ctx.abortSignal);
+  if (abortedBeforePlay !== undefined) {
+    return abortedBeforePlay;
   }
 
   const played = await ports.queuePlayback.playNow({
@@ -222,4 +258,17 @@ async function handlePlaybackPlay(
       playbackRevision: played.playbackRevision,
     },
   };
+}
+
+function failIfAborted(signal: AbortSignal | undefined): Result<never> | undefined {
+  if (signal?.aborted !== true) {
+    return undefined;
+  }
+
+  return musicExperienceFail({
+    code: "operation_aborted",
+    message: "Music Experience operation was aborted before it could safely commit.",
+    retryable: true,
+    suggestedFix: "Retry the action if it is still desired.",
+  });
 }

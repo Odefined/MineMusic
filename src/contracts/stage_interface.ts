@@ -617,8 +617,8 @@ export type MusicExperiencePresentOutput = {
 };
 
 export type MusicExperienceQueueAppendInput = {
-  /** Candidate or durable material items to append to the logical MineMusic queue. */
-  items: readonly MusicItemHandle[];
+  /** Slice-1 single candidate or durable material item to append to the logical MineMusic queue. Phase B widens this to batch-of-N. */
+  items: readonly [MusicItemHandle];
 };
 
 export type MusicExperienceQueueAppendOutputItem = {

@@ -143,7 +143,7 @@ async function presentMaterial(
     return materialNotFound("Music material is not available for presentation.");
   }
 
-  // Mint the library handle from the projected (survivor) materialRef, not the
+  // Mint the material handle from the projected (survivor) materialRef, not the
   // input ref: when the input material was merged, Material Projection followed
   // mergedIntoMaterialRef and returned the surviving MusicMaterial. Minting the
   // input ref would anchor the public handle on the loser and leak a stale

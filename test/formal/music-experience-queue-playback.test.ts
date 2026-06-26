@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 import { refKey, type Ref } from "../../src/contracts/kernel.js";
-import type { SourceTrack } from "../../src/contracts/music_data_platform.js";
+import type { MusicMaterial, SourceTrack } from "../../src/contracts/music_data_platform.js";
 import type {
   MusicExperiencePlaybackPlayOutput,
   MusicExperienceQueueAppendOutput,
@@ -11,6 +11,7 @@ import {
   createMaterialProjection,
   musicDataPlatformIdentitySchema,
   type CandidateCommitCommand,
+  type MaterialProjection,
 } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
 import {
@@ -42,11 +43,6 @@ const materialRef: Ref = {
   namespace: "material",
   kind: "recording",
   id: "a3_recording_1",
-};
-const secondMaterialRef: Ref = {
-  namespace: "material",
-  kind: "recording",
-  id: "a3_recording_2",
 };
 
 assert.equal(musicExperienceQueueAppendDescriptor.name, "music.experience.queue.append");
@@ -175,7 +171,6 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 {
   const database = await initializedMusicExperienceDatabase();
   await seedRecording(database, materialRef, "A3 Dispatch Song", ["Dispatch Artist"]);
-  await seedRecording(database, secondMaterialRef, "A3 Dispatch Song Two", ["Dispatch Artist Two"]);
   const materialProjection = createMaterialProjection({ db: database.context() });
   const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
   let publicIdCount = 0;
@@ -189,13 +184,6 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     handleKind: "material",
     internalAnchor: {
       materialRef: refKey(materialRef),
-    },
-  });
-  const secondMaterialHandleId = await handleMinting.mint({
-    ownerScope,
-    handleKind: "material",
-    internalAnchor: {
-      materialRef: refKey(secondMaterialRef),
     },
   });
   const stageInterface = createStageInterface({
@@ -229,16 +217,12 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
           kind: "material",
           id: materialHandleId,
         },
-        {
-          kind: "material",
-          id: secondMaterialHandleId,
-        },
       ],
     },
   });
   assert.equal(appendResult.ok, true);
   const appendOutput = output<MusicExperienceQueueAppendOutput>(appendResult);
-  assert.equal(appendOutput.queueLength, 2);
+  assert.equal(appendOutput.queueLength, 1);
   assert.equal(appendOutput.queueRevision, 1);
   assert.deepEqual(appendOutput.items, [
     {
@@ -247,13 +231,6 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
         id: materialHandleId,
       },
       position: 1,
-    },
-    {
-      item: {
-        kind: "material",
-        id: secondMaterialHandleId,
-      },
-      position: 2,
     },
   ]);
   assertPublicToolOutput(appendOutput);
@@ -304,15 +281,6 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
         },
         label: "A3 Dispatch Song",
         artistsText: "Dispatch Artist",
-      },
-      {
-        position: 2,
-        item: {
-          kind: "material",
-          id: secondMaterialHandleId,
-        },
-        label: "A3 Dispatch Song Two",
-        artistsText: "Dispatch Artist Two",
       },
     ],
     nowPlaying: {
@@ -455,7 +423,198 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     },
   });
 
-  expectToolError(appendResult, "invalid_input");
+  expectToolError(appendResult, "stage_interface.invalid_input");
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
+  const handleMinting = createStageInterfaceHandleMintingPort({
+    db: database.context(),
+    clock: () => now,
+    publicIdFactory: () => "mh_a3_multi_item_invalid",
+  });
+  let candidateCommitCalled = false;
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: [
+      createMusicExperienceQueueAppendRegistration({
+        candidateCommit: {
+          commitCandidate() {
+            candidateCommitCalled = true;
+            throw new Error("Multi-item queue append must fail at the schema gate before candidate commit.");
+          },
+        },
+        materialProjection: createMaterialProjection({ db: database.context() }),
+        queuePlayback,
+      }),
+    ],
+  });
+
+  const appendResult = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "a3-multi-item-invalid-session",
+    requestId: "a3-multi-item-invalid-request",
+    clock: () => now,
+    handleMinting,
+  }), {
+    toolName: "music.experience.queue.append",
+    payload: {
+      items: [
+        {
+          kind: "candidate",
+          id: "candidate_that_must_not_commit",
+        },
+        {
+          kind: "material",
+          id: "bad_material_that_must_not_resolve",
+        },
+      ],
+    },
+  });
+
+  expectToolError(appendResult, "stage_interface.invalid_input");
+  assert.equal(candidateCommitCalled, false);
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  await seedRecording(database, materialRef, "A3 Abort Queue Song", ["Abort Artist"]);
+  const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
+  const projectionStarted = deferred<void>();
+  const releaseProjection = deferred<void>();
+  const materialProjection = blockingMaterialProjection({
+    materialRef,
+    label: "A3 Abort Queue Song",
+    projectionStarted,
+    releaseProjection,
+  });
+  const handleMinting = createStageInterfaceHandleMintingPort({
+    db: database.context(),
+    clock: () => now,
+    publicIdFactory: () => "mh_a3_abort_queue",
+  });
+  const materialHandleId = await handleMinting.mint({
+    ownerScope,
+    handleKind: "material",
+    internalAnchor: {
+      materialRef: refKey(materialRef),
+    },
+  });
+  const controller = new AbortController();
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: [
+      createMusicExperienceQueueAppendRegistration({
+        candidateCommit: unusedCandidateCommit(),
+        materialProjection,
+        queuePlayback,
+      }),
+    ],
+  });
+
+  const appendPromise = stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "a3-abort-queue-session",
+    requestId: "a3-abort-queue-request",
+    clock: () => now,
+    abortSignal: controller.signal,
+    handleMinting,
+  }), {
+    toolName: "music.experience.queue.append",
+    payload: {
+      items: [
+        {
+          kind: "material",
+          id: materialHandleId,
+        },
+      ],
+    },
+  });
+
+  await projectionStarted.promise;
+  controller.abort();
+  releaseProjection.resolve();
+  const appendResult = await appendPromise;
+
+  expectToolError(appendResult, "operation_aborted");
+  const snapshot = await createMusicExperienceQueuePlaybackRecords({
+    db: database.context(),
+  }).read({ ownerScope });
+  assert.deepEqual(snapshot.queue, []);
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  await seedRecording(database, materialRef, "A3 Abort Playback Song", ["Abort Artist"]);
+  const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
+  const projectionStarted = deferred<void>();
+  const releaseProjection = deferred<void>();
+  const materialProjection = blockingMaterialProjection({
+    materialRef,
+    label: "A3 Abort Playback Song",
+    projectionStarted,
+    releaseProjection,
+  });
+  const handleMinting = createStageInterfaceHandleMintingPort({
+    db: database.context(),
+    clock: () => now,
+    publicIdFactory: () => "mh_a3_abort_playback",
+  });
+  const materialHandleId = await handleMinting.mint({
+    ownerScope,
+    handleKind: "material",
+    internalAnchor: {
+      materialRef: refKey(materialRef),
+    },
+  });
+  const controller = new AbortController();
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: [
+      createMusicExperiencePlaybackPlayRegistration({
+        candidateCommit: unusedCandidateCommit(),
+        materialProjection,
+        queuePlayback,
+      }),
+    ],
+  });
+
+  const playPromise = stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "a3-abort-playback-session",
+    requestId: "a3-abort-playback-request",
+    clock: () => now,
+    abortSignal: controller.signal,
+    handleMinting,
+  }), {
+    toolName: "music.experience.playback.play",
+    payload: {
+      item: {
+        kind: "material",
+        id: materialHandleId,
+      },
+    },
+  });
+
+  await projectionStarted.promise;
+  controller.abort();
+  releaseProjection.resolve();
+  const playResult = await playPromise;
+
+  expectToolError(playResult, "operation_aborted");
+  const snapshot = await createMusicExperienceQueuePlaybackRecords({
+    db: database.context(),
+  }).read({ ownerScope });
+  assert.deepEqual(snapshot.playback, {
+    status: "paused",
+  });
 
   await database.close();
 }
@@ -636,6 +795,51 @@ function candidateHandlesFor(input: {
       };
     },
   };
+}
+
+function blockingMaterialProjection(input: {
+  materialRef: Ref;
+  label: string;
+  projectionStarted: Deferred<void>;
+  releaseProjection: Deferred<void>;
+}): MaterialProjection {
+  return {
+    async projectMusicMaterial() {
+      input.projectionStarted.resolve();
+      await input.releaseProjection.promise;
+      return musicRecording(input.materialRef, input.label);
+    },
+    async projectMusicMaterials() {
+      return new Map([[refKey(input.materialRef), musicRecording(input.materialRef, input.label)]]);
+    },
+  };
+}
+
+function musicRecording(materialRef: Ref, label: string): MusicMaterial {
+  return {
+    kind: "recording",
+    materialRef,
+    title: label,
+    artistLabels: ["Abort Artist"],
+    sourceNavigationLinks: [],
+    availability: "unknown",
+  };
+}
+
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve(value: T): void;
+  reject(error: unknown): void;
+};
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
 }
 
 function assertPublicToolOutput(value: unknown): void {

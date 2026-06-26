@@ -386,7 +386,8 @@ since Phase 21.
 - **Command boundary.** Queue/playback mutations go through an owning
   `MusicExperienceQueueCommand` with the slice-1 command set **{`append`,
   `playNow`}**, where `append` takes an items list (slice 1 passes batch-of-1;
-  Phase B PB6 widens to batch-of-N) — `removeFromQueue` is deferred: no slice-1 exit criterion needs
+  the A3 agent-facing schema enforces exactly one item; Phase B PB6 widens to
+  batch-of-N) — `removeFromQueue` is deferred: no slice-1 exit criterion needs
   removal, and it returns when Radio re-sequence (Phase B) or a Workbench action
   (Phase C) needs it. It does **not** use Music Data Platform's
   `runSourceOfTruthWrite` facade — that facade is for source-of-truth writes that
@@ -461,6 +462,14 @@ since Phase 21.
   *retention/lifecycle* (how long, when cleared), which the repository port leaves
   revisable — it is not in tension with choosing Postgres as the backing store.
 
+  **Schema composition carry-forward.** The existing single database gateway may
+  initialize all schema contributions for A3, but Music Data Platform must not
+  become the owner or long-term composition root for non-MDP tables. Before adding
+  more Music Experience, Memory, playback-history, or Radio tables, move schema
+  collection to Server Host / Storage composition so Music Data Platform
+  contributes only MDP schemas and ports, while Music Experience contributes its
+  own queue/playback schema.
+
 - **Per-area revision now, enforcement later.** The queue/playback truth carries
   a per-area revision that bumps on each mutation (ADR-0033: concurrently
   mutated read-model fields must carry per-area revisions readable as an Agent
@@ -472,7 +481,7 @@ since Phase 21.
   `queue.append` accepts a list of candidate-or-`material` `MusicItemHandle`s
   (ADR-0040; resolved to material via the shared `ResolveDurableMusicItem`
   capability) and resolves each
-  to its material ref (slice 1 passes batch-of-1); Phase B (PB4) adds
+  to its material ref (slice 1 schema allows exactly one item); Phase B (PB4) adds
   radio/transient provenance and the candidate→material
   append path. This avoids a later queue-key migration. See
   `phase-B-radio-concurrency-spec.md` PB4.
@@ -504,6 +513,12 @@ since Phase 21.
 - **Projection.** A public queue/now-playing read port exposes current queue +
   now-playing for Session Context (A2). It is a direct read of queue/playback
   truth, not routed through the material projection-maintenance machinery.
+  Slice 1 may expose the full small queue, but A4 must not inject an unbounded
+  queue into the agent prompt. Before live turn wiring relies on this projection
+  for Session Context, either cap the Workbench read projection or expose a
+  bounded shape such as `nowPlaying`, `queueHead`, `queueTail`, `queueLength`, and
+  `revision`. The database truth may retain the full queue; the Workbench /
+  Session Context surface must stay prompt-bounded.
 
 - **Agent-facing tools.** `music.experience.queue.append` and
   `music.experience.playback.play` _(proposed)_ register under the existing
@@ -546,7 +561,7 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
   → `music.experience.present` (durable-materializes the candidate and yields a
   `material` handle) → `music.experience.queue.append([material handle])` →
   `music.experience.playback.play`. `queue.append` accepts a
-  **candidate-or-`material`** `MusicItemHandle` list (slice 1: batch-of-1;
+  **candidate-or-`material`** `MusicItemHandle` list (slice 1: exactly one item;
   ADR-0040) and resolves each via the shared `ResolveDurableMusicItem`
   capability (candidate → idempotent `commitCandidate` → `material` ref —
   extracted from `present` now that `queue.append` is its second caller in
