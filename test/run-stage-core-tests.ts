@@ -14,6 +14,7 @@ const testModules = [
     "./formal/library-catalog-tools.test.js",
     "./formal/music-discovery-list-scopes.test.js",
     "./formal/music-discovery-lookup.test.js",
+    "./formal/agent-runtime-pi-spine.test.js",
     "./formal/active-tree.test.js",
     "./formal/mcp-stdio-transport.test.js",
     "./formal/extension-capability-slot.test.js",

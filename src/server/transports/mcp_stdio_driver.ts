@@ -21,9 +21,11 @@ import type {
   ToolDeclaration,
 } from "../../contracts/stage_interface.js";
 import type { StageToolContextFactory } from "../../stage_interface/index.js";
+import { assertUniqueProviderSafeToolNames } from "../../stage_interface/provider_safe_tool_name.js";
 import {
   JSON_RPC_INTERNAL_ERROR,
   JSON_RPC_INVALID_REQUEST,
+  JSON_RPC_INVALID_PARAMS,
   JSON_RPC_METHOD_NOT_FOUND,
   JSON_RPC_PARSE_ERROR,
   errorResponse,
@@ -77,6 +79,10 @@ const SUPPORTED_METHODS = new Set([
   "notifications/cancelled",
 ]);
 
+type ToolCallParamsRead =
+  | { ok: true; value: { name: string; arguments: unknown } }
+  | { ok: false; message: string };
+
 export function createMcpStdioTransport(input: CreateMcpStdioTransportInput): McpStdioTransport {
   // One stdio connection is one session; the id is generated up front so a
   // tools/call that somehow precedes initialize still has a session id.
@@ -96,6 +102,7 @@ export function createMcpStdioTransport(input: CreateMcpStdioTransportInput): Mc
   let closed = false;
   // tools/call arrives with an MCP-exposed (underscored) tool name; map it back
   // to the descriptor (and its internal dotted name) for dispatch.
+  assertUniqueProviderSafeToolNames(input.ports.tools);
   const descriptorByMcpName = new Map<string, ToolDeclaration>(
     input.ports.tools.map((tool) => [toMcpToolName(tool.name), tool]),
   );
@@ -202,7 +209,14 @@ export function createMcpStdioTransport(input: CreateMcpStdioTransportInput): Mc
     inFlight[requestKey] = controller;
 
     try {
-      const callParams = readToolCallParams(params);
+      const paramsResult = readToolCallParams(params);
+
+      if (!paramsResult.ok) {
+        write(errorResponse(id, JSON_RPC_INVALID_PARAMS, paramsResult.message));
+        return;
+      }
+
+      const callParams = paramsResult.value;
       const descriptor = descriptorByMcpName.get(callParams.name);
       const ctx = input.ports.contextFactory.createToolContext({
         sessionId,
@@ -263,17 +277,23 @@ export function createMcpStdioTransport(input: CreateMcpStdioTransportInput): Mc
   }
 }
 
-function readToolCallParams(params: unknown): { name: string; arguments: unknown } {
+function readToolCallParams(params: unknown): ToolCallParamsRead {
   if (!isPlainObject(params)) {
-    return { name: "", arguments: {} };
+    return { ok: false, message: "tools/call params must be an object." };
   }
 
-  const name = typeof params.name === "string" ? params.name : "";
+  if (typeof params.name !== "string" || params.name.trim().length === 0) {
+    return { ok: false, message: "tools/call params.name must be a non-empty string." };
+  }
+
   const args = params.arguments;
 
   return {
-    name,
-    arguments: args === undefined ? {} : args,
+    ok: true,
+    value: {
+      name: params.name,
+      arguments: args === undefined ? {} : args,
+    },
   };
 }
 

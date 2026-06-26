@@ -14,14 +14,14 @@ architecture; this ADR does not relitigate whether there is a port. What was
 that port can and cannot actually isolate — left as an inherited premise from the
 formal-rebuild source drafts, with no decision record. An external review flagged
 this as the largest unrecorded load-bearing bet: the whole of Agent Runtime
-(Main + Radio) rests on `@earendil-works/pi-agent-core`, a young (MIT, ~6-week-
+(Main + Radio) rests on `@earendil-works/pi-agent-core`, a young (MIT, ~7-week-
 old, high-churn) TypeScript engine, with no "why this over LangGraph / OpenAI
 Agents SDK / Mastra / Vercel AI SDK."
 
 A first-hand capability audit was then performed against the exact installed
-version: `pi-agent-core-capability-audit-0.79.10.md` (read `.d.ts` + compiled
-source, two runtime experiments, adversarial skeptics; `--no-save`, repo
-unpolluted). That audit is the evidence base for this ADR.
+version: `pi-agent-core-capability-audit-0.80.2.md` (read `.d.ts` + compiled
+source, fresh runtime checks, adversarial skeptics). That audit is the
+evidence base for this ADR.
 
 Two honesty constraints shape what this ADR may claim:
 
@@ -42,7 +42,7 @@ Two honesty constraints shape what this ADR may claim:
 `@earendil-works/pi-agent-core` is the concrete engine adapter, using its
 **low-level `Agent`** (not the `AgentHarness`), wired through the
 Agent-Runtime-owned engine port. **Pin the version exactly** and re-run the
-capability audit on any bump (the audit found 24 releases in ~6 weeks and an
+capability audit on any bump (the audit found 26 releases in ~7 weeks and an
 existing `legacy-node20` split — version churn is the dominant risk, ahead of any
 capability gap).
 
@@ -53,7 +53,7 @@ capability gap).
   *better* than LangGraph / OpenAI Agents SDK / Mastra / Vercel AI SDK; no
   first-hand audit of those was done.
 - **Sufficiency (the real justification, evidenced):** pi is **audited as
-  sufficient** for MineMusic's use at 0.79.10 — injectable prompt/tools/stream/
+  sufficient** for MineMusic's use at 0.80.2 — injectable prompt/tools/stream/
   key, real per-call `AbortSignal`, awaitable `before/afterToolCall` hooks,
   `prompt`/`continue`/`abort`/`waitForIdle`, externally writable transcript, raw
   JSON Schema usable directly as `Tool.parameters`, DeepSeek via the built-in
@@ -87,20 +87,20 @@ isolates three things and deliberately leaks a fourth:
   MineMusic owns them — they do not cross the engine boundary at all. This
   confirms ADR-0037's floor was correctly designed not to depend on pi
   compaction.
-- **Reusable, but not owning — base-helper-first pi harness reuse.** Rejecting
+- **Reusable, but not owning — root-export-helper-first pi harness reuse.** Rejecting
   the full `AgentHarness` as MineMusic's runtime owner does **not** mean
   MineMusic hand-rolls every prompt/session helper. Agent Runtime should use the
-  pinned package's public `./base` harness helpers directly where they provide
-  the needed semantics — especially prompt template formatting, session
-  repositories, and compaction helpers — then wrap those helpers behind
-  MineMusic-owned adapter/facade interfaces. This is not a default vendored
-  source-tree fork: A1a should not copy pi harness directories into the repo or
-  maintain a locally modified pi helper tree. MineMusic may read pi harness
-  source while writing its wrappers, and may reuse algorithms or small sub-code
-  shapes by close reference when a public helper needs boundary-narrowing glue,
-  but the default live dependency is the pinned package helper export. Any
-  future meaningful copied/modified pi source requires an explicit reason and
-  provenance note. The helper reuse remains implementation substrate only: it
+  pinned package's root-exported harness helpers where they provide the needed
+  semantics — especially prompt template formatting, session repositories, and
+  compaction helpers — then wrap those helpers behind MineMusic-owned
+  adapter/facade interfaces. This is not a default vendored source-tree fork:
+  A1a should not copy pi harness directories into the repo or maintain a locally
+  modified pi helper tree. MineMusic may read pi harness source while writing
+  its wrappers, and may reuse algorithms or small sub-code shapes by close
+  reference when a public helper needs boundary-narrowing glue, but the default
+  live dependency is the pinned package helper export. Any future meaningful
+  copied/modified pi source requires an explicit reason and provenance note. The
+  helper reuse remains implementation substrate only: it
   does not own MineMusic's Session Context assembly, actor lifecycle,
   persistence policy, Main↔Radio coordination, Stage tool dispatch, public
   work/event semantics, or future skill selection policy. Ordinary Main/Radio/
@@ -111,11 +111,11 @@ isolates three things and deliberately leaks a fourth:
   translates MineMusic-owned inputs, storage/session choices, and future source
   roots into pi helper calls; any private lower-level capabilities introduced
   for that translation must remain internal to Agent Runtime and must not leak
-  as Main/Radio dependencies. Raw imports from pi's harness helper surface
-  (`@earendil-works/pi-agent-core/base` or equivalent) are allowed only in Agent
-  Runtime facade/adaptor modules and their adapter-focused tests. Main, Radio,
-  Session Context assembly, tool bridge, and ordinary runtime modules consume
-  the MineMusic ports above, not pi helper exports.
+  as Main/Radio dependencies. Raw imports of pi harness helpers from
+  `@earendil-works/pi-agent-core` are allowed only in Agent Runtime
+  facade/adaptor modules and their adapter-focused tests. Main, Radio, Session
+  Context assembly, tool bridge, and ordinary runtime modules consume the
+  MineMusic ports above, not pi helper exports.
 - **Pi-first adaptation, not clean-room harness construction.** MineMusic does
   not adopt the full `AgentHarness` as its runtime owner, but every
   harness-like capability should start from audited pi primitives, exported
@@ -177,7 +177,7 @@ not to zero.
   does not flow through the low-level `Agent`; MineMusic already owns
   continuity/coordination with semantics (ADR-0037/0032) the harness does not
   match. This rejection is intentionally narrow: it does **not** forbid using
-  audited public harness utilities from pi's `./base` export inside
+  audited public harness utilities from pi's root export inside
   MineMusic-owned Agent Runtime code.
 - **Treat pi as a settled, audit-free premise (status quo).** Rejected — it is
   the largest load-bearing dependency; it deserves at least a recorded sufficiency
@@ -192,7 +192,7 @@ not to zero.
   full helper bundle MineMusic needs to avoid rebuilding a parallel harness
   vocabulary: prompt template formatting, session repositories, and compaction
   helpers. Full `AgentHarness` remains out of scope as a runtime owner; direct
-  use of its public `./base` helper exports is in scope when those calls sit
+  use of its root-exported harness helpers is in scope when those calls sit
   behind Agent Runtime-owned narrow ports. The facade should split its
   MineMusic-facing surface into narrow ports, so prompt/session/compaction
   helpers do not become one wide dependency. A1a should not vendor pi harness
@@ -211,8 +211,8 @@ not to zero.
   without rewriting A1a's harness foundation.
 - PR-A1a implementation notes must map each MineMusic facade port to the pi
   primitive, export, or observed source behavior it uses. The expected path is a
-  wrapper around public `./base` exports; copied or locally modified pi source is
-  an exception, not the default.
+  wrapper around public root exports; copied or locally modified pi source is an
+  exception, not the default.
 - The phase-A "pi Capability Ledger" is reframed (already done) as the audited
   engine-semantics dependency list of §3.4; PB8a passes; PB2's persistence is
   MineMusic-built, not pi-provided; PB9 carries the cooperative-abort + hook-race

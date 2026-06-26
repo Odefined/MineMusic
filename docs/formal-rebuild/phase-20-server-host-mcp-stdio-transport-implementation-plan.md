@@ -164,11 +164,12 @@ this plan.
   Interface owns compact public outputs; the MCP transport merely consumes it for
   the `content` block). The transport calls `descriptor.resultSummary(result)`
   generically and imports no per-tool domain types. Each summary must be veil-safe
-  (must not contain internal anchors; enforced against the existing
-  `freeTextContainsInternalAnchor` guard). This is a **conscious deviation** from
-  the spec's `SHOULD` ("return the serialized JSON in a TextContent block"): the
-  summary is non-duplicative and aligns with the SEP-1624 direction (content is
-  model-oriented output, semantically equivalent to `structuredContent`).
+  (must not contain internal anchors). This is enforced as a public-text invariant:
+  a violation fails loudly instead of being sanitized by the transport. This is a
+  **conscious deviation** from the spec's `SHOULD` ("return the serialized JSON in
+  a TextContent block"): the summary is non-duplicative and aligns with the
+  SEP-1624 direction (content is model-oriented output, semantically equivalent to
+  `structuredContent`).
 - **Error translation follows MCP convention.** Declared tool errors,
   `stage_interface.invalid_input`, and Effect Boundary `ask_required` /
   `denied_by_policy` results become MCP tool results with `isError: true` and a
@@ -366,7 +367,8 @@ implemented and add an Implementation Result section.
   factory and contains no production-port names.
 - Output-veil guard: `structuredContent` carries only the already-veil-guarded
   public output; each `resultSummary` string must pass
-  `freeTextContainsInternalAnchor`.
+  `freeTextContainsInternalAnchor`, and any violation fails loudly rather than
+  being rewritten by the transport.
 - Schema-description guard: field-level JSDoc that flows into generated
   `inputSchema` / `outputSchema` must be veil-safe — it must not trip
   `assertOutputSchemaHasNoInternalAnchors` or `freeTextContainsInternalAnchor`
@@ -421,7 +423,8 @@ Phase 20 is complete when:
 - generated `inputSchema` (and `outputSchema` where useful) carry veil-safe
   field-level descriptions (generator `jsDoc: "extended"`);
 - `tools/call` success returns `structuredContent` AND a non-empty, veil-safe
-  `content` summary from the descriptor's `resultSummary`;
+  `content` summary from the descriptor's `resultSummary`; a leaky summary fails
+  the call instead of crossing the transport boundary;
 - declared tool errors and gate `ask` / `deny` return `isError: true`; protocol
   errors return JSON-RPC errors;
 - the real per-call context is composed from owning-area ports (real

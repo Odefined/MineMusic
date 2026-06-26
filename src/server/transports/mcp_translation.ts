@@ -2,11 +2,10 @@
 // CallToolResult, or signals a JSON-RPC error for protocol-level failures.
 // Pure given the dispatch result and the resolved descriptor.
 //
-// This module is the named boundary that turns tool output into model-visible
-// free text, so it owns the content-block veil: every string it places in a
-// content block (the result summary, the error text, the suggested fix) is
-// scrubbed through freeTextContainsInternalAnchor, and an unsafe value falls
-// back to a generic safe line rather than crossing the veil.
+// This module turns already-public tool output into MCP wire shape. It does not
+// sanitize tool-authored public text: descriptors, handlers, and the Tool Call
+// Router must produce public-safe result summaries and declared errors before
+// transport translation.
 //
 // Classification (ADR-0015 keeps invocation policy out of the annotation path;
 // here it governs how a dispatch failure is surfaced to the client):
@@ -21,7 +20,12 @@ import type {
   ToolCallOutput,
   ToolDeclaration,
 } from "../../contracts/stage_interface.js";
-import { freeTextContainsInternalAnchor } from "../../stage_interface/veil_guard.js";
+import { classifyStageToolFailure } from "../../stage_interface/tool_failure_surface.js";
+import {
+  renderPublicToolErrorText,
+  renderPublicToolResultSummary,
+  type PublicToolTextRender,
+} from "../../stage_interface/tool_public_text.js";
 import {
   JSON_RPC_INTERNAL_ERROR,
   JSON_RPC_INVALID_PARAMS,
@@ -47,6 +51,7 @@ export type McpCallToolResult = {
 export type TranslatedToolCall =
   | { kind: "toolResult"; result: McpCallToolResult }
   | { kind: "jsonRpcError"; code: number; message: string };
+type JsonRpcErrorToolCall = Extract<TranslatedToolCall, { kind: "jsonRpcError" }>;
 
 export function translateToolCall(input: {
   descriptor?: ToolDeclaration;
@@ -55,19 +60,23 @@ export function translateToolCall(input: {
   const { dispatchResult } = input;
 
   if (dispatchResult.ok) {
-    return {
-      kind: "toolResult",
-      result: successResult(input.descriptor, dispatchResult.value.result),
-    };
+    return successResult(input.descriptor, dispatchResult.value.result);
   }
 
   const error = dispatchResult.error;
+  const errorText = publicErrorText(error, input.descriptor);
 
-  if (isToolLevelError(error)) {
+  if (errorText.kind === "jsonRpcError") {
+    return errorText;
+  }
+
+  const failureSurface = classifyStageToolFailure(error);
+
+  if (failureSurface === "tool_result_error") {
     return {
       kind: "toolResult",
       result: {
-        content: [{ type: "text", text: safeErrorText(error, input.descriptor) }],
+        content: [{ type: "text", text: errorText.text }],
         isError: true,
       },
     };
@@ -75,70 +84,47 @@ export function translateToolCall(input: {
 
   return {
     kind: "jsonRpcError",
-    code: jsonRpcCodeFor(error),
-    message: safeErrorText(error, input.descriptor),
+    code: jsonRpcCodeFor(failureSurface),
+    message: errorText.text,
   };
 }
 
-function successResult(descriptor: ToolDeclaration | undefined, result: unknown): McpCallToolResult {
+function successResult(descriptor: ToolDeclaration | undefined, result: unknown): TranslatedToolCall {
+  const summary = publicTextResult(renderPublicToolResultSummary({ descriptor, result }));
+
+  if (summary.kind === "jsonRpcError") {
+    return summary;
+  }
+
   return {
-    content: [{ type: "text", text: summarizeResult(descriptor, result) }],
-    ...(result === undefined ? {} : { structuredContent: result }),
+    kind: "toolResult",
+    result: {
+      content: [{ type: "text", text: summary.text }],
+      ...(result === undefined ? {} : { structuredContent: result }),
+    },
   };
 }
 
-function summarizeResult(descriptor: ToolDeclaration | undefined, result: unknown): string {
-  const fallback = `Tool '${descriptor?.name ?? "unknown"}' returned a result.`;
+type PublicTextResult =
+  | { kind: "text"; text: string }
+  | JsonRpcErrorToolCall;
 
-  let summary: string;
-  if (descriptor === undefined) {
-    summary = fallback;
-  } else {
-    try {
-      summary = descriptor.resultSummary(result);
-    } catch {
-      summary = fallback;
-    }
-
-    if (summary.trim().length === 0) {
-      summary = fallback;
-    }
-  }
-
-  return freeTextContainsInternalAnchor(summary) ? fallback : summary;
+function publicErrorText(error: StageError, descriptor: ToolDeclaration | undefined): PublicTextResult {
+  return publicTextResult(renderPublicToolErrorText({ descriptor, error }));
 }
 
-function safeErrorText(error: StageError, descriptor: ToolDeclaration | undefined): string {
-  const toolName = descriptor?.name ?? "unknown";
-  const message = freeTextContainsInternalAnchor(error.message)
-    ? `Tool '${toolName}' reported error '${error.code}'.`
-    : error.message;
-  const suggestedFix = error.suggestedFix;
-
-  if (suggestedFix === undefined || freeTextContainsInternalAnchor(suggestedFix)) {
-    return message;
-  }
-
-  return `${message}\nSuggested fix: ${suggestedFix}`;
+function publicTextResult(result: PublicToolTextRender): PublicTextResult {
+  return result.kind === "text"
+    ? result
+    : {
+        kind: "jsonRpcError",
+        code: JSON_RPC_INTERNAL_ERROR,
+        message: result.message,
+      };
 }
 
-function isToolLevelError(error: StageError): boolean {
-  // Tool-declared errors carry the owning area rather than stage_interface, so
-  // any non-stage_interface area is a declared tool failure surfaced to the
-  // caller. The enumerated stage_interface.* codes below are the router-level
-  // failures that are still meaningful at the tool level.
-  if (error.area !== "stage_interface") {
-    return true;
-  }
-
-  return error.code === "stage_interface.invalid_input" ||
-    error.code === "stage_interface.ask_required" ||
-    error.code === "stage_interface.denied_by_policy" ||
-    error.code === "stage_interface.tool_timeout";
-}
-
-function jsonRpcCodeFor(error: StageError): number {
-  if (error.code === "stage_interface.tool_not_found") {
+function jsonRpcCodeFor(failureSurface: ReturnType<typeof classifyStageToolFailure>): number {
+  if (failureSurface === "invalid_request") {
     return JSON_RPC_INVALID_PARAMS;
   }
 

@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { buildArchitectureImportGraph, isUnderPath, type ArchitectureImportEdge } from "./helpers/architecture-import-graph.js";
 const repositoryRoot = process.cwd();
+const packageJson = JSON.parse(await readFile(join(repositoryRoot, "package.json"), "utf8")) as {
+    dependencies?: Record<string, string>;
+};
+const packageLock = JSON.parse(await readFile(join(repositoryRoot, "package-lock.json"), "utf8")) as {
+    packages?: Record<string, { version?: string; dependencies?: Record<string, string> }>;
+};
 const removedRuntimeRoots = [
     "fixtures",
     "docs/canonical-store",
@@ -83,6 +89,13 @@ assert.equal(await pathExists(join(repositoryRoot, "src/music_intelligence")), t
 assert.equal(await pathExists(join(repositoryRoot, "src/music_experience")), true, "formal Music Experience root must exist once music.experience.present lands");
 assert.equal(await pathExists(join(repositoryRoot, "src/effect_boundary")), true, "formal Effect Boundary root must exist once StageToolExecutionGate implementation lands");
 assert.equal(await pathExists(join(repositoryRoot, "src/background_work")), true, "formal Background Work runtime infrastructure root must exist once Phase 21 queue backend lands");
+assert.equal(await pathExists(join(repositoryRoot, "src/agent_runtime")), true, "formal Agent Runtime root must exist once Phase A1a pi spine lands");
+const piAgentCoreVersion = packageJson.dependencies?.["@earendil-works/pi-agent-core"];
+assert.equal(typeof piAgentCoreVersion, "string", "pi-agent-core must be a direct dependency while Agent Runtime uses pi");
+assert.match(piAgentCoreVersion ?? "", /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u, "pi-agent-core must be exact-pinned, not a semver range");
+assert.equal(packageLock.packages?.[""]?.dependencies?.["@earendil-works/pi-agent-core"], piAgentCoreVersion, "package-lock root dependency must match package.json pi pin");
+assert.equal(packageLock.packages?.["node_modules/@earendil-works/pi-agent-core"]?.version, piAgentCoreVersion, "package-lock installed pi version must match package.json pi pin");
+assert.equal(await pathExists(join(repositoryRoot, `docs/formal-rebuild/pi-agent-core-capability-audit-${piAgentCoreVersion}.md`)), true, "each pi-agent-core pin must have a same-version capability audit doc");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/background_work")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
@@ -126,6 +139,13 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/effect_bounda
     "src/effect_boundary/index.ts",
     "src/effect_boundary/stage_tool_execution_gate.ts",
 ], "formal Effect Boundary root must stay focused on StageToolExecutionGate policy/audit seams");
+assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/agent_runtime")))
+    .map((file) => relative(repositoryRoot, file))
+    .sort(), [
+    "src/agent_runtime/index.ts",
+    "src/agent_runtime/pi_engine.ts",
+    "src/agent_runtime/stage_tool_bridge.ts",
+], "formal Agent Runtime root must stay focused on the pi engine facade and Stage tool bridge in A1a");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_experience")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
@@ -163,6 +183,12 @@ const musicIntelligenceAllowedMusicDataPlatformBarrelImports = new Set([
     "RetrievalReadCursorPosition",
     "RetrievalTextField",
     "createMusicDataPlatformMetadataLookupSearchWorkspace",
+]);
+const agentRuntimeAllowedStageInterfacePureHelpers = new Set([
+    "src/stage_interface/provider_safe_tool_name.ts",
+    "src/stage_interface/tool_description_rendering.ts",
+    "src/stage_interface/tool_failure_surface.ts",
+    "src/stage_interface/tool_public_text.ts",
 ]);
 const contractsDagFailures: string[] = [];
 for (const [contractFile, allowed] of Object.entries(contractsDagAllowlist)) {
@@ -220,6 +246,9 @@ function sourceBoundaryFailure(edge: ArchitectureImportEdge): string | undefined
     if (edge.toFile === undefined) {
         return undefined;
     }
+    if (edge.toFile === "src/agent_runtime/pi_engine.ts" && edge.fromArea !== "agent_runtime") {
+        return `Only Agent Runtime internals may import the raw pi adapter factory: ${formatEdge(edge)}`;
+    }
     if (edge.fromArea === "music_data_platform") {
         return musicDataPlatformBoundaryFailure(edge);
     }
@@ -229,6 +258,9 @@ function sourceBoundaryFailure(edge: ArchitectureImportEdge): string | undefined
     if (edge.fromArea === "music_experience") {
         return musicExperienceBoundaryFailure(edge);
     }
+    if (edge.fromArea === "agent_runtime") {
+        return agentRuntimeBoundaryFailure(edge);
+    }
     return undefined;
 }
 function externalPackageBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
@@ -237,6 +269,9 @@ function externalPackageBoundaryFailure(edge: ArchitectureImportEdge): string | 
     }
     if (edge.specifier === "pg-boss" && edge.fromFile !== "src/background_work/pg_boss_backend.ts") {
         return `Only the Background Work pg-boss adapter may import pg-boss directly: ${formatEdge(edge)}`;
+    }
+    if (edge.specifier === "@earendil-works/pi-agent-core" && !isUnderPath(edge.fromFile, "src/agent_runtime")) {
+        return `Only Agent Runtime may import pi-agent-core directly: ${formatEdge(edge)}`;
     }
     return undefined;
 }
@@ -252,6 +287,17 @@ function musicDataPlatformBoundaryFailure(edge: ArchitectureImportEdge): string 
     }
     if (isUnderPath(edge.toFile, "src/storage/postgres")) {
         return `Music Data Platform must not import concrete storage adapter internals: ${formatEdge(edge)}`;
+    }
+    return undefined;
+}
+function agentRuntimeBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
+    if (edge.toArea === "stage_interface") {
+        return agentRuntimeAllowedStageInterfacePureHelpers.has(edge.toFile ?? "")
+            ? undefined
+            : `Agent Runtime may import only Stage Interface public pure helper modules, not arbitrary Stage Interface internals: ${formatEdge(edge)}`;
+    }
+    if (edge.toArea === "server" || edge.toArea === "stage_core" || edge.toArea === "music_data_platform" || edge.toArea === "music_intelligence" || edge.toArea === "music_experience" || edge.toArea === "extension" || edge.toArea === "storage" || edge.toArea === "background_work" || edge.toArea === "effect_boundary") {
+        return `Agent Runtime must not import ${edge.toArea}; compose Stage tools through injected descriptors, context factory, and dispatch ports: ${formatEdge(edge)}`;
     }
     return undefined;
 }

@@ -2,7 +2,7 @@
 
 > Status: Source-read conclusion note
 > Scope: Which harness capabilities MineMusic needs for the Agent-Native
-> Workbench roadmap, and which `@earendil-works/pi-agent-core@0.79.10` code
+> Workbench roadmap, and which `@earendil-works/pi-agent-core@0.80.2` code
 > surfaces they may reuse.
 > Authority: This note supports ADR-0039 and the Phase A/B/C specs. It is not a
 > replacement for `ARCHITECTURE.md`, `CONTEXT.md`, ADRs, or source contracts.
@@ -12,12 +12,12 @@
 This conclusion is based on directly reading the unpacked npm package sources
 for:
 
-- `@earendil-works/pi-agent-core@0.79.10`
-- `@earendil-works/pi-ai@0.79.10`
+- `@earendil-works/pi-agent-core@0.80.2`
+- `@earendil-works/pi-ai@0.80.2`
 
 Key source surfaces read:
 
-- `dist/base.js`: public base export set.
+- `dist/index.d.ts` and `dist/index.js`: root export set for low-level agent, loop, harness helpers, session, compaction, prompt-template, and skill helpers.
 - `dist/agent.js`: low-level stateful `Agent`.
 - `dist/agent-loop.js`: tool-call execution, hook, abort, and event loop.
 - `dist/types.d.ts`: `AgentTool`, `AgentToolResult`, `transformContext`,
@@ -43,11 +43,11 @@ harness. The full harness is shaped around an `ExecutionEnv` that combines
 filesystem and shell capabilities, owns a session layer, and runs as a separate
 stateful layer over `runAgentLoop`.
 
-MineMusic should instead use a **Pi-first, base-helper-first** approach:
+MineMusic should instead use a **Pi-first, root-export-helper-first** approach:
 
 - use low-level `Agent` as the embedded Main/Radio engine loop;
-- use public `./base` helper exports through Agent Runtime-owned facade/adaptor
-  ports where they fit;
+- use root-exported harness helpers from `@earendil-works/pi-agent-core`
+  through Agent Runtime-owned facade/adaptor ports where they fit;
 - read pi source while implementing wrapper logic;
 - avoid vendoring pi harness directories or maintaining a local fork;
 - keep raw pi imports confined to Agent Runtime engine/facade/adaptor modules
@@ -87,7 +87,8 @@ Phase A needs the smallest in-process Main Agent loop:
 - Session Context prompt assembly;
 - minimal transcript handling;
 - provider/model wiring;
-- source-level familiarity with pi base helpers, but no skill runtime.
+- source-level familiarity with pi root-exported harness helpers, but no skill
+  runtime.
 
 Phase A may wrap prompt-template/session/compaction helper surfaces only if the
 slice needs them. It must not add skill runtime code.
@@ -122,8 +123,8 @@ not Pi policy.
 
 - Do not import `AgentHarness` as MineMusic's runtime owner.
 - Do not create a broad `PiHarnessUtilityPort`.
-- Do not spread raw `@earendil-works/pi-agent-core/base` imports outside Agent
-  Runtime engine/facade/adaptor code and adapter-focused tests.
+- Do not spread raw `@earendil-works/pi-agent-core` harness-helper imports
+  outside Agent Runtime engine/facade/adaptor code and adapter-focused tests.
 - Do not vendor pi harness directories by default.
 - Do not build a clean-room equivalent when a public pi helper already fits
   behind a narrow MineMusic facade.

@@ -4,7 +4,7 @@ import type { InstrumentDescriptor, JsonSchema, StageToolContext, ToolCallInput,
 import { createStageToolContext, type StageToolContextFactory, } from "../../src/stage_interface/index.js";
 import { createMcpStdioTransport, type McpStdioTransportIo, type McpStdioTransportPorts, } from "../../src/server/transports/mcp_stdio_driver.js";
 import { errorResponse, parseJsonRpcLine, resultResponse, JSON_RPC_INVALID_PARAMS, JSON_RPC_INVALID_REQUEST, JSON_RPC_METHOD_NOT_FOUND, JSON_RPC_PARSE_ERROR, JSON_RPC_INTERNAL_ERROR, } from "../../src/server/transports/mcp_framing.js";
-import { deriveMcpAnnotations, renderMcpTool, stitchToolDescription, } from "../../src/server/transports/mcp_rendering.js";
+import { deriveMcpAnnotations, renderMcpTool, renderMcpToolList, stitchToolDescription, } from "../../src/server/transports/mcp_rendering.js";
 import { translateToolCall } from "../../src/server/transports/mcp_translation.js";
 const PROTOCOL_VERSION = "2025-11-25";
 const SERVER_INFO = { name: "minemusic", version: "0.0.0" };
@@ -118,6 +118,16 @@ assert.deepEqual(errorResponse(null, JSON_RPC_PARSE_ERROR, "Invalid JSON."), {
 }
 // A write tool with no destructive / open-world posture derives no annotations.
 assert.equal(deriveMcpAnnotations(writeTestDescriptor), undefined);
+assert.throws(
+    () => renderMcpToolList([
+        readOnlyTestDescriptor,
+        {
+            ...readOnlyTestDescriptor,
+            name: "stage.test_ping",
+        },
+    ]),
+    /Stage tool names 'stage\.test\.ping' and 'stage\.test_ping' both map to provider-safe tool name 'stage_test_ping'\./u,
+);
 // ---------------------------------------------------------------------------
 // translation
 // ---------------------------------------------------------------------------
@@ -151,7 +161,8 @@ function errorResult(error: StageError): Result<ToolCallOutput> {
         assert.equal(outcome.result.content[0]?.text, "Tool 'unknown' returned a result.");
     }
 }
-// a resultSummary that leaks an internal anchor is scrubbed to the fallback
+// MCP translation does not launder or pass through a leaky resultSummary.
+// Public-safe summaries are guaranteed upstream by tool descriptors/dispatch.
 {
     const leakyDescriptor: ToolDeclaration = {
         ...readOnlyTestDescriptor,
@@ -161,9 +172,44 @@ function errorResult(error: StageError): Result<ToolCallOutput> {
         descriptor: leakyDescriptor,
         dispatchResult: okResult({ ok: true }),
     });
-    assert.equal(outcome.kind, "toolResult");
-    if (outcome.kind === "toolResult") {
-        assert.equal(outcome.result.content[0]?.text, "Tool 'stage.test.ping' returned a result.");
+    assert.equal(outcome.kind, "jsonRpcError");
+    if (outcome.kind === "jsonRpcError") {
+        assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
+        assert.equal(outcome.message, "Tool 'stage.test.ping' public text invariant failed: resultSummary exposes internal anchors.");
+    }
+}
+// MCP translation also fails loudly when resultSummary itself throws.
+{
+    const throwingDescriptor: ToolDeclaration = {
+        ...readOnlyTestDescriptor,
+        resultSummary: () => {
+            throw new Error("broken resultSummary");
+        },
+    };
+    const outcome = translateToolCall({
+        descriptor: throwingDescriptor,
+        dispatchResult: okResult({ ok: true }),
+    });
+    assert.equal(outcome.kind, "jsonRpcError");
+    if (outcome.kind === "jsonRpcError") {
+        assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
+        assert.equal(outcome.message, "Tool 'stage.test.ping' public text invariant failed: resultSummary failed.");
+    }
+}
+// MCP translation also fails loudly when a descriptor returns no public summary.
+{
+    const emptySummaryDescriptor: ToolDeclaration = {
+        ...readOnlyTestDescriptor,
+        resultSummary: () => "   ",
+    };
+    const outcome = translateToolCall({
+        descriptor: emptySummaryDescriptor,
+        dispatchResult: okResult({ ok: true }),
+    });
+    assert.equal(outcome.kind, "jsonRpcError");
+    if (outcome.kind === "jsonRpcError") {
+        assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
+        assert.equal(outcome.message, "Tool 'stage.test.ping' public text invariant failed: resultSummary returned empty text.");
     }
 }
 // declared tool error (owning area) -> isError tool result
@@ -242,7 +288,8 @@ for (const code of [
         assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
     }
 }
-// an error message that leaks an anchor is scrubbed to the code-only line.
+// MCP translation does not launder or pass through leaky public error text.
+// Public-safe declared errors are guaranteed upstream by the Tool Call Router.
 {
     const outcome = translateToolCall({
         descriptor: readOnlyTestDescriptor,
@@ -253,9 +300,29 @@ for (const code of [
             retryable: false,
         }),
     });
-    assert.equal(outcome.kind, "toolResult");
-    if (outcome.kind === "toolResult") {
-        assert.equal(outcome.result.content[0]?.text, "Tool 'stage.test.ping' reported error 'invalid_input'.");
+    assert.equal(outcome.kind, "jsonRpcError");
+    if (outcome.kind === "jsonRpcError") {
+        assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
+        assert.equal(outcome.message, "Tool 'stage.test.ping' public text invariant failed: error message exposes internal anchors.");
+    }
+}
+// MCP translation likewise fails loudly for a leaky suggestedFix; upstream must
+// never hand it one.
+{
+    const outcome = translateToolCall({
+        descriptor: readOnlyTestDescriptor,
+        dispatchResult: errorResult({
+            code: "invalid_input",
+            message: "Bad input.",
+            area: "stage_core",
+            retryable: false,
+            suggestedFix: "retry without sourceRef source_netease:track:1901371647",
+        }),
+    });
+    assert.equal(outcome.kind, "jsonRpcError");
+    if (outcome.kind === "jsonRpcError") {
+        assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
+        assert.equal(outcome.message, "Tool 'stage.test.ping' public text invariant failed: suggestedFix exposes internal anchors.");
     }
 }
 // ---------------------------------------------------------------------------
@@ -338,6 +405,19 @@ function portsFor(tools: readonly ToolDeclaration[], dispatch: CapturedDispatch)
         protocolVersion: PROTOCOL_VERSION,
     };
 }
+assert.throws(
+    () => createMcpStdioTransport({
+        ports: portsFor([
+            readOnlyTestDescriptor,
+            {
+                ...readOnlyTestDescriptor,
+                name: "stage.test_ping",
+            },
+        ], async () => okResult({ ok: true })),
+        io: fakeIo([]).io,
+    }),
+    /Stage tool names 'stage\.test\.ping' and 'stage\.test_ping' both map to provider-safe tool name 'stage_test_ping'\./u,
+);
 async function flushMicrotasks(rounds = 32): Promise<void> {
     for (let i = 0; i < rounds; i += 1) {
         await Promise.resolve();
@@ -487,6 +567,50 @@ function line(obj: unknown): string {
     const response = JSON.parse(harness.written[0] ?? "{}");
     assert.equal(response.id, 7);
     assert.equal(response.error.code, JSON_RPC_INVALID_PARAMS);
+    harness.closeEof();
+    await runPromise;
+}
+// Malformed tools/call params are rejected at the MCP transport boundary before
+// creating a Stage context or entering dispatch.
+for (const [params, expectedMessage] of [
+    [undefined, "tools/call params must be an object."],
+    [null, "tools/call params must be an object."],
+    [{ arguments: {} }, "tools/call params.name must be a non-empty string."],
+    [{ name: "", arguments: {} }, "tools/call params.name must be a non-empty string."],
+    [{ name: 123, arguments: {} }, "tools/call params.name must be a non-empty string."],
+] as const) {
+    let dispatchCalled = false;
+    let contextCreated = false;
+    const harness = fakeIo([
+        line({
+            jsonrpc: "2.0",
+            id: 14,
+            method: "tools/call",
+            params,
+        }),
+    ], { holdOpen: true });
+    const runPromise = createMcpStdioTransport({
+        ports: {
+            ...portsFor([readOnlyTestDescriptor], async () => {
+                dispatchCalled = true;
+                return okResult({ ok: true });
+            }),
+            contextFactory: {
+                createToolContext(perCall) {
+                    contextCreated = true;
+                    return fakeFactory().createToolContext(perCall);
+                },
+            },
+        },
+        io: harness.io,
+    }).serve();
+    await flushMicrotasks();
+    const response = JSON.parse(harness.written[0] ?? "{}");
+    assert.equal(response.id, 14);
+    assert.equal(response.error.code, JSON_RPC_INVALID_PARAMS);
+    assert.equal(response.error.message, expectedMessage);
+    assert.equal(contextCreated, false);
+    assert.equal(dispatchCalled, false);
     harness.closeEof();
     await runPromise;
 }

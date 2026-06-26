@@ -167,7 +167,7 @@ MineMusic 的目标不是把一个外部 agent 接到音乐应用上，而是把
 ## Top 5 必须现在纠正的风险
 
 1. **修正 Candidate Commit / Present 的语义冲突。** `ARCHITECTURE.md` 说 `present` 会把 candidate “admit to library before presentation”，但 Phase B PB4/PB6 明确 candidate commit 只创建 durable material，不污染 library/catalog。必须统一成“commit to material identity”，library admission 只能由 explicit save/import/relation/collection command 完成。
-2. **Agent Runtime 接 Pi 前必须有 pin + re-audit + conformance tests。** Pi 0.79.10 高 churn、低层 Agent 无 persistence/compaction/subagent；必须锁版本、限制 raw imports、测试 abort/signal/hook/tool-error behavior。
+2. **Agent Runtime 接 Pi 前必须有 pin + re-audit + conformance tests。** Pi 0.80.2 高 churn、低层 Agent 无 persistence/compaction/subagent；必须锁版本、限制 raw imports、测试 abort/signal/hook/tool-error behavior。
 3. **Phase C 前必须实现 PublicObjectRef lifecycle/authorization guard。** Handle 不是 bearer capability；Web/A2UI action 必须重新验证 ownerScope、workspace、principal、kind、lifecycle、allowed action。
 4. **Phase B 前必须先落 command-layer CAS tests。** OCC correctness 不能靠两个 LLM 真并发；必须测试 `CommandPreconditionSet` 的 zero-row `voided_stale` 和 abort-signal plumbing。
 5. **不要等到 C 才做产品命题验证。** 并行 C0 read-only/Wizard-of-Oz prototype 验证用户是否接受 Radio/cards/work visibility；否则可能把最难的架构做完后才发现 chat/workbench 形态过重。

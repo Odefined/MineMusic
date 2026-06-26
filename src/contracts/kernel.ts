@@ -26,6 +26,7 @@ export type FormalArea =
   | "server_host"
   | "stage_interface"
   | "stage_core"
+  | "agent_runtime"
   | "extension"
   | "music_data_platform"
   | "music_intelligence"
