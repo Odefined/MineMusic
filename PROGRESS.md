@@ -1474,7 +1474,7 @@ catalog integration. Design authority:
   to a single Web-stream tee'd read (D28) so the content hash and music-metadata
   share one file open instead of violating the single-read contract.
 
-## Phase A1a: Agent Runtime Pi Spine
+## Phase A1a/A1b: Agent Runtime Pi Spine And Guards
 
 - `@earendil-works/pi-agent-core` is pinned at `0.80.2`; the package audit and
   ADR/spec references have been refreshed against the current root-exported pi
@@ -1491,11 +1491,17 @@ catalog integration. Design authority:
   `@earendil-works/pi-agent-core` imports outside `src/agent_runtime`, and
   forbids Agent Runtime imports of Server Host, Stage Core, domain, storage,
   background work, and Effect Boundary internals.
+- The A1b guard slice rejects pi `beforeToolCall` / `afterToolCall` hooks at
+  the MineMusic adapter facade. Stage `executionGate` remains the single
+  domain-admission path, and pi cannot post-process a Stage tool result around
+  the public-result veil.
 - The deterministic A1a harness verifies direct bridge dispatch, provider-safe
   tool-name mapping, provider/Stage session separation, signal forwarding into
   `StageToolContext.abortSignal`, `Result.err` translation into a pi
-  `isError: true` tool result, and fake pi loop success/error round trips
-  through the bridge. No host entrypoint, Session Context read model,
+  `isError: true` tool result, fake pi loop success/error round trips through
+  the bridge, Stage `ask` decisions flowing from dispatch without invoking the
+  handler, and synthetic Stage-tool session ids staying separate from pi
+  provider-session ids. No host entrypoint, Session Context read model,
   queue/playback command, Radio, Memory, skill runtime, or Web behavior is
   implemented yet.
 

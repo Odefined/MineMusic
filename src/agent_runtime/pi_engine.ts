@@ -11,7 +11,10 @@ import {
   type StageToolDispatchPort,
 } from "./stage_tool_bridge.js";
 
-export type MineMusicPiAgentAdapterOptions = Omit<AgentOptions, "initialState" | "sessionId" | "streamFn"> & {
+export type MineMusicPiAgentAdapterOptions = Omit<
+  AgentOptions,
+  "initialState" | "sessionId" | "streamFn" | "beforeToolCall" | "afterToolCall"
+> & {
   streamFn: StreamFn;
 };
 
@@ -26,6 +29,8 @@ export type CreateMineMusicPiAgentAdapterInput = {
 };
 
 export function createMineMusicPiAgentAdapter(input: CreateMineMusicPiAgentAdapterInput): Agent {
+  assertNoPiToolHooks(input.agentOptions);
+
   return new Agent({
     ...input.agentOptions,
     ...(input.llmProviderSessionId === undefined ? {} : { sessionId: input.llmProviderSessionId }),
@@ -39,4 +44,14 @@ export function createMineMusicPiAgentAdapter(input: CreateMineMusicPiAgentAdapt
       }),
     },
   });
+}
+
+function assertNoPiToolHooks(options: MineMusicPiAgentAdapterOptions): void {
+  const candidate = options as Record<string, unknown>;
+
+  if (candidate.beforeToolCall !== undefined || candidate.afterToolCall !== undefined) {
+    throw new Error(
+      "Agent Runtime does not accept pi tool-call hooks; StageInterface.dispatch and its executionGate are the single tool admission and result-veil boundary.",
+    );
+  }
 }
