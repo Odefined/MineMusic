@@ -157,9 +157,22 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/workbench_int
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_experience")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
+    "src/music_experience/commands.ts",
+    "src/music_experience/index.ts",
+    "src/music_experience/read_model.ts",
+    "src/music_experience/records.ts",
+    "src/music_experience/schema.ts",
+    "src/music_experience/stage_adapter/durable_item_resolution.ts",
     "src/music_experience/stage_adapter/index.ts",
     "src/music_experience/stage_adapter/present.ts",
-], "formal Music Experience root must stay inside the Phase 17C presentation adapter boundary");
+    "src/music_experience/stage_adapter/queue_playback.ts",
+], "formal Music Experience root must stay inside the Phase A3 queue/playback truth, command, read projection, and Stage adapter boundary");
+assert.deepEqual(await sourceFilesContaining(
+    await sourceFilesUnder(join(repositoryRoot, "src")),
+    /\b(?:INSERT INTO|UPDATE|DELETE FROM)\s+music_experience_/u,
+), [
+    "src/music_experience/records.ts",
+], "Music Experience queue/playback table writes must stay behind the records repository called by the owning command");
 const architectureGraph = await buildArchitectureImportGraph(repositoryRoot, await sourceFilesUnder(join(repositoryRoot, "src")));
 assert.deepEqual(architectureGraph.unresolvedRelativeSpecifiers.map(formatEdge).sort(), [], "source-relative imports must resolve to active source files");
 // ADR-0013: contracts DAG guard (Phase 2).
@@ -169,12 +182,13 @@ assert.deepEqual(architectureGraph.unresolvedRelativeSpecifiers.map(formatEdge).
 const contractsDagAllowlist: Readonly<Record<string, readonly string[]>> = {
     "src/contracts/kernel.ts": [],
     "src/contracts/agent_runtime.ts": ["./workbench_interface.js"],
+    "src/contracts/music_experience.ts": ["./kernel.js"],
     "src/contracts/music_data_platform.ts": ["./kernel.js"],
     "src/contracts/storage.ts": ["./kernel.js", "./music_data_platform.js"],
     "src/contracts/public_music_description.ts": ["./music_data_platform.js", "./stage_interface.js"],
     "src/contracts/stage_interface.ts": ["./kernel.js"],
     "src/contracts/stage_core.ts": ["./kernel.js", "./stage_interface.js"],
-    "src/contracts/workbench_interface.ts": [],
+    "src/contracts/workbench_interface.ts": ["./kernel.js"],
     "src/contracts/generated/stage_interface_schemas.ts": ["../stage_interface.js"],
 };
 const musicIntelligenceAllowedMusicDataPlatformBarrelImports = new Set([
@@ -241,6 +255,16 @@ async function sourceFilesUnder(root: string): Promise<string[]> {
         }
     }
     return files;
+}
+async function sourceFilesContaining(files: readonly string[], pattern: RegExp): Promise<string[]> {
+    const matches: string[] = [];
+    for (const file of files) {
+        const text = await readFile(file, "utf8");
+        if (pattern.test(text)) {
+            matches.push(relative(repositoryRoot, file));
+        }
+    }
+    return matches.sort();
 }
 function gitTrackedFiles(): string[] {
     return execFileSync("git", ["ls-files"], {

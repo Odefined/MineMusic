@@ -764,6 +764,11 @@ restored as compatibility layers.
 - `docs/adr/0030-agent-runtime-and-workbench-interface-are-top-level-areas.md`
   records Agent Runtime and Workbench Interface as formal top-level areas, with
   Session Context as an Agent Runtime-owned context view.
+- Phase A3 queue/playback truth has landed in Music Experience:
+  `music_experience_state` and `music_experience_queue_items` persist logical
+  queue/now-playing runtime state, with `music.experience.queue.append` and
+  `music.experience.playback.play` exposed as Stage tools through the existing
+  execution gate. A4 end-to-end agent turn wiring is still pending.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection

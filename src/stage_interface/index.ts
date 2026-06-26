@@ -331,7 +331,7 @@ function assertToolDeclarations(tools: readonly ToolDeclaration[]): void {
 
     const action = tool.name.slice(tool.instrumentId.length + 1);
 
-    if (!/^[a-z][a-z0-9_]*$/u.test(action)) {
+    if (!/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/u.test(action)) {
       throw new Error(`Tool '${tool.name}' uses invalid action '${action}'.`);
     }
 

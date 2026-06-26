@@ -47,6 +47,26 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
+    exportName: "musicExperienceQueueAppendInputSchema",
+    typeName: "MusicExperienceQueueAppendInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "musicExperienceQueueAppendOutputSchema",
+    typeName: "MusicExperienceQueueAppendOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "musicExperiencePlaybackPlayInputSchema",
+    typeName: "MusicExperiencePlaybackPlayInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "musicExperiencePlaybackPlayOutputSchema",
+    typeName: "MusicExperiencePlaybackPlayOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
     exportName: "musicDiscoveryLookupInputSchema",
     typeName: "MusicDiscoveryLookupInput",
     sourcePath: "src/contracts/stage_interface.ts",

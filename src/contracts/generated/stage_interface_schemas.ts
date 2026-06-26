@@ -579,6 +579,233 @@ export const musicExperiencePresentOutputSchema = {
   }
 } as const satisfies JsonSchema;
 
+export const musicExperienceQueueAppendInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/MusicItemHandle"
+      },
+      "description": "Candidate or durable material items to append to the logical MineMusic queue."
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "MusicItemHandle": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "material",
+              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "candidate",
+              "description": "\"candidate\": an unconfirmed provider item not yet committed to a durable material."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const musicExperienceQueueAppendOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/MusicExperienceQueueAppendOutputItem"
+      }
+    },
+    "queueLength": {
+      "type": "number"
+    },
+    "queueRevision": {
+      "$ref": "#/definitions/ConcernRevision"
+    }
+  },
+  "required": [
+    "items",
+    "queueLength",
+    "queueRevision"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "MusicExperienceQueueAppendOutputItem": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "material",
+              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
+            },
+            "id": {
+              "type": "string",
+              "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "position": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "item",
+        "position"
+      ],
+      "additionalProperties": false
+    },
+    "ConcernRevision": {
+      "type": "number"
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const musicExperiencePlaybackPlayInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "item": {
+      "$ref": "#/definitions/MusicItemHandle",
+      "description": "Candidate or durable material item to make the current logical now-playing selection."
+    }
+  },
+  "required": [
+    "item"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "MusicItemHandle": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "material",
+              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "candidate",
+              "description": "\"candidate\": an unconfirmed provider item not yet committed to a durable material."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const musicExperiencePlaybackPlayOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "item": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "material",
+          "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
+        },
+        "id": {
+          "type": "string",
+          "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "string",
+      "const": "playing"
+    },
+    "playbackRevision": {
+      "$ref": "#/definitions/ConcernRevision"
+    }
+  },
+  "required": [
+    "item",
+    "status",
+    "playbackRevision"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "ConcernRevision": {
+      "type": "number"
+    }
+  }
+} as const satisfies JsonSchema;
+
 export const musicDiscoveryLookupInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",

@@ -133,8 +133,8 @@ satisfying the write-boundary hard rule (no direct writes outside the command).
 
 - Owner: Music Experience (extends the existing `music_experience` area /
   RuntimeModule).
-- New code _(proposed names)_: queue/playback truth store (in-memory or minimal
-  SQLite); owning commands for the two slice-1 concerns — queue mutation and
+- New code _(landed in A3)_: Postgres-backed queue/playback truth store; owning
+  commands for the two slice-1 concerns — queue mutation and
   logical playback selection (e.g. `append` / `playNow`) — that own the write
   boundary without collapsing the concerns into one mixed command
   (commit-time CAS serialization is Phase B — see A3 deep dive);
@@ -145,11 +145,10 @@ satisfying the write-boundary hard rule (no direct writes outside the command).
 - Write boundary: all mutation goes through the owning command. Orchestration,
   Stage handlers, and the agent must not construct the repository or call write
   methods directly.
-- Effect Boundary: the new write tools pass through the execution gate. A1's
-  read-only allowance widens here to a slice-1 write posture (auto-pass for the
-  in-process single-writer slice, consistent with the existing auto-pass
-  widenings; revisited under Effect proposals in C). _Open: confirm gate
-  decision for these tools._
+- Effect Boundary: the new write tools pass through the execution gate as
+  runtime-state writes with `defaultDecision: "auto"` for the in-process
+  single-writer slice, consistent with the A3 deep-dive decision. Revisited
+  under Effect proposals in C.
 - Guards: writer-capability guard (only the command writes queue/playback);
   exact-port assertion for the projection; output-leak test on the agent-facing
   tools (compact, no raw storage shape).

@@ -1508,8 +1508,16 @@ catalog integration. Design authority:
   port; Agent Runtime captures an immutable `AgentSessionContext` from that
   seam and renders it into the pi system prompt. Guards now prove the seam does
   not import AG-UI/web/transport or area internals, and exact port/key-set tests
-  pin the slice-1 read shape. No host entrypoint, real queue/playback command,
-  Radio, Memory, skill runtime, or Web behavior is implemented yet.
+  pin the slice-1 read shape.
+- A3 adds Music Experience queue/playback truth behind `music_experience_state`
+  and `music_experience_queue_items`, with `MusicExperienceQueuePlaybackCommand`
+  owning `append` and `playNow` writes through `database.transaction(...)`.
+  The Stage tools `music.experience.queue.append` and
+  `music.experience.playback.play` auto-pass as runtime-state writes and return
+  compact public handles/positions/revisions. The Workbench read-model seam can
+  now read the Music Experience projection from real queue/playback state. A4
+  end-to-end agent turn wiring, Radio, Memory, skill runtime, and Web behavior
+  are still unimplemented.
 
 ## Next Formal Milestones
 

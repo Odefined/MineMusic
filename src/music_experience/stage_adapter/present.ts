@@ -1,5 +1,4 @@
-import type { Ref, Result, StageError } from "../../contracts/kernel.js";
-import { isRefComponentSafe, parseRefKey, refKey } from "../../contracts/kernel.js";
+import type { Ref, Result } from "../../contracts/kernel.js";
 import {
   musicExperiencePresentInputSchema,
   musicExperiencePresentOutputSchema,
@@ -19,6 +18,11 @@ import type {
   CandidateCommitCommand,
   MaterialProjection,
 } from "../../music_data_platform/index.js";
+import {
+  mintMaterialItemHandle,
+  musicExperienceFail,
+  resolveDurableMusicItem,
+} from "./durable_item_resolution.js";
 
 export type CreateMusicExperiencePresentRegistrationInput = {
   candidateCommit: CandidateCommitCommand;
@@ -119,63 +123,10 @@ async function handleMusicExperiencePresent(
   ports: CreateMusicExperiencePresentRegistrationInput,
 ): Promise<Result<MusicExperiencePresentOutput>> {
   const input = payload as MusicExperiencePresentInput;
-
-  switch (input.item.kind) {
-    case "candidate":
-      return presentCandidate(ctx, input.item.id, ports);
-    case "material":
-      return presentMaterialHandle(ctx, input.item.id, ports);
-  }
-}
-
-async function presentCandidate(
-  ctx: StageToolContext,
-  publicId: string,
-  ports: CreateMusicExperiencePresentRegistrationInput,
-): Promise<Result<MusicExperiencePresentOutput>> {
-  const resolved = await ctx.handleMinting.resolve({
-    ownerScope: ctx.ownerScope,
-    handleKind: "candidate",
-    publicId,
+  const materialRef = await resolveDurableMusicItem(ctx, input.item, {
+    candidateCommit: ports.candidateCommit,
+    materialProjection: ports.materialProjection,
   });
-
-  if (resolved === undefined) {
-    return candidateNotFound("Candidate handle is unknown or no longer available.");
-  }
-
-  const materialCandidateRef = materialCandidateRefFromResolvedAnchor(resolved);
-
-  if (!materialCandidateRef.ok) {
-    return materialCandidateRef;
-  }
-
-  const committed = await ports.candidateCommit.commitCandidate({
-    materialCandidateRef: materialCandidateRef.value,
-  });
-
-  if (!committed.ok) {
-    return translateCandidateCommitFailure(committed.error);
-  }
-
-  return presentMaterial(ctx, committed.value.materialRef, ports);
-}
-
-async function presentMaterialHandle(
-  ctx: StageToolContext,
-  publicId: string,
-  ports: CreateMusicExperiencePresentRegistrationInput,
-): Promise<Result<MusicExperiencePresentOutput>> {
-  const resolved = await ctx.handleMinting.resolve({
-    ownerScope: ctx.ownerScope,
-    handleKind: "material",
-    publicId,
-  });
-
-  if (resolved === undefined) {
-    return materialNotFound("Material item handle is unknown or no longer available.");
-  }
-
-  const materialRef = materialRefFromResolvedAnchor(resolved);
 
   if (!materialRef.ok) {
     return materialRef;
@@ -200,169 +151,22 @@ async function presentMaterial(
   // mergedIntoMaterialRef and returned the surviving MusicMaterial. Minting the
   // input ref would anchor the public handle on the loser and leak a stale
   // anchor to later play/favorite/save tools.
-  const publicId = await ctx.handleMinting.mint({
-    ownerScope: ctx.ownerScope,
-    handleKind: "material",
-    internalAnchor: {
-      materialRef: refKey(material.materialRef),
-    },
-  });
+  const publicHandle = await mintMaterialItemHandle(ctx, material.materialRef);
 
   return {
     ok: true,
     value: {
-      item: {
-        kind: "material",
-        id: publicId,
-      },
+      item: publicHandle,
       card: musicCardFromMusicMaterial(material),
     },
   };
 }
 
-function materialCandidateRefFromResolvedAnchor(anchor: unknown): Result<Ref> {
-  const materialCandidateRef = refFromResolvedAnchor(anchor, "materialCandidateRef");
-
-  if (materialCandidateRef === undefined) {
-    return invalidInput("Candidate handle did not resolve to a material candidate.");
-  }
-
-  if (!isProviderMaterialCandidateRef(materialCandidateRef)) {
-    return invalidInput("Candidate handle did not resolve to a valid material candidate.");
-  }
-
-  return {
-    ok: true,
-    value: materialCandidateRef,
-  };
-}
-
-function materialRefFromResolvedAnchor(anchor: unknown): Result<Ref> {
-  const materialRef = refFromResolvedAnchor(anchor, "materialRef");
-
-  if (materialRef === undefined) {
-    return invalidInput("Material item handle did not resolve to material.");
-  }
-
-  if (!isMaterialRef(materialRef)) {
-    return invalidInput("Material item handle did not resolve to valid material.");
-  }
-
-  return {
-    ok: true,
-    value: materialRef,
-  };
-}
-
-function refFromResolvedAnchor(
-  anchor: unknown,
-  fieldName: "materialCandidateRef" | "materialRef",
-): Ref | undefined {
-  if (!isRecord(anchor)) {
-    return undefined;
-  }
-
-  const value = anchor[fieldName];
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  return parseRefKey(value);
-}
-
-function translateCandidateCommitFailure(error: StageError): Result<never> {
-  switch (error.code) {
-    case "music_data.material_candidate_expired":
-      return candidateExpired("Candidate handle has expired.");
-    case "music_data.material_candidate_not_found":
-      return candidateNotFound("Candidate handle is unknown or no longer available.");
-    default:
-      throw new Error(`music.experience.present received unsupported Candidate Commit error code: ${error.code}`);
-  }
-}
-
-function candidateExpired(message: string): Result<never> {
-  return fail({
-    code: "candidate_expired",
-    message,
-    retryable: true,
-    suggestedFix: "Start a fresh music.discovery.lookup call and present a current candidate handle.",
-  });
-}
-
-function candidateNotFound(message: string): Result<never> {
-  return fail({
-    code: "candidate_not_found",
-    message,
-    retryable: true,
-    suggestedFix: "Start a fresh music.discovery.lookup call and present one of the returned candidate handles.",
-  });
-}
-
 function materialNotFound(message: string): Result<never> {
-  return fail({
+  return musicExperienceFail({
     code: "material_not_found",
     message,
     retryable: true,
     suggestedFix: "Retry with a current material handle or look up the item again.",
   });
-}
-
-function invalidInput(message: string): Result<never> {
-  return fail({
-    code: "invalid_input",
-    message,
-    retryable: false,
-    suggestedFix: "Call music.experience.present with item as a material or candidate MusicItemHandle.",
-  });
-}
-
-function fail(input: {
-  code: string;
-  message: string;
-  retryable: boolean;
-  suggestedFix: string;
-}): Result<never> {
-  return {
-    ok: false,
-    error: {
-      code: input.code,
-      message: input.message,
-      area: "music_experience",
-      retryable: input.retryable,
-      suggestedFix: input.suggestedFix,
-    },
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isMaterialRef(ref: Ref): boolean {
-  // Phase 17 Material Projection only resolves recording/album/artist. The
-  // work/release variants are deferred to the canonical layer; a material handle
-  // anchored on them cannot be projected today, so reject it up front as
-  // invalid_input rather than letting it surface as a misleading
-  // material_not_found after projection returns undefined.
-  return isRefShape(ref) &&
-    ref.namespace === "material" &&
-    (
-      ref.kind === "recording" ||
-      ref.kind === "album" ||
-      ref.kind === "artist"
-    );
-}
-
-function isProviderMaterialCandidateRef(ref: Ref): boolean {
-  return isRefShape(ref) &&
-    ref.namespace === "material_candidate" &&
-    ref.kind === "provider_candidate" &&
-    ref.id.startsWith("mc_");
-}
-
-function isRefShape(ref: Ref): boolean {
-  return isRefComponentSafe(ref.namespace) &&
-    isRefComponentSafe(ref.kind) &&
-    isRefComponentSafe(ref.id);
 }

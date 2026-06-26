@@ -104,6 +104,7 @@ import {
   type MusicDatabaseContext,
   PostgresMusicDatabase,
 } from "../storage/index.js";
+import { musicExperienceQueuePlaybackSchema } from "../music_experience/index.js";
 import type { RuntimeModule } from "../stage_core/index.js";
 import type { MineMusicRuntimeConfig } from "./config.js";
 import {
@@ -170,6 +171,7 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   localSourceScan(): LocalSourceScanService | undefined;
   localSourceScanStart(): LocalSourceScanStartCommand | undefined;
   localizeProviderSource(): LocalizeProviderSourceCommand | undefined;
+  database(): MusicDatabase | undefined;
 };
 
 export type CreateMusicDataPlatformRuntimeModuleInput = {
@@ -233,6 +235,7 @@ export function createMusicDataPlatformRuntimeModule(
             musicDataPlatformRetrievalResultSetSchema,
             musicDataPlatformSearchResultSetSchema,
             musicDataPlatformDownloadSchema,
+            musicExperienceQueuePlaybackSchema,
             stageInterfaceHandleRegistrySchema,
             stageInterfaceLookupCursorRegistrySchema,
           ],
@@ -485,6 +488,7 @@ export function createMusicDataPlatformRuntimeModule(
         localSourceScanStartCommand = undefined;
         localizeProviderSourceCommand = undefined;
         await closeOwnedDatabase();
+        database = undefined;
         return {
           ok: false,
           error: {
@@ -518,6 +522,7 @@ export function createMusicDataPlatformRuntimeModule(
         localSourceScanService = undefined;
         localSourceScanStartCommand = undefined;
         localizeProviderSourceCommand = undefined;
+        database = undefined;
 
         return {
           ok: true,
@@ -586,6 +591,9 @@ export function createMusicDataPlatformRuntimeModule(
     },
     localizeProviderSource() {
       return localizeProviderSourceCommand;
+    },
+    database() {
+      return database;
     },
   };
 
