@@ -8,6 +8,7 @@ import type {
   JsonSchema,
   MusicDiscoveryLookupOutput,
   StageToolContext,
+  StageToolRegistration,
   ToolCallOutput,
   ToolDeclaration,
 } from "../../src/contracts/stage_interface.js";
@@ -21,6 +22,7 @@ import {
   createMineMusicPiAgentAdapter,
   createStageToolBridge,
   toPiToolName,
+  type MineMusicPiAgentAdapterOptions,
   type StageToolDispatchPort,
 } from "../../src/agent_runtime/index.js";
 import {
@@ -33,6 +35,14 @@ import {
   createStageInterface,
   renderModelVisibleToolDescription,
 } from "../../src/stage_interface/index.js";
+
+type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2 ? true : false;
+type Expect<Check extends true> = Check;
+type ForbiddenKeys<T, Keys extends PropertyKey> = Extract<keyof T, Keys>;
+
+export type _mineMusicPiAgentAdapterOptionsRejectsPiToolHooks = Expect<
+  Equal<ForbiddenKeys<MineMusicPiAgentAdapterOptions, "beforeToolCall" | "afterToolCall">, never>
+>;
 
 const testInstrument: InstrumentDescriptor = {
   id: "agent.test",
@@ -92,6 +102,33 @@ const descriptor: ToolDeclaration = {
   resultSummary(result) {
     return `answer=${(result as { answer?: string }).answer ?? "unknown"}`;
   },
+};
+
+const stageA1bInstrument: InstrumentDescriptor = {
+  id: "stage.a1b",
+  label: "Stage A1b",
+  ownerArea: "stage_interface",
+};
+
+const stageA1bDescriptor: ToolDeclaration = {
+  ...descriptor,
+  name: "stage.a1b.lookup",
+  instrumentId: stageA1bInstrument.id,
+  label: "Stage A1b Lookup",
+  ownerArea: "stage_interface",
+  description: "Lookup through Stage dispatch for A1b gate tests.",
+  usage: {
+    useWhen: "Use in A1b dispatch gate tests.",
+    doNotUseWhen: "Do not use outside A1b dispatch gate tests.",
+    outputSemantics: "Returns a compact answer.",
+  },
+  errors: [
+    {
+      code: "stage.a1b.bad_query",
+      retryable: false,
+      suggestedFixTemplate: "Use a non-empty query.",
+    },
+  ],
 };
 
 const piToolName = toPiToolName(descriptor.name);
@@ -464,6 +501,178 @@ assert.throws(
     toolName: descriptor.name,
     result: { answer: "from-pi" },
   });
+  assert.equal(agent.beforeToolCall, undefined);
+  assert.equal(agent.afterToolCall, undefined);
+}
+
+assert.throws(
+  () => createMineMusicPiAgentAdapter({
+    systemPrompt: "You are a MineMusic test agent.",
+    tools: [descriptor],
+    dispatch: {
+      async dispatch(input) {
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: { answer: "from-pi" },
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
+      },
+    },
+    stageSessionId: "stage-session",
+    agentOptions: {
+      streamFn() {
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "stop",
+          message: assistantTextMessage("done"),
+        });
+      },
+      async beforeToolCall() {
+        return { block: true, reason: "blocked outside Stage gate" };
+      },
+    } as unknown as MineMusicPiAgentAdapterOptions,
+  }),
+  /Agent Runtime does not accept pi tool-call hooks; StageInterface\.dispatch and its executionGate are the single tool admission and result-veil boundary\./u,
+);
+
+assert.throws(
+  () => createMineMusicPiAgentAdapter({
+    systemPrompt: "You are a MineMusic test agent.",
+    tools: [descriptor],
+    dispatch: {
+      async dispatch(input) {
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: { answer: "from-pi" },
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
+      },
+    },
+    stageSessionId: "stage-session",
+    agentOptions: {
+      streamFn() {
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "stop",
+          message: assistantTextMessage("done"),
+        });
+      },
+      async afterToolCall() {
+        return {
+          content: [{ type: "text", text: "overridden outside Stage veil" }],
+        };
+      },
+    } as unknown as MineMusicPiAgentAdapterOptions,
+  }),
+  /Agent Runtime does not accept pi tool-call hooks; StageInterface\.dispatch and its executionGate are the single tool admission and result-veil boundary\./u,
+);
+{
+  let handlerCallCount = 0;
+  const gateInputs: unknown[] = [];
+  const stageRegistration: StageToolRegistration = {
+    descriptor: stageA1bDescriptor,
+    handler() {
+      handlerCallCount += 1;
+      return {
+        ok: true,
+        value: { answer: "should-not-run" },
+      };
+    },
+  };
+  const stageInterface = createStageInterface({
+    instruments: [stageA1bInstrument],
+    registrations: [stageRegistration],
+  });
+  let streamCallCount = 0;
+  const agent = createMineMusicPiAgentAdapter({
+    systemPrompt: "You are a MineMusic test agent.",
+    tools: [stageA1bDescriptor],
+    dispatch: {
+      dispatch(input) {
+        return stageInterface.dispatch(input.ctx, {
+          toolName: input.toolName,
+          payload: input.payload,
+        });
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return {
+          ...createMinimalContext(input.sessionId, input.requestId, input.abortSignal),
+          executionGate: {
+            async preflight(gateInput) {
+              gateInputs.push(gateInput);
+              return {
+                decision: "ask",
+                auditLevel: "metadata",
+                publicReason: "Needs approval before running this tool.",
+              };
+            },
+          },
+        };
+      },
+    },
+    stageSessionId: "stage-session",
+    llmProviderSessionId: "provider-session",
+    agentOptions: {
+      streamFn() {
+        streamCallCount += 1;
+        const message = streamCallCount === 1
+          ? assistantMessageWithToolCall("tool-call-stage-gate", toPiToolName(stageA1bDescriptor.name), { query: "x" })
+          : assistantTextMessage("done");
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: streamCallCount === 1 ? "toolUse" : "stop",
+          message,
+        });
+      },
+    },
+  });
+
+  await agent.prompt("lookup x");
+
+  assert.equal(streamCallCount, 2);
+  assert.equal(handlerCallCount, 0);
+  assert.equal(gateInputs.length, 1);
+  assert.deepEqual(gateInputs[0], {
+    descriptor: stageA1bDescriptor,
+    ownerScope: "local",
+    sessionId: "stage-session",
+    requestId: "tool-call-stage-gate",
+    arguments: { query: "x" },
+  });
+  assert.equal(agent.sessionId, "provider-session");
+  const toolResult = agent.state.messages.find((message) => message.role === "toolResult");
+  assert.equal(toolResult?.toolName, toPiToolName(stageA1bDescriptor.name));
+  assert.equal(toolResult?.isError, true);
+  assert.equal(toolResult?.content[0]?.type, "text");
+  assert.equal(toolResult?.content[0]?.text, "Needs approval before running this tool.");
 }
 
 {

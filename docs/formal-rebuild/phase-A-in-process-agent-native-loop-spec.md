@@ -63,6 +63,14 @@ Stage-tool-context factory, maps internal dotted tool names to provider-safe pi
 tool names, keeps provider and Stage session ids separate, and has no Server
 Host, Stage Core, domain, storage, or presentation imports.
 
+PR A1b has landed the guard slice over that spine: the MineMusic pi adapter
+rejects pi `beforeToolCall` / `afterToolCall` hooks at the facade boundary, so
+tool admission remains owned by `StageInterface.dispatch` and its
+`executionGate`, and tool-result text cannot be post-processed around the Stage
+veil. The deterministic harness now proves Stage `ask` decisions come from
+dispatch, do not call the handler, and still use the synthetic Stage session id
+instead of pi's provider-session hint.
+
 - Owner: Agent Runtime (new). Owns the pinned pi-agent-core dependency in
   `package.json`.
 - New code: pi engine adapter; a minimal embedded-agent `StageToolContext`
@@ -607,7 +615,10 @@ exactly**; version drift is the real risk, not capability gaps.
   skeleton, Stage tool bridge, provider-safe pi tool names, distinct provider
   and Stage session ids, dispatch-only tool path, signal forwarding, and
   deterministic pi-loop success/error harness.
-- PR A1b: double-gate / veil / synthetic-session resolution + guards.
+- PR A1b: **implemented** — pi tool-call hooks rejected at the Agent Runtime
+  facade, Stage `executionGate` verified as the single domain-admission path,
+  tool-result veil cannot be bypassed by pi `afterToolCall`, and synthetic
+  Stage-tool session ids remain separate from pi provider-session ids.
 - PR A2: minimal Workbench Interface read-model seam (one area slice) + Session
   Context over it + guards.
 - PR A3a: queue/playback truth + owning command + projection (command tests).
