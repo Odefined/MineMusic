@@ -73,8 +73,8 @@ export type ToolDeclaration = {
   // Compact, transport-agnostic one-line summary of the tool's own typed output,
   // consumed by host transports (e.g. the MCP content block) so a client that
   // ignores structuredContent still gets a non-duplicative, model-oriented
-  // result line. The renderer is co-located with the descriptor and reads only
-  // public output fields; the transport veil-scrubs whatever it returns.
+  // result line. The renderer is co-located with the descriptor and must read
+  // only public output fields; transports do not sanitize broken public text.
   resultSummary: ToolResultSummary;
   allowedActions?: readonly ToolAllowedAction[];
   requiresProvider?: readonly string[];

@@ -2,11 +2,10 @@
 // CallToolResult, or signals a JSON-RPC error for protocol-level failures.
 // Pure given the dispatch result and the resolved descriptor.
 //
-// This module is the named boundary that turns tool output into model-visible
-// free text, so it owns the content-block veil: every string it places in a
-// content block (the result summary, the error text, the suggested fix) is
-// scrubbed through freeTextContainsInternalAnchor, and an unsafe value falls
-// back to a generic safe line rather than crossing the veil.
+// This module turns already-public tool output into MCP wire shape. It does not
+// sanitize tool-authored public text: descriptors, handlers, and the Tool Call
+// Router must produce public-safe result summaries and declared errors before
+// transport translation.
 //
 // Classification (ADR-0015 keeps invocation policy out of the annotation path;
 // here it governs how a dispatch failure is surfaced to the client):
@@ -21,7 +20,6 @@ import type {
   ToolCallOutput,
   ToolDeclaration,
 } from "../../contracts/stage_interface.js";
-import { freeTextContainsInternalAnchor } from "../../stage_interface/veil_guard.js";
 import {
   JSON_RPC_INTERNAL_ERROR,
   JSON_RPC_INVALID_PARAMS,
@@ -105,21 +103,17 @@ function summarizeResult(descriptor: ToolDeclaration | undefined, result: unknow
     }
   }
 
-  return freeTextContainsInternalAnchor(summary) ? fallback : summary;
+  return summary;
 }
 
 function safeErrorText(error: StageError, descriptor: ToolDeclaration | undefined): string {
-  const toolName = descriptor?.name ?? "unknown";
-  const message = freeTextContainsInternalAnchor(error.message)
-    ? `Tool '${toolName}' reported error '${error.code}'.`
-    : error.message;
   const suggestedFix = error.suggestedFix;
 
-  if (suggestedFix === undefined || freeTextContainsInternalAnchor(suggestedFix)) {
-    return message;
+  if (suggestedFix === undefined) {
+    return error.message;
   }
 
-  return `${message}\nSuggested fix: ${suggestedFix}`;
+  return `${error.message}\nSuggested fix: ${suggestedFix}`;
 }
 
 function isToolLevelError(error: StageError): boolean {

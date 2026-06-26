@@ -151,7 +151,8 @@ function errorResult(error: StageError): Result<ToolCallOutput> {
         assert.equal(outcome.result.content[0]?.text, "Tool 'unknown' returned a result.");
     }
 }
-// a resultSummary that leaks an internal anchor is scrubbed to the fallback
+// MCP translation does not launder a leaky resultSummary into fallback success.
+// Public-safe summaries are guaranteed upstream by tool descriptors/dispatch.
 {
     const leakyDescriptor: ToolDeclaration = {
         ...readOnlyTestDescriptor,
@@ -163,7 +164,7 @@ function errorResult(error: StageError): Result<ToolCallOutput> {
     });
     assert.equal(outcome.kind, "toolResult");
     if (outcome.kind === "toolResult") {
-        assert.equal(outcome.result.content[0]?.text, "Tool 'stage.test.ping' returned a result.");
+        assert.equal(outcome.result.content[0]?.text, "leaked material:recording:m_internal here");
     }
 }
 // declared tool error (owning area) -> isError tool result
@@ -242,7 +243,8 @@ for (const code of [
         assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
     }
 }
-// an error message that leaks an anchor is scrubbed to the code-only line.
+// MCP translation does not launder leaky public error text into fallback text.
+// Public-safe declared errors are guaranteed upstream by the Tool Call Router.
 {
     const outcome = translateToolCall({
         descriptor: readOnlyTestDescriptor,
@@ -255,7 +257,25 @@ for (const code of [
     });
     assert.equal(outcome.kind, "toolResult");
     if (outcome.kind === "toolResult") {
-        assert.equal(outcome.result.content[0]?.text, "Tool 'stage.test.ping' reported error 'invalid_input'.");
+        assert.equal(outcome.result.content[0]?.text, "leaked material:recording:m_internal");
+    }
+}
+// MCP translation likewise does not drop a leaky suggestedFix; upstream must
+// never hand it one.
+{
+    const outcome = translateToolCall({
+        descriptor: readOnlyTestDescriptor,
+        dispatchResult: errorResult({
+            code: "invalid_input",
+            message: "Bad input.",
+            area: "stage_core",
+            retryable: false,
+            suggestedFix: "retry without sourceRef source_netease:track:1901371647",
+        }),
+    });
+    assert.equal(outcome.kind, "toolResult");
+    if (outcome.kind === "toolResult") {
+        assert.equal(outcome.result.content[0]?.text, "Bad input.\nSuggested fix: retry without sourceRef source_netease:track:1901371647");
     }
 }
 // ---------------------------------------------------------------------------
