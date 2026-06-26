@@ -20,6 +20,7 @@ import type {
   ToolCallOutput,
   ToolDeclaration,
 } from "../../contracts/stage_interface.js";
+import { freeTextContainsInternalAnchor } from "../../stage_interface/veil_guard.js";
 import {
   JSON_RPC_INTERNAL_ERROR,
   JSON_RPC_INVALID_PARAMS,
@@ -45,6 +46,7 @@ export type McpCallToolResult = {
 export type TranslatedToolCall =
   | { kind: "toolResult"; result: McpCallToolResult }
   | { kind: "jsonRpcError"; code: number; message: string };
+type JsonRpcErrorToolCall = Extract<TranslatedToolCall, { kind: "jsonRpcError" }>;
 
 export function translateToolCall(input: {
   descriptor?: ToolDeclaration;
@@ -53,19 +55,21 @@ export function translateToolCall(input: {
   const { dispatchResult } = input;
 
   if (dispatchResult.ok) {
-    return {
-      kind: "toolResult",
-      result: successResult(input.descriptor, dispatchResult.value.result),
-    };
+    return successResult(input.descriptor, dispatchResult.value.result);
   }
 
   const error = dispatchResult.error;
+  const errorText = publicErrorText(error, input.descriptor);
+
+  if (errorText.kind === "jsonRpcError") {
+    return errorText;
+  }
 
   if (isToolLevelError(error)) {
     return {
       kind: "toolResult",
       result: {
-        content: [{ type: "text", text: safeErrorText(error, input.descriptor) }],
+        content: [{ type: "text", text: errorText.text }],
         isError: true,
       },
     };
@@ -74,46 +78,82 @@ export function translateToolCall(input: {
   return {
     kind: "jsonRpcError",
     code: jsonRpcCodeFor(error),
-    message: safeErrorText(error, input.descriptor),
+    message: errorText.text,
   };
 }
 
-function successResult(descriptor: ToolDeclaration | undefined, result: unknown): McpCallToolResult {
+function successResult(descriptor: ToolDeclaration | undefined, result: unknown): TranslatedToolCall {
+  const summary = summarizeResult(descriptor, result);
+
+  if (summary.kind === "jsonRpcError") {
+    return summary;
+  }
+
   return {
-    content: [{ type: "text", text: summarizeResult(descriptor, result) }],
-    ...(result === undefined ? {} : { structuredContent: result }),
+    kind: "toolResult",
+    result: {
+      content: [{ type: "text", text: summary.text }],
+      ...(result === undefined ? {} : { structuredContent: result }),
+    },
   };
 }
 
-function summarizeResult(descriptor: ToolDeclaration | undefined, result: unknown): string {
+type PublicTextResult =
+  | { kind: "text"; text: string }
+  | JsonRpcErrorToolCall;
+
+function summarizeResult(descriptor: ToolDeclaration | undefined, result: unknown): PublicTextResult {
   const fallback = `Tool '${descriptor?.name ?? "unknown"}' returned a result.`;
 
-  let summary: string;
+  let summary = fallback;
   if (descriptor === undefined) {
     summary = fallback;
   } else {
     try {
-      summary = descriptor.resultSummary(result);
+      summary = descriptor.resultSummary(result).trim();
     } catch {
-      summary = fallback;
+      return publicTextInvariantFailure(descriptor, "resultSummary failed");
     }
 
-    if (summary.trim().length === 0) {
+    if (summary.length === 0) {
       summary = fallback;
     }
   }
 
-  return summary;
+  if (freeTextContainsInternalAnchor(summary)) {
+    return publicTextInvariantFailure(descriptor, "resultSummary exposes internal anchors");
+  }
+
+  return { kind: "text", text: summary };
 }
 
-function safeErrorText(error: StageError, descriptor: ToolDeclaration | undefined): string {
+function publicErrorText(error: StageError, descriptor: ToolDeclaration | undefined): PublicTextResult {
   const suggestedFix = error.suggestedFix;
 
-  if (suggestedFix === undefined) {
-    return error.message;
+  if (freeTextContainsInternalAnchor(error.message)) {
+    return publicTextInvariantFailure(descriptor, "error message exposes internal anchors");
   }
 
-  return `${error.message}\nSuggested fix: ${suggestedFix}`;
+  if (suggestedFix === undefined) {
+    return { kind: "text", text: error.message };
+  }
+
+  if (freeTextContainsInternalAnchor(suggestedFix)) {
+    return publicTextInvariantFailure(descriptor, "suggestedFix exposes internal anchors");
+  }
+
+  return { kind: "text", text: `${error.message}\nSuggested fix: ${suggestedFix}` };
+}
+
+function publicTextInvariantFailure(
+  descriptor: ToolDeclaration | undefined,
+  reason: string,
+): JsonRpcErrorToolCall {
+  return {
+    kind: "jsonRpcError",
+    code: JSON_RPC_INTERNAL_ERROR,
+    message: `Tool '${descriptor?.name ?? "unknown"}' public text invariant failed: ${reason}.`,
+  };
 }
 
 function isToolLevelError(error: StageError): boolean {

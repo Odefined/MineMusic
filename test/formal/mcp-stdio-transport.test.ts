@@ -151,7 +151,7 @@ function errorResult(error: StageError): Result<ToolCallOutput> {
         assert.equal(outcome.result.content[0]?.text, "Tool 'unknown' returned a result.");
     }
 }
-// MCP translation does not launder a leaky resultSummary into fallback success.
+// MCP translation does not launder or pass through a leaky resultSummary.
 // Public-safe summaries are guaranteed upstream by tool descriptors/dispatch.
 {
     const leakyDescriptor: ToolDeclaration = {
@@ -162,9 +162,28 @@ function errorResult(error: StageError): Result<ToolCallOutput> {
         descriptor: leakyDescriptor,
         dispatchResult: okResult({ ok: true }),
     });
-    assert.equal(outcome.kind, "toolResult");
-    if (outcome.kind === "toolResult") {
-        assert.equal(outcome.result.content[0]?.text, "leaked material:recording:m_internal here");
+    assert.equal(outcome.kind, "jsonRpcError");
+    if (outcome.kind === "jsonRpcError") {
+        assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
+        assert.equal(outcome.message, "Tool 'stage.test.ping' public text invariant failed: resultSummary exposes internal anchors.");
+    }
+}
+// MCP translation also fails loudly when resultSummary itself throws.
+{
+    const throwingDescriptor: ToolDeclaration = {
+        ...readOnlyTestDescriptor,
+        resultSummary: () => {
+            throw new Error("broken resultSummary");
+        },
+    };
+    const outcome = translateToolCall({
+        descriptor: throwingDescriptor,
+        dispatchResult: okResult({ ok: true }),
+    });
+    assert.equal(outcome.kind, "jsonRpcError");
+    if (outcome.kind === "jsonRpcError") {
+        assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
+        assert.equal(outcome.message, "Tool 'stage.test.ping' public text invariant failed: resultSummary failed.");
     }
 }
 // declared tool error (owning area) -> isError tool result
@@ -243,7 +262,7 @@ for (const code of [
         assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
     }
 }
-// MCP translation does not launder leaky public error text into fallback text.
+// MCP translation does not launder or pass through leaky public error text.
 // Public-safe declared errors are guaranteed upstream by the Tool Call Router.
 {
     const outcome = translateToolCall({
@@ -255,12 +274,13 @@ for (const code of [
             retryable: false,
         }),
     });
-    assert.equal(outcome.kind, "toolResult");
-    if (outcome.kind === "toolResult") {
-        assert.equal(outcome.result.content[0]?.text, "leaked material:recording:m_internal");
+    assert.equal(outcome.kind, "jsonRpcError");
+    if (outcome.kind === "jsonRpcError") {
+        assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
+        assert.equal(outcome.message, "Tool 'stage.test.ping' public text invariant failed: error message exposes internal anchors.");
     }
 }
-// MCP translation likewise does not drop a leaky suggestedFix; upstream must
+// MCP translation likewise fails loudly for a leaky suggestedFix; upstream must
 // never hand it one.
 {
     const outcome = translateToolCall({
@@ -273,9 +293,10 @@ for (const code of [
             suggestedFix: "retry without sourceRef source_netease:track:1901371647",
         }),
     });
-    assert.equal(outcome.kind, "toolResult");
-    if (outcome.kind === "toolResult") {
-        assert.equal(outcome.result.content[0]?.text, "Bad input.\nSuggested fix: retry without sourceRef source_netease:track:1901371647");
+    assert.equal(outcome.kind, "jsonRpcError");
+    if (outcome.kind === "jsonRpcError") {
+        assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
+        assert.equal(outcome.message, "Tool 'stage.test.ping' public text invariant failed: suggestedFix exposes internal anchors.");
     }
 }
 // ---------------------------------------------------------------------------

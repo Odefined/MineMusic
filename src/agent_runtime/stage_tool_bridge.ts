@@ -129,13 +129,9 @@ function stageToolDescription(descriptor: ToolDeclaration): string {
 
 function summarizeStageToolResult(descriptor: ToolDeclaration, result: unknown): string {
   const fallback = `Tool '${descriptor.name}' returned a result.`;
+  const summary = descriptor.resultSummary(result).trim();
 
-  try {
-    const summary = descriptor.resultSummary(result).trim();
-    return summary.length === 0 ? fallback : summary;
-  } catch {
-    return fallback;
-  }
+  return summary.length === 0 ? fallback : summary;
 }
 
 function stageErrorMessage(error: StageError): string {

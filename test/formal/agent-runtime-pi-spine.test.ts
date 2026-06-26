@@ -149,6 +149,47 @@ assert.equal(piToolName, "agent_test_lookup");
 }
 
 {
+  const throwingSummaryDescriptor: ToolDeclaration = {
+    ...descriptor,
+    resultSummary() {
+      throw new Error("broken resultSummary");
+    },
+  };
+  const [tool] = createStageToolBridge({
+    tools: [throwingSummaryDescriptor],
+    dispatch: {
+      async dispatch(input) {
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: { answer: "found" },
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
+      },
+    },
+    stageSessionId: "stage-session",
+  });
+
+  await assert.rejects(
+    () => {
+      assert.ok(tool !== undefined);
+      return tool.execute("tool-call-summary-throws", { query: "x" });
+    },
+    /broken resultSummary/u,
+  );
+}
+
+{
   const [tool] = createStageToolBridge({
     tools: [descriptor],
     dispatch: {
