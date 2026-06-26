@@ -280,7 +280,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Router owns `ToolCallOutput.toolName`; handlers return payloads only.
 - `docs/adr/0019-veil-ownership-split-and-handle-scheme.md`: Public Handle Veil
   split into Stage Interface–owned `HandleMintingPort` plus per-tool label
-  synthesis; library handle registry scheme.
+  synthesis; material handle registry scheme; handle resolution reveals only the
+  minted anchor, so material-scoped writes and fresh durable handle minting must
+  pass through the owning resolver/projection.
 - `docs/adr/0020-declared-error-vocabulary-and-fail-whole-recovery.md`: declared
   per-tool public error vocabulary and fail-whole multi-scope recovery.
 - `docs/adr/0021-effect-boundary-auto-pass-for-presentation-admission.md`:
@@ -369,9 +371,12 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   the agent-facing item-handle currency unifies to a single `material` kind; the
   `library` *item-handle* kind is retired (the `library` *scope* baseline is
   unchanged). `present` durable-materializes and returns a `material` handle — it
-  does not claim library admission (which stays explicit, PB4). Decision recorded
-  this cycle; the boundary-affecting code refactor (contracts + handle registry
-  `handle_kind` + downstream tools + migration) is tracked in GitHub issue #113.
+  does not claim library admission (which stays explicit, PB4). Material handle
+  resolution yields only the minted anchor; material-scoped tools must use
+  Material Projection / `ResolveDurableMusicItem` to get the current survivor.
+  Decision recorded this cycle; the boundary-affecting code refactor (contracts
+  + handle registry `handle_kind` + downstream tools + migration) is tracked in
+  GitHub issue #113.
 - `docs/adr/0041-memory-taste-is-user-editable-backdrop-grown-by-confirmed-proposals.md`:
   Memory taste is a user-visible, user-editable calibration artifact (not an
   opaque profile); a backdrop that fills unspecified gaps and breaks ties but
@@ -450,7 +455,7 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/stage_interface/handle_registry_records.ts`: Stage Interface handle
   registry repository for public id / owner / internal-anchor bindings.
 - `src/stage_interface/handle_minting.ts`: `HandleMintingPort`
-  implementation for durable `library` handles plus candidate-cache delegation.
+  implementation for durable `material` handles plus candidate-cache delegation.
 - `src/stage_interface/lookup_cursor_registry_schema.ts`: Stage Interface-owned
   lookup cursor registry schema over Storage.
 - `src/stage_interface/lookup_cursor_registry_records.ts`: Stage Interface
