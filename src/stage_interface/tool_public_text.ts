@@ -10,19 +10,19 @@ export function renderPublicToolResultSummary(input: {
   descriptor: ToolDeclaration | undefined;
   result: unknown;
 }): PublicToolTextRender {
-  const fallback = `Tool '${input.descriptor?.name ?? "unknown"}' returned a result.`;
-  let summary = fallback;
+  if (input.descriptor === undefined) {
+    return { kind: "text", text: "Tool 'unknown' returned a result." };
+  }
 
-  if (input.descriptor !== undefined) {
-    try {
-      summary = input.descriptor.resultSummary(input.result).trim();
-    } catch {
-      return publicTextInvariantFailure(input.descriptor, "resultSummary failed");
-    }
+  let summary: string;
+  try {
+    summary = input.descriptor.resultSummary(input.result).trim();
+  } catch {
+    return publicTextInvariantFailure(input.descriptor, "resultSummary failed");
+  }
 
-    if (summary.length === 0) {
-      summary = fallback;
-    }
+  if (summary.length === 0) {
+    return publicTextInvariantFailure(input.descriptor, "resultSummary returned empty text");
   }
 
   if (freeTextContainsInternalAnchor(summary)) {

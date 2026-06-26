@@ -196,6 +196,22 @@ function errorResult(error: StageError): Result<ToolCallOutput> {
         assert.equal(outcome.message, "Tool 'stage.test.ping' public text invariant failed: resultSummary failed.");
     }
 }
+// MCP translation also fails loudly when a descriptor returns no public summary.
+{
+    const emptySummaryDescriptor: ToolDeclaration = {
+        ...readOnlyTestDescriptor,
+        resultSummary: () => "   ",
+    };
+    const outcome = translateToolCall({
+        descriptor: emptySummaryDescriptor,
+        dispatchResult: okResult({ ok: true }),
+    });
+    assert.equal(outcome.kind, "jsonRpcError");
+    if (outcome.kind === "jsonRpcError") {
+        assert.equal(outcome.code, JSON_RPC_INTERNAL_ERROR);
+        assert.equal(outcome.message, "Tool 'stage.test.ping' public text invariant failed: resultSummary returned empty text.");
+    }
+}
 // declared tool error (owning area) -> isError tool result
 {
     const outcome = translateToolCall({
@@ -551,6 +567,50 @@ function line(obj: unknown): string {
     const response = JSON.parse(harness.written[0] ?? "{}");
     assert.equal(response.id, 7);
     assert.equal(response.error.code, JSON_RPC_INVALID_PARAMS);
+    harness.closeEof();
+    await runPromise;
+}
+// Malformed tools/call params are rejected at the MCP transport boundary before
+// creating a Stage context or entering dispatch.
+for (const [params, expectedMessage] of [
+    [undefined, "tools/call params must be an object."],
+    [null, "tools/call params must be an object."],
+    [{ arguments: {} }, "tools/call params.name must be a non-empty string."],
+    [{ name: "", arguments: {} }, "tools/call params.name must be a non-empty string."],
+    [{ name: 123, arguments: {} }, "tools/call params.name must be a non-empty string."],
+] as const) {
+    let dispatchCalled = false;
+    let contextCreated = false;
+    const harness = fakeIo([
+        line({
+            jsonrpc: "2.0",
+            id: 14,
+            method: "tools/call",
+            params,
+        }),
+    ], { holdOpen: true });
+    const runPromise = createMcpStdioTransport({
+        ports: {
+            ...portsFor([readOnlyTestDescriptor], async () => {
+                dispatchCalled = true;
+                return okResult({ ok: true });
+            }),
+            contextFactory: {
+                createToolContext(perCall) {
+                    contextCreated = true;
+                    return fakeFactory().createToolContext(perCall);
+                },
+            },
+        },
+        io: harness.io,
+    }).serve();
+    await flushMicrotasks();
+    const response = JSON.parse(harness.written[0] ?? "{}");
+    assert.equal(response.id, 14);
+    assert.equal(response.error.code, JSON_RPC_INVALID_PARAMS);
+    assert.equal(response.error.message, expectedMessage);
+    assert.equal(contextCreated, false);
+    assert.equal(dispatchCalled, false);
     harness.closeEof();
     await runPromise;
 }

@@ -18,13 +18,11 @@ import type {
   RetrievalQueryService,
 } from "../../src/music_intelligence/index.js";
 import {
+  createMineMusicPiAgentAdapter,
   createStageToolBridge,
   toPiToolName,
   type StageToolDispatchPort,
 } from "../../src/agent_runtime/index.js";
-import {
-  createMineMusicPiAgentAdapter,
-} from "../../src/agent_runtime/pi_engine.js";
 import {
   createInMemoryMusicScopeAvailabilityPort,
   createMusicDiscoveryLookupRegistration,
@@ -235,6 +233,47 @@ assert.throws(
       }
       return true;
     },
+  );
+}
+
+{
+  const emptySummaryDescriptor: ToolDeclaration = {
+    ...descriptor,
+    resultSummary() {
+      return "   ";
+    },
+  };
+  const [tool] = createStageToolBridge({
+    tools: [emptySummaryDescriptor],
+    dispatch: {
+      async dispatch(input) {
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: { answer: "found" },
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
+      },
+    },
+    stageSessionId: "stage-session",
+  });
+
+  await assert.rejects(
+    () => {
+      assert.ok(tool !== undefined);
+      return tool.execute("tool-call-summary-empty", { query: "x" });
+    },
+    /Tool 'agent\.test\.lookup' public text invariant failed: resultSummary returned empty text\./u,
   );
 }
 

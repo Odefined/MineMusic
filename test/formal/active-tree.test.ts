@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { buildArchitectureImportGraph, isUnderPath, type ArchitectureImportEdge } from "./helpers/architecture-import-graph.js";
 const repositoryRoot = process.cwd();
+const packageJson = JSON.parse(await readFile(join(repositoryRoot, "package.json"), "utf8")) as {
+    dependencies?: Record<string, string>;
+};
+const packageLock = JSON.parse(await readFile(join(repositoryRoot, "package-lock.json"), "utf8")) as {
+    packages?: Record<string, { version?: string; dependencies?: Record<string, string> }>;
+};
 const removedRuntimeRoots = [
     "fixtures",
     "docs/canonical-store",
@@ -84,6 +90,12 @@ assert.equal(await pathExists(join(repositoryRoot, "src/music_experience")), tru
 assert.equal(await pathExists(join(repositoryRoot, "src/effect_boundary")), true, "formal Effect Boundary root must exist once StageToolExecutionGate implementation lands");
 assert.equal(await pathExists(join(repositoryRoot, "src/background_work")), true, "formal Background Work runtime infrastructure root must exist once Phase 21 queue backend lands");
 assert.equal(await pathExists(join(repositoryRoot, "src/agent_runtime")), true, "formal Agent Runtime root must exist once Phase A1a pi spine lands");
+const piAgentCoreVersion = packageJson.dependencies?.["@earendil-works/pi-agent-core"];
+assert.equal(typeof piAgentCoreVersion, "string", "pi-agent-core must be a direct dependency while Agent Runtime uses pi");
+assert.match(piAgentCoreVersion ?? "", /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u, "pi-agent-core must be exact-pinned, not a semver range");
+assert.equal(packageLock.packages?.[""]?.dependencies?.["@earendil-works/pi-agent-core"], piAgentCoreVersion, "package-lock root dependency must match package.json pi pin");
+assert.equal(packageLock.packages?.["node_modules/@earendil-works/pi-agent-core"]?.version, piAgentCoreVersion, "package-lock installed pi version must match package.json pi pin");
+assert.equal(await pathExists(join(repositoryRoot, `docs/formal-rebuild/pi-agent-core-capability-audit-${piAgentCoreVersion}.md`)), true, "each pi-agent-core pin must have a same-version capability audit doc");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/background_work")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
