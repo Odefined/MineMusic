@@ -81,9 +81,10 @@ album  -> result.albums
 artist -> result.artists
 ```
 
-When `targetKinds` is omitted, NCM defaults to track search. Multi-kind search
-uses `query.limit` as a total cap. Multi-kind search with `offset > 0` fails
-instead of pretending to support merged pagination.
+When `targetKinds` is omitted, NCM defaults to track search. NCM search is
+single-kind only: `targetKinds` with more than one kind is rejected with
+`extension.ncm_multi_kind_unsupported`. Merged multi-kind pagination is not
+supported — the retrieval layer always requests one kind per pool.
 
 ## Platform Library Request Mapping
 

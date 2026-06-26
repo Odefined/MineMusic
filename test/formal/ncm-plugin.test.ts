@@ -673,30 +673,22 @@ await assertOk(await defaultKindProvider.search?.({
 }) ?? fail("missing_search", "missing search"));
 assert.equal(await defaultKindFetch.urls[0]?.searchParams.get("type"), "1");
 assert.equal(await defaultKindFetch.urls[0]?.searchParams.get("limit"), "10");
+// Multi-kind search is rejected loudly (single-kind only): the plugin does not
+// narrow silently, and the declared error surfaces before any provider call.
 const multiKindFetch = fetchSequence([
     { result: { songs: [{ id: 1003, name: "Track A", artists: [] }] }, code: 200 },
-    { result: { albums: [{ id: 3003, name: "Album A", artists: [] }] }, code: 200 },
 ]);
 const multiKindProvider = await sourceProviderFor({
     fetch: multiKindFetch.fetch,
 });
-const multiKindSearch = await assertOk(await multiKindProvider.search?.({
+assertErrorCode(await multiKindProvider.search?.({
     query: {
         text: "multi",
         targetKinds: ["track", "album"],
         limit: 3,
     },
-}) ?? fail("missing_search", "missing search"));
-assert.deepEqual(multiKindFetch.urls.map((url) => url.searchParams.get("type")), ["1", "10"]);
-assert.deepEqual(multiKindFetch.urls.map((url) => url.searchParams.get("limit")), ["2", "1"]);
-assert.equal(multiKindSearch.length, 2);
-assertErrorCode(await multiKindProvider.search?.({
-    query: {
-        text: "multi",
-        targetKinds: ["track", "album"],
-        offset: 1,
-    },
-}) ?? fail("missing_search", "missing search"), "extension.ncm_multi_kind_offset_unsupported");
+}) ?? fail("missing_search", "missing search"), "extension.ncm_multi_kind_unsupported");
+assert.equal(multiKindFetch.urls.length, 0);
 const droppedProvider = await sourceProviderFor({
     fetch: fetchJson({
         result: {

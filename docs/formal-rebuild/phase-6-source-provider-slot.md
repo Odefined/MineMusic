@@ -387,17 +387,20 @@ The NCM plugin remains limited to Source Provider search:
 - it respects `SourceQuery.text`, `targetKinds`, `limit`, and `offset`;
 - it returns provider errors through the Source Provider Slot boundary.
 
-NCM search kind behavior:
+NCM search kind behavior (single-kind only):
 
-- when `targetKinds` is omitted, NCM plugin defaults to track search;
-- when `targetKinds` contains `"track"`, NCM plugin searches songs;
-- when `targetKinds` contains `"album"`, NCM plugin searches albums;
-- when `targetKinds` contains `"artist"`, NCM plugin searches artists;
-- when multiple target kinds are requested, NCM plugin may call the
-  corresponding NCM search types and combine the mapped candidates.
+- when `targetKinds` is omitted, the NCM plugin defaults to track search;
+- when `targetKinds` contains exactly one of `"track"` | `"album"` |
+  `"artist"`, the NCM plugin searches that one kind;
+- when `targetKinds` contains more than one kind, the plugin rejects with
+  `extension.ncm_multi_kind_unsupported` instead of silently narrowing.
 
-The Source Provider Slot itself does not choose a default target kind. The
-track default is specific to the NCM plugin.
+Multi-kind search is not supported. The retrieval layer always requests one
+target kind per provider-search pool, so multi-kind coordination would be dead
+weight; a declared rejection fails loud if a future Query Kind requests
+multiple kinds, rather than hiding that gap behind dormant code. The Source
+Provider Slot itself does not choose a default target kind; the track default
+is specific to the NCM plugin.
 
 NCM source-artist references must only be generated from stable provider
 artist ids.

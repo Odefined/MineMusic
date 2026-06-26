@@ -165,65 +165,35 @@ async function searchQq(
   config: unknown,
   query: { text: string; targetKinds?: readonly SourceEntityKind[]; limit?: number; offset?: number },
 ): Promise<Result<readonly ProviderMaterialCandidate[]>> {
-  const text = query.text.trim();
-  const targets = normalizedTargets(query.targetKinds);
-  const offset = query.offset ?? 0;
+  const resolved = resolveSingleSearchTarget(query.targetKinds);
 
-  if (targets.length === 0) {
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  const kind = resolved.value;
+  const num = query.limit ?? QQ_SEARCH_LIMIT;
+
+  if (num <= 0) {
     return ok([]);
   }
 
-  if (targets.length > 1 && offset > 0) {
-    return failExtension(
-      "extension.qq_multi_kind_offset_unsupported",
-      "QQ provider search does not support offset for multi-kind search.",
-    );
+  const target = qqSearchTargets[kind];
+  const page = Math.floor((query.offset ?? 0) / num) + 1;
+  const searched = await requestQqPath(config, "/search/search_by_type", {
+    keyword: query.text.trim(),
+    search_type: target.type,
+    page: String(page),
+    num: String(num),
+    // QQ highlights matched terms with <em>... by default; we want plain text.
+    highlight: "false",
+  });
+
+  if (!searched.ok) {
+    return searched;
   }
 
-  const limits = splitLimit(query.limit, targets.length);
-  const candidates: ProviderMaterialCandidate[] = [];
-  let firstFailure: { ok: false; error: StageError } | undefined;
-
-  for (const [index, kind] of targets.entries()) {
-    const target = qqSearchTargets[kind];
-    const num = limits[index] ?? QQ_SEARCH_LIMIT;
-
-    if (num <= 0) {
-      continue;
-    }
-
-    const page = targets.length === 1 ? Math.floor(offset / num) + 1 : 1;
-    const searched = await requestQqPath(config, "/search/search_by_type", {
-      keyword: text,
-      search_type: target.type,
-      page: String(page),
-      num: String(num),
-      // QQ highlights matched terms with <em>... by default; we want plain text.
-      highlight: "false",
-    });
-
-    // Each kind is an independent call; a failure in one must not discard the
-    // others. Hard-fail only when nothing succeeded (mirrors ncm.ts:147-173).
-    if (!searched.ok) {
-      firstFailure ??= searched;
-      continue;
-    }
-
-    const mapped = mapQqSearchPayload(kind, searched.value);
-
-    if (!mapped.ok) {
-      firstFailure ??= mapped;
-      continue;
-    }
-
-    candidates.push(...mapped.value);
-  }
-
-  if (candidates.length === 0 && firstFailure !== undefined) {
-    return firstFailure;
-  }
-
-  return ok(query.limit === undefined ? candidates : candidates.slice(0, query.limit));
+  return mapQqSearchPayload(kind, searched.value);
 }
 
 function mapQqSearchPayload(
@@ -1228,37 +1198,36 @@ function qqReleaseDate(pubtime: unknown, timePublic: unknown): string | undefine
 
 // --- small shared helpers --------------------------------------------------
 
-function normalizedTargets(targetKinds?: readonly SourceEntityKind[]): readonly SourceEntityKind[] {
-  if (targetKinds === undefined || targetKinds.length === 0) {
-    return ["track", "album", "artist"];
-  }
-
+// QQ search is single-kind only: an omitted/empty targetKinds defaults to
+// track (aligned with the NCM plugin); more than one distinct kind is rejected
+// loudly rather than silently narrowed, because the retrieval layer always
+// requests one kind per provider-search pool and multi-kind coordination would
+// be dead weight.
+function resolveSingleSearchTarget(
+  targetKinds: readonly SourceEntityKind[] | undefined,
+): Result<SourceEntityKind> {
+  let first: SourceEntityKind = "track";
   const seen = new Set<SourceEntityKind>();
-  const result: SourceEntityKind[] = [];
+  let distinctCount = 0;
 
-  for (const kind of targetKinds) {
-    if (!seen.has(kind)) {
-      seen.add(kind);
-      result.push(kind);
+  for (const kind of targetKinds ?? []) {
+    if (seen.has(kind)) {
+      continue;
     }
+    seen.add(kind);
+    distinctCount += 1;
+
+    if (distinctCount > 1) {
+      return failExtension(
+        "extension.qq_multi_kind_unsupported",
+        "QQ provider search supports only a single target kind; multiple distinct target kinds are rejected instead of silently narrowing.",
+      );
+    }
+
+    first = kind;
   }
 
-  return result;
-}
-
-function splitLimit(limit: number | undefined, count: number): readonly number[] {
-  if (limit === undefined) {
-    return [];
-  }
-
-  if (count <= 1) {
-    return [limit];
-  }
-
-  const base = Math.floor(limit / count);
-  const extra = limit - base * count;
-
-  return Array.from({ length: count }, (_, i) => base + (i < extra ? 1 : 0));
+  return ok(first);
 }
 
 function toNonEmptyString(value: unknown): string | undefined {

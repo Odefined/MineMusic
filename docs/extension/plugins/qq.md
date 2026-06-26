@@ -89,8 +89,11 @@ album  -> data.album
 artist -> data.singer
 ```
 
-When `targetKinds` is omitted, QQ searches all three kinds. Multi-kind search
-with `offset > 0` fails instead of pretending to support merged pagination.
+When `targetKinds` is omitted, QQ defaults to track search (aligned with the
+NCM plugin). QQ search is single-kind only: `targetKinds` with more than one
+kind is rejected with `extension.qq_multi_kind_unsupported`. Merged multi-kind
+pagination is not supported — the retrieval layer always requests one kind
+per pool.
 
 ## Audio: playable_links + download_source
 
@@ -178,7 +181,7 @@ QQ provider errors return safe summaries only. Raw payloads are not exposed.
 - `qq_account_unresolved` (retryable) — HTTP 401 or no `encrypt_uin`;
 - `qq_account_mismatch` (retryable) — requested vs logged-in euin;
 - `qq_invalid_cursor` / `qq_invalid_provider_account_id`;
-- `qq_multi_kind_offset_unsupported`;
+- `qq_multi_kind_unsupported` — `targetKinds` with more than one kind;
 - `qq_no_audio_stream` — non-track download; `qq_no_download_source` (retryable)
   — no resolvable audio (VIP-only / no copyright).
 

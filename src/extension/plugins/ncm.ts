@@ -136,68 +136,31 @@ function createNcmSourceProvider(config: unknown): SourceProvider {
       capabilities: ["search", "playable_links", "download_source", "entity_picture_url", "song_lyrics"],
     },
     async search({ query }) {
-      const text = query.text.trim();
-      const targets = normalizedTargets(query.targetKinds);
-      const offset = query.offset ?? 0;
+      const resolved = resolveSingleSearchTarget(query.targetKinds);
 
-      if (targets.length === 0) {
+      if (!resolved.ok) {
+        return resolved;
+      }
+
+      const limit = query.limit ?? defaultNcmSearchLimit();
+
+      if (limit <= 0) {
         return ok([]);
       }
 
-      if (targets.length > 1 && offset > 0) {
-        return failExtension(
-          "extension.ncm_multi_kind_offset_unsupported",
-          "NCM source search does not support offset for multi-kind search.",
-        );
+      const target = ncmSearchTargets[resolved.value];
+      const searched = await requestNcmSearch(config, {
+        text: query.text.trim(),
+        limit,
+        offset: query.offset ?? 0,
+        type: target.type,
+      });
+
+      if (!searched.ok) {
+        return searched;
       }
 
-      const limits = splitLimit(query.limit, targets.length);
-      const candidates: ProviderMaterialCandidate[] = [];
-      let firstFailure: { ok: false; error: StageError } | undefined;
-
-      for (const [index, target] of targets.entries()) {
-        const limit = limits[index] ?? defaultNcmSearchLimit();
-
-        if (limit <= 0) {
-          continue;
-        }
-
-        const searched = await requestNcmSearch(config, {
-          text,
-          limit,
-          offset: targets.length === 1 ? offset : 0,
-          type: target.type,
-        });
-
-        // Each kind is an independent provider call. A failure in one kind must
-        // not discard candidates already fetched for the others, so record the
-        // failure and continue. We hard-fail only when nothing succeeded (below),
-        // never disguising a total failure as an empty success.
-        //
-        // TODO(tracked follow-up): the dropped kind is not yet observable here.
-        // Add an optional `partialFailures` field to the source-search result and
-        // translate it through the retrieval adapter so a partial multi-kind
-        // failure is surfaced instead of dropped.
-        if (!searched.ok) {
-          firstFailure ??= searched;
-          continue;
-        }
-
-        const mapped = mapSearchPayload(target.kind, searched.value);
-
-        if (!mapped.ok) {
-          firstFailure ??= mapped;
-          continue;
-        }
-
-        candidates.push(...mapped.value);
-      }
-
-      if (candidates.length === 0 && firstFailure !== undefined) {
-        return firstFailure;
-      }
-
-      return ok(query.limit === undefined ? candidates : candidates.slice(0, query.limit));
+      return mapSearchPayload(target.kind, searched.value);
     },
     async getPlayableLinks({ sourceRef }) {
       return readNcmPlayableLinks(config, sourceRef);
@@ -1180,36 +1143,35 @@ function issueFromNcmPayload(payload: unknown): Result<never> | undefined {
   );
 }
 
-function normalizedTargets(targetKinds: readonly SourceEntityKind[] | undefined): readonly NcmSearchTarget[] {
-  const requested = targetKinds ?? ["track"];
+// NCM search is single-kind only: an omitted/empty targetKinds defaults to
+// track (phase-6); more than one distinct kind is rejected loudly rather than
+// silently narrowed, because the retrieval layer always requests one kind per
+// provider-search pool and multi-kind coordination would be dead weight.
+function resolveSingleSearchTarget(
+  targetKinds: readonly SourceEntityKind[] | undefined,
+): Result<SourceEntityKind> {
+  let first: SourceEntityKind = "track";
   const seen = new Set<SourceEntityKind>();
-  const targets: NcmSearchTarget[] = [];
+  let distinctCount = 0;
 
-  for (const kind of requested) {
+  for (const kind of targetKinds ?? []) {
     if (seen.has(kind)) {
       continue;
     }
-
     seen.add(kind);
-    targets.push(ncmSearchTargets[kind]);
+    distinctCount += 1;
+
+    if (distinctCount > 1) {
+      return failExtension(
+        "extension.ncm_multi_kind_unsupported",
+        "NCM source search supports only a single target kind; multiple distinct target kinds are rejected instead of silently narrowing.",
+      );
+    }
+
+    first = kind;
   }
 
-  return targets;
-}
-
-function splitLimit(limit: number | undefined, partCount: number): number[] {
-  if (limit === undefined) {
-    return Array.from({ length: partCount }, () => defaultNcmSearchLimit());
-  }
-
-  const base = Math.floor(limit / partCount);
-  let remainder = limit % partCount;
-
-  return Array.from({ length: partCount }, () => {
-    const value = base + (remainder > 0 ? 1 : 0);
-    remainder -= 1;
-    return value;
-  });
+  return ok(first);
 }
 
 function defaultNcmSearchLimit(): number {

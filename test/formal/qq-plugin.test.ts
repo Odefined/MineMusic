@@ -238,12 +238,16 @@ assertErrorCode(await qqInvalidMaxBytesProvider.search?.({
     query: { text: "cfg-bytes", targetKinds: ["track"] },
 }) ?? fail("missing_search", ""), "extension.qq_invalid_config");
 
-const multiKindOffsetProvider = await sourceProviderFor({
-    fetch: fetchJson({ code: 0, data: { song: [] } }).fetch,
+// Multi-kind search is rejected loudly (single-kind only): the plugin does not
+// narrow silently, and the declared error surfaces before any provider call.
+const multiKindFetch = fetchJson({ code: 0, data: { song: [] } });
+const multiKindProvider = await sourceProviderFor({
+    fetch: multiKindFetch.fetch,
 });
-assertErrorCode(await multiKindOffsetProvider.search?.({
-    query: { text: "x", targetKinds: ["track", "album"], offset: 5 },
-}) ?? fail("missing_search", ""), "extension.qq_multi_kind_offset_unsupported");
+assertErrorCode(await multiKindProvider.search?.({
+    query: { text: "x", targetKinds: ["track", "album"] },
+}) ?? fail("missing_search", ""), "extension.qq_multi_kind_unsupported");
+assert.equal(multiKindFetch.urls.length, 0);
 
 // --- audio: playable_links + download_source ------------------------------
 
