@@ -1,6 +1,7 @@
 export type MusicDataPlatformErrorCode =
   | "music_data.record_ref_key_mismatch"
   | "music_data.record_kind_mismatch"
+  | "music_data.source_kind_invalid"
   | "music_data.retrieval_read_invalid"
   | "music_data.retrieval_result_set_invalid"
   | "music_data.material_ref_invalid"

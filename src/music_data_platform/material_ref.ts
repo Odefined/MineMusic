@@ -61,3 +61,26 @@ export function materialKindForSourceKind(sourceKind: SourceEntityKind): Materia
       return "artist";
   }
 }
+
+/**
+ * Narrows an open `Ref.kind` string to `SourceEntityKind`. The canonical
+ * `materialKindForSourceKind` above is exhaustive over the closed union and
+ * will not accept an open string; callers holding one (e.g. a `Ref.kind`
+ * loaded from storage, which is not type-narrowed) must narrow through this.
+ * An unrecognised kind is a declared data-domain failure — a drifted or
+ * corrupt stored ref — surfaced as `music_data.source_kind_invalid`, never a
+ * silent `undefined` default.
+ */
+export function resolveSourceEntityKind(kind: string): SourceEntityKind {
+  switch (kind) {
+    case "track":
+    case "album":
+    case "artist":
+      return kind;
+    default:
+      throw new MusicDataPlatformError({
+        code: "music_data.source_kind_invalid",
+        message: `Source ref kind '${kind}' is not a valid source entity kind (expected track, album, or artist).`,
+      });
+  }
+}

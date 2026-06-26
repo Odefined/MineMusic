@@ -245,6 +245,10 @@ function durableLocalRecall(
   };
 }
 
+function assertNever(value: never): never {
+  throw new Error(`metadata_lookup_retrieval_adapter received unsupported RetrievalPool: ${JSON.stringify(value)}`);
+}
+
 function durableReadRefs(
   pools: readonly RetrievalPool[] | undefined,
   groupName: "allOf" | "anyOf" | "noneOf",
@@ -263,7 +267,11 @@ function durableReadRefs(
         return [];
       }
 
-      return [pool.ref];
+      if (pool.kind === "source_library" || pool.kind === "owner_relation") {
+        return [pool.ref];
+      }
+
+      return assertNever(pool);
     });
 }
 

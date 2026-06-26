@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { isMusicDataPlatformError } from "../../src/music_data_platform/index.js";
-import { assertMaterialRef } from "../../src/music_data_platform/material_ref.js";
+import { assertMaterialRef, resolveSourceEntityKind } from "../../src/music_data_platform/material_ref.js";
 import { assertOwnerMaterialRelationRef, assertOwnerRelationPoolRef, } from "../../src/music_data_platform/owner_material_relation_ref.js";
 import { assertOwnerScope } from "../../src/music_data_platform/owner_scope.js";
 import { assertMusicDataPlatformPublicRefKey, assertMusicDataPlatformRefSafe, musicDataPlatformRefKey, } from "../../src/music_data_platform/ref_validation.js";
@@ -71,3 +71,12 @@ assert.throws(() => assertOwnerMaterialRelationRef({
     id: "r:bad",
 }), (error: unknown) => isMusicDataPlatformError(error) &&
     error.code === "music_data.owner_material_relation_ref_invalid");
+// resolveSourceEntityKind narrows an open Ref.kind to SourceEntityKind. A drifted
+// illegal kind surfaces as a declared music_data.source_kind_invalid (typed public
+// error, not a silent undefined default and not a bare Error), matching the
+// record_kind_mismatch sibling channel used for kind-consistency violations.
+assert.equal(resolveSourceEntityKind("track"), "track");
+assert.equal(resolveSourceEntityKind("album"), "album");
+assert.equal(resolveSourceEntityKind("artist"), "artist");
+assert.throws(() => resolveSourceEntityKind("podcast"), (error: unknown) => isMusicDataPlatformError(error) &&
+    error.code === "music_data.source_kind_invalid");

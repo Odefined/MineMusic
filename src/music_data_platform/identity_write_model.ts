@@ -11,7 +11,7 @@ import {
   type IdentityRepositories,
   type SourceToMaterialBindingRecord,
 } from "./identity_records.js";
-import { assertMaterialRef } from "./material_ref.js";
+import { assertMaterialRef, materialKindForSourceKind, resolveSourceEntityKind } from "./material_ref.js";
 import type { ProjectionInvalidationCommands } from "./projection_maintenance_commands.js";
 import {
   assertMusicDataPlatformRefComponentSafe,
@@ -886,7 +886,7 @@ function assertSourceRefCompatibleWithMaterial(
   assertSourceRefShape(sourceRef);
 
   if (
-    materialKindForSourceKind(sourceRef.kind) !== materialKind
+    materialKindForSourceKind(resolveSourceEntityKind(sourceRef.kind)) !== materialKind
   ) {
     throwMusicDataError({
       code: "music_data.record_kind_mismatch",
@@ -990,19 +990,6 @@ async function assertCanonicalRefOwnedByMergeParticipants(
       code: "music_data.material_canonical_conflict",
       message: "Canonical ref is already bound to a different active material record.",
     });
-  }
-}
-
-function materialKindForSourceKind(sourceKind: string): MaterialEntityKind | undefined {
-  switch (sourceKind) {
-    case "track":
-      return "recording";
-    case "album":
-      return "album";
-    case "artist":
-      return "artist";
-    default:
-      return undefined;
   }
 }
 
