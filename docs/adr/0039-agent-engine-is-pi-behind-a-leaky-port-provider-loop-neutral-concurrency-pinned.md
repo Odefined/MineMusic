@@ -20,7 +20,7 @@ Agents SDK / Mastra / Vercel AI SDK."
 
 A first-hand capability audit was then performed against the exact installed
 version: `pi-agent-core-capability-audit-0.80.2.md` (read `.d.ts` + compiled
-source, two runtime experiments, adversarial skeptics). That audit is the
+source, fresh runtime checks, adversarial skeptics). That audit is the
 evidence base for this ADR.
 
 Two honesty constraints shape what this ADR may claim:

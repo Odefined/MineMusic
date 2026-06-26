@@ -34,6 +34,15 @@ export type {
   StageToolContextFactory,
 } from "./tool_context_factory.js";
 export {
+  renderModelVisibleToolDescription,
+} from "./tool_description_rendering.js";
+export {
+  classifyStageToolFailure,
+} from "./tool_failure_surface.js";
+export type {
+  StageToolFailureSurface,
+} from "./tool_failure_surface.js";
+export {
   createStageInterfaceCandidateHandleCachePort,
   createStageInterfaceHandleMintingPort,
   createStageInterfaceHandleMintingPortFromRecords,

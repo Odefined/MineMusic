@@ -20,6 +20,7 @@ import type {
   ToolCallOutput,
   ToolDeclaration,
 } from "../../contracts/stage_interface.js";
+import { classifyStageToolFailure } from "../../stage_interface/tool_failure_surface.js";
 import { freeTextContainsInternalAnchor } from "../../stage_interface/veil_guard.js";
 import {
   JSON_RPC_INTERNAL_ERROR,
@@ -65,7 +66,9 @@ export function translateToolCall(input: {
     return errorText;
   }
 
-  if (isToolLevelError(error)) {
+  const failureSurface = classifyStageToolFailure(error);
+
+  if (failureSurface === "tool_result_error") {
     return {
       kind: "toolResult",
       result: {
@@ -77,7 +80,7 @@ export function translateToolCall(input: {
 
   return {
     kind: "jsonRpcError",
-    code: jsonRpcCodeFor(error),
+    code: jsonRpcCodeFor(failureSurface),
     message: errorText.text,
   };
 }
@@ -156,23 +159,8 @@ function publicTextInvariantFailure(
   };
 }
 
-function isToolLevelError(error: StageError): boolean {
-  // Tool-declared errors carry the owning area rather than stage_interface, so
-  // any non-stage_interface area is a declared tool failure surfaced to the
-  // caller. The enumerated stage_interface.* codes below are the router-level
-  // failures that are still meaningful at the tool level.
-  if (error.area !== "stage_interface") {
-    return true;
-  }
-
-  return error.code === "stage_interface.invalid_input" ||
-    error.code === "stage_interface.ask_required" ||
-    error.code === "stage_interface.denied_by_policy" ||
-    error.code === "stage_interface.tool_timeout";
-}
-
-function jsonRpcCodeFor(error: StageError): number {
-  if (error.code === "stage_interface.tool_not_found") {
+function jsonRpcCodeFor(failureSurface: ReturnType<typeof classifyStageToolFailure>): number {
+  if (failureSurface === "invalid_request") {
     return JSON_RPC_INVALID_PARAMS;
   }
 

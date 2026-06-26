@@ -1,6 +1,7 @@
 import {
   Agent,
   type AgentOptions,
+  type StreamFn,
 } from "@earendil-works/pi-agent-core";
 
 import type { ToolDeclaration } from "../contracts/stage_interface.js";
@@ -10,20 +11,24 @@ import {
   type StageToolDispatchPort,
 } from "./stage_tool_bridge.js";
 
-export type CreateMineMusicPiAgentInput = {
+export type MineMusicPiAgentAdapterOptions = Omit<AgentOptions, "initialState" | "sessionId" | "streamFn"> & {
+  streamFn: StreamFn;
+};
+
+export type CreateMineMusicPiAgentAdapterInput = {
   systemPrompt: string;
   tools: readonly ToolDeclaration[];
   dispatch: StageToolDispatchPort;
   contextFactory: AgentRuntimeStageToolContextFactoryPort;
   stageSessionId: string;
-  providerSessionId?: string;
-  agentOptions?: Omit<AgentOptions, "initialState" | "sessionId">;
+  llmProviderSessionId?: string;
+  agentOptions: MineMusicPiAgentAdapterOptions;
 };
 
-export function createMineMusicPiAgent(input: CreateMineMusicPiAgentInput): Agent {
+export function createMineMusicPiAgentAdapter(input: CreateMineMusicPiAgentAdapterInput): Agent {
   return new Agent({
     ...input.agentOptions,
-    ...(input.providerSessionId === undefined ? {} : { sessionId: input.providerSessionId }),
+    ...(input.llmProviderSessionId === undefined ? {} : { sessionId: input.llmProviderSessionId }),
     initialState: {
       systemPrompt: input.systemPrompt,
       tools: createStageToolBridge({

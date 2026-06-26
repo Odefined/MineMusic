@@ -552,7 +552,7 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
 
 A dependency map: every pi-agent-core behavior the Phase A/B design leans on, and
 which decision it backs. **Audited 2026 against `@earendil-works/pi-agent-core@0.80.2`
-by reading first-party `.d.ts`/source + two runtime experiments** (see
+by reading first-party `.d.ts`/source + fresh runtime checks** (see
 `pi-agent-core-capability-audit-0.80.2.md`). Status reflects that audit, not an
 open question. **Re-run the audit on any version bump** — pi shipped 26 versions
 in about 7 weeks (0.74→0.80) and has done one Node-compat split, so **pin the version

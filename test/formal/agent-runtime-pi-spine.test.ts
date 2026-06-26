@@ -18,11 +18,13 @@ import type {
   RetrievalQueryService,
 } from "../../src/music_intelligence/index.js";
 import {
-  createMineMusicPiAgent,
   createStageToolBridge,
   toPiToolName,
   type StageToolDispatchPort,
 } from "../../src/agent_runtime/index.js";
+import {
+  createMineMusicPiAgentAdapter,
+} from "../../src/agent_runtime/pi_engine.js";
 import {
   createInMemoryMusicScopeAvailabilityPort,
   createMusicDiscoveryLookupRegistration,
@@ -31,6 +33,7 @@ import {
 } from "../../src/music_intelligence/stage_adapter/index.js";
 import {
   createStageInterface,
+  renderModelVisibleToolDescription,
 } from "../../src/stage_interface/index.js";
 
 const testInstrument: InstrumentDescriptor = {
@@ -64,7 +67,10 @@ const descriptor: ToolDeclaration = {
     doNotUseWhen: "Do not use for production music lookup.",
     outputSemantics: "Returns a compact answer.",
   },
-  examples: [{ prompt: "lookup x", expects: "call" }],
+  examples: [
+    { prompt: "lookup x", expects: "call" },
+    { prompt: "lookup x without using agent.test.lookup", expects: "avoid" },
+  ],
   sideEffect: {
     durableUserStateWrite: false,
     runtimeStateWrite: false,
@@ -132,6 +138,8 @@ assert.equal(piToolName, "agent_test_lookup");
 
   assert.equal(tool?.name, piToolName);
   assert.equal(tool?.parameters, descriptor.inputSchema);
+  assert.equal(tool?.description, renderModelVisibleToolDescription(descriptor));
+  assert.match(tool?.description ?? "", /"lookup x without using agent\.test\.lookup" -> avoid/u);
 
   const output = await tool?.execute("tool-call-1", { query: "x" }, controller.signal);
 
@@ -228,8 +236,52 @@ assert.equal(piToolName, "agent_test_lookup");
 }
 
 {
+  const [tool] = createStageToolBridge({
+    tools: [descriptor],
+    dispatch: {
+      async dispatch(): Promise<Result<ToolCallOutput>> {
+        return {
+          ok: false,
+          error: {
+            code: "stage_interface.invalid_output",
+            message: "Internal schema failure leaked materialRef abc.",
+            area: "stage_interface",
+            retryable: false,
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return createMinimalContext(input.sessionId, input.requestId);
+      },
+    },
+    stageSessionId: "stage-session",
+  });
+
+  await assert.rejects(
+    () => {
+      assert.ok(tool !== undefined);
+      return tool.execute("tool-call-internal-failure", { query: "x" });
+    },
+    (error: unknown) => {
+      assert.equal(error instanceof Error, true);
+      if (error instanceof Error) {
+        assert.equal(error.message, "Tool 'agent.test.lookup' failed due to an internal runtime error.");
+        assert.equal(error.message.includes("materialRef"), false);
+      }
+      return true;
+    },
+  );
+}
+
+{
   let streamCallCount = 0;
-  const agent = createMineMusicPiAgent({
+  const agent = createMineMusicPiAgentAdapter({
     systemPrompt: "You are a MineMusic test agent.",
     tools: [descriptor],
     dispatch: {
@@ -253,7 +305,7 @@ assert.equal(piToolName, "agent_test_lookup");
       },
     },
     stageSessionId: "stage-session",
-    providerSessionId: "provider-session",
+    llmProviderSessionId: "provider-session",
     agentOptions: {
       streamFn() {
         streamCallCount += 1;
@@ -323,7 +375,7 @@ assert.equal(piToolName, "agent_test_lookup");
     ],
   });
   let streamCallCount = 0;
-  const agent = createMineMusicPiAgent({
+  const agent = createMineMusicPiAgentAdapter({
     systemPrompt: "You are a MineMusic test agent.",
     tools: [musicDiscoveryLookupDescriptor],
     dispatch: {
@@ -344,7 +396,7 @@ assert.equal(piToolName, "agent_test_lookup");
       },
     },
     stageSessionId: "stage-session",
-    providerSessionId: "provider-session",
+    llmProviderSessionId: "provider-session",
     agentOptions: {
       streamFn() {
         streamCallCount += 1;
@@ -420,7 +472,7 @@ assert.equal(piToolName, "agent_test_lookup");
 
 {
   let streamCallCount = 0;
-  const agent = createMineMusicPiAgent({
+  const agent = createMineMusicPiAgentAdapter({
     systemPrompt: "You are a MineMusic test agent.",
     tools: [descriptor],
     dispatch: {
@@ -470,6 +522,60 @@ assert.equal(piToolName, "agent_test_lookup");
   assert.equal(toolResult?.isError, true);
   assert.equal(toolResult?.content[0]?.type, "text");
   assert.match(toolResult?.content[0]?.text ?? "", /Bad query\.\nSuggested fix: Use a better query\./u);
+}
+
+{
+  let streamCallCount = 0;
+  const agent = createMineMusicPiAgentAdapter({
+    systemPrompt: "You are a MineMusic test agent.",
+    tools: [descriptor],
+    dispatch: {
+      async dispatch(): Promise<Result<ToolCallOutput>> {
+        return {
+          ok: false,
+          error: {
+            code: "stage_interface.tool_handler_failed",
+            message: "Handler threw with sourceRef xyz.",
+            area: "stage_interface",
+            retryable: false,
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
+      },
+    },
+    stageSessionId: "stage-session",
+    agentOptions: {
+      streamFn() {
+        streamCallCount += 1;
+        const message = streamCallCount === 1
+          ? assistantMessageWithToolCall("tool-call-5", piToolName, { query: "x" })
+          : assistantTextMessage("done");
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: streamCallCount === 1 ? "toolUse" : "stop",
+          message,
+        });
+      },
+    },
+  });
+
+  await agent.prompt("lookup x");
+
+  assert.equal(streamCallCount, 2);
+  const toolResult = agent.state.messages.find((message) => message.role === "toolResult");
+  assert.equal(toolResult?.toolName, piToolName);
+  assert.equal(toolResult?.isError, true);
+  assert.equal(toolResult?.content[0]?.type, "text");
+  assert.equal(toolResult?.content[0]?.text, "Tool 'agent.test.lookup' failed due to an internal runtime error.");
+  assert.equal(JSON.stringify(toolResult).includes("sourceRef"), false);
 }
 
 function createMinimalContext(

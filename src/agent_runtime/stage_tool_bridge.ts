@@ -2,14 +2,18 @@ import type {
   AgentTool,
   AgentToolResult,
 } from "@earendil-works/pi-agent-core";
-import type { TSchema } from "typebox";
 
 import type { Result, StageError } from "../contracts/kernel.js";
 import type {
+  JsonSchema,
   StageToolContext,
   ToolCallOutput,
   ToolDeclaration,
 } from "../contracts/stage_interface.js";
+import { renderModelVisibleToolDescription } from "../stage_interface/tool_description_rendering.js";
+import { classifyStageToolFailure } from "../stage_interface/tool_failure_surface.js";
+
+type PiJsonSchema = JsonSchema;
 
 export type AgentRuntimeStageToolContextFactoryPort = {
   createToolContext(input: {
@@ -39,7 +43,7 @@ export type CreateStageToolBridgeInput = {
   }) => string;
 };
 
-export function createStageToolBridge(input: CreateStageToolBridgeInput): AgentTool<TSchema, ToolCallOutput>[] {
+export function createStageToolBridge(input: CreateStageToolBridgeInput): AgentTool<PiJsonSchema, ToolCallOutput>[] {
   assertUniquePiToolNames(input.tools);
   return input.tools.map((descriptor) => createPiToolForStageTool({
     ...input,
@@ -51,14 +55,14 @@ export function createStageToolBridge(input: CreateStageToolBridgeInput): AgentT
 function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
   descriptor: ToolDeclaration;
   piToolName: string;
-}): AgentTool<TSchema, ToolCallOutput> {
+}): AgentTool<PiJsonSchema, ToolCallOutput> {
   const { descriptor } = input;
 
   return {
     name: input.piToolName,
     label: descriptor.label,
-    description: stageToolDescription(descriptor),
-    parameters: descriptor.inputSchema as TSchema,
+    description: renderModelVisibleToolDescription(descriptor),
+    parameters: descriptor.inputSchema,
     async execute(toolCallId, params, signal): Promise<AgentToolResult<ToolCallOutput>> {
       const ctx = input.contextFactory.createToolContext({
         sessionId: input.stageSessionId,
@@ -76,7 +80,7 @@ function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
       });
 
       if (!result.ok) {
-        throw new Error(stageErrorMessage(result.error));
+        throw new Error(stageToolFailureMessage(descriptor, result.error));
       }
 
       return {
@@ -114,24 +118,17 @@ function assertUniquePiToolNames(tools: readonly ToolDeclaration[]): void {
   }
 }
 
-function stageToolDescription(descriptor: ToolDeclaration): string {
-  return [
-    descriptor.description,
-    "",
-    "When to use:",
-    `- ${descriptor.usage.useWhen}`,
-    "When NOT to use:",
-    `- ${descriptor.usage.doNotUseWhen}`,
-    "Output:",
-    `- ${descriptor.usage.outputSemantics}`,
-  ].join("\n");
-}
-
 function summarizeStageToolResult(descriptor: ToolDeclaration, result: unknown): string {
   const fallback = `Tool '${descriptor.name}' returned a result.`;
   const summary = descriptor.resultSummary(result).trim();
 
   return summary.length === 0 ? fallback : summary;
+}
+
+function stageToolFailureMessage(descriptor: ToolDeclaration, error: StageError): string {
+  return classifyStageToolFailure(error) === "tool_result_error"
+    ? stageErrorMessage(error)
+    : `Tool '${descriptor.name}' failed due to an internal runtime error.`;
 }
 
 function stageErrorMessage(error: StageError): string {
