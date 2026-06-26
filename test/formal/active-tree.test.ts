@@ -172,6 +172,12 @@ const musicIntelligenceAllowedMusicDataPlatformBarrelImports = new Set([
     "RetrievalTextField",
     "createMusicDataPlatformMetadataLookupSearchWorkspace",
 ]);
+const agentRuntimeAllowedStageInterfacePureHelpers = new Set([
+    "src/stage_interface/provider_safe_tool_name.ts",
+    "src/stage_interface/tool_description_rendering.ts",
+    "src/stage_interface/tool_failure_surface.ts",
+    "src/stage_interface/tool_public_text.ts",
+]);
 const contractsDagFailures: string[] = [];
 for (const [contractFile, allowed] of Object.entries(contractsDagAllowlist)) {
     for (const edge of architectureGraph.edges.filter((candidate) => candidate.fromFile === contractFile && candidate.specifier.startsWith("."))) {
@@ -228,6 +234,9 @@ function sourceBoundaryFailure(edge: ArchitectureImportEdge): string | undefined
     if (edge.toFile === undefined) {
         return undefined;
     }
+    if (edge.toFile === "src/agent_runtime/pi_engine.ts" && edge.fromArea !== "agent_runtime") {
+        return `Only Agent Runtime internals may import the raw pi adapter factory: ${formatEdge(edge)}`;
+    }
     if (edge.fromArea === "music_data_platform") {
         return musicDataPlatformBoundaryFailure(edge);
     }
@@ -270,6 +279,11 @@ function musicDataPlatformBoundaryFailure(edge: ArchitectureImportEdge): string 
     return undefined;
 }
 function agentRuntimeBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
+    if (edge.toArea === "stage_interface") {
+        return agentRuntimeAllowedStageInterfacePureHelpers.has(edge.toFile ?? "")
+            ? undefined
+            : `Agent Runtime may import only Stage Interface public pure helper modules, not arbitrary Stage Interface internals: ${formatEdge(edge)}`;
+    }
     if (edge.toArea === "server" || edge.toArea === "stage_core" || edge.toArea === "music_data_platform" || edge.toArea === "music_intelligence" || edge.toArea === "music_experience" || edge.toArea === "extension" || edge.toArea === "storage" || edge.toArea === "background_work" || edge.toArea === "effect_boundary") {
         return `Agent Runtime must not import ${edge.toArea}; compose Stage tools through injected descriptors, context factory, and dispatch ports: ${formatEdge(edge)}`;
     }

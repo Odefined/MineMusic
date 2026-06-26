@@ -43,6 +43,17 @@ export type {
   StageToolFailureSurface,
 } from "./tool_failure_surface.js";
 export {
+  renderPublicToolErrorText,
+  renderPublicToolResultSummary,
+} from "./tool_public_text.js";
+export type {
+  PublicToolTextRender,
+} from "./tool_public_text.js";
+export {
+  assertUniqueProviderSafeToolNames,
+  toProviderSafeToolName,
+} from "./provider_safe_tool_name.js";
+export {
   createStageInterfaceCandidateHandleCachePort,
   createStageInterfaceHandleMintingPort,
   createStageInterfaceHandleMintingPortFromRecords,

@@ -4,7 +4,7 @@ import type { InstrumentDescriptor, JsonSchema, StageToolContext, ToolCallInput,
 import { createStageToolContext, type StageToolContextFactory, } from "../../src/stage_interface/index.js";
 import { createMcpStdioTransport, type McpStdioTransportIo, type McpStdioTransportPorts, } from "../../src/server/transports/mcp_stdio_driver.js";
 import { errorResponse, parseJsonRpcLine, resultResponse, JSON_RPC_INVALID_PARAMS, JSON_RPC_INVALID_REQUEST, JSON_RPC_METHOD_NOT_FOUND, JSON_RPC_PARSE_ERROR, JSON_RPC_INTERNAL_ERROR, } from "../../src/server/transports/mcp_framing.js";
-import { deriveMcpAnnotations, renderMcpTool, stitchToolDescription, } from "../../src/server/transports/mcp_rendering.js";
+import { deriveMcpAnnotations, renderMcpTool, renderMcpToolList, stitchToolDescription, } from "../../src/server/transports/mcp_rendering.js";
 import { translateToolCall } from "../../src/server/transports/mcp_translation.js";
 const PROTOCOL_VERSION = "2025-11-25";
 const SERVER_INFO = { name: "minemusic", version: "0.0.0" };
@@ -118,6 +118,16 @@ assert.deepEqual(errorResponse(null, JSON_RPC_PARSE_ERROR, "Invalid JSON."), {
 }
 // A write tool with no destructive / open-world posture derives no annotations.
 assert.equal(deriveMcpAnnotations(writeTestDescriptor), undefined);
+assert.throws(
+    () => renderMcpToolList([
+        readOnlyTestDescriptor,
+        {
+            ...readOnlyTestDescriptor,
+            name: "stage.test_ping",
+        },
+    ]),
+    /Stage tool names 'stage\.test\.ping' and 'stage\.test_ping' both map to provider-safe tool name 'stage_test_ping'\./u,
+);
 // ---------------------------------------------------------------------------
 // translation
 // ---------------------------------------------------------------------------
@@ -379,6 +389,19 @@ function portsFor(tools: readonly ToolDeclaration[], dispatch: CapturedDispatch)
         protocolVersion: PROTOCOL_VERSION,
     };
 }
+assert.throws(
+    () => createMcpStdioTransport({
+        ports: portsFor([
+            readOnlyTestDescriptor,
+            {
+                ...readOnlyTestDescriptor,
+                name: "stage.test_ping",
+            },
+        ], async () => okResult({ ok: true })),
+        io: fakeIo([]).io,
+    }),
+    /Stage tool names 'stage\.test\.ping' and 'stage\.test_ping' both map to provider-safe tool name 'stage_test_ping'\./u,
+);
 async function flushMicrotasks(rounds = 32): Promise<void> {
     for (let i = 0; i < rounds; i += 1) {
         await Promise.resolve();

@@ -69,9 +69,12 @@ Host, Stage Core, domain, storage, or presentation imports.
   (synthetic agent `sessionId`/`requestId`, `ownerScope`); wiring that feeds pi
   tool-call requests into `dispatch` and tool results back into the loop.
 - Allowed imports: Stage Interface `dispatch` + context factory as ports;
-  contracts. Forbidden: Agent Runtime must not import presentation, runtime
-  assembly internals, or area-internal command modules directly (it reaches
-  tools only through `dispatch`).
+  contracts; and narrow Stage Interface public pure helpers for model-visible
+  tool description rendering, tool failure surface classification, and public
+  text invariant / provider-safe tool-name rendering. Forbidden: Agent Runtime must not import
+  presentation, runtime assembly internals, Tool Call Router internals, or
+  area-internal command modules directly (it reaches tools only through
+  `dispatch`).
 - Design points (resolved concretely in "A1 Deep Dive" below, grounded in the
   pi type definitions): pi embedding choice, the Stage-tool→pi-tool bridge, the
   double-gate resolution, schema-validation duplication, the Result↔throw error

@@ -21,6 +21,7 @@ import type {
   ToolDeclaration,
 } from "../../contracts/stage_interface.js";
 import type { StageToolContextFactory } from "../../stage_interface/index.js";
+import { assertUniqueProviderSafeToolNames } from "../../stage_interface/provider_safe_tool_name.js";
 import {
   JSON_RPC_INTERNAL_ERROR,
   JSON_RPC_INVALID_REQUEST,
@@ -96,6 +97,7 @@ export function createMcpStdioTransport(input: CreateMcpStdioTransportInput): Mc
   let closed = false;
   // tools/call arrives with an MCP-exposed (underscored) tool name; map it back
   // to the descriptor (and its internal dotted name) for dispatch.
+  assertUniqueProviderSafeToolNames(input.ports.tools);
   const descriptorByMcpName = new Map<string, ToolDeclaration>(
     input.ports.tools.map((tool) => [toMcpToolName(tool.name), tool]),
   );

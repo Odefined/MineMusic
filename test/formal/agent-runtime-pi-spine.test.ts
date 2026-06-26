@@ -100,6 +100,40 @@ const piToolName = toPiToolName(descriptor.name);
 
 assert.equal(piToolName, "agent_test_lookup");
 
+assert.throws(
+  () => createStageToolBridge({
+    tools: [
+      descriptor,
+      {
+        ...descriptor,
+        name: "agent.test_lookup",
+      },
+    ],
+    dispatch: {
+      async dispatch() {
+        return {
+          ok: true,
+          value: {
+            toolName: descriptor.name,
+            result: { answer: "found" },
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
+      },
+    },
+    stageSessionId: "stage-session",
+  }),
+  /Stage tool names 'agent\.test\.lookup' and 'agent\.test_lookup' both map to provider-safe tool name 'agent_test_lookup'\./u,
+);
+
 {
   let dispatched:
     | {
@@ -193,7 +227,62 @@ assert.equal(piToolName, "agent_test_lookup");
       assert.ok(tool !== undefined);
       return tool.execute("tool-call-summary-throws", { query: "x" });
     },
-    /broken resultSummary/u,
+    (error: unknown) => {
+      assert.equal(error instanceof Error, true);
+      if (error instanceof Error) {
+        assert.equal(error.message, "Tool 'agent.test.lookup' public text invariant failed: resultSummary failed.");
+        assert.equal(error.message.includes("broken resultSummary"), false);
+      }
+      return true;
+    },
+  );
+}
+
+{
+  const leakySummaryDescriptor: ToolDeclaration = {
+    ...descriptor,
+    resultSummary() {
+      return "leaked material:recording:m_internal here";
+    },
+  };
+  const [tool] = createStageToolBridge({
+    tools: [leakySummaryDescriptor],
+    dispatch: {
+      async dispatch(input) {
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: { answer: "found" },
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
+      },
+    },
+    stageSessionId: "stage-session",
+  });
+
+  await assert.rejects(
+    () => {
+      assert.ok(tool !== undefined);
+      return tool.execute("tool-call-summary-leaks", { query: "x" });
+    },
+    (error: unknown) => {
+      assert.equal(error instanceof Error, true);
+      if (error instanceof Error) {
+        assert.equal(error.message, "Tool 'agent.test.lookup' public text invariant failed: resultSummary exposes internal anchors.");
+        assert.equal(error.message.includes("material:recording:m_internal"), false);
+      }
+      return true;
+    },
   );
 }
 
@@ -576,6 +665,65 @@ assert.equal(piToolName, "agent_test_lookup");
   assert.equal(toolResult?.content[0]?.type, "text");
   assert.equal(toolResult?.content[0]?.text, "Tool 'agent.test.lookup' failed due to an internal runtime error.");
   assert.equal(JSON.stringify(toolResult).includes("sourceRef"), false);
+}
+
+{
+  const leakySummaryDescriptor: ToolDeclaration = {
+    ...descriptor,
+    resultSummary() {
+      return "leaked sourceRef source_netease:track:1901371647";
+    },
+  };
+  let streamCallCount = 0;
+  const agent = createMineMusicPiAgentAdapter({
+    systemPrompt: "You are a MineMusic test agent.",
+    tools: [leakySummaryDescriptor],
+    dispatch: {
+      async dispatch(input) {
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: { answer: "from-pi" },
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
+      },
+    },
+    stageSessionId: "stage-session",
+    agentOptions: {
+      streamFn() {
+        streamCallCount += 1;
+        const message = streamCallCount === 1
+          ? assistantMessageWithToolCall("tool-call-6", piToolName, { query: "x" })
+          : assistantTextMessage("done");
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: streamCallCount === 1 ? "toolUse" : "stop",
+          message,
+        });
+      },
+    },
+  });
+
+  await agent.prompt("lookup x");
+
+  assert.equal(streamCallCount, 2);
+  const toolResult = agent.state.messages.find((message) => message.role === "toolResult");
+  assert.equal(toolResult?.toolName, piToolName);
+  assert.equal(toolResult?.isError, true);
+  assert.equal(toolResult?.content[0]?.type, "text");
+  assert.equal(toolResult?.content[0]?.text, "Tool 'agent.test.lookup' public text invariant failed: resultSummary exposes internal anchors.");
+  assert.equal(JSON.stringify(toolResult).includes("sourceRef"), false);
+  assert.equal(JSON.stringify(toolResult).includes("source_netease:track:1901371647"), false);
 }
 
 function createMinimalContext(

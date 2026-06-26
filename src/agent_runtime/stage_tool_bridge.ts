@@ -12,6 +12,14 @@ import type {
 } from "../contracts/stage_interface.js";
 import { renderModelVisibleToolDescription } from "../stage_interface/tool_description_rendering.js";
 import { classifyStageToolFailure } from "../stage_interface/tool_failure_surface.js";
+import {
+  renderPublicToolErrorText,
+  renderPublicToolResultSummary,
+} from "../stage_interface/tool_public_text.js";
+import {
+  assertUniqueProviderSafeToolNames,
+  toProviderSafeToolName,
+} from "../stage_interface/provider_safe_tool_name.js";
 
 type PiJsonSchema = JsonSchema;
 
@@ -44,7 +52,7 @@ export type CreateStageToolBridgeInput = {
 };
 
 export function createStageToolBridge(input: CreateStageToolBridgeInput): AgentTool<PiJsonSchema, ToolCallOutput>[] {
-  assertUniquePiToolNames(input.tools);
+  assertUniqueProviderSafeToolNames(input.tools);
   return input.tools.map((descriptor) => createPiToolForStageTool({
     ...input,
     descriptor,
@@ -92,47 +100,25 @@ function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
 }
 
 export function toPiToolName(internalName: string): string {
-  const piToolName = internalName.replace(/[^a-zA-Z0-9_-]/gu, "_");
-
-  if (!/^[a-zA-Z0-9_-]{1,64}$/u.test(piToolName)) {
-    throw new Error(`Stage tool name '${internalName}' cannot be mapped to a provider-safe pi tool name.`);
-  }
-
-  return piToolName;
-}
-
-function assertUniquePiToolNames(tools: readonly ToolDeclaration[]): void {
-  const seen = new Map<string, string>();
-
-  for (const tool of tools) {
-    const piToolName = toPiToolName(tool.name);
-    const prior = seen.get(piToolName);
-
-    if (prior !== undefined) {
-      throw new Error(
-        `Stage tool names '${prior}' and '${tool.name}' both map to pi tool name '${piToolName}'.`,
-      );
-    }
-
-    seen.set(piToolName, tool.name);
-  }
+  return toProviderSafeToolName(internalName);
 }
 
 function summarizeStageToolResult(descriptor: ToolDeclaration, result: unknown): string {
-  const fallback = `Tool '${descriptor.name}' returned a result.`;
-  const summary = descriptor.resultSummary(result).trim();
+  const summary = renderPublicToolResultSummary({ descriptor, result });
 
-  return summary.length === 0 ? fallback : summary;
+  if (summary.kind === "invariantFailure") {
+    throw new Error(summary.message);
+  }
+
+  return summary.text;
 }
 
 function stageToolFailureMessage(descriptor: ToolDeclaration, error: StageError): string {
-  return classifyStageToolFailure(error) === "tool_result_error"
-    ? stageErrorMessage(error)
-    : `Tool '${descriptor.name}' failed due to an internal runtime error.`;
-}
+  if (classifyStageToolFailure(error) !== "tool_result_error") {
+    return `Tool '${descriptor.name}' failed due to an internal runtime error.`;
+  }
 
-function stageErrorMessage(error: StageError): string {
-  return error.suggestedFix === undefined
-    ? error.message
-    : `${error.message}\nSuggested fix: ${error.suggestedFix}`;
+  const errorText = renderPublicToolErrorText({ descriptor, error });
+
+  return errorText.kind === "invariantFailure" ? errorText.message : errorText.text;
 }
