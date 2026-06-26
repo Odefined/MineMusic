@@ -1,4 +1,5 @@
 import { parseRefKey, refKey, type Ref, type Result } from "../../contracts/kernel.js";
+import type { MusicMaterial } from "../../contracts/music_data_platform.js";
 import type {
   MusicItemHandle,
   StageToolContext,
@@ -18,6 +19,22 @@ export async function resolveDurableMusicItem(
   item: MusicItemHandle,
   ports: ResolveDurableMusicItemPorts,
 ): Promise<Result<Ref>> {
+  const material = await resolveDurableMusicMaterial(ctx, item, ports);
+  if (!material.ok) {
+    return material;
+  }
+
+  return {
+    ok: true,
+    value: material.value.materialRef,
+  };
+}
+
+export async function resolveDurableMusicMaterial(
+  ctx: StageToolContext,
+  item: MusicItemHandle,
+  ports: ResolveDurableMusicItemPorts,
+): Promise<Result<MusicMaterial>> {
   switch (item.kind) {
     case "candidate":
       return resolveCandidate(ctx, item.id, ports);
@@ -66,7 +83,7 @@ async function resolveCandidate(
   ctx: StageToolContext,
   publicId: string,
   ports: ResolveDurableMusicItemPorts,
-): Promise<Result<Ref>> {
+): Promise<Result<MusicMaterial>> {
   const resolved = await ctx.handleMinting.resolve({
     ownerScope: ctx.ownerScope,
     handleKind: "candidate",
@@ -90,9 +107,16 @@ async function resolveCandidate(
     return translateCandidateCommitFailure(committed.error.code);
   }
 
+  const material = await ports.materialProjection.projectMusicMaterial({
+    materialRef: committed.value.materialRef,
+  });
+  if (material === undefined) {
+    return materialNotFound("Music material is not available.");
+  }
+
   return {
     ok: true,
-    value: committed.value.materialRef,
+    value: material,
   };
 }
 
@@ -100,7 +124,7 @@ async function resolveMaterial(
   ctx: StageToolContext,
   publicId: string,
   ports: ResolveDurableMusicItemPorts,
-): Promise<Result<Ref>> {
+): Promise<Result<MusicMaterial>> {
   const resolved = await ctx.handleMinting.resolve({
     ownerScope: ctx.ownerScope,
     handleKind: "material",
@@ -123,7 +147,7 @@ async function resolveMaterial(
 
   return {
     ok: true,
-    value: material.materialRef,
+    value: material,
   };
 }
 

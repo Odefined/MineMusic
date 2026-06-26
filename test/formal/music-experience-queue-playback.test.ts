@@ -393,6 +393,132 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 
 {
   const database = await initializedMusicExperienceDatabase();
+  const winnerRef: Ref = {
+    namespace: "material",
+    kind: "recording",
+    id: "a3_candidate_merge_winner",
+  };
+  const loserRef: Ref = {
+    namespace: "material",
+    kind: "recording",
+    id: "a3_candidate_merge_loser",
+  };
+  const materialCandidateRef: Ref = {
+    namespace: "material_candidate",
+    kind: "provider_candidate",
+    id: "mc_a3_candidate_merge_loser",
+  };
+  await seedRecording(database, winnerRef, "A3 Candidate Winner Song", ["Winner Artist"]);
+  await seedRecording(database, loserRef, "A3 Candidate Loser Song", ["Loser Artist"]);
+  await mergeMaterials(database, loserRef, winnerRef);
+
+  const materialProjection = createMaterialProjection({ db: database.context() });
+  const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
+  let publicIdCount = 0;
+  const candidateHandles = candidateHandlesFor({
+    publicId: "mh_a3_candidate_merge_handle",
+    materialCandidateRef,
+  });
+  const handleMinting = createStageInterfaceHandleMintingPort({
+    db: database.context(),
+    clock: () => now,
+    candidateHandles,
+    publicIdFactory: () => `mh_a3_candidate_merge_${++publicIdCount}`,
+  });
+  const candidateHandleId = await handleMinting.mint({
+    ownerScope,
+    handleKind: "candidate",
+    internalAnchor: {
+      materialCandidateRef: refKey(materialCandidateRef),
+    },
+  });
+  let commitCount = 0;
+  const candidateCommit: CandidateCommitCommand = {
+    async commitCandidate(input) {
+      assert.deepEqual(input.materialCandidateRef, materialCandidateRef);
+      commitCount += 1;
+      return {
+        ok: true,
+        value: {
+          materialRef: loserRef,
+          created: false,
+        },
+      };
+    },
+  };
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: [
+      createMusicExperienceQueueAppendRegistration({
+        candidateCommit,
+        materialProjection,
+        queuePlayback,
+      }),
+      createMusicExperiencePlaybackPlayRegistration({
+        candidateCommit,
+        materialProjection,
+        queuePlayback,
+      }),
+    ],
+  });
+  const ctx = createStageToolContext({
+    ownerScope,
+    sessionId: "a3-candidate-merge-session",
+    requestId: "a3-candidate-merge-request",
+    clock: () => now,
+    handleMinting,
+  });
+
+  const appendResult = await stageInterface.dispatch(ctx, {
+    toolName: "music.experience.queue.append",
+    payload: {
+      items: [
+        {
+          kind: "candidate",
+          id: candidateHandleId,
+        },
+      ],
+    },
+  });
+  assert.equal(appendResult.ok, true);
+  const appendOutput = output<MusicExperienceQueueAppendOutput>(appendResult);
+  const appendHandleAnchor = await handleMinting.resolve({
+    ownerScope,
+    handleKind: "material",
+    publicId: appendOutput.items[0]!.item.id,
+  }) as { materialRef: string };
+  assert.equal(appendHandleAnchor.materialRef, refKey(winnerRef));
+
+  const playResult = await stageInterface.dispatch(ctx, {
+    toolName: "music.experience.playback.play",
+    payload: {
+      item: {
+        kind: "candidate",
+        id: candidateHandleId,
+      },
+    },
+  });
+  assert.equal(playResult.ok, true);
+  const playOutput = output<MusicExperiencePlaybackPlayOutput>(playResult);
+  const playHandleAnchor = await handleMinting.resolve({
+    ownerScope,
+    handleKind: "material",
+    publicId: playOutput.item.id,
+  }) as { materialRef: string };
+  assert.equal(playHandleAnchor.materialRef, refKey(winnerRef));
+  assert.equal(commitCount, 2);
+
+  const snapshot = await createMusicExperienceQueuePlaybackRecords({
+    db: database.context(),
+  }).read({ ownerScope });
+  assert.deepEqual(snapshot.queue[0]?.materialRef, winnerRef);
+  assert.deepEqual(snapshot.playback.materialRef, winnerRef);
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
   const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
   const handleMinting = createStageInterfaceHandleMintingPort({
     db: database.context(),

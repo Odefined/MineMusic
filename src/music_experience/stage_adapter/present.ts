@@ -1,4 +1,5 @@
-import type { Ref, Result } from "../../contracts/kernel.js";
+import type { Result } from "../../contracts/kernel.js";
+import type { MusicMaterial } from "../../contracts/music_data_platform.js";
 import {
   musicExperiencePresentInputSchema,
   musicExperiencePresentOutputSchema,
@@ -19,9 +20,8 @@ import type {
   MaterialProjection,
 } from "../../music_data_platform/index.js";
 import {
-  materialNotFound,
   mintMaterialItemHandle,
-  resolveDurableMusicItem,
+  resolveDurableMusicMaterial,
 } from "./durable_item_resolution.js";
 
 export type CreateMusicExperiencePresentRegistrationInput = {
@@ -123,31 +123,21 @@ async function handleMusicExperiencePresent(
   ports: CreateMusicExperiencePresentRegistrationInput,
 ): Promise<Result<MusicExperiencePresentOutput>> {
   const input = payload as MusicExperiencePresentInput;
-  const materialRef = await resolveDurableMusicItem(ctx, input.item, ports);
+  const material = await resolveDurableMusicMaterial(ctx, input.item, ports);
 
-  if (!materialRef.ok) {
-    return materialRef;
+  if (!material.ok) {
+    return material;
   }
 
-  return presentMaterial(ctx, materialRef.value, ports);
+  return presentMaterial(ctx, material.value);
 }
 
 async function presentMaterial(
   ctx: StageToolContext,
-  materialRef: Ref,
-  ports: CreateMusicExperiencePresentRegistrationInput,
+  material: MusicMaterial,
 ): Promise<Result<MusicExperiencePresentOutput>> {
-  const material = await ports.materialProjection.projectMusicMaterial({ materialRef });
-
-  if (material === undefined) {
-    return materialNotFound("Music material is not available for presentation.");
-  }
-
-  // Mint the material handle from the projected (survivor) materialRef, not the
-  // input ref: when the input material was merged, Material Projection followed
-  // mergedIntoMaterialRef and returned the surviving MusicMaterial. Minting the
-  // input ref would anchor the public handle on the loser and leak a stale
-  // anchor to later play/favorite/save tools.
+  // The shared durable-item resolver has already projected through any
+  // mergedIntoMaterialRef, so mint from the survivor materialRef it returns.
   const publicHandle = await mintMaterialItemHandle(ctx, material.materialRef);
 
   return {
