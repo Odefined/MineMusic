@@ -1,4 +1,15 @@
 export {
+  createMineMusicMainAgentSession,
+} from "./main_agent_session.js";
+export type {
+  CreateMineMusicMainAgentSessionInput,
+  MineMusicMainAgentAssistantMessage,
+  MineMusicMainAgentSession,
+  MineMusicMainAgentTurnResult,
+  MineMusicMainAgentTurnStopReason,
+  RunMineMusicMainAgentTurnInput,
+} from "./main_agent_session.js";
+export {
   createMineMusicPiAgentAdapter,
 } from "./pi_engine.js";
 export type {

@@ -522,12 +522,15 @@ since Phase 21.
 - **Projection.** A public queue/now-playing read port exposes current queue +
   now-playing for Session Context (A2). It is a direct read of queue/playback
   truth, not routed through the material projection-maintenance machinery.
-  Slice 1 may expose the full small queue, but A4 must not inject an unbounded
-  queue into the agent prompt. Before live turn wiring relies on this projection
-  for Session Context, either cap the Workbench read projection or expose a
-  bounded shape such as `nowPlaying`, `queueHead`, `queueTail`, `queueLength`, and
-  `revision`. The database truth may retain the full queue; the Workbench /
-  Session Context surface must stay prompt-bounded.
+  The original A3 projection note allowed the database truth to retain a full
+  queue while A4 bounded the Workbench/Session Context read side
+  (`queueHead`/`queueTail`/`queueLength`). ADR-0044 explicitly changes that
+  plan: the Music Experience logical queue itself is bounded runtime state. The
+  owning queue command rejects appends above
+  `MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH = 100` with `queue_full`, so Workbench /
+  Session Context may expose the full queue without hiding unbounded product
+  state in a prompt renderer. The database table still stores ordinary queue
+  rows; the product invariant keeps both queue state and prompt surface bounded.
 
 - **Agent-facing tools.** `music.experience.queue.append` and
   `music.experience.playback.play` _(proposed)_ register under the existing
@@ -606,14 +609,23 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
   pi snapshots the current `state.systemPrompt`, `state.messages`, and
   `state.tools` when `prompt()` enters `runAgentLoop`, so A4 can update the
   MineMusic-rendered system prompt at the user-turn boundary while preserving
-  pi-owned transcript, lifecycle, queueing, abort, and `waitForIdle()` behavior.
-  Do not replace that with a clean-room local harness loop or per-turn Agent
-  shell unless a fresh pi-source audit proves the installed pi behavior cannot
-  support the required MineMusic boundary.
+  pi-owned transcript, lifecycle, abort, and `waitForIdle()` behavior. The A4
+  user-turn facade is deliberately serial and does not expose pi `steer()` /
+  `followUp()` queueing yet; if a later slice wants mid-run user input it should
+  add that as an explicit Agent Runtime facade capability instead of accidentally
+  bypassing the turn boundary. Do not replace this flow with a clean-room local
+  harness loop or per-turn Agent shell unless a fresh pi-source audit proves the
+  installed pi behavior cannot support the required MineMusic boundary.
 - **Speech Level deferred.** The agent produces a normal harness-visible text
   response; Speech Level (Silent/Notify/Speak) as an Agent-Runtime policy is not
   enforced in slice 1 (no UI to be silent toward; the harness reads the
-  response).
+  response). The A4 turn facade returns the pi-produced messages for the turn
+  plus the final assistant message, `stopReason`, `errorMessage` when pi reports
+  one, and final assistant text when present; it does not create a parallel
+  transcript model. `newMessages` is the pi-owned transcript slice appended by
+  the `prompt()` run, so it may include user, assistant, tool-result, error, or
+  aborted messages. The facade does not translate pi aborted/error assistant
+  messages into a fabricated successful chat response.
 - **System prompt.** A minimal music-agent system prompt naming the available
   instruments and the play/queue intent. Content, not a boundary — refined in
   implementation.
@@ -683,9 +695,15 @@ exactly**; version drift is the real risk, not capability gaps.
   Context capture/identity assembly over that seam, system-prompt rendering, and
   guards proving no AG-UI/web/transport or area-internal imports. A3 supplies
   the real queue/playback truth behind the projection port.
-- PR A3a: queue/playback truth + owning command + projection (command tests).
-- PR A3b: agent-facing queue/play tool registrations + gate posture + guards.
-- PR A4: agent turn wiring + end-to-end harness.
+- PR A3a/A3b: **implemented** — queue/playback truth + owning command +
+  projection, agent-facing queue/play tool registrations, gate posture, survivor
+  projection discipline, cooperative abort checks, hard queue length cap
+  (`queue_full`), and guards.
+- PR A4: **implemented** — long-lived pi `Agent` turn session, turn-start
+  Session Context refresh through `state.systemPrompt`, pi `prompt()` /
+  `waitForIdle()` loop delegation, harness-visible response/messages, and
+  deterministic end-to-end harness over `lookup -> present -> queue.append ->
+  playback.play`.
 
 ## Exit Criteria
 

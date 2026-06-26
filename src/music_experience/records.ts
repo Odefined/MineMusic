@@ -18,6 +18,9 @@ export type MusicExperienceQueuePlaybackRecords = {
   read(input: {
     ownerScope: string;
   }): Promise<MusicExperienceSnapshot>;
+  countQueue(input: {
+    ownerScope: string;
+  }): Promise<number>;
   append(input: {
     ownerScope: string;
     materialRefs: readonly Ref[];
@@ -89,6 +92,19 @@ export function createMusicExperienceQueuePlaybackRecords(
         queue: rows.map(queueItemFromRow),
         playback: playbackFromRow(state),
       };
+    },
+    async countQueue(countInput) {
+      const key = workspaceKey(countInput.ownerScope, workspaceId);
+      const row = await db.get<{ queue_length: number }>(
+        `
+          SELECT COUNT(*)::int AS queue_length
+          FROM music_experience_queue_items
+          WHERE owner_scope = ?
+            AND workspace_id = ?
+        `,
+        [key.ownerScope, key.workspaceId],
+      );
+      return row?.queue_length ?? 0;
     },
     async append(appendInput) {
       if (appendInput.materialRefs.length === 0) {

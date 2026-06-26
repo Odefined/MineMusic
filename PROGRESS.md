@@ -1515,9 +1515,22 @@ catalog integration. Design authority:
   The Stage tools `music.experience.queue.append` and
   `music.experience.playback.play` auto-pass as runtime-state writes and return
   compact public handles/positions/revisions. The Workbench read-model seam can
-  now read the Music Experience projection from real queue/playback state. A4
-  end-to-end agent turn wiring, Radio, Memory, skill runtime, and Web behavior
-  are still unimplemented.
+  now read the Music Experience projection from real queue/playback state. The
+  queue is bounded at 100 items by the owning command and returns `queue_full`
+  instead of allowing unbounded prompt growth; ADR-0044 records this as an
+  explicit Phase A4 decision replacing the earlier read-side-only bounded
+  projection plan.
+- A4 adds `createMineMusicMainAgentSession`, a MineMusic-owned turn facade over
+  a long-lived pi `Agent`. Each `runUserTurn` captures fresh Session Context
+  through the A2 Workbench read-model seam, refreshes the pi
+  `state.systemPrompt` at the user-turn boundary, then delegates loop control to
+  pi `prompt()` / `waitForIdle()` while preserving pi-owned transcript,
+  lifecycle, queueing, abort, and tool execution behavior. The facade returns
+  the pi-produced turn messages plus final assistant status/error/text. The
+  formal A4 harness drives `lookup -> present -> queue.append -> playback.play`
+  through the A1-bridged Stage tools and verifies the Music Experience read
+  projection reflects the queue/now-playing outcome. Radio, Memory, skill
+  runtime, and Web behavior are still unimplemented.
 
 ## Next Formal Milestones
 

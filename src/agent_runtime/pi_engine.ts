@@ -28,6 +28,11 @@ export type CreateMineMusicPiAgentAdapterInput = {
   dispatch: StageToolDispatchPort;
   contextFactory: AgentRuntimeStageToolContextFactoryPort;
   stageSessionId: string;
+  /**
+   * Construction-time context for adapter-level tests or alternate one-shot
+   * assembly. The A4 Main Agent session refreshes `state.systemPrompt` at each
+   * user-turn boundary instead of relying on this initial prompt path.
+   */
   sessionContext?: AgentSessionContext;
   llmProviderSessionId?: string;
   agentOptions: MineMusicPiAgentAdapterOptions;

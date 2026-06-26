@@ -144,10 +144,11 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/agent_runtime
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
     "src/agent_runtime/index.ts",
+    "src/agent_runtime/main_agent_session.ts",
     "src/agent_runtime/pi_engine.ts",
     "src/agent_runtime/session_context.ts",
     "src/agent_runtime/stage_tool_bridge.ts",
-], "formal Agent Runtime root must stay focused on the pi engine facade, Stage tool bridge, and Session Context in Phase A");
+], "formal Agent Runtime root must stay focused on the pi engine facade, Main Agent turn session, Stage tool bridge, and Session Context in Phase A");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/workbench_interface")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [

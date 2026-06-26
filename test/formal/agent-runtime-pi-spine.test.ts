@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
 
-import type { StreamFn } from "@earendil-works/pi-agent-core";
-
 import type { Ref, Result } from "../../src/contracts/kernel.js";
 import type {
   InstrumentDescriptor,
@@ -35,6 +33,11 @@ import {
   createStageInterface,
   renderModelVisibleToolDescription,
 } from "../../src/stage_interface/index.js";
+import {
+  assistantMessageWithToolCall,
+  assistantTextMessage,
+  fakeAssistantMessageEventStream,
+} from "./helpers/pi-agent-message-fixtures.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2 ? true : false;
 type Expect<Check extends true> = Check;
@@ -1117,59 +1120,4 @@ function assertPiLookupOutputIsVeiled(output: MusicDiscoveryLookupOutput | undef
   ]) {
     assert.equal(text.includes(forbidden), false, `pi lookup output leaked internal token '${forbidden}'`);
   }
-}
-
-function assistantMessageWithToolCall(id: string, name: string, args: Record<string, unknown>) {
-  return {
-    role: "assistant" as const,
-    content: [{ type: "toolCall" as const, id, name, arguments: args }],
-    api: "openai" as const,
-    provider: "openai" as const,
-    model: "fake",
-    usage: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 0,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-    },
-    stopReason: "toolUse" as const,
-    timestamp: 0,
-  };
-}
-
-function assistantTextMessage(text: string) {
-  return {
-    role: "assistant" as const,
-    content: [{ type: "text" as const, text }],
-    api: "openai" as const,
-    provider: "openai" as const,
-    model: "fake",
-    usage: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 0,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-    },
-    stopReason: "stop" as const,
-    timestamp: 0,
-  };
-}
-
-function fakeAssistantMessageEventStream(event: {
-  type: "done";
-  reason: "toolUse" | "stop";
-  message: ReturnType<typeof assistantMessageWithToolCall> | ReturnType<typeof assistantTextMessage>;
-}): ReturnType<StreamFn> {
-  return ({
-    async *[Symbol.asyncIterator]() {
-      yield event;
-    },
-    result() {
-      return Promise.resolve(event.message);
-    },
-  } as unknown) as ReturnType<StreamFn>;
 }
