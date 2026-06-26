@@ -228,6 +228,15 @@ name is scoped (`@earendil-works/pi-agent-core`).
   MineMusic-owned code may narrow or constrain pi behavior for product/runtime
   boundaries through wrapper/adaptor code, but copied or locally modified pi
   source is not the default integration mechanism.
+  For Agent Runtime / harness-loop design, the implementation order is:
+  inspect the installed pi `.d.ts` and runtime source for the relevant control
+  flow, identify the pi primitive or source behavior being reused, then write
+  MineMusic's business boundary logic around that flow. Do not invent a
+  parallel prompt loop, tool loop, transcript model, lifecycle runner, or
+  conservative per-turn shell from first principles when pi already provides the
+  flow. If MineMusic must diverge from pi's flow, record the exact pinned source
+  location, the incompatible capability, and the owning MineMusic boundary in
+  this spec or an ADR before treating the divergence as design fact.
 
 - **Skill support is reserved, not implemented in Phase A.** A1a should leave
   enough Agent Runtime facade space for future pi-style skill support, but it
@@ -593,7 +602,14 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
   `playback.play`). A4 must capture the Session Context once at the start of
   each user turn and inject that snapshot into the agent prompt for that turn;
   do not reuse a single adapter/system-prompt instance across turns without a
-  refresh path.
+  refresh path. The refresh path should reuse pi's stateful `Agent` semantics:
+  pi snapshots the current `state.systemPrompt`, `state.messages`, and
+  `state.tools` when `prompt()` enters `runAgentLoop`, so A4 can update the
+  MineMusic-rendered system prompt at the user-turn boundary while preserving
+  pi-owned transcript, lifecycle, queueing, abort, and `waitForIdle()` behavior.
+  Do not replace that with a clean-room local harness loop or per-turn Agent
+  shell unless a fresh pi-source audit proves the installed pi behavior cannot
+  support the required MineMusic boundary.
 - **Speech Level deferred.** The agent produces a normal harness-visible text
   response; Speech Level (Silent/Notify/Speak) as an Agent-Runtime policy is not
   enforced in slice 1 (no UI to be silent toward; the harness reads the

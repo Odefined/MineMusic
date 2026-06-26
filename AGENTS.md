@@ -30,6 +30,10 @@ non-trivial workflow applies to `boundary-affecting`,
 ## Hard Rules
 
 - Prefer small, verifiable diffs. Do not silently broaden scope.
+- Prefer the smallest correct system change, not the smallest code diff. When
+  live code, product semantics, or authority docs imply a larger refactor,
+  facade, or workflow object, implement that shape instead of a conservative
+  workaround.
 - Preserve user changes. Do not revert unrelated work.
 - Back claims with repository evidence: files, diffs, commands, or tests.
 - Reuse existing modules, ports, helpers, and docs before creating new ones.
@@ -38,6 +42,13 @@ non-trivial workflow applies to `boundary-affecting`,
   local, introduce a narrow boundary, or record a follow-up migration finding.
 - Do not preserve old import, provisional-canonical, or compatibility behavior
   just to support current local test-era data unless the task asks for it.
+- For Pi / Agent Runtime / harness-loop work, inspect the installed pi
+  implementation before designing the MineMusic wrapper. Reuse pi's existing
+  agent state, prompt snapshot, lifecycle, queueing, tool execution, abort, and
+  wait/idle capabilities wherever they match the required system shape. Do not
+  reimplement or bypass pi behavior with a local loop, per-turn shell, or
+  conservative workaround unless live pi code proves the capability is absent or
+  incompatible and the deviation is recorded in the owning spec or ADR.
 
 ## Architecture Boundaries
 
@@ -132,8 +143,8 @@ default.
 2. For non-trivial work, state a compact plan: goal, owner, files, allowed
    reads/writes, guard or test plan, verification method, and stopping
    condition.
-3. Implement the smallest change that satisfies the request without weakening
-   boundaries.
+3. Implement the smallest correct system change that satisfies the request
+   without weakening boundaries.
 4. Verify with the narrowest meaningful project-native check first; broaden
    only when risk justifies it.
 5. Run state sync only for task classes that require it.
