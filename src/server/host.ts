@@ -1,4 +1,4 @@
-import { refKey, type Result, type StageError } from "../contracts/kernel.js";
+import { refKey, type Result } from "../contracts/kernel.js";
 import type { StageRuntimeSnapshot } from "../contracts/stage_core.js";
 import type {
   StageToolContext,
@@ -63,6 +63,7 @@ import {
   createMusicScopeAvailabilityPort,
   createMusicDiscoveryRuntimeModule,
   emptyMusicScopeAvailabilitySnapshot,
+  type MusicProviderScopeAvailability,
   type MusicScopeAvailabilityPort,
 } from "../music_intelligence/stage_adapter/index.js";
 import type { LocalizeProviderSourceCommand } from "../music_data_platform/index.js";
@@ -388,6 +389,22 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     }
 
     const db = defaultMusicDatabase.context();
+    // Provider registrations are fixed once the Extension Runtime finishes
+    // initializing, and this port is built lazily on the first scope read
+    // (after start()), so the display-name map and searchable-scope list are
+    // derived once and reused instead of re-iterated on every scope read.
+    const providerDisplayNameMap = providerDisplayNames(extensionRuntime);
+    const searchableProviderScopes: readonly MusicProviderScopeAvailability[] = extensionRuntime
+      .listSourceProviders()
+      .filter((registration) =>
+        registration.provider.descriptor.capabilities.includes("search") &&
+        registration.provider.search !== undefined
+      )
+      .map((registration) => ({
+        providerId: registration.providerId,
+        providerName: registration.provider.descriptor.label,
+        targetKinds: ["recording", "album", "artist"],
+      }));
     musicScopeAvailabilityPort = createMusicScopeAvailabilityPort({
       rows: createMusicDataPlatformScopeAvailabilityRowProvider({
         sourceLibraryRead: createSourceLibraryReadPort({ db }),
@@ -396,20 +413,10 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       }),
       providerMetadata: {
         listProviderDisplayNames() {
-          return providerDisplayNames(extensionRuntime);
+          return providerDisplayNameMap;
         },
         listSearchableProviderScopes() {
-          return extensionRuntime
-            .listSourceProviders()
-            .filter((registration) =>
-              registration.provider.descriptor.capabilities.includes("search") &&
-              registration.provider.search !== undefined
-            )
-            .map((registration) => ({
-              providerId: registration.providerId,
-              providerName: registration.provider.descriptor.label,
-              targetKinds: ["recording", "album", "artist"],
-            }));
+          return searchableProviderScopes;
         },
       },
     });

@@ -60,6 +60,7 @@ import {
   createMetadataLookupRetrievalQueryService,
   type RetrievalQueryService,
 } from "../music_intelligence/index.js";
+import { type CandidateHandleBackingCachePort } from "../stage_interface/index.js";
 import type { MusicDatabase } from "../storage/index.js";
 import type { RuntimeModule } from "../stage_core/index.js";
 import type { MineMusicRuntimeConfig } from "./config.js";
@@ -112,7 +113,7 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   libraryCatalog(): LibraryCatalogReadPort | undefined;
   libraryImportStart(): LibraryImportStartCommand | undefined;
   retrievalQuery(): RetrievalQueryService | undefined;
-  materialCandidateCacheRead(): MaterialCandidateCacheReadPort | undefined;
+  materialCandidateCacheRead(): CandidateHandleBackingCachePort | undefined;
   candidateCommit(): CandidateCommitCommand | undefined;
   materialProjection(): MaterialProjection | undefined;
   libraryRelation(): LibraryRelationService | undefined;
@@ -122,15 +123,6 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   localSourceScan(): LocalSourceScanService | undefined;
   localSourceScanStart(): LocalSourceScanStartCommand | undefined;
   localizeProviderSource(): LocalizeProviderSourceCommand | undefined;
-};
-
-export type MaterialCandidateCacheReadPort = {
-  getByRefKey(input: {
-    materialCandidateRefKey: string;
-  }): Promise<{
-    materialCandidateRefKey: string;
-    expiresAt: string;
-  } | undefined>;
 };
 
 export type CreateMusicDataPlatformRuntimeModuleInput = {
@@ -149,7 +141,7 @@ export function createMusicDataPlatformRuntimeModule(
   let libraryCatalogReadPort: LibraryCatalogReadPort | undefined;
   let libraryImportStartCommand: LibraryImportStartCommand | undefined;
   let retrievalQueryService: RetrievalQueryService | undefined;
-  let materialCandidateCacheReadPort: MaterialCandidateCacheReadPort | undefined;
+  let materialCandidateCacheReadPort: CandidateHandleBackingCachePort | undefined;
   let candidateCommitCommand: CandidateCommitCommand | undefined;
   let materialProjection: MaterialProjection | undefined;
   let libraryRelationService: LibraryRelationService | undefined;
@@ -361,21 +353,14 @@ export function createMusicDataPlatformRuntimeModule(
             extensionRuntime: input.extensionRuntime,
           }),
         });
-        const materialCandidateCache = createRetrievalResultSetRecords({
+        // The candidate cache repository satisfies the Stage Interface backing
+        // port structurally (getByRefKey returns the cached record, which is a
+        // superset of the port's { materialCandidateRefKey, expiresAt } shape);
+        // the port type narrows the exposed surface to the read the handle cache
+        // actually needs.
+        materialCandidateCacheReadPort = createRetrievalResultSetRecords({
           db: database.context(),
         }).materialCandidates;
-        materialCandidateCacheReadPort = {
-          async getByRefKey(readInput) {
-            const record = await materialCandidateCache.getByRefKey(readInput);
-
-            return record === undefined
-              ? undefined
-              : {
-                  materialCandidateRefKey: record.materialCandidateRefKey,
-                  expiresAt: record.expiresAt,
-                };
-          },
-        };
         downloadCommand = createDownloadCommands({
           database,
           downloadSourceProvider,

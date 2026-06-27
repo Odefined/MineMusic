@@ -52,6 +52,6 @@ export function sourceLibraryKindScopeMetadata(kind: PlatformLibraryKind): {
   }
 }
 
-function opaqueScopeId(prefix: "source_library", anchor: string): string {
+export function opaqueScopeId(prefix: string, anchor: string): string {
   return `${prefix}_${createHash("sha256").update(anchor).digest("base64url").slice(0, 22)}`;
 }

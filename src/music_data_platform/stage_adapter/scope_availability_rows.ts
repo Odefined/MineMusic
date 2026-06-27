@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import type { Ref } from "../../contracts/kernel.js";
 import type { MusicTargetKind } from "../../contracts/stage_interface.js";
 import type { CollectionKind } from "../collection_ref.js";
@@ -19,6 +17,7 @@ import type { SourceLibraryReadPort } from "../source_library_read_model.js";
 import type { SourceLibraryRecord } from "../source_library_records.js";
 import { collectionScopeId } from "./collection_scope.js";
 import {
+  opaqueScopeId,
   sourceLibraryKindScopeMetadata,
   sourceLibraryScopeId,
 } from "./source_library_scope.js";
@@ -155,8 +154,4 @@ function catalogTargetKindForCollection(kind: CollectionKind): MusicTargetKind |
 
 function isCatalogVisibleCollectionKind(kind: CollectionKind): boolean {
   return catalogTargetKindForCollection(kind) !== undefined || kind === "mixed";
-}
-
-function opaqueScopeId(prefix: "relation", anchor: string): string {
-  return `${prefix}_${createHash("sha256").update(anchor).digest("base64url").slice(0, 22)}`;
 }
