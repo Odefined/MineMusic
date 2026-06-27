@@ -6,6 +6,7 @@ import {
   MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
 } from "../../src/contracts/music_experience.js";
 import type {
+  MusicExperiencePlaybackPlayCommandOutput,
   MusicExperienceQueueAppendCommandOutput,
 } from "../../src/contracts/music_experience.js";
 import type {
@@ -117,10 +118,11 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     materialRef,
     now,
   });
+  const playedOutput = expectPlayOutput(played);
 
-  assert.equal(played.playbackRevision, 1);
-  assert.equal(played.status, "playing");
-  assert.deepEqual(played.materialRef, materialRef);
+  assert.equal(playedOutput.playbackRevision, 1);
+  assert.equal(playedOutput.status, "playing");
+  assert.deepEqual(playedOutput.materialRef, materialRef);
 
   const snapshot = await createMusicExperienceQueuePlaybackRecords({
     db: database.context(),
@@ -994,6 +996,13 @@ function output<T>(result: { ok: true; value: ToolCallOutput } | { ok: false }):
 function expectAppendOutput(result: Awaited<ReturnType<ReturnType<typeof createMusicExperienceQueuePlaybackCommand>["append"]>>): MusicExperienceQueueAppendCommandOutput {
   if (!result.ok) {
     throw new Error(`expected queue append to succeed, got ${result.error.code}`);
+  }
+  return result.value;
+}
+
+function expectPlayOutput(result: Awaited<ReturnType<ReturnType<typeof createMusicExperienceQueuePlaybackCommand>["playNow"]>>): MusicExperiencePlaybackPlayCommandOutput {
+  if (!result.ok) {
+    throw new Error(`expected playback play to succeed, got ${result.error.code}`);
   }
   return result.value;
 }

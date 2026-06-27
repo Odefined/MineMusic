@@ -48,6 +48,7 @@ import {
   type StageToolContextFactory,
 } from "../stage_interface/index.js";
 import type { WorkbenchMusicExperienceReadPort } from "../contracts/workbench_interface.js";
+import type { MusicExperienceQueuePlaybackCommand } from "../contracts/music_experience.js";
 import {
   createCollectionRecords,
   createOwnerMaterialRelationRecords,
@@ -101,6 +102,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
   const extensionRuntime = createMineMusicExtensionRuntime(input.config);
   const usesDefaultRuntime = input.runtime === undefined && input.modules === undefined;
   let defaultMusicDatabase: MusicDatabase | undefined;
+  let queuePlaybackCommand: MusicExperienceQueuePlaybackCommand | undefined;
   let stageInterfaceRuntimePorts: StageInterfaceRuntimePorts | undefined;
   let musicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
   const hostMusicDatabase = createHostManagedMusicDatabase(() => defaultMusicDatabase);
@@ -159,11 +161,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
             candidateCommit: () => musicDataPlatformModule.candidateCommit(),
             materialProjection: () => musicDataPlatformModule.materialProjection(),
             queuePlayback: () => {
-              if (defaultMusicDatabase === undefined) {
-                return undefined;
-              }
-
-              return createMusicExperienceQueuePlaybackCommand({ database: defaultMusicDatabase });
+              return readDefaultQueuePlaybackCommand();
             },
           },
         });
@@ -346,6 +344,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     try {
       await defaultMusicDatabase.close();
       defaultMusicDatabase = undefined;
+      queuePlaybackCommand = undefined;
       return { ok: true, value: undefined };
     } catch (cause) {
       return {
@@ -359,6 +358,15 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
         },
       };
     }
+  }
+
+  function readDefaultQueuePlaybackCommand(): MusicExperienceQueuePlaybackCommand | undefined {
+    if (defaultMusicDatabase === undefined) {
+      return undefined;
+    }
+
+    queuePlaybackCommand ??= createMusicExperienceQueuePlaybackCommand({ database: defaultMusicDatabase });
+    return queuePlaybackCommand;
   }
 
   function readStageInterfaceRuntimePorts(): StageInterfaceRuntimePorts | undefined {

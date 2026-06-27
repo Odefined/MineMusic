@@ -257,13 +257,16 @@ async function handlePlaybackPlay(
     materialRef: resolved.value,
     now: ctx.clock(),
   });
+  if (!played.ok) {
+    return played;
+  }
 
   return {
     ok: true,
     value: {
-      item: await mintMaterialItemHandle(ctx, played.materialRef),
-      status: played.status,
-      playbackRevision: played.playbackRevision,
+      item: await mintMaterialItemHandle(ctx, played.value.materialRef),
+      status: played.value.status,
+      playbackRevision: played.value.playbackRevision,
     },
   };
 }

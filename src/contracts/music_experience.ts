@@ -63,5 +63,5 @@ export type MusicExperiencePlaybackPlayCommandOutput = {
 
 export type MusicExperienceQueuePlaybackCommand = {
   append(input: MusicExperienceQueueAppendCommandInput): Promise<Result<MusicExperienceQueueAppendCommandOutput>>;
-  playNow(input: MusicExperiencePlaybackPlayCommandInput): Promise<MusicExperiencePlaybackPlayCommandOutput>;
+  playNow(input: MusicExperiencePlaybackPlayCommandInput): Promise<Result<MusicExperiencePlaybackPlayCommandOutput>>;
 };

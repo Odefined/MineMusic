@@ -53,7 +53,10 @@ export function createMusicExperienceQueuePlaybackCommand(
 
       return input.database.transaction(async (db) => {
         const records = createMusicExperienceQueuePlaybackRecords({ db });
-        return records.playNow(commandInput);
+        return {
+          ok: true,
+          value: await records.playNow(commandInput),
+        };
       });
     },
   };
