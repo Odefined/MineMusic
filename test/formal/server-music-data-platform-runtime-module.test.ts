@@ -9,6 +9,20 @@ import { createMineMusicExtensionRuntime, createMusicDataPlatformRuntimeModule, 
 import { stageInterfaceSchemas } from "../../src/stage_interface/index.js";
 import { type MusicDatabase } from "../../src/storage/index.js";
 import { openPostgresTestMusicDatabase } from "../support/postgres.js";
+type MusicDataPlatformRuntimeModuleDatabaseBrokerKeys = {
+    [Key in keyof MusicDataPlatformRuntimeModule]-?: IsExactlyMusicDatabaseReturn<
+        MusicDataPlatformRuntimeModuleMemberReturn<MusicDataPlatformRuntimeModule[Key]>
+    > extends true ? Key : never;
+}[keyof MusicDataPlatformRuntimeModule];
+type MusicDataPlatformRuntimeModuleMemberReturn<Member> = Member extends (...args: never[]) => infer Return
+    ? Awaited<Return>
+    : never;
+type IsExactlyMusicDatabaseReturn<Return> =
+    [Exclude<Return, undefined>] extends [MusicDatabase]
+        ? [MusicDatabase] extends [Exclude<Return, undefined>] ? true : false
+        : false;
+const noMusicDataPlatformRuntimeModuleDatabaseBrokerKeys: MusicDataPlatformRuntimeModuleDatabaseBrokerKeys extends never ? true : never = true;
+void noMusicDataPlatformRuntimeModuleDatabaseBrokerKeys;
 {
     // Basic initialize without background work: in-process ports are wired and
     // cleared on stop. Projection maintenance has no scheduler-driven path now;

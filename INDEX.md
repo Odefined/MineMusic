@@ -317,6 +317,10 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Experience queue length is a bounded runtime-state invariant enforced by the
   owning queue command (`MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH = 100`, `queue_full`),
   explicitly replacing Phase A's earlier read-side-only bounded projection plan.
+- `docs/adr/0045-runtime-modules-own-only-their-area-ports-database-and-schemas-are-host-storage-concerns.md`:
+  runtime modules construct only their area's ports; Storage owns database
+  lifecycle, Server Host composes per-area schema arrays, and cross-area
+  capabilities are built by their owning helpers.
 - `docs/adr/0029-library-import-uses-chained-background-work-jobs.md`:
   library import drives multi-page provider reads as chained Background Work jobs.
 - `docs/adr/0030-agent-runtime-and-workbench-interface-are-top-level-areas.md`:

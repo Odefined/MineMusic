@@ -209,6 +209,26 @@ const musicIntelligenceAllowedMusicDataPlatformBarrelImports = new Set([
     "RetrievalTextField",
     "createMusicDataPlatformMetadataLookupSearchWorkspace",
 ]);
+const serverRuntimeModuleForbiddenSchemaImports = new Set([
+    "musicDataPlatformSchemas",
+    "musicDataPlatformIdentitySchema",
+    "musicDataPlatformSourceLibrarySchema",
+    "musicDataPlatformOwnerCatalogEntriesSchema",
+    "musicDataPlatformOwnerCatalogViewSchema",
+    "musicDataPlatformOwnerRelationSchema",
+    "musicDataPlatformCollectionSchema",
+    "musicDataPlatformSearchMetadataProjectionSchema",
+    "musicDataPlatformProjectionMaintenanceSchema",
+    "musicDataPlatformLocalSourceScanSchema",
+    "musicDataPlatformRetrievalResultSetSchema",
+    "musicDataPlatformSearchResultSetSchema",
+    "musicDataPlatformDownloadSchema",
+    "musicExperienceSchemas",
+    "musicExperienceQueuePlaybackSchema",
+    "stageInterfaceSchemas",
+    "stageInterfaceHandleRegistrySchema",
+    "stageInterfaceLookupCursorRegistrySchema",
+]);
 const agentRuntimeAllowedStageInterfacePureHelpers = new Set([
     "src/stage_interface/provider_safe_tool_name.ts",
     "src/stage_interface/tool_description_rendering.ts",
@@ -317,11 +337,14 @@ function externalPackageBoundaryFailure(edge: ArchitectureImportEdge): string | 
     return undefined;
 }
 function serverBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
-    if (edge.toArea === "storage" && (isUnderPath(edge.toFile, "src/storage/postgres") || edge.importedNames.includes("PostgresMusicDatabase"))) {
+    if (edge.toArea === "storage" && (isUnderPath(edge.toFile, "src/storage/postgres") || edge.importedNames.includes("PostgresMusicDatabase") || edge.importedNames.includes("*"))) {
         return `Server Host must create music databases through the Storage lifecycle factory, not the concrete Postgres adapter: ${formatEdge(edge)} symbols=[${edge.importedNames.join(", ")}]`;
     }
     if (isServerRuntimeModuleFile(edge.fromFile)) {
-        const schemaImports = edge.importedNames.filter((name) => /(?:Schema|Schemas)$/u.test(name));
+        if (edge.toArea !== undefined && ["music_data_platform", "music_experience", "stage_interface"].includes(edge.toArea) && (edge.importedNames.includes("*") || edge.importedNames.length === 0)) {
+            return `Server runtime modules must use named imports from area barrels so schema ownership guards cannot be bypassed: ${formatEdge(edge)} symbols=[${edge.importedNames.join(", ")}]`;
+        }
+        const schemaImports = edge.importedNames.filter((name) => serverRuntimeModuleForbiddenSchemaImports.has(name));
         if (schemaImports.length > 0) {
             return `Server runtime modules must not import area-owned schema symbols; Server Host composes schema arrays: ${formatEdge(edge)} symbols=[${schemaImports.join(", ")}]`;
         }
@@ -408,7 +431,7 @@ function isStageAdapterPublicProjectionImport(edge: ArchitectureImportEdge, area
             isUnderPath(edge.toFile, "src/contracts/generated"));
 }
 function isServerRuntimeModuleFile(file: string): boolean {
-    return /^src\/server\/[a-z0-9_]+_runtime_module\.ts$/u.test(file);
+    return /^src\/server\/(?:.+\/)?[a-z0-9_]+_runtime_module\.ts$/u.test(file);
 }
 function formatEdge(edge: ArchitectureImportEdge): string {
     return `${edge.fromFile} imports ${edge.specifier}${edge.toFile === undefined ? "" : ` resolved to ${edge.toFile}`}`;

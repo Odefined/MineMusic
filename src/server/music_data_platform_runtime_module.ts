@@ -365,8 +365,15 @@ export function createMusicDataPlatformRuntimeModule(
           db: database.context(),
         }).materialCandidates;
         materialCandidateCacheReadPort = {
-          getByRefKey(readInput) {
-            return materialCandidateCache.getByRefKey(readInput);
+          async getByRefKey(readInput) {
+            const record = await materialCandidateCache.getByRefKey(readInput);
+
+            return record === undefined
+              ? undefined
+              : {
+                  materialCandidateRefKey: record.materialCandidateRefKey,
+                  expiresAt: record.expiresAt,
+                };
           },
         };
         downloadCommand = createDownloadCommands({

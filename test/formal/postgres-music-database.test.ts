@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { Client } from "pg";
 import { createMusicDatabase, isMusicDatabaseError, MusicDatabaseError, PostgresMusicDatabase, type PostgresMusicDatabaseContext, type PostgresMusicDatabaseSchemaContribution, } from "../../src/storage/index.js";
 import { postgresTestDatabaseUrl, resetPostgresTestSchema, } from "../support/postgres.js";
 const connectionString = postgresTestDatabaseUrl();
@@ -120,6 +121,21 @@ assert.equal((await factoryDatabase.context().get<{
     count: number;
 }>("SELECT COUNT(*) AS count FROM factory_schema"))?.count, 1);
 await factoryDatabase.close();
+await resetPostgresTestSchema(connectionString);
+const failingFactoryApplicationName = `minemusic_factory_failure_${process.pid}`;
+await assertDatabaseErrorAsync(async () => await createMusicDatabase({
+    connectionString: connectionStringWithApplicationName(connectionString, failingFactoryApplicationName),
+    schemas: [
+        {
+            id: "failing_factory",
+            async apply(context) {
+                await context.run("CREATE TABLE failing_factory_schema (id SERIAL PRIMARY KEY)");
+                throw new Error("factory schema fixture failed");
+            },
+        },
+    ],
+}), "storage.database_initialization_failed");
+assert.equal(await postgresApplicationConnectionCount(connectionString, failingFactoryApplicationName), 0);
 function schema(id: string, order: string[], apply: (context: PostgresMusicDatabaseContext) => Promise<void>): PostgresMusicDatabaseSchemaContribution {
     return {
         id,
@@ -134,4 +150,24 @@ function assertDatabaseError(operation: () => unknown, code: MusicDatabaseError[
 }
 async function assertDatabaseErrorAsync(operation: () => Promise<unknown>, code: MusicDatabaseError["code"]): Promise<void> {
     await assert.rejects(operation, (error) => isMusicDatabaseError(error) && error.code === code);
+}
+function connectionStringWithApplicationName(connectionString: string, applicationName: string): string {
+    const url = new URL(connectionString);
+    url.searchParams.set("application_name", applicationName);
+    return url.toString();
+}
+async function postgresApplicationConnectionCount(connectionString: string, applicationName: string): Promise<number> {
+    const client = new Client({ connectionString });
+    await client.connect();
+    try {
+        const result = await client.query<{ count: string | number }>(`
+      SELECT COUNT(*) AS count
+      FROM pg_stat_activity
+      WHERE application_name = $1
+    `, [applicationName]);
+        return Number(result.rows[0]?.count ?? 0);
+    }
+    finally {
+        await client.end();
+    }
 }
