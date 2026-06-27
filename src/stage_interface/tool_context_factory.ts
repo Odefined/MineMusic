@@ -12,6 +12,10 @@
 // a port with no consumer.
 
 import type {
+  AgentActorKind,
+  CommandPreconditionSet,
+} from "../contracts/kernel.js";
+import type {
   HandleMintingPort,
   LookupCursorStore,
   StageToolAuditPort,
@@ -22,6 +26,8 @@ import { createStageToolContext } from "./context.js";
 
 export type CreateStageToolContextFactoryInput = {
   ownerScope: string;
+  actor?: AgentActorKind;
+  commandBasis?: CommandPreconditionSet;
   clock: () => string;
   handleMinting: HandleMintingPort;
   lookupCursors: LookupCursorStore;
@@ -32,6 +38,8 @@ export type CreateStageToolContextFactoryInput = {
 export type CreateToolContextPerCallInput = {
   sessionId: string;
   requestId: string;
+  actor?: AgentActorKind;
+  commandBasis?: CommandPreconditionSet;
   abortSignal?: AbortSignal;
 };
 
@@ -44,10 +52,14 @@ export function createStageToolContextFactory(
 ): StageToolContextFactory {
   return {
     createToolContext(perCall) {
+      const actor = perCall.actor ?? input.actor;
+      const commandBasis = perCall.commandBasis ?? input.commandBasis;
       return createStageToolContext({
         ownerScope: input.ownerScope,
         sessionId: perCall.sessionId,
         requestId: perCall.requestId,
+        ...(actor === undefined ? {} : { actor }),
+        ...(commandBasis === undefined ? {} : { commandBasis }),
         clock: input.clock,
         handleMinting: input.handleMinting,
         lookupCursors: input.lookupCursors,

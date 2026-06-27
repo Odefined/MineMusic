@@ -76,6 +76,11 @@ const queuePlaybackErrors = [
     retryable: false,
     suggestedFixTemplate: "Play or remove queued items before adding more music.",
   },
+  {
+    code: "voided_stale",
+    retryable: true,
+    suggestedFixTemplate: "Refresh the current music experience basis and retry if the action is still desired.",
+  },
 ] as const;
 
 export const musicExperienceQueueAppendDescriptor: ToolDeclaration = {
@@ -174,12 +179,12 @@ async function handleQueueAppend(
   }
 
   const input = payload as MusicExperienceQueueAppendInput;
-  if (input.items.length !== 1) {
+  if (input.items.length === 0) {
     return musicExperienceFail({
       code: "invalid_input",
-      message: "Queue append requires exactly one item in Phase A.",
+      message: "Queue append requires at least one material or candidate item.",
       retryable: false,
-      suggestedFix: "Retry with exactly one material or candidate MusicItemHandle.",
+      suggestedFix: "Retry with one or more material or candidate MusicItemHandle values.",
     });
   }
 
@@ -211,7 +216,8 @@ async function handleQueueAppend(
   const appended = await ports.queuePlayback.append({
     ownerScope: ctx.ownerScope,
     materialRefs,
-    provenance: "main_agent",
+    provenance: ctx.actor === "radio_agent" ? "radio_agent" : "main_agent",
+    ...(ctx.commandBasis === undefined ? {} : { basis: ctx.commandBasis }),
     now: ctx.clock(),
   });
   if (!appended.ok) {

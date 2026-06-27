@@ -3,6 +3,10 @@ import {
   createMemoryStageToolAuditPort,
 } from "../effect_boundary/index.js";
 import type {
+  AgentActorKind,
+  CommandPreconditionSet,
+} from "../contracts/kernel.js";
+import type {
   HandleMintingPort,
   LookupCursorStore,
   ProviderAvailabilityPort,
@@ -17,6 +21,8 @@ export type CreateStageToolContextInput = {
   ownerScope: string;
   sessionId: string;
   requestId: string;
+  actor?: AgentActorKind;
+  commandBasis?: CommandPreconditionSet;
   clock?: () => string;
   abortSignal?: AbortSignal;
   handleMinting?: HandleMintingPort;
@@ -33,6 +39,8 @@ export function createStageToolContext(input: CreateStageToolContextInput): Stag
     ownerScope: input.ownerScope,
     sessionId: input.sessionId,
     requestId: input.requestId,
+    ...(input.actor === undefined ? {} : { actor: input.actor }),
+    ...(input.commandBasis === undefined ? {} : { commandBasis: input.commandBasis }),
     clock: input.clock ?? (() => new Date().toISOString()),
     ...(input.abortSignal === undefined ? {} : { abortSignal: input.abortSignal }),
     handleMinting: input.handleMinting ?? createUnavailableHandleMintingPort(),

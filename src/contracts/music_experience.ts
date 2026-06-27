@@ -2,7 +2,7 @@
 // owning command/read projection shapes. Music facts remain in Music Data
 // Platform; agent-facing tool schemas live in Stage Interface.
 
-import type { ConcernRevision, Ref, Result } from "./kernel.js";
+import type { CommandPreconditionSet, ConcernRevision, Ref, Result } from "./kernel.js";
 
 export const MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH = 100;
 
@@ -40,6 +40,7 @@ export type MusicExperienceQueueAppendCommandInput = {
   ownerScope: string;
   materialRefs: readonly Ref[];
   provenance: MusicExperienceQueueItemProvenance;
+  basis?: CommandPreconditionSet;
   now: string;
 };
 
