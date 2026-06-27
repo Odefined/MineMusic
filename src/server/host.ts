@@ -1,4 +1,4 @@
-import { refKey, type Result } from "../contracts/kernel.js";
+import { refKey, type Result, type StageError } from "../contracts/kernel.js";
 import type { StageRuntimeSnapshot } from "../contracts/stage_core.js";
 import type {
   StageToolContext,
@@ -9,6 +9,7 @@ import {
   createPgBossBackgroundWorkBackend,
   type BackgroundWorkBackend,
 } from "../background_work/index.js";
+import type { ExtensionRuntime } from "../extension/index.js";
 import {
   createExtensionRuntimeModule,
   createStageRuntime,
@@ -26,6 +27,7 @@ import {
 import {
   createMusicExperienceQueuePlaybackCommand,
   createMusicExperienceReadModel,
+  musicExperienceSchemas,
 } from "../music_experience/index.js";
 import {
   createLibraryImportServerRuntimeModule,
@@ -40,19 +42,39 @@ import {
   createLibraryCollectionServerRuntimeModule,
 } from "./library_collection_runtime_module.js";
 import { createStageToolContextAssembly } from "./stage_tool_context_assembly.js";
-import type { StageToolContextFactory } from "../stage_interface/index.js";
+import {
+  createStageInterfaceRuntimePorts,
+  type StageInterfaceRuntimePorts,
+  type StageToolContextFactory,
+} from "../stage_interface/index.js";
 import type { WorkbenchMusicExperienceReadPort } from "../contracts/workbench_interface.js";
-import type { SourceLibraryImportService } from "../music_data_platform/index.js";
+import {
+  createCollectionRecords,
+  createOwnerMaterialRelationRecords,
+  createSourceLibraryReadPort,
+  musicDataPlatformSchemas,
+  type SourceLibraryImportService,
+} from "../music_data_platform/index.js";
+import {
+  createMusicDataPlatformScopeAvailabilityRowProvider,
+} from "../music_data_platform/stage_adapter/index.js";
 import type { RetrievalQueryService } from "../music_intelligence/index.js";
 import {
+  createMusicScopeAvailabilityPort,
   createMusicDiscoveryRuntimeModule,
   emptyMusicScopeAvailabilitySnapshot,
+  type MusicScopeAvailabilityPort,
 } from "../music_intelligence/stage_adapter/index.js";
 import type { LocalizeProviderSourceCommand } from "../music_data_platform/index.js";
+import { createMusicDatabase, type MusicDatabase } from "../storage/index.js";
+import { stageInterfaceSchemas } from "../stage_interface/index.js";
 import {
   mineMusicBackgroundWorkDatabaseMaxConnections,
   mineMusicBackgroundWorkDatabaseSchema,
   mineMusicBackgroundWorkDatabaseUrl,
+  mineMusicDatabaseMaxConnections,
+  mineMusicDatabaseSchema,
+  mineMusicDatabaseUrl,
 } from "./config.js";
 
 export type ServerHost = {
@@ -77,6 +99,10 @@ export type CreateServerHostInput = {
 export function createServerHost(input: CreateServerHostInput = {}): ServerHost {
   const extensionRuntime = createMineMusicExtensionRuntime(input.config);
   const usesDefaultRuntime = input.runtime === undefined && input.modules === undefined;
+  let defaultMusicDatabase: MusicDatabase | undefined;
+  let stageInterfaceRuntimePorts: StageInterfaceRuntimePorts | undefined;
+  let musicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
+  const hostMusicDatabase = createHostManagedMusicDatabase(() => defaultMusicDatabase);
   const backgroundWork: BackgroundWorkBackend | undefined = usesDefaultRuntime
     ? input.backgroundWork ?? createDefaultBackgroundWorkBackend(input.config)
     : undefined;
@@ -84,6 +110,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     usesDefaultRuntime
       ? createMusicDataPlatformRuntimeModule({
           extensionRuntime,
+          database: hostMusicDatabase,
           ...(backgroundWork === undefined ? {} : { backgroundWork }),
           ...(input.config === undefined ? {} : { config: input.config }),
         })
@@ -93,8 +120,8 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       ? undefined
       : createStageToolContextAssembly({
           ports: {
-            handleMinting: () => musicDataPlatformModule.handleMinting(),
-            lookupCursorStore: () => musicDataPlatformModule.lookupCursorStore(),
+            handleMinting: () => readStageInterfaceRuntimePorts()?.handleMinting,
+            lookupCursorStore: () => readStageInterfaceRuntimePorts()?.lookupCursorStore,
           },
         });
   const musicDiscoveryModule: RuntimeModule | undefined =
@@ -103,7 +130,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       : createMusicDiscoveryRuntimeModule({
           scopeAvailability: {
             listAvailableMusicScopes(readInput) {
-              const port = musicDataPlatformModule.musicScopeAvailability();
+              const port = readMusicScopeAvailabilityPort();
 
               return port?.listAvailableMusicScopes(readInput) ?? {
                 ok: true,
@@ -131,13 +158,11 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
             candidateCommit: () => musicDataPlatformModule.candidateCommit(),
             materialProjection: () => musicDataPlatformModule.materialProjection(),
             queuePlayback: () => {
-              const database = musicDataPlatformModule.database();
-
-              if (database === undefined) {
+              if (defaultMusicDatabase === undefined) {
                 return undefined;
               }
 
-              return createMusicExperienceQueuePlaybackCommand({ database });
+              return createMusicExperienceQueuePlaybackCommand({ database: defaultMusicDatabase });
             },
           },
         });
@@ -166,7 +191,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
           ports: {
             libraryCatalog: () => musicDataPlatformModule.libraryCatalog(),
             materialProjection: () => musicDataPlatformModule.materialProjection(),
-            musicScopeAvailability: () => musicDataPlatformModule.musicScopeAvailability(),
+            musicScopeAvailability: () => readMusicScopeAvailabilityPort(),
           },
         });
   const libraryCollectionModule: RuntimeModule | undefined =
@@ -175,7 +200,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       : createLibraryCollectionServerRuntimeModule({
           ports: {
             libraryCollection: () => musicDataPlatformModule.libraryCollection(),
-            musicScopeAvailability: () => musicDataPlatformModule.musicScopeAvailability(),
+            musicScopeAvailability: () => readMusicScopeAvailabilityPort(),
           },
         });
   const backgroundWorkModule: RuntimeModule | undefined = backgroundWork === undefined
@@ -198,11 +223,38 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
   });
 
   return {
-    start() {
-      return runtime.initialize();
+    async start() {
+      const databaseReady = await initializeDefaultMusicDatabase();
+
+      if (!databaseReady.ok) {
+        return {
+          ok: false,
+          error: databaseReady.error,
+        };
+      }
+
+      const initialized = await runtime.initialize();
+
+      if (!initialized.ok) {
+        await closeDefaultMusicDatabase();
+      }
+
+      return initialized;
     },
-    stop() {
-      return runtime.stop();
+    async stop() {
+      const stopped = await runtime.stop();
+      stageInterfaceRuntimePorts = undefined;
+      musicScopeAvailabilityPort = undefined;
+      const databaseClosed = await closeDefaultMusicDatabase();
+
+      if (!databaseClosed.ok) {
+        return {
+          ok: false,
+          error: databaseClosed.error,
+        };
+      }
+
+      return stopped;
     },
     snapshot() {
       return runtime.snapshot();
@@ -223,12 +275,11 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       return stageToolContextFactory;
     },
     musicExperienceRead() {
-      const database = musicDataPlatformModule?.database();
       const materialProjection = musicDataPlatformModule?.materialProjection();
-      const handleMinting = musicDataPlatformModule?.handleMinting();
+      const handleMinting = readStageInterfaceRuntimePorts()?.handleMinting;
 
       if (
-        database === undefined ||
+        defaultMusicDatabase === undefined ||
         materialProjection === undefined ||
         handleMinting === undefined
       ) {
@@ -236,7 +287,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       }
 
       return createMusicExperienceReadModel({
-        db: database.context(),
+        db: defaultMusicDatabase.context(),
         materialProjection,
         materialHandles: {
           mintMaterialHandle(input) {
@@ -252,6 +303,167 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       });
     },
   };
+
+  async function initializeDefaultMusicDatabase(): Promise<Result<void>> {
+    if (!usesDefaultRuntime || defaultMusicDatabase !== undefined) {
+      return { ok: true, value: undefined };
+    }
+
+    try {
+      const schema = mineMusicDatabaseSchema(input.config);
+      const maxConnections = mineMusicDatabaseMaxConnections(input.config);
+      defaultMusicDatabase = await createMusicDatabase({
+        connectionString: mineMusicDatabaseUrl(input.config),
+        ...(schema === undefined ? {} : { schema }),
+        ...(maxConnections === undefined ? {} : { maxConnections }),
+        schemas: [
+          ...musicDataPlatformSchemas,
+          ...stageInterfaceSchemas,
+          ...musicExperienceSchemas,
+        ],
+      });
+      return { ok: true, value: undefined };
+    } catch (cause) {
+      return {
+        ok: false,
+        error: {
+          code: "server_host.music_database_initialization_failed",
+          message: "Server Host failed to initialize the music database.",
+          area: "server_host",
+          retryable: false,
+          cause,
+        },
+      };
+    }
+  }
+
+  async function closeDefaultMusicDatabase(): Promise<Result<void>> {
+    if (!usesDefaultRuntime || defaultMusicDatabase === undefined) {
+      return { ok: true, value: undefined };
+    }
+
+    try {
+      await defaultMusicDatabase.close();
+      defaultMusicDatabase = undefined;
+      return { ok: true, value: undefined };
+    } catch (cause) {
+      return {
+        ok: false,
+        error: {
+          code: "server_host.music_database_close_failed",
+          message: "Server Host failed to close the music database.",
+          area: "server_host",
+          retryable: false,
+          cause,
+        },
+      };
+    }
+  }
+
+  function readStageInterfaceRuntimePorts(): StageInterfaceRuntimePorts | undefined {
+    if (stageInterfaceRuntimePorts !== undefined) {
+      return stageInterfaceRuntimePorts;
+    }
+
+    const materialCandidateCache = musicDataPlatformModule?.materialCandidateCacheRead();
+
+    if (defaultMusicDatabase === undefined || materialCandidateCache === undefined) {
+      return undefined;
+    }
+
+    stageInterfaceRuntimePorts = createStageInterfaceRuntimePorts({
+      db: defaultMusicDatabase.context(),
+      materialCandidateCache,
+    });
+    return stageInterfaceRuntimePorts;
+  }
+
+  function readMusicScopeAvailabilityPort(): MusicScopeAvailabilityPort | undefined {
+    if (musicScopeAvailabilityPort !== undefined) {
+      return musicScopeAvailabilityPort;
+    }
+
+    if (defaultMusicDatabase === undefined) {
+      return undefined;
+    }
+
+    const db = defaultMusicDatabase.context();
+    musicScopeAvailabilityPort = createMusicScopeAvailabilityPort({
+      rows: createMusicDataPlatformScopeAvailabilityRowProvider({
+        sourceLibraryRead: createSourceLibraryReadPort({ db }),
+        ownerRelationRead: createOwnerMaterialRelationRecords({ db }),
+        collectionRead: createCollectionRecords({ db }),
+      }),
+      providerMetadata: {
+        listProviderDisplayNames() {
+          return providerDisplayNames(extensionRuntime);
+        },
+        listSearchableProviderScopes() {
+          return extensionRuntime
+            .listSourceProviders()
+            .filter((registration) =>
+              registration.provider.descriptor.capabilities.includes("search") &&
+              registration.provider.search !== undefined
+            )
+            .map((registration) => ({
+              providerId: registration.providerId,
+              providerName: registration.provider.descriptor.label,
+              targetKinds: ["recording", "album", "artist"],
+            }));
+        },
+      },
+    });
+
+    return musicScopeAvailabilityPort;
+  }
+}
+
+function providerDisplayNames(extensionRuntime: ExtensionRuntime): ReadonlyMap<string, string> {
+  const names = new Map<string, string>();
+
+  for (const registration of extensionRuntime.listPlatformLibraryProviders()) {
+    names.set(registration.providerId, registration.provider.descriptor.label);
+  }
+
+  for (const registration of extensionRuntime.listSourceProviders()) {
+    names.set(registration.providerId, registration.provider.descriptor.label);
+  }
+
+  return names;
+}
+
+function createHostManagedMusicDatabase(readDatabase: () => MusicDatabase | undefined): MusicDatabase {
+  return {
+    async initialize() {
+      throw hostDatabaseUnavailableError("initialize");
+    },
+    context() {
+      return currentDatabase(readDatabase, "context").context();
+    },
+    async transaction(operation) {
+      return await currentDatabase(readDatabase, "transaction").transaction(operation);
+    },
+    async close() {
+      throw hostDatabaseUnavailableError("close");
+    },
+  };
+}
+
+function currentDatabase(
+  readDatabase: () => MusicDatabase | undefined,
+  operation: string,
+): MusicDatabase {
+  const database = readDatabase();
+
+  if (database === undefined) {
+    throw hostDatabaseUnavailableError(operation);
+  }
+
+  return database;
+}
+
+function hostDatabaseUnavailableError(operation: string): Error {
+  return new Error(`Server Host music database is not available for ${operation}.`);
 }
 
 function createDefaultBackgroundWorkBackend(

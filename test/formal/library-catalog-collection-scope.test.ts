@@ -3,21 +3,29 @@ import assert from "node:assert/strict";
 import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import {
   DEFAULT_OWNER_SCOPE,
+  createCollectionRecords,
+  createOwnerMaterialRelationRecords,
   createOwnerCatalogProjectionCommands,
+  createSourceLibraryReadPort,
+  musicDataPlatformSchemas,
 } from "../../src/music_data_platform/index.js";
+import { createMusicDataPlatformScopeAvailabilityRowProvider } from "../../src/music_data_platform/stage_adapter/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
 import { createCollectionCommands } from "../../src/music_data_platform/collection_commands.js";
 import { createExtensionRuntime } from "../../src/extension/index.js";
+import { createMusicScopeAvailabilityPort } from "../../src/music_intelligence/stage_adapter/index.js";
 import { createMusicDataPlatformRuntimeModule } from "../../src/server/index.js";
 import type { MusicDatabase, MusicDatabaseTransactionContext } from "../../src/storage/index.js";
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
-import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
+import { openPostgresTestMusicDatabase } from "../support/postgres.js";
 
 // PR 24C: the `library.catalog { kind:"collection" }` scope is browsable through
 // the catalog read port (D4 position order, single-kind filter, mixed baseline)
 // and surfaces in scope availability (single/mixed visible; work/release
 // catalog-invisible per D7).
-const database = await openUninitializedPostgresTestMusicDatabase();
+const database = await openPostgresTestMusicDatabase({
+  schemas: musicDataPlatformSchemas,
+});
 const extensionRuntime = createExtensionRuntime();
 const module = createMusicDataPlatformRuntimeModule({ extensionRuntime, database });
 const initialized = await module.initialize({});
@@ -99,8 +107,22 @@ const releaseCollection = await database.transaction(async (db) =>
 
 const catalogPort = module.libraryCatalog();
 assert.notEqual(catalogPort, undefined);
-const scopePort = module.musicScopeAvailability();
-assert.notEqual(scopePort, undefined);
+const db = database.context();
+const scopePort = createMusicScopeAvailabilityPort({
+  rows: createMusicDataPlatformScopeAvailabilityRowProvider({
+    sourceLibraryRead: createSourceLibraryReadPort({ db }),
+    ownerRelationRead: createOwnerMaterialRelationRecords({ db }),
+    collectionRead: createCollectionRecords({ db }),
+  }),
+  providerMetadata: {
+    listProviderDisplayNames() {
+      return new Map();
+    },
+    listSearchableProviderScopes() {
+      return [];
+    },
+  },
+});
 
 // D4: the recording Collection is browsable ordered by item position (C, A, B),
 // not by material_ref_key ASC (A, B, C) nor by recently_added_at.

@@ -275,8 +275,11 @@ Phase 4 Storage vocabulary includes:
 - transaction callbacks receive a transaction-scoped context that becomes
   inactive after commit/rollback;
 - ordered schema contribution runner as the initialization shape;
-- default Server Host Music Data Platform runtime opens Postgres through
-  explicit runtime database config or environment defaults;
+- Storage exposes `createMusicDatabase(...)` as the production lifecycle
+  factory that opens Postgres, applies the caller-provided schema list, and
+  closes the pool if initialization fails;
+- default Server Host opens and initializes the shared music database through
+  Storage using explicit runtime database config or environment defaults;
 - explicit initialization after open, with `context()` and `transaction(...)`
   unavailable until initialization succeeds;
 - schema contribution SQL is idempotent, but one database instance accepts only
@@ -593,14 +596,17 @@ The active TypeScript tree is now a formal skeleton:
   module `extension`;
 - `src/stage_core/index.ts` owns Stage Core public exports;
 - `src/server/host.ts` owns the thin Server Host lifecycle wrapper, exposes the
-  internal source-library import service seam after startup, and composes the
-  default runtime module graph;
+  internal source-library import service seam after startup, composes the
+  default runtime module graph, creates/closes the shared music database through
+  Storage, orders per-area schema arrays, and calls the owning Stage Interface
+  and Music Intelligence runtime-capability helpers;
 - `src/server/config.ts` owns default runtime composition config, including
   overall database/import config and plugin-id keyed NCM config;
 - `src/server/music_data_platform_runtime_module.ts` owns Server Host
-  composition wiring for Storage, Music Data Platform schemas, the internal
-  Library Import service, Retrieval query service, Music Scope availability
-  adapter, and Projection Maintenance scheduler lifecycle ownership;
+  composition wiring for Music Data Platform-owned ports and commands from an
+  injected initialized `MusicDatabase`; it no longer opens, initializes, closes,
+  or brokers the shared database and no longer imports cross-area schema
+  contributions;
 - `src/server/projection_maintenance_scheduler.ts` owns the internal Server
   Host scheduler helper for automatic Projection Maintenance ticks;
 - `src/server/index.ts` owns the minimal Server Host entrypoint.
@@ -608,7 +614,7 @@ The active TypeScript tree is now a formal skeleton:
   `MusicDatabaseContext`, `MusicDatabaseTransactionContext`, schema
   contribution type, and `MusicDatabaseError`;
 - `src/storage/postgres/database.ts` owns the concrete `PostgresMusicDatabase`
-  adapter;
+  adapter and the `createMusicDatabase(...)` lifecycle factory;
 - `src/storage/postgres/schema.ts` owns Postgres schema contribution
   initialization;
 - `src/storage/index.ts` owns Storage public exports.
@@ -734,10 +740,14 @@ internal runtime seams. The default Server Host composition registers the NCM
 provider without probing NCM HTTP during runtime startup and exposes no
 provider/plugin/slot details through runtime status.
 
-The default Server Host composition now wires Storage and Music Data Platform
-schemas through the `music-data-platform` runtime module. It initializes an
-internal Library Import service backed by the configured Extension runtime and
-an internal Retrieval query service backed by Music Data Platform read/mixed
+The default Server Host composition now wires per-area schema arrays through the
+Storage lifecycle factory before runtime initialization. The
+`music-data-platform` runtime module receives that initialized database and
+constructs only Music Data Platform-owned ports. Server Host builds the Stage
+Interface handle/cursor ports and Music Intelligence scope availability through
+their owning helpers using narrow Music Data Platform read ports. It initializes
+an internal Library Import service backed by the configured Extension runtime
+and an internal Retrieval query service backed by Music Data Platform read/mixed
 retrieval ports plus Extension Runtime source-provider search. It exposes the
 four `library.import.*` Stage Interface tools: `list_sources` over
 platform-library-provider descriptor metadata, `start` / `continue` over the

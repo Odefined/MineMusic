@@ -142,6 +142,17 @@ export {
   sourceLibraryKindScopeMetadata,
   sourceLibraryScopeId,
 } from "./source_library_scope.js";
+export {
+  createMusicDataPlatformScopeAvailabilityRowProvider,
+} from "./scope_availability_rows.js";
+export type {
+  CreateMusicDataPlatformScopeAvailabilityRowProviderInput,
+  MusicDataPlatformCollectionScopeAvailabilityRow,
+  MusicDataPlatformRelationScopeAvailabilityRow,
+  MusicDataPlatformScopeAvailabilityRowProvider,
+  MusicDataPlatformScopeAvailabilityRows,
+  MusicDataPlatformSourceLibraryScopeAvailabilityRow,
+} from "./scope_availability_rows.js";
 
 export type CreateLibraryImportRuntimeModuleInput = {
   sourceListing: PlatformLibrarySourceListingPort;

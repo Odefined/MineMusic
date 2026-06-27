@@ -4,13 +4,15 @@ import type { Result, StageError } from "../../src/contracts/kernel.js";
 import type { PlatformLibraryProviderRegistration, ExtensionRuntime, ExtensionRuntimeSnapshot, } from "../../src/extension/index.js";
 import type { PlatformLibraryCandidate, PlatformLibraryReadInput, PlatformLibraryReadResult, } from "../../src/contracts/music_data_platform.js";
 import type { LibraryImportDriveOutput, LibraryImportStatusOutput, } from "../../src/contracts/stage_interface.js";
-import type { MaterialRefFactory, } from "../../src/music_data_platform/index.js";
+import { musicDataPlatformSchemas, type MaterialRefFactory, } from "../../src/music_data_platform/index.js";
 import { createLibraryImportServerRuntimeModule, createMusicDataPlatformRuntimeModule, } from "../../src/server/index.js";
 import { createStageInterface, createStageToolContext, } from "../../src/stage_interface/index.js";
 import type { MusicDatabase } from "../../src/storage/index.js";
-import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
+import { openPostgresTestMusicDatabase } from "../support/postgres.js";
 const now = "2026-06-18T00:00:00.000Z";
-const database = await openUninitializedPostgresTestMusicDatabase();
+const database = await openPostgresTestMusicDatabase({
+    schemas: musicDataPlatformSchemas,
+});
 let providerReadIndex = 0;
 const extensionRuntime = extensionRuntimeForPages([
     ["old-track", "keep-track"],
@@ -122,7 +124,9 @@ const stopped = await musicDataPlatformModule.stop?.();
 assert.equal(stopped?.ok, true);
 await database.close();
 {
-    const writeFailureDatabase = await openUninitializedPostgresTestMusicDatabase();
+    const writeFailureDatabase = await openPostgresTestMusicDatabase({
+        schemas: musicDataPlatformSchemas,
+    });
     const invalidMaterialRefFactory: MaterialRefFactory = {
         createMaterialRef(kind) {
             return {

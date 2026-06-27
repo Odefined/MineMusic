@@ -1,3 +1,34 @@
+import type { MusicDatabaseSchemaContribution } from "../storage/index.js";
+import { musicDataPlatformCollectionSchema } from "./collection_schema.js";
+import { musicDataPlatformDownloadSchema } from "./download_schema.js";
+import { musicDataPlatformIdentitySchema } from "./identity_schema.js";
+import { musicDataPlatformLocalSourceScanSchema } from "./local_source_scan_schema.js";
+import {
+  musicDataPlatformOwnerCatalogEntriesSchema,
+  musicDataPlatformOwnerCatalogViewSchema,
+} from "./owner_catalog_schema.js";
+import { musicDataPlatformOwnerRelationSchema } from "./owner_material_relation_schema.js";
+import { musicDataPlatformProjectionMaintenanceSchema } from "./projection_maintenance_schema.js";
+import { musicDataPlatformRetrievalResultSetSchema } from "./retrieval_result_set_schema.js";
+import { musicDataPlatformSearchMetadataProjectionSchema } from "./search_metadata_projection_schema.js";
+import { musicDataPlatformSearchResultSetSchema } from "./search_result_set_schema.js";
+import { musicDataPlatformSourceLibrarySchema } from "./source_library_schema.js";
+
+export const musicDataPlatformSchemas: readonly MusicDatabaseSchemaContribution[] = [
+  musicDataPlatformIdentitySchema,
+  musicDataPlatformSourceLibrarySchema,
+  musicDataPlatformOwnerCatalogEntriesSchema,
+  musicDataPlatformOwnerRelationSchema,
+  musicDataPlatformCollectionSchema,
+  musicDataPlatformOwnerCatalogViewSchema,
+  musicDataPlatformSearchMetadataProjectionSchema,
+  musicDataPlatformProjectionMaintenanceSchema,
+  musicDataPlatformLocalSourceScanSchema,
+  musicDataPlatformRetrievalResultSetSchema,
+  musicDataPlatformSearchResultSetSchema,
+  musicDataPlatformDownloadSchema,
+];
+
 export {
   MusicDataPlatformError,
   isMusicDataPlatformError,
@@ -150,6 +181,12 @@ export {
 export {
   musicDataPlatformProjectionMaintenanceSchema,
 } from "./projection_maintenance_schema.js";
+export {
+  musicDataPlatformDownloadSchema,
+} from "./download_schema.js";
+export {
+  musicDataPlatformLocalSourceScanSchema,
+} from "./local_source_scan_schema.js";
 export {
   createOwnerCatalogRecords,
 } from "./owner_catalog_records.js";

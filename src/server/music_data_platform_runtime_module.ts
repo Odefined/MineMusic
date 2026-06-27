@@ -2,11 +2,6 @@ import { createHash, randomUUID } from "node:crypto";
 
 import type { BackgroundWorkBackend } from "../background_work/index.js";
 import type { ExtensionRuntime } from "../extension/index.js";
-import {
-  sourceLibraryKindScopeMetadata,
-  sourceLibraryScopeId,
-} from "../music_data_platform/stage_adapter/source_library_scope.js";
-import { collectionScopeId } from "../music_data_platform/stage_adapter/collection_scope.js";
 import { DEFAULT_OWNER_SCOPE } from "../music_data_platform/owner_scope.js";
 import {
   createCandidateCommitCommand,
@@ -18,48 +13,28 @@ import {
   createIdentityReadPort,
   createMaterialProjection,
   createMusicDataPlatformMetadataLookupSearchWorkspace,
-  createOwnerMaterialRelationRecords,
-  createOwnerRelationPoolRef,
   createSourceLibraryImportService,
   createSourceLibraryReadPort,
   createLibraryImportStartCommand,
   createLibraryImportJobHandler,
   createLibraryCatalogReadPort,
-  createCollectionRecords,
   LOCALIZE_PROVIDER_SOURCE_JOB_TYPE,
   LIBRARY_IMPORT_ADVANCE_JOB_TYPE,
-  musicDataPlatformIdentitySchema,
-  musicDataPlatformOwnerCatalogEntriesSchema,
-  musicDataPlatformOwnerCatalogViewSchema,
-  musicDataPlatformOwnerRelationSchema,
-  musicDataPlatformCollectionSchema,
-  musicDataPlatformProjectionMaintenanceSchema,
-  musicDataPlatformRetrievalResultSetSchema,
-  musicDataPlatformSearchMetadataProjectionSchema,
-  musicDataPlatformSearchResultSetSchema,
-  musicDataPlatformSourceLibrarySchema,
   type CandidateCommitCommand,
   type LibraryRelationService,
   type LibraryCollectionService,
   type LocalizeProviderSourceCommand,
   type MaterialRefFactory,
   type MaterialProjection,
-  type OwnerRelationEntryKind,
-  type OwnerRelationScopeMaterialKind,
-  type SourceLibraryRecord,
   type SourceLibraryImportService,
   type SourceLibraryReadPort,
   type LibraryImportStartCommand,
   type LibraryCatalogReadPort,
-  type CollectionKind,
-  type CollectionRecord,
 } from "../music_data_platform/index.js";
 import { createRetrievalResultSetRecords } from "../music_data_platform/retrieval_result_set_records.js";
 import { createDownloadCommands, type DownloadCommands, type DownloadSourceProvider } from "../music_data_platform/download_commands.js";
-import { musicDataPlatformDownloadSchema } from "../music_data_platform/download_schema.js";
 import { createNodeLocalizeProviderSourceFileStore, createNodeMediaFileWriter } from "../music_data_platform/download_file_writer.js";
 import { createLocalSourceCommand, type LocalSourceCommand } from "../music_data_platform/local_source_commands.js";
-import { musicDataPlatformLocalSourceScanSchema } from "../music_data_platform/local_source_scan_schema.js";
 import {
   createLocalSourceScanService,
   type LocalSourceScanService,
@@ -85,32 +60,10 @@ import {
   createMetadataLookupRetrievalQueryService,
   type RetrievalQueryService,
 } from "../music_intelligence/index.js";
-import type {
-  MusicCollectionScopeAvailability,
-  MusicScopeAvailabilityPort,
-  MusicScopeAvailabilitySnapshot,
-} from "../music_intelligence/stage_adapter/index.js";
-import { stageInterfaceHandleRegistrySchema } from "../stage_interface/handle_registry_schema.js";
-import { stageInterfaceLookupCursorRegistrySchema } from "../stage_interface/lookup_cursor_registry_schema.js";
-import {
-  createStageInterfaceCandidateHandleCachePort,
-  createStageInterfaceHandleMintingPortFromRecords,
-} from "../stage_interface/handle_minting.js";
-import { createStageInterfaceHandleRegistryRecords } from "../stage_interface/handle_registry_records.js";
-import { createLookupCursorStore, DEFAULT_LOOKUP_CURSOR_TTL_MS } from "../stage_interface/lookup_cursor_store.js";
-import type { HandleMintingPort, LookupCursorStore, MusicTargetKind } from "../contracts/stage_interface.js";
-import {
-  type MusicDatabase,
-  type MusicDatabaseContext,
-  PostgresMusicDatabase,
-} from "../storage/index.js";
-import { musicExperienceQueuePlaybackSchema } from "../music_experience/index.js";
+import type { MusicDatabase } from "../storage/index.js";
 import type { RuntimeModule } from "../stage_core/index.js";
 import type { MineMusicRuntimeConfig } from "./config.js";
 import {
-  mineMusicDatabaseMaxConnections,
-  mineMusicDatabaseSchema,
-  mineMusicDatabaseUrl,
   mineMusicLocalSourcesRootDir,
 } from "./config.js";
 import {
@@ -159,26 +112,31 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   libraryCatalog(): LibraryCatalogReadPort | undefined;
   libraryImportStart(): LibraryImportStartCommand | undefined;
   retrievalQuery(): RetrievalQueryService | undefined;
-  musicScopeAvailability(): MusicScopeAvailabilityPort | undefined;
+  materialCandidateCacheRead(): MaterialCandidateCacheReadPort | undefined;
   candidateCommit(): CandidateCommitCommand | undefined;
   materialProjection(): MaterialProjection | undefined;
   libraryRelation(): LibraryRelationService | undefined;
   libraryCollection(): LibraryCollectionService | undefined;
-  handleMinting(): HandleMintingPort | undefined;
-  lookupCursorStore(): LookupCursorStore | undefined;
   download(): DownloadCommands | undefined;
   localSource(): LocalSourceCommand | undefined;
   localSourceScan(): LocalSourceScanService | undefined;
   localSourceScanStart(): LocalSourceScanStartCommand | undefined;
   localizeProviderSource(): LocalizeProviderSourceCommand | undefined;
-  database(): MusicDatabase | undefined;
+};
+
+export type MaterialCandidateCacheReadPort = {
+  getByRefKey(input: {
+    materialCandidateRefKey: string;
+  }): Promise<{
+    materialCandidateRefKey: string;
+    expiresAt: string;
+  } | undefined>;
 };
 
 export type CreateMusicDataPlatformRuntimeModuleInput = {
   extensionRuntime: ExtensionRuntime;
   config?: MineMusicRuntimeConfig;
-  database?: MusicDatabase;
-  databaseFactory?: () => MusicDatabase;
+  database: MusicDatabase;
   backgroundWork?: BackgroundWorkBackend;
   materialRefFactory?: MaterialRefFactory;
 };
@@ -186,25 +144,21 @@ export type CreateMusicDataPlatformRuntimeModuleInput = {
 export function createMusicDataPlatformRuntimeModule(
   input: CreateMusicDataPlatformRuntimeModuleInput,
 ): MusicDataPlatformRuntimeModule {
-  let database: MusicDatabase | undefined;
   let sourceLibraryImportService: SourceLibraryImportService | undefined;
   let sourceLibraryReadPort: SourceLibraryReadPort | undefined;
   let libraryCatalogReadPort: LibraryCatalogReadPort | undefined;
   let libraryImportStartCommand: LibraryImportStartCommand | undefined;
   let retrievalQueryService: RetrievalQueryService | undefined;
-  let musicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
+  let materialCandidateCacheReadPort: MaterialCandidateCacheReadPort | undefined;
   let candidateCommitCommand: CandidateCommitCommand | undefined;
   let materialProjection: MaterialProjection | undefined;
   let libraryRelationService: LibraryRelationService | undefined;
   let libraryCollectionService: LibraryCollectionService | undefined;
-  let handleMintingPort: HandleMintingPort | undefined;
-  let lookupCursorStore: LookupCursorStore | undefined;
   let downloadCommand: DownloadCommands | undefined;
   let localSourceCommand: LocalSourceCommand | undefined;
   let localSourceScanService: LocalSourceScanService | undefined;
   let localSourceScanStartCommand: LocalSourceScanStartCommand | undefined;
   let localizeProviderSourceCommand: LocalizeProviderSourceCommand | undefined;
-  const ownsDatabase = input.database === undefined;
 
   return {
     descriptor: {
@@ -214,32 +168,7 @@ export function createMusicDataPlatformRuntimeModule(
     },
     async initialize() {
       try {
-        const configuredSchema = mineMusicDatabaseSchema(input.config);
-        const configuredMaxConnections = mineMusicDatabaseMaxConnections(input.config);
-        database = input.database ?? input.databaseFactory?.() ?? PostgresMusicDatabase.open({
-          connectionString: mineMusicDatabaseUrl(input.config),
-          ...(configuredSchema === undefined ? {} : { schema: configuredSchema }),
-          ...(configuredMaxConnections === undefined ? {} : { maxConnections: configuredMaxConnections }),
-        });
-        await database.initialize({
-          schemas: [
-            musicDataPlatformIdentitySchema,
-            musicDataPlatformSourceLibrarySchema,
-            musicDataPlatformOwnerCatalogEntriesSchema,
-            musicDataPlatformOwnerRelationSchema,
-            musicDataPlatformCollectionSchema,
-            musicDataPlatformOwnerCatalogViewSchema,
-            musicDataPlatformSearchMetadataProjectionSchema,
-            musicDataPlatformProjectionMaintenanceSchema,
-            musicDataPlatformLocalSourceScanSchema,
-            musicDataPlatformRetrievalResultSetSchema,
-            musicDataPlatformSearchResultSetSchema,
-            musicDataPlatformDownloadSchema,
-            musicExperienceQueuePlaybackSchema,
-            stageInterfaceHandleRegistrySchema,
-            stageInterfaceLookupCursorRegistrySchema,
-          ],
-        });
+        const database = input.database;
         const materialRefFactory = input.materialRefFactory ?? createMaterialRefFactory();
         // Local source scan: validate startup-injected roots (D3/D41), build the
         // filesystem port + owning commands + caller-facing service, and register
@@ -432,31 +361,14 @@ export function createMusicDataPlatformRuntimeModule(
             extensionRuntime: input.extensionRuntime,
           }),
         });
-        musicScopeAvailabilityPort = createMusicScopeAvailabilityPort({
-          db: database.context(),
-          extensionRuntime: input.extensionRuntime,
-        });
-        const handleRegistryRecords = createStageInterfaceHandleRegistryRecords({
-          db: database.context(),
-        });
         const materialCandidateCache = createRetrievalResultSetRecords({
           db: database.context(),
         }).materialCandidates;
-        handleMintingPort = createStageInterfaceHandleMintingPortFromRecords({
-          records: handleRegistryRecords,
-          candidateHandles: createStageInterfaceCandidateHandleCachePort({
-            records: handleRegistryRecords,
-            candidateCache: {
-              getByRefKey(readInput) {
-                return materialCandidateCache.getByRefKey(readInput);
-              },
-            },
-          }),
-        });
-        lookupCursorStore = createLookupCursorStore({
-          db: database.context(),
-          ttlMs: DEFAULT_LOOKUP_CURSOR_TTL_MS,
-        });
+        materialCandidateCacheReadPort = {
+          getByRefKey(readInput) {
+            return materialCandidateCache.getByRefKey(readInput);
+          },
+        };
         downloadCommand = createDownloadCommands({
           database,
           downloadSourceProvider,
@@ -470,9 +382,7 @@ export function createMusicDataPlatformRuntimeModule(
           value: {},
         };
       } catch (cause) {
-        handleMintingPort = undefined;
-        lookupCursorStore = undefined;
-        musicScopeAvailabilityPort = undefined;
+        materialCandidateCacheReadPort = undefined;
         materialProjection = undefined;
         libraryRelationService = undefined;
         libraryCollectionService = undefined;
@@ -487,8 +397,6 @@ export function createMusicDataPlatformRuntimeModule(
         localSourceScanService = undefined;
         localSourceScanStartCommand = undefined;
         localizeProviderSourceCommand = undefined;
-        await closeOwnedDatabase();
-        database = undefined;
         return {
           ok: false,
           error: {
@@ -504,10 +412,7 @@ export function createMusicDataPlatformRuntimeModule(
     async stop() {
       try {
         await downloadCommand?.drain();
-        await closeOwnedDatabase();
-        handleMintingPort = undefined;
-        lookupCursorStore = undefined;
-        musicScopeAvailabilityPort = undefined;
+        materialCandidateCacheReadPort = undefined;
         materialProjection = undefined;
         libraryRelationService = undefined;
         libraryCollectionService = undefined;
@@ -522,7 +427,6 @@ export function createMusicDataPlatformRuntimeModule(
         localSourceScanService = undefined;
         localSourceScanStartCommand = undefined;
         localizeProviderSourceCommand = undefined;
-        database = undefined;
 
         return {
           ok: true,
@@ -556,8 +460,8 @@ export function createMusicDataPlatformRuntimeModule(
     retrievalQuery() {
       return retrievalQueryService;
     },
-    musicScopeAvailability() {
-      return musicScopeAvailabilityPort;
+    materialCandidateCacheRead() {
+      return materialCandidateCacheReadPort;
     },
     candidateCommit() {
       return candidateCommitCommand;
@@ -570,12 +474,6 @@ export function createMusicDataPlatformRuntimeModule(
     },
     libraryCollection() {
       return libraryCollectionService;
-    },
-    handleMinting() {
-      return handleMintingPort;
-    },
-    lookupCursorStore() {
-      return lookupCursorStore;
     },
     download() {
       return downloadCommand;
@@ -592,19 +490,7 @@ export function createMusicDataPlatformRuntimeModule(
     localizeProviderSource() {
       return localizeProviderSourceCommand;
     },
-    database() {
-      return database;
-    },
   };
-
-  async function closeOwnedDatabase(): Promise<void> {
-    if (!ownsDatabase || database === undefined) {
-      return;
-    }
-
-    await database.close();
-    database = undefined;
-  }
 }
 
 function createExtensionRuntimeDownloadSourceProvider(
@@ -626,147 +512,6 @@ function createExtensionRuntimeDownloadSourceProvider(
       return { ok: true, value: result.value.downloadSource };
     },
   };
-}
-
-function createMusicScopeAvailabilityPort(input: {
-  db: MusicDatabaseContext;
-  extensionRuntime: ExtensionRuntime;
-}): MusicScopeAvailabilityPort {
-  const sourceLibraryRead = createSourceLibraryReadPort({ db: input.db });
-  const ownerRelationRead = createOwnerMaterialRelationRecords({ db: input.db });
-  const collectionRead = createCollectionRecords({ db: input.db });
-
-  return {
-    async listAvailableMusicScopes(readInput) {
-      const providerNames = providerDisplayNames(input.extensionRuntime);
-      const [sourceLibraries, relationSummaries, collections] = await Promise.all([
-        sourceLibraryRead.listSourceLibraries({ ownerScope: readInput.ownerScope }),
-        ownerRelationRead.listOwnerRelationScopeSummaries({ ownerScope: readInput.ownerScope }),
-        collectionRead.listCollections({ ownerScope: readInput.ownerScope }),
-      ]);
-
-      const snapshot: MusicScopeAvailabilitySnapshot = {
-        sourceLibraries: sourceLibraries
-          .map((record) => sourceLibraryScopeAvailability(record, providerNames)),
-        relations: relationSummaries
-          .map((summary) => ({
-            id: relationScopeId({
-              ownerScope: summary.ownerScope,
-              relationKind: summary.relationKind,
-              materialKind: summary.materialKind,
-            }),
-            ref: createOwnerRelationPoolRef({
-              ownerScope: summary.ownerScope,
-              relationKind: summary.relationKind,
-            }),
-            relationName: relationNameForOwnerRelation(summary.relationKind),
-            targetKind: summary.materialKind,
-          })),
-        providers: input.extensionRuntime
-          .listSourceProviders()
-          .filter((registration) =>
-            registration.provider.descriptor.capabilities.includes("search") &&
-            registration.provider.search !== undefined
-          )
-          .map((registration) => ({
-            providerId: registration.providerId,
-            providerName: registration.provider.descriptor.label,
-            targetKinds: ["recording", "album", "artist"],
-          })),
-        // D7: work/release Collections are catalog-invisible, so only
-        // single-kind (recording/album/artist) and mixed Collections surface as
-        // catalog scopes. listCollections already defaults to status='active'.
-        collections: collections
-          .filter((collection) => isCatalogVisibleCollectionKind(collection.collectionKind))
-          .map(collectionScopeAvailability),
-      };
-
-      return {
-        ok: true,
-        value: snapshot,
-      };
-    },
-  };
-}
-
-function sourceLibraryScopeAvailability(
-  record: SourceLibraryRecord,
-  providerNames: ReadonlyMap<string, string>,
-): MusicScopeAvailabilitySnapshot["sourceLibraries"][number] {
-  const metadata = sourceLibraryKindScopeMetadata(record.libraryKind);
-
-  return {
-    id: sourceLibraryScopeId(record.libraryRef),
-    ref: record.libraryRef,
-    ...(providerNames.get(record.providerId) === undefined
-      ? {}
-      : { providerName: providerNames.get(record.providerId)! }),
-    relationName: metadata.relationName,
-    targetKind: metadata.targetKind,
-  };
-}
-
-function providerDisplayNames(extensionRuntime: ExtensionRuntime): ReadonlyMap<string, string> {
-  const names = new Map<string, string>();
-
-  for (const registration of extensionRuntime.listPlatformLibraryProviders()) {
-    names.set(registration.providerId, registration.provider.descriptor.label);
-  }
-
-  for (const registration of extensionRuntime.listSourceProviders()) {
-    names.set(registration.providerId, registration.provider.descriptor.label);
-  }
-
-  return names;
-}
-
-function relationNameForOwnerRelation(kind: OwnerRelationEntryKind): string {
-  switch (kind) {
-    case "saved":
-      return "saved";
-    case "favorite":
-      return "favorite";
-  }
-}
-
-function relationScopeId(input: {
-  ownerScope: string;
-  relationKind: OwnerRelationEntryKind;
-  materialKind: OwnerRelationScopeMaterialKind;
-}): string {
-  return opaqueScopeId(
-    "relation",
-    `${input.ownerScope}:${input.relationKind}:${input.materialKind}`,
-  );
-}
-
-function collectionScopeAvailability(collection: CollectionRecord): MusicCollectionScopeAvailability {
-  const targetKind = catalogTargetKindForCollection(collection.collectionKind);
-  return {
-    id: collectionScopeId(collection.collectionRefKey),
-    ref: collection.collectionRef,
-    collectionName: collection.name,
-    ...(targetKind === undefined ? {} : { targetKind }),
-  };
-}
-
-function catalogTargetKindForCollection(kind: CollectionKind): MusicTargetKind | undefined {
-  if (kind === "recording" || kind === "album" || kind === "artist") {
-    return kind;
-  }
-  return undefined;
-}
-
-// D7: a Collection is catalog-visible when it has a catalog target kind, or is
-// mixed (library baseline); work/release never reach the catalog scope list.
-function isCatalogVisibleCollectionKind(kind: CollectionKind): boolean {
-  return catalogTargetKindForCollection(kind) !== undefined || kind === "mixed";
-}
-
-function opaqueScopeId(prefix: "relation", anchor: string): string {
-  // PR16C runs without the PR16B handle registry; keep these ids opaque until
-  // registry-backed scope mint/resolve replaces this composition seam.
-  return `${prefix}_${createHash("sha256").update(anchor).digest("base64url").slice(0, 22)}`;
 }
 
 function createProjectionMaintenanceDispatcherAdapter(

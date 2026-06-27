@@ -1,38 +1,17 @@
-import { musicDataPlatformDownloadSchema, } from "../../src/music_data_platform/download_schema.js";
-import { musicDataPlatformIdentitySchema, } from "../../src/music_data_platform/identity_schema.js";
-import { musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, } from "../../src/music_data_platform/owner_catalog_schema.js";
-import { musicDataPlatformOwnerRelationSchema, } from "../../src/music_data_platform/owner_material_relation_schema.js";
-import { musicDataPlatformCollectionSchema, } from "../../src/music_data_platform/collection_schema.js";
-import { musicDataPlatformProjectionMaintenanceSchema, } from "../../src/music_data_platform/projection_maintenance_schema.js";
-import { musicDataPlatformRetrievalResultSetSchema, } from "../../src/music_data_platform/retrieval_result_set_schema.js";
-import { musicDataPlatformSearchMetadataProjectionSchema, } from "../../src/music_data_platform/search_metadata_projection_schema.js";
-import { musicDataPlatformSearchResultSetSchema, } from "../../src/music_data_platform/search_result_set_schema.js";
-import { musicDataPlatformSourceLibrarySchema, } from "../../src/music_data_platform/source_library_schema.js";
-import { musicExperienceQueuePlaybackSchema, } from "../../src/music_experience/schema.js";
-import { PostgresMusicDatabase, type PostgresMusicDatabaseSchemaContribution, } from "../../src/storage/index.js";
-import { stageInterfaceHandleRegistrySchema, } from "../../src/stage_interface/handle_registry_schema.js";
-import { stageInterfaceLookupCursorRegistrySchema, } from "../../src/stage_interface/lookup_cursor_registry_schema.js";
+import { musicDataPlatformSchemas } from "../../src/music_data_platform/index.js";
+import { musicExperienceSchemas } from "../../src/music_experience/index.js";
+import { createMusicDatabase } from "../../src/storage/index.js";
+import { stageInterfaceSchemas } from "../../src/stage_interface/index.js";
 import { postgresTestDatabaseUrl, resetPostgresTestSchema, } from "../support/postgres.js";
 const connectionString = postgresTestDatabaseUrl();
 await resetPostgresTestSchema(connectionString);
-const database = PostgresMusicDatabase.open({ connectionString });
-await database.initialize({
+const database = await createMusicDatabase({
+    connectionString,
     schemas: [
-        musicDataPlatformIdentitySchema,
-        musicDataPlatformSourceLibrarySchema,
-        musicDataPlatformOwnerCatalogEntriesSchema,
-        musicDataPlatformOwnerRelationSchema,
-        musicDataPlatformCollectionSchema,
-        musicDataPlatformOwnerCatalogViewSchema,
-        musicDataPlatformSearchMetadataProjectionSchema,
-        musicDataPlatformProjectionMaintenanceSchema,
-        musicDataPlatformRetrievalResultSetSchema,
-        musicDataPlatformSearchResultSetSchema,
-        musicDataPlatformDownloadSchema,
-        musicExperienceQueuePlaybackSchema,
-        stageInterfaceHandleRegistrySchema,
-        stageInterfaceLookupCursorRegistrySchema,
-    ] as unknown as readonly PostgresMusicDatabaseSchemaContribution[],
+        ...musicDataPlatformSchemas,
+        ...stageInterfaceSchemas,
+        ...musicExperienceSchemas,
+    ],
 });
 const context = database.context();
 const sourceRecords = await context.get<{

@@ -1,3 +1,10 @@
+import type { MusicDatabaseSchemaContribution } from "../storage/index.js";
+import { musicExperienceQueuePlaybackSchema } from "./schema.js";
+
+export const musicExperienceSchemas: readonly MusicDatabaseSchemaContribution[] = [
+  musicExperienceQueuePlaybackSchema,
+];
+
 export {
   createMusicExperienceQueuePlaybackCommand,
 } from "./commands.js";

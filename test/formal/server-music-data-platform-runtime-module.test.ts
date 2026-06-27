@@ -4,18 +4,21 @@ import type {
     BackgroundWorkHandler,
     BackgroundWorkSubmitInput,
 } from "../../src/background_work/index.js";
+import { musicDataPlatformSchemas } from "../../src/music_data_platform/index.js";
 import { createMineMusicExtensionRuntime, createMusicDataPlatformRuntimeModule, type MusicDataPlatformRuntimeModule, } from "../../src/server/index.js";
+import { stageInterfaceSchemas } from "../../src/stage_interface/index.js";
 import { type MusicDatabase } from "../../src/storage/index.js";
-import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
+import { openPostgresTestMusicDatabase } from "../support/postgres.js";
 {
     // Basic initialize without background work: in-process ports are wired and
     // cleared on stop. Projection maintenance has no scheduler-driven path now;
     // its rebuild runs only when a background-work backend is present.
-    const database = await openUninitializedPostgresTestMusicDatabase();
+    const database = await openRuntimeModuleTestDatabase();
     const module = createMusicDataPlatformRuntimeModule({
         extensionRuntime: createMineMusicExtensionRuntime(),
         database,
     });
+    assert.equal("database" in module, false, "MDP runtime module must not broker the shared database");
     const initialized = await module.initialize({});
     assert.equal(initialized.ok, true);
     assert.equal(module.sourceLibraryImport() === undefined, false);
@@ -37,7 +40,7 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
 {
     // With background work: localize + library import + projection maintenance
     // handlers register, in registration order.
-    const database = await openUninitializedPostgresTestMusicDatabase();
+    const database = await openRuntimeModuleTestDatabase();
     const backgroundWork = createFakeBackgroundWorkBackend();
     const module = createMusicDataPlatformRuntimeModule({
         extensionRuntime: createMineMusicExtensionRuntime(),
@@ -77,7 +80,7 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     const backgroundWork = createFakeBackgroundWorkBackend();
     const module = createMusicDataPlatformRuntimeModule({
         extensionRuntime: createMineMusicExtensionRuntime(),
-        databaseFactory: () => database,
+        database,
         backgroundWork,
     });
     const initialized = await module.initialize({});
@@ -88,14 +91,15 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     assert.equal(initialized.error.code, "server_host.music_data_platform_initialization_failed");
     assert.equal(backgroundWork.registrations.length, 0);
     assert.equal(module.localizeProviderSource(), undefined);
-    assert.equal(database.closeCount(), 1);
+    assert.equal(database.closeCount(), 0);
+    await database.close();
 }
 {
     // Event-driven submit: a source-of-truth write (createLocalSource, scenario A
     // self-build) dirties projection targets; the dispatcher adapter submits one
     // rebuild job per target, carrying the shared retry policy and the
     // targetKey:updatedAt idempotency key.
-    const database = await openUninitializedPostgresTestMusicDatabase();
+    const database = await openRuntimeModuleTestDatabase();
     const backgroundWork = createFakeBackgroundWorkBackend();
     const module = createMusicDataPlatformRuntimeModule({
         extensionRuntime: createMineMusicExtensionRuntime(),
@@ -138,10 +142,18 @@ async function stopModule(module: MusicDataPlatformRuntimeModule): Promise<Await
     }
     return module.stop();
 }
+async function openRuntimeModuleTestDatabase(): Promise<MusicDatabase> {
+    return await openPostgresTestMusicDatabase({
+        schemas: [
+            ...musicDataPlatformSchemas,
+            ...stageInterfaceSchemas,
+        ],
+    });
+}
 async function createCloseSpyDatabase(): Promise<MusicDatabase & {
     closeCount(): number;
 }> {
-    const database = await openUninitializedPostgresTestMusicDatabase();
+    const database = await openRuntimeModuleTestDatabase();
     let closeCount = 0;
     return {
         async initialize(input) {

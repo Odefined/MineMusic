@@ -12,6 +12,7 @@ import type {
 import type { MusicScopeAvailabilityPort } from "./scope_availability.js";
 
 export {
+  createMusicScopeAvailabilityPort,
   createInMemoryMusicScopeAvailabilityPort,
   emptyMusicScopeAvailabilitySnapshot,
 } from "./scope_availability.js";
@@ -20,8 +21,12 @@ export type {
   MusicProviderScopeAvailability,
   MusicRelationScopeAvailability,
   MusicScopeAvailabilityPort,
+  MusicScopeAvailabilityProviderMetadataPort,
+  MusicScopeAvailabilityRowProvider,
+  MusicScopeAvailabilityRowSnapshot,
   MusicScopeAvailabilitySnapshot,
   MusicSourceLibraryScopeAvailability,
+  MusicSourceLibraryScopeAvailabilityRow,
 } from "./scope_availability.js";
 export {
   createMusicDiscoveryListScopesRegistration,

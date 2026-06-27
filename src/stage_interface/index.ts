@@ -13,11 +13,19 @@ import type {
   ToolDeclaredError,
   ToolDeclaration,
 } from "../contracts/stage_interface.js";
+import type { MusicDatabaseSchemaContribution } from "../storage/index.js";
+import { stageInterfaceHandleRegistrySchema } from "./handle_registry_schema.js";
+import { stageInterfaceLookupCursorRegistrySchema } from "./lookup_cursor_registry_schema.js";
 import {
   assertOutputSchemaHasNoInternalAnchors,
   findSampleOutputVeilViolations,
   freeTextContainsInternalAnchor,
 } from "./veil_guard.js";
+
+export const stageInterfaceSchemas: readonly MusicDatabaseSchemaContribution[] = [
+  stageInterfaceHandleRegistrySchema,
+  stageInterfaceLookupCursorRegistrySchema,
+];
 
 export {
   createStageToolContext,
@@ -101,6 +109,13 @@ export type {
 export {
   stageInterfaceLookupCursorRegistrySchema,
 } from "./lookup_cursor_registry_schema.js";
+export {
+  createStageInterfaceRuntimePorts,
+} from "./runtime_ports.js";
+export type {
+  CreateStageInterfaceRuntimePortsInput,
+  StageInterfaceRuntimePorts,
+} from "./runtime_ports.js";
 export {
   assertOutputSchemaHasNoInternalAnchors,
   assertSampleOutputHasNoInternalAnchors,

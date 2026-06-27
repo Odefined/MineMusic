@@ -14,9 +14,11 @@ export type {
   MusicDatabaseTransactionContext,
 } from "./database.js";
 export {
+  createMusicDatabase,
   PostgresMusicDatabase,
 } from "./postgres/database.js";
 export type {
+  CreateMusicDatabaseInput,
   InitializePostgresMusicDatabaseInput,
   OpenPostgresMusicDatabaseInput,
   PostgresMusicDatabaseContext,

@@ -8,12 +8,15 @@ import type { ProviderMaterialCandidate } from "../../src/contracts/music_data_p
 import type { StageToolContext } from "../../src/contracts/stage_interface.js";
 import type { ExtensionRuntime, ExtensionRuntimeSnapshot, MineMusicPlugin, PluginActivationContext, } from "../../src/extension/index.js";
 import { createExtensionRuntime, sourceProviderSlot } from "../../src/extension/index.js";
-import { createMusicDiscoveryRuntimeModule, } from "../../src/music_intelligence/stage_adapter/index.js";
+import { createCollectionRecords, createOwnerMaterialRelationRecords, createSourceLibraryReadPort, musicDataPlatformSchemas } from "../../src/music_data_platform/index.js";
+import { createMusicDataPlatformScopeAvailabilityRowProvider } from "../../src/music_data_platform/stage_adapter/index.js";
+import { createMusicDiscoveryRuntimeModule, createMusicScopeAvailabilityPort, type MusicScopeAvailabilityPort } from "../../src/music_intelligence/stage_adapter/index.js";
 import { isMusicIntelligenceError, type MusicIntelligenceErrorCode, } from "../../src/music_intelligence/index.js";
-import { createMusicExperienceQueuePlaybackCommand } from "../../src/music_experience/index.js";
+import { createMusicExperienceQueuePlaybackCommand, musicExperienceSchemas } from "../../src/music_experience/index.js";
 import { createExtensionRuntimeRetrievalProviderSearchPort, createMusicDataPlatformRuntimeModule, createMusicExperienceServerRuntimeModule, createMineMusicExtensionRuntime, createServerHost, createStageToolContextAssembly, } from "../../src/server/index.js";
 import { createExtensionRuntimeModule, createStageRuntime, } from "../../src/stage_core/index.js";
-import { createPostgresTestSchema, postgresTestDatabaseUrl } from "../support/postgres.js";
+import { createStageInterfaceRuntimePorts, stageInterfaceSchemas, type StageInterfaceRuntimePorts } from "../../src/stage_interface/index.js";
+import { createPostgresTestSchema, openPostgresTestMusicDatabase, postgresTestDatabaseUrl } from "../support/postgres.js";
 const serverHostDatabaseUrl = postgresTestDatabaseUrl();
 const serverHostSchema = `minemusic_server_host_${process.pid}`;
 await createPostgresTestSchema({
@@ -231,18 +234,18 @@ const fixtureExtensionRuntime = createExtensionRuntime({
     plugins: [fixtureSourceProviderPlugin(providerCandidateFixture())],
 });
 const serverHostFixtureSchema = `minemusic_server_host_fixture_${process.pid}`;
-await createPostgresTestSchema({
+const fixtureDatabase = await openPostgresTestMusicDatabase({
     connectionString: serverHostDatabaseUrl,
     schema: serverHostFixtureSchema,
+    schemas: [
+        ...musicDataPlatformSchemas,
+        ...stageInterfaceSchemas,
+        ...musicExperienceSchemas,
+    ],
 });
 const fixtureMusicDataPlatformModule = createMusicDataPlatformRuntimeModule({
     extensionRuntime: fixtureExtensionRuntime,
-    config: {
-        database: {
-            url: serverHostDatabaseUrl,
-            schema: serverHostFixtureSchema,
-        },
-    },
+    database: fixtureDatabase,
 });
 const fixtureRuntime = createStageRuntime({
     modules: [
@@ -251,7 +254,7 @@ const fixtureRuntime = createStageRuntime({
         createMusicDiscoveryRuntimeModule({
             scopeAvailability: {
                 async listAvailableMusicScopes(input) {
-                    const port = fixtureMusicDataPlatformModule.musicScopeAvailability();
+                    const port = readFixtureMusicScopeAvailabilityPort();
                     if (port === undefined) {
                         throw new Error("fixture music scope availability port is not initialized.");
                     }
@@ -273,17 +276,19 @@ const fixtureRuntime = createStageRuntime({
                 candidateCommit: () => fixtureMusicDataPlatformModule.candidateCommit(),
                 materialProjection: () => fixtureMusicDataPlatformModule.materialProjection(),
                 queuePlayback: () => {
-                    const database = fixtureMusicDataPlatformModule.database();
-                    return database === undefined
-                        ? undefined
-                        : createMusicExperienceQueuePlaybackCommand({ database });
+                    return createMusicExperienceQueuePlaybackCommand({ database: fixtureDatabase });
                 },
             },
         }),
     ],
 });
+let fixtureStageInterfaceRuntimePorts: StageInterfaceRuntimePorts | undefined;
+let fixtureMusicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
 const fixtureContextFactory = createStageToolContextAssembly({
-    ports: fixtureMusicDataPlatformModule,
+    ports: {
+        handleMinting: () => readFixtureStageInterfaceRuntimePorts()?.handleMinting,
+        lookupCursorStore: () => readFixtureStageInterfaceRuntimePorts()?.lookupCursorStore,
+    },
 });
 const fixtureStarted = await fixtureRuntime.initialize();
 assert.equal(fixtureStarted.ok, true);
@@ -328,6 +333,7 @@ if (fixtureLookup.ok) {
 }
 const fixtureStopped = await fixtureRuntime.stop();
 assert.equal(fixtureStopped.ok, true);
+await fixtureDatabase.close();
 let probedNcm = false;
 const configuredExtensionRuntime = createMineMusicExtensionRuntime({
     plugins: {
@@ -372,6 +378,50 @@ for (const [extensionCode, musicIntelligenceCode] of [
         },
     }), musicIntelligenceCode);
 }
+function readFixtureStageInterfaceRuntimePorts(): StageInterfaceRuntimePorts | undefined {
+    if (fixtureStageInterfaceRuntimePorts !== undefined) {
+        return fixtureStageInterfaceRuntimePorts;
+    }
+    const materialCandidateCache = fixtureMusicDataPlatformModule.materialCandidateCacheRead();
+    if (materialCandidateCache === undefined) {
+        return undefined;
+    }
+    fixtureStageInterfaceRuntimePorts = createStageInterfaceRuntimePorts({
+        db: fixtureDatabase.context(),
+        materialCandidateCache,
+    });
+    return fixtureStageInterfaceRuntimePorts;
+}
+function readFixtureMusicScopeAvailabilityPort(): MusicScopeAvailabilityPort | undefined {
+    if (fixtureMusicScopeAvailabilityPort !== undefined) {
+        return fixtureMusicScopeAvailabilityPort;
+    }
+    const db = fixtureDatabase.context();
+    fixtureMusicScopeAvailabilityPort = createMusicScopeAvailabilityPort({
+        rows: createMusicDataPlatformScopeAvailabilityRowProvider({
+            sourceLibraryRead: createSourceLibraryReadPort({ db }),
+            ownerRelationRead: createOwnerMaterialRelationRecords({ db }),
+            collectionRead: createCollectionRecords({ db }),
+        }),
+        providerMetadata: {
+            listProviderDisplayNames() {
+                return providerDisplayNames(fixtureExtensionRuntime);
+            },
+            listSearchableProviderScopes() {
+                return fixtureExtensionRuntime
+                    .listSourceProviders()
+                    .filter((registration) => registration.provider.descriptor.capabilities.includes("search") &&
+                    registration.provider.search !== undefined)
+                    .map((registration) => ({
+                    providerId: registration.providerId,
+                    providerName: registration.provider.descriptor.label,
+                    targetKinds: ["recording", "album", "artist"],
+                }));
+            },
+        },
+    });
+    return fixtureMusicScopeAvailabilityPort;
+}
 function extensionRuntimeWithSearch(searchSourceProvider: ExtensionRuntime["searchSourceProvider"]): ExtensionRuntime {
     const snapshot: ExtensionRuntimeSnapshot = {
         status: "created",
@@ -408,6 +458,16 @@ function extensionRuntimeWithSearch(searchSourceProvider: ExtensionRuntime["sear
             error: stageError("extension.platform_library_provider_not_found"),
         }),
     };
+}
+function providerDisplayNames(extensionRuntime: ExtensionRuntime): ReadonlyMap<string, string> {
+    const names = new Map<string, string>();
+    for (const registration of extensionRuntime.listPlatformLibraryProviders()) {
+        names.set(registration.providerId, registration.provider.descriptor.label);
+    }
+    for (const registration of extensionRuntime.listSourceProviders()) {
+        names.set(registration.providerId, registration.provider.descriptor.label);
+    }
+    return names;
 }
 function stageError(code: string): StageError {
     return {

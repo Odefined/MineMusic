@@ -469,6 +469,9 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/stage_interface/lookup_cursor_store.ts`: `LookupCursorStore`
   implementation for registry-backed public lookup cursor ids, TTL enforcement,
   and unavailable-default behavior.
+- `src/stage_interface/runtime_ports.ts`: Stage Interface-owned production
+  helper that builds handle-minting and lookup-cursor runtime ports from a
+  `MusicDatabaseContext` plus a narrow material-candidate cache read port.
 - `src/stage_interface/veil_guard.ts`: output-schema and sample-output internal
   anchor leak guards for the Public Agent Protocol veil.
 - `src/effect_boundary/index.ts` and
@@ -502,14 +505,16 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   behind the Background Work port.
 - `src/background_work/index.ts`: Background Work public exports.
 - `src/server/host.ts`: thin Server Host lifecycle owner, Stage Interface
-  dispatch entrypoint, internal source library import seam accessor, and the
-  composed Tool Context Factory accessor.
+  dispatch entrypoint, shared music database lifecycle owner, schema-array
+  composer, internal source library import seam accessor, and the composed Tool
+  Context Factory accessor.
 - `src/server/config.ts`: Server Host default runtime composition config.
 - `src/server/music_data_platform_runtime_module.ts`: Server Host composition
-  module for Storage, Music Data Platform schemas, the Stage Interface handle
-  and lookup-cursor registry schemas, internal Library Import service wiring,
-  Library Catalog read-port wiring, Retrieval query wiring, and Music Scope
-  availability adapter.
+  module for Music Data Platform-owned ports and commands from an injected
+  initialized `MusicDatabase`; it wires Library Import, Library Catalog,
+  Retrieval query, material projection, relation, collection, download,
+  local-source, and localization capabilities without owning database
+  lifecycle or cross-area schema initialization.
 - `src/server/library_import_runtime_module.ts`: Server Host shim for the
   MDP-owned Library Import Stage Adapter RuntimeModule, adapting Extension
   platform-library-provider descriptor metadata, source-library import service,
@@ -617,8 +622,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   public handle/description mapping, declared error mapping, and cursor-page
   replay through the Stage Interface `LookupCursorStore`.
 - `src/music_intelligence/stage_adapter/scope_availability.ts`: narrow
-  Music Scope availability port and in-memory test adapter for Stage Adapter
-  handlers.
+  Music Scope availability port, production row/provider metadata adapter, and
+  in-memory test adapter for Stage Adapter handlers.
 - `src/music_intelligence/stage_adapter/index.ts`: Stage Adapter boundary and
   `music.discovery` RuntimeModule contribution; this subtree may import Stage
   Interface contracts.
@@ -642,6 +647,9 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/music_data_platform/stage_adapter/source_library_scope.ts`: public
   source-library scope id/description helper shared by import summaries and
   scope availability.
+- `src/music_data_platform/stage_adapter/scope_availability_rows.ts`:
+  MDP-owned source-library, owner-relation, and collection scope row provider
+  that preserves opaque MDP scope id semantics for Music Intelligence.
 - `src/music_data_platform/stage_adapter/catalog.ts`: MDP Library Catalog
   Stage Adapter descriptors/handlers for `library.catalog.list_scopes`,
   `.browse`, `.sample`, and `.summary`, including public item shaping,

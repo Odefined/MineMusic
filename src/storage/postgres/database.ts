@@ -25,6 +25,22 @@ export type InitializePostgresMusicDatabaseInput = {
   schemas?: readonly PostgresMusicDatabaseSchemaContribution[];
 };
 
+export type CreateMusicDatabaseInput = OpenPostgresMusicDatabaseInput & InitializePostgresMusicDatabaseInput;
+
+export async function createMusicDatabase(input: CreateMusicDatabaseInput): Promise<MusicDatabase> {
+  const database = PostgresMusicDatabase.open(input);
+
+  try {
+    await database.initialize({
+      ...(input.schemas === undefined ? {} : { schemas: input.schemas }),
+    });
+    return database;
+  } catch (error) {
+    await database.close();
+    throw error;
+  }
+}
+
 type PostgresDatabaseState =
   | "opened"
   | "initializing"

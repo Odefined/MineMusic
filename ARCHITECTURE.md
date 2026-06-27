@@ -88,6 +88,11 @@ Storage infrastructure sits behind area-owned ports. Area semantics own
 persistence meaning. The public database boundary is generic `MusicDatabase`;
 Postgres is the current concrete runtime adapter behind that boundary. A replaceable Storage
 Provider is an Extension Capability Slot, not a Storage bounded context.
+Storage owns production database lifecycle through its lifecycle factory; Server
+Host composes owning-area schema arrays and asks Storage to open and initialize
+the shared music database. Area runtime modules receive an initialized
+`MusicDatabase` and must not open Postgres, run cross-area DDL, or broker the
+database for other areas (ADR-0045).
 
 ## Host, Interface, And Runtime
 
@@ -95,6 +100,11 @@ Server Host creates and holds one composed Stage Runtime and exposes it through
 host adapters such as MCP, HTTP, stdio, CLI, or future Web UI transports.
 Codex skill is a host client / integration package that consumes Stage
 Interface through a host transport; it is not Server Host core.
+Server Host is also the production composition root for shared runtime
+infrastructure: it orders per-area schema arrays, creates the shared music
+database through Storage, closes it after runtime shutdown, and calls
+owning-area helpers for Stage Interface handle/cursor ports and Music
+Intelligence scope availability (ADR-0045).
 
 Stage Core is the composition boundary. It uses the Plugin System to assemble
 enabled adapters, shared provider dependencies, config, auth, cache, rate

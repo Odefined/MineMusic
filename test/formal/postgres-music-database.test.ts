@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { isMusicDatabaseError, MusicDatabaseError, PostgresMusicDatabase, type PostgresMusicDatabaseContext, type PostgresMusicDatabaseSchemaContribution, } from "../../src/storage/index.js";
+import { createMusicDatabase, isMusicDatabaseError, MusicDatabaseError, PostgresMusicDatabase, type PostgresMusicDatabaseContext, type PostgresMusicDatabaseSchemaContribution, } from "../../src/storage/index.js";
 import { postgresTestDatabaseUrl, resetPostgresTestSchema, } from "../support/postgres.js";
 const connectionString = postgresTestDatabaseUrl();
 assertDatabaseError(() => PostgresMusicDatabase.open({ connectionString: "" }), "storage.invalid_database_url");
@@ -106,6 +106,20 @@ await assertDatabaseErrorAsync(() => failingDatabase.transaction(async () => und
 await assertDatabaseErrorAsync(async () => await failingDatabase.initialize(), "storage.database_initialization_failed");
 await failingDatabase.close();
 await failingDatabase.close();
+await resetPostgresTestSchema(connectionString);
+const factoryDatabase = await createMusicDatabase({
+    connectionString,
+    schemas: [
+        schema("factory", [], async (factoryContext) => {
+            await factoryContext.run("CREATE TABLE factory_schema (id SERIAL PRIMARY KEY)");
+        }),
+    ],
+});
+await factoryDatabase.context().run("INSERT INTO factory_schema DEFAULT VALUES");
+assert.equal((await factoryDatabase.context().get<{
+    count: number;
+}>("SELECT COUNT(*) AS count FROM factory_schema"))?.count, 1);
+await factoryDatabase.close();
 function schema(id: string, order: string[], apply: (context: PostgresMusicDatabaseContext) => Promise<void>): PostgresMusicDatabaseSchemaContribution {
     return {
         id,

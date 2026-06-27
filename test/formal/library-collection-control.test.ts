@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import type { LibraryCollectionStateOutput } from "../../src/contracts/stage_interface.js";
 import {
+  createCollectionRecords,
   createMusicDataPlatformSourceOfTruthWriteCommands,
-  musicDataPlatformIdentitySchema,
-  musicDataPlatformCollectionSchema,
-  musicDataPlatformOwnerCatalogEntriesSchema,
-  musicDataPlatformOwnerCatalogViewSchema,
-  musicDataPlatformOwnerRelationSchema,
-  musicDataPlatformProjectionMaintenanceSchema,
+  createOwnerMaterialRelationRecords,
+  createSourceLibraryReadPort,
+  musicDataPlatformSchemas,
 } from "../../src/music_data_platform/index.js";
+import { createMusicDataPlatformScopeAvailabilityRowProvider } from "../../src/music_data_platform/stage_adapter/index.js";
+import { createMusicScopeAvailabilityPort } from "../../src/music_intelligence/stage_adapter/index.js";
 import {
   createLibraryCollectionServerRuntimeModule,
   createMusicDataPlatformRuntimeModule,
@@ -30,9 +30,9 @@ import {
   createStageInterface,
   createStageInterfaceHandleMintingPort,
   createStageToolContext,
+  stageInterfaceSchemas,
 } from "../../src/stage_interface/index.js";
-import { stageInterfaceHandleRegistrySchema } from "../../src/stage_interface/handle_registry_schema.js";
-import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
+import { openPostgresTestMusicDatabase } from "../support/postgres.js";
 
 // PR 24D: library.collection.* agent tools — end-to-end create/add/get/move/
 // rename/remove/delete through the server runtime module, with D9 veil checks
@@ -91,7 +91,12 @@ for (const descriptor of collectionDescriptors.slice(1)) {
   ]);
 }
 
-const database = await openUninitializedPostgresTestMusicDatabase();
+const database = await openPostgresTestMusicDatabase({
+  schemas: [
+    ...musicDataPlatformSchemas,
+    ...stageInterfaceSchemas,
+  ],
+});
 const musicDataPlatformModule = createMusicDataPlatformRuntimeModule({
   extensionRuntime: createExtensionRuntime(),
   database,
@@ -133,7 +138,27 @@ const itemHandleC = await handleMinting.mint({
   internalAnchor: { materialRef: refKey(recordingC) },
 });
 
-const serverModule = createLibraryCollectionServerRuntimeModule({ ports: musicDataPlatformModule });
+const scopeAvailability = createMusicScopeAvailabilityPort({
+  rows: createMusicDataPlatformScopeAvailabilityRowProvider({
+    sourceLibraryRead: createSourceLibraryReadPort({ db: database.context() }),
+    ownerRelationRead: createOwnerMaterialRelationRecords({ db: database.context() }),
+    collectionRead: createCollectionRecords({ db: database.context() }),
+  }),
+  providerMetadata: {
+    listProviderDisplayNames() {
+      return new Map();
+    },
+    listSearchableProviderScopes() {
+      return [];
+    },
+  },
+});
+const serverModule = createLibraryCollectionServerRuntimeModule({
+  ports: {
+    libraryCollection: () => musicDataPlatformModule.libraryCollection(),
+    musicScopeAvailability: () => scopeAvailability,
+  },
+});
 const initializedServerModule = await serverModule.initialize({});
 assert.equal(initializedServerModule.ok, true);
 

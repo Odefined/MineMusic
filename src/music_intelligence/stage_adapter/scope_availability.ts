@@ -55,6 +55,69 @@ export type MusicScopeAvailabilityPort = {
   }): Promise<Result<MusicScopeAvailabilitySnapshot>> | Result<MusicScopeAvailabilitySnapshot>;
 };
 
+export type MusicSourceLibraryScopeAvailabilityRow =
+  Omit<MusicSourceLibraryScopeAvailability, "providerName"> & {
+    providerId: string;
+  };
+
+export type MusicScopeAvailabilityRowSnapshot = {
+  sourceLibraries: readonly MusicSourceLibraryScopeAvailabilityRow[];
+  relations: readonly MusicRelationScopeAvailability[];
+  collections: readonly MusicCollectionScopeAvailability[];
+};
+
+export type MusicScopeAvailabilityRowProvider = {
+  listAvailableMusicScopeRows(input: {
+    ownerScope: string;
+  }): Promise<MusicScopeAvailabilityRowSnapshot> | MusicScopeAvailabilityRowSnapshot;
+};
+
+export type MusicScopeAvailabilityProviderMetadataPort = {
+  listProviderDisplayNames(): ReadonlyMap<string, string>;
+  listSearchableProviderScopes(): readonly MusicProviderScopeAvailability[];
+};
+
+export function createMusicScopeAvailabilityPort(input: {
+  rows: MusicScopeAvailabilityRowProvider;
+  providerMetadata: MusicScopeAvailabilityProviderMetadataPort;
+}): MusicScopeAvailabilityPort {
+  return {
+    async listAvailableMusicScopes(readInput) {
+      const providerNames = input.providerMetadata.listProviderDisplayNames();
+      const rows = await input.rows.listAvailableMusicScopeRows(readInput);
+
+      return {
+        ok: true,
+        value: {
+          sourceLibraries: rows.sourceLibraries.map((row) => ({
+            id: row.id,
+            ref: row.ref,
+            ...(providerNames.get(row.providerId) === undefined
+              ? {}
+              : { providerName: providerNames.get(row.providerId)! }),
+            relationName: row.relationName,
+            targetKind: row.targetKind,
+            ...(row.detailText === undefined ? {} : { detailText: row.detailText }),
+          })),
+          relations: rows.relations.map((scope) => ({
+            ...scope,
+            ref: { ...scope.ref },
+          })),
+          providers: input.providerMetadata.listSearchableProviderScopes()
+            .map((provider) => ({
+              ...provider,
+              targetKinds: copyNonEmptyTargetKinds(provider.targetKinds),
+            })),
+          collections: rows.collections.map((scope) => ({
+            ...scope,
+            ref: { ...scope.ref },
+          })),
+        },
+      };
+    },
+  };
+}
+
 export function createInMemoryMusicScopeAvailabilityPort(
   input: MusicScopeAvailabilitySnapshot | ((ownerScope: string) => MusicScopeAvailabilitySnapshot),
 ): MusicScopeAvailabilityPort {

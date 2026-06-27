@@ -284,6 +284,9 @@ function sourceBoundaryFailure(edge: ArchitectureImportEdge): string | undefined
     if (edge.toFile === "src/agent_runtime/pi_engine.ts" && edge.fromArea !== "agent_runtime") {
         return `Only Agent Runtime internals may import the raw pi adapter factory: ${formatEdge(edge)}`;
     }
+    if (edge.fromArea === "server") {
+        return serverBoundaryFailure(edge);
+    }
     if (edge.fromArea === "music_data_platform") {
         return musicDataPlatformBoundaryFailure(edge);
     }
@@ -310,6 +313,18 @@ function externalPackageBoundaryFailure(edge: ArchitectureImportEdge): string | 
     }
     if (edge.specifier === "@earendil-works/pi-agent-core" && !isUnderPath(edge.fromFile, "src/agent_runtime")) {
         return `Only Agent Runtime may import pi-agent-core directly: ${formatEdge(edge)}`;
+    }
+    return undefined;
+}
+function serverBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
+    if (edge.toArea === "storage" && (isUnderPath(edge.toFile, "src/storage/postgres") || edge.importedNames.includes("PostgresMusicDatabase"))) {
+        return `Server Host must create music databases through the Storage lifecycle factory, not the concrete Postgres adapter: ${formatEdge(edge)} symbols=[${edge.importedNames.join(", ")}]`;
+    }
+    if (isServerRuntimeModuleFile(edge.fromFile)) {
+        const schemaImports = edge.importedNames.filter((name) => /(?:Schema|Schemas)$/u.test(name));
+        if (schemaImports.length > 0) {
+            return `Server runtime modules must not import area-owned schema symbols; Server Host composes schema arrays: ${formatEdge(edge)} symbols=[${schemaImports.join(", ")}]`;
+        }
     }
     return undefined;
 }
@@ -391,6 +406,9 @@ function isStageAdapterPublicProjectionImport(edge: ArchitectureImportEdge, area
             edge.toFile === "src/contracts/stage_interface.ts" ||
             edge.toFile === "src/contracts/public_music_description.ts" ||
             isUnderPath(edge.toFile, "src/contracts/generated"));
+}
+function isServerRuntimeModuleFile(file: string): boolean {
+    return /^src\/server\/[a-z0-9_]+_runtime_module\.ts$/u.test(file);
 }
 function formatEdge(edge: ArchitectureImportEdge): string {
     return `${edge.fromFile} imports ${edge.specifier}${edge.toFile === undefined ? "" : ` resolved to ${edge.toFile}`}`;

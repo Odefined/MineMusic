@@ -1532,6 +1532,32 @@ catalog integration. Design authority:
   projection reflects the queue/now-playing outcome. Radio, Memory, skill
   runtime, and Web behavior are still unimplemented.
 
+## 2026-06-27: ADR-0045 Runtime Module Ownership Split
+
+ADR-0045 moves shared music database lifecycle, schema composition, and
+cross-area runtime capability construction out of the Music Data Platform
+runtime module:
+
+- Storage exposes `createMusicDatabase(...)` to open Postgres, apply the
+  ordered schema list, and close the pool on initialization failure.
+- Music Data Platform, Music Experience, and Stage Interface export
+  owning-area schema arrays; Server Host composes them with Music Data Platform
+  before Music Experience for the queue foreign key.
+- Server Host creates the initialized shared music database before Stage
+  Runtime initialization and closes it after runtime shutdown.
+- The Music Data Platform runtime module now receives a required initialized
+  `MusicDatabase`, constructs only Music Data Platform-owned ports and
+  commands, and no longer exposes a `.database()` broker accessor.
+- Stage Interface owns the production handle-minting and lookup-cursor helper;
+  Server Host supplies the database context and the narrow MDP
+  material-candidate cache read port.
+- Music Intelligence owns production music scope availability; Server Host
+  supplies provider metadata and an MDP-owned scope-row provider that preserves
+  source-library, owner-relation, and collection opaque scope ids.
+- Active-tree guards now cover server runtime-module schema imports, server
+  concrete Postgres adapter imports, and the MDP database-broker interface
+  regression.
+
 ## Next Formal Milestones
 
 The Agent-Native Workbench PRD sequencing (Phase A in-process loop → Phase B

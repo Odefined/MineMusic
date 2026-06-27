@@ -2,12 +2,11 @@ import assert from "node:assert/strict";
 import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import type { LibraryRelationStateOutput, } from "../../src/contracts/stage_interface.js";
 import type { ExtensionRuntime, ExtensionRuntimeSnapshot, } from "../../src/extension/index.js";
-import { createMusicDataPlatformSourceOfTruthWriteCommands, musicDataPlatformIdentitySchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformProjectionMaintenanceSchema, } from "../../src/music_data_platform/index.js";
+import { createMusicDataPlatformSourceOfTruthWriteCommands, musicDataPlatformSchemas, } from "../../src/music_data_platform/index.js";
 import { createLibraryRelationServerRuntimeModule, createMusicDataPlatformRuntimeModule, } from "../../src/server/index.js";
-import { createStageInterface, createStageInterfaceHandleMintingPort, createStageToolContext, } from "../../src/stage_interface/index.js";
-import { stageInterfaceHandleRegistrySchema, } from "../../src/stage_interface/handle_registry_schema.js";
+import { createStageInterface, createStageInterfaceHandleMintingPort, createStageToolContext, stageInterfaceSchemas, } from "../../src/stage_interface/index.js";
 import type { MusicDatabase } from "../../src/storage/index.js";
-import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
+import { openPostgresTestMusicDatabase } from "../support/postgres.js";
 const now = "2026-06-18T00:00:00.000Z";
 const materialRef: Ref = {
     namespace: "material",
@@ -24,7 +23,12 @@ const ownerScopedMaterialRef: Ref = {
     kind: "recording",
     id: "m_relation_owner_scope",
 };
-const database = await openUninitializedPostgresTestMusicDatabase();
+const database = await openPostgresTestMusicDatabase({
+    schemas: [
+        ...musicDataPlatformSchemas,
+        ...stageInterfaceSchemas,
+    ],
+});
 const musicDataPlatformModule = createMusicDataPlatformRuntimeModule({
     extensionRuntime: idleExtensionRuntime(),
     database,
@@ -214,13 +218,10 @@ const stopped = await musicDataPlatformModule.stop?.();
 assert.equal(stopped?.ok, true);
 await database.close();
 {
-    const schemaDatabase = await openUninitializedPostgresTestMusicDatabase();
-    await schemaDatabase.initialize({
+    const schemaDatabase = await openPostgresTestMusicDatabase({
         schemas: [
-            musicDataPlatformIdentitySchema,
-            musicDataPlatformOwnerRelationSchema,
-            musicDataPlatformProjectionMaintenanceSchema,
-            stageInterfaceHandleRegistrySchema,
+            ...musicDataPlatformSchemas,
+            ...stageInterfaceSchemas,
         ],
     });
     await schemaDatabase.close();
