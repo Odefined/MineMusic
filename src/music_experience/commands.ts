@@ -47,7 +47,16 @@ export function createMusicExperienceQueuePlaybackCommand(
           };
         }
         if (error instanceof QueueFullError) {
-          return queueFullResult();
+          return {
+            ok: false,
+            error: {
+              code: "queue_full",
+              message: `MineMusic queue is full; maximum queue length is ${MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH}.`,
+              area: "music_experience",
+              retryable: false,
+              suggestedFix: "Play or remove queued items before adding more music.",
+            },
+          };
         }
         throw error;
       }
@@ -62,19 +71,6 @@ export function createMusicExperienceQueuePlaybackCommand(
           value: await records.playNow(commandInput),
         };
       });
-    },
-  };
-}
-
-function queueFullResult(): Awaited<ReturnType<MusicExperienceQueuePlaybackCommand["append"]>> {
-  return {
-    ok: false,
-    error: {
-      code: "queue_full",
-      message: `MineMusic queue is full; maximum queue length is ${MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH}.`,
-      area: "music_experience",
-      retryable: false,
-      suggestedFix: "Play or remove queued items before adding more music.",
     },
   };
 }

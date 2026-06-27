@@ -179,15 +179,6 @@ async function handleQueueAppend(
   }
 
   const input = payload as MusicExperienceQueueAppendInput;
-  if (input.items.length === 0) {
-    return musicExperienceFail({
-      code: "invalid_input",
-      message: "Queue append requires at least one material or candidate item.",
-      retryable: false,
-      suggestedFix: "Retry with one or more material or candidate MusicItemHandle values.",
-    });
-  }
-
   const materialRefs: Ref[] = [];
   for (const item of input.items) {
     const abortedBeforeResolve = failIfAborted(ctx.abortSignal);
