@@ -1,14 +1,25 @@
 import type {
   MusicExperienceQueuePlaybackCommand,
+  MusicExperienceRadioTruthCommand,
+  RadioDirectionScopeValue,
+  RadioDirectionSnapshot,
+  VariationItem,
 } from "../contracts/music_experience.js";
+import type { Ref } from "../contracts/kernel.js";
 import {
+  MAX_RADIO_POSTURE_LEAN_ITEMS,
   MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
 } from "../contracts/music_experience.js";
 import type { MusicDatabase } from "../storage/database.js";
-import { assertMaterialRef } from "../music_data_platform/index.js";
+import {
+  assertMaterialRef,
+  isMusicDataPlatformError,
+} from "../music_data_platform/index.js";
 import {
   QueueFullError,
   createMusicExperienceQueuePlaybackRecords,
+  createMusicExperienceRadioTruthRecords,
+  RadioTruthValidationError,
   StaleCommandPreconditionError,
 } from "./records.js";
 
@@ -71,6 +82,134 @@ export function createMusicExperienceQueuePlaybackCommand(
           value: await records.playNow(commandInput),
         };
       });
+    },
+  };
+}
+
+export function createMusicExperienceRadioTruthCommand(
+  input: CreateMusicExperienceQueuePlaybackCommandInput,
+): MusicExperienceRadioTruthCommand {
+  return {
+    async setRadioDirection(commandInput) {
+      try {
+        validateRadioDirection(commandInput);
+        return await input.database.transaction(async (db) => {
+          const records = createMusicExperienceRadioTruthRecords({ db });
+          return {
+            ok: true,
+            value: await records.setDirection({
+              ownerScope: commandInput.ownerScope,
+              direction: {
+                ...(commandInput.motif === undefined ? {} : { motif: commandInput.motif }),
+                activeVariations: commandInput.activeVariations,
+              },
+              now: commandInput.now,
+            }),
+          };
+        });
+      } catch (error) {
+        if (error instanceof RadioTruthValidationError) {
+          return radioTruthInvalidResult(error.message);
+        }
+        throw error;
+      }
+    },
+    async writeRadioPosture(commandInput) {
+      try {
+        validateVariationItems(commandInput.lean);
+        return await input.database.transaction(async (db) => {
+          const records = createMusicExperienceRadioTruthRecords({ db });
+          return {
+            ok: true,
+            value: await records.writePosture(commandInput),
+          };
+        });
+      } catch (error) {
+        if (error instanceof RadioTruthValidationError) {
+          return radioTruthInvalidResult(error.message);
+        }
+        throw error;
+      }
+    },
+  };
+}
+
+function validateRadioDirection(input: RadioDirectionSnapshot): void {
+  if (input.motif !== undefined) {
+    validateVariationItem(input.motif);
+  }
+  validateVariationItems(input.activeVariations);
+}
+
+function validateVariationItems(items: readonly VariationItem[]): void {
+  for (const item of items) {
+    validateVariationItem(item);
+  }
+}
+
+function validateVariationItem(item: VariationItem): void {
+  switch (item.kind) {
+    case "text": {
+      if (item.text.trim().length === 0) {
+        throw new RadioTruthValidationError("Radio direction text must be non-empty.");
+      }
+      return;
+    }
+    case "material":
+      validateMaterialRef(item.materialRef);
+      return;
+    case "scope":
+      validateScope(item.scope);
+      return;
+    default:
+      throw new RadioTruthValidationError("Radio direction value kind must be text, material, or scope.");
+  }
+}
+
+function validateMaterialRef(materialRef: Ref): void {
+  try {
+    assertMaterialRef(materialRef);
+  } catch (error) {
+    if (isMusicDataPlatformError(error) && error.code === "music_data.material_ref_invalid") {
+      throw new RadioTruthValidationError("Radio direction material ref must be a valid material ref.");
+    }
+    throw error;
+  }
+}
+
+function validateScope(scope: RadioDirectionScopeValue): void {
+  switch (scope.kind) {
+    case "all":
+    case "library":
+      return;
+    case "source_library":
+    case "relation":
+    case "collection": {
+      if (scope.id.trim().length === 0) {
+        throw new RadioTruthValidationError("Radio direction scope id must be non-empty.");
+      }
+      return;
+    }
+    case "provider": {
+      if (scope.providerId.trim().length === 0) {
+        throw new RadioTruthValidationError("Radio direction provider scope id must be non-empty.");
+      }
+      return;
+    }
+    default:
+      throw new RadioTruthValidationError("Radio direction scope kind is not supported.");
+  }
+}
+
+function radioTruthInvalidResult(message: string) {
+  return {
+    ok: false as const,
+    error: {
+      code: "radio_truth_invalid",
+      message,
+      area: "music_experience" as const,
+      retryable: false,
+      suggestedFix: `Pass at most ${MAX_RADIO_POSTURE_LEAN_ITEMS} posture lean item(s) and valid radio direction anchors.`,
     },
   };
 }

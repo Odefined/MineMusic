@@ -22,10 +22,41 @@ export type WorkbenchQueueEntry = WorkbenchMusicItemSummary & {
 
 export type WorkbenchNowPlaying = WorkbenchMusicItemSummary;
 
+export type WorkbenchRadioDirectionScope =
+  | { kind: "all" }
+  | { kind: "library" }
+  | { kind: "source_library"; id: string }
+  | { kind: "relation"; id: string }
+  | { kind: "collection"; id: string }
+  | { kind: "provider"; providerId: string };
+
+export type WorkbenchRadioDirectionValue =
+  | { kind: "text"; text: string }
+  | ({ kind: "material" } & WorkbenchMusicItemSummary)
+  | { kind: "scope"; scope: WorkbenchRadioDirectionScope };
+
+export type WorkbenchRadioDirection = {
+  motif?: WorkbenchRadioDirectionValue;
+  activeVariations: readonly WorkbenchRadioDirectionValue[];
+};
+
+export type WorkbenchRadioPosture = {
+  lean: readonly WorkbenchRadioDirectionValue[];
+  commandedRevisionStamp?: WorkbenchConcernRevision;
+  stale: boolean;
+};
+
+export type WorkbenchRadioTruthSlice = {
+  directionRevision: WorkbenchConcernRevision;
+  direction: WorkbenchRadioDirection;
+  posture: WorkbenchRadioPosture;
+};
+
 export type WorkbenchMusicExperienceSlice = {
   revision: WorkbenchConcernRevision;
   queue: readonly WorkbenchQueueEntry[];
   nowPlaying?: WorkbenchNowPlaying;
+  radio: WorkbenchRadioTruthSlice;
 };
 
 export type WorkspaceReadModel = {

@@ -1531,6 +1531,18 @@ catalog integration. Design authority:
   through the A1-bridged Stage tools and verifies the Music Experience read
   projection reflects the queue/now-playing outcome. Radio, Memory, skill
   runtime, and Web behavior are still unimplemented.
+- Phase B PR1/PR2 adds the Music Experience command/read substrate for Radio +
+  concurrency without adding the Radio actor runtime yet. Queue append now has
+  per-concern OCC basis support, atomic tail-position minting, batch append, and
+  radio-agent provenance; radio truth is persisted as commanded direction
+  (single motif plus ordered active variations) and evolved posture (bounded
+  `lean` list stamped with the commanded-direction revision). Steering writes
+  bump `radio_direction_revision`; posture writes remain OCC-invisible and are
+  read as stale when their stamp no longer matches the current commanded
+  revision. The Workbench Music Experience slice now includes the radio truth
+  projection, and the PR2 harness covers late posture writes, empty stamped
+  posture, value-shape validation, cap enforcement, and current-queue dedup
+  reads.
 
 ## 2026-06-27: ADR-0045 Runtime Module Ownership Split
 

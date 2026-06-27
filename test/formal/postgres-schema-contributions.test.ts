@@ -102,4 +102,15 @@ const musicExperienceQueueItemsTable = await context.get<{
 if (musicExperienceQueueItemsTable === undefined) {
     throw new Error("music_experience_queue_items table was not initialized");
 }
+const musicExperienceRadioTruthTable = await context.get<{
+    table_name: string;
+}>(`
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name = 'music_experience_radio_truth'
+`);
+if (musicExperienceRadioTruthTable === undefined) {
+    throw new Error("music_experience_radio_truth table was not initialized");
+}
 await database.close();
