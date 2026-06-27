@@ -15,7 +15,7 @@ import type {
 import {
   MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
 } from "../contracts/music_experience.js";
-import type { MusicDatabaseContext } from "../storage/database.js";
+import type { MusicDatabaseContext, MusicDatabaseParameter } from "../storage/database.js";
 import { DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID } from "./schema.js";
 
 export type CreateMusicExperienceQueuePlaybackRecordsInput = {
@@ -161,33 +161,12 @@ export function createMusicExperienceQueuePlaybackRecords(
         provenance: appendInput.provenance,
       }));
 
-      for (const item of appended) {
-        await db.run(
-          `
-            INSERT INTO music_experience_queue_items (
-              owner_scope,
-              workspace_id,
-              position,
-              material_ref_key,
-              material_ref_json,
-              provenance,
-              created_at,
-              updated_at
-            )
-            VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?)
-          `,
-          [
-            key.ownerScope,
-            key.workspaceId,
-            item.position,
-            refKey(item.materialRef),
-            JSON.stringify(item.materialRef),
-            item.provenance,
-            appendInput.now,
-            appendInput.now,
-          ],
-        );
-      }
+      await insertQueueItems({
+        db,
+        key,
+        items: appended,
+        now: appendInput.now,
+      });
 
       return {
         appended,
@@ -212,6 +191,49 @@ export function createMusicExperienceQueuePlaybackRecords(
       };
     },
   };
+}
+
+async function insertQueueItems(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  items: readonly MusicExperienceQueueItemSnapshot[];
+  now: string;
+}): Promise<void> {
+  if (input.items.length === 0) {
+    throw new Error("Music Experience queue insert requires at least one item.");
+  }
+
+  const valuesSql = input.items.map(() => "(?, ?, ?, ?, ?::jsonb, ?, ?, ?)").join(", ");
+  const params: MusicDatabaseParameter[] = [];
+  for (const item of input.items) {
+    params.push(
+      input.key.ownerScope,
+      input.key.workspaceId,
+      item.position,
+      refKey(item.materialRef),
+      JSON.stringify(item.materialRef),
+      item.provenance,
+      input.now,
+      input.now,
+    );
+  }
+
+  await input.db.run(
+    `
+      INSERT INTO music_experience_queue_items (
+        owner_scope,
+        workspace_id,
+        position,
+        material_ref_key,
+        material_ref_json,
+        provenance,
+        created_at,
+        updated_at
+      )
+      VALUES ${valuesSql}
+    `,
+    params,
+  );
 }
 
 async function ensureState(input: {
