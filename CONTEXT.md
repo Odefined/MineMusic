@@ -200,6 +200,22 @@ truth and the candidate batch remain owned by Music Experience. See ADR-0032.
 _Avoid_: blocking subroutine of Main, handoff target, independent peer runtime
 outside Agent Runtime, separate message bus, third-party subagent extension.
 
+### Radio Lifecycle
+
+Three user button controls govern the Radio agent instance, independent of any
+agent loop: **start** (instantiate a fresh agent from Shutdown, or resume the
+retained agent from Paused; co-starts playback), **pause** (suspend and retain
+the agent, its transcript, posture, and queue; co-pauses playback), and
+**shutdown** (kill the agent, clear the queue, drop the transcript; co-stops
+playback). Music playback play/pause is a separate, independent control; the
+Radio buttons only co-drive playback as a side effect, and the user may always
+operate playback on its own. The durable floor — commanded direction, and
+evolved posture when direction is unchanged — survives both pause and shutdown;
+shutdown drops only the agent's transcript ("soul"), never the floor. See
+phase-B spec PB10; ADR-0037 (layered continuity).
+_Avoid_: a single "stop" conflating pause and shutdown; Radio buttons owning or
+blocking playback; treating a user button as an agent tool call.
+
 ### Proposal Unit
 
 A short-lived agent work unit for a high-impact action that needs user

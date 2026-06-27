@@ -35,7 +35,7 @@ does not replace the LLM. Supervisor responsibilities:
 - **Selection stays agentic**: what to append, which tools to use, how many — the
   Radio agent decides. "Several tracks per turn, not one per inference" is
   turn/prompt design (batch append in one turn), not determinism.
-- **Lifecycle + endurance**: start/stop, cancellation, and the endurance
+- **Lifecycle + endurance**: start/pause/shutdown (PB10), cancellation, and the endurance
   strategy (ADR-0032's load-bearing risk). **Recoverable execution
   (restart-on-failure, retry/backoff, delayed run, idempotent submission) is
   reused from Background Work (ADR-0025/0027) via its MineMusic-owned port, not
@@ -84,7 +84,11 @@ Resolution:
   second watermark — is what kills the thundering herd; it does not use PB9's OCC
   as day-to-day flow control (that is correctness backstop).
 - **Low watermark wakes; fill-target stops.** `low = 5` is the **only** wake line:
-  depth must fall below 5 (and `refilling = false`) to wake Radio. `high = 10` is
+  depth must fall below 5 **and** `refilling = false` **and** Radio is in the
+  `Running` lifecycle state (PB10) to wake. A `Paused` or `Shutdown` Radio is not
+  woken however low depth falls — the wake gate is three-state (depth +
+  single-flight + lifecycle), not two; without the lifecycle leg a user-paused or
+  shutdown Radio would be re-woken the moment its depth naturally drops. `high = 10` is
   a **fill-target / quiet sentinel**, not a second wake line — it never gates a
   wake; it only marks "a landed refill that reached ≥ 10, stay quiet." A run
   landing at exactly `low` is not re-woken (`low` is `<`, not `≤`); Radio choosing
@@ -180,17 +184,20 @@ ADR-0037 (with the commanded/posture split); also note against ADR-0033.
 per-concern revisions for the radio path: **radio-direction** (motif/active
 variations, bumped by Main steering), **queue** (bumped by every queue
 mutation), and **radio-session** (an autoplay enable/disable generation, bumped
-only when the user turns Radio off/on). The third closes a real gap: turning
+only when the user turns Radio off (pause/shutdown, PB10) or on (start)). The third closes a real gap: turning
 Radio *off* (and, separately, clearing the queue) changes *neither* direction
 *nor* — for the off case — anything a refill's basis previously watched, so an
 in-flight refill committed after the user stopped Radio would slip through. A
 refill's basis is therefore `{radio-direction, radio-session}` (it watches
 neither queue ordering — PB3's reorder exemption — nor anything else). Turning
-Radio off bumps `radio-session` → the in-flight refill voids (and the cascade,
-PB9, aborts it, since abort-set = void-set). Clearing the queue bumps **only**
+Radio off — whether **pause** or **shutdown** (PB10) — bumps `radio-session` →
+the in-flight refill voids (and the cascade, PB9, aborts it, since abort-set =
+void-set); both off kinds are OCC-equivalent on `radio-session`, and the
+pause-vs-shutdown difference is lifecycle/queue fate (PB10), not OCC. Clearing
+the queue bumps **only**
 the queue revision, which a refill's basis ignores, so clearing-and-refilling is
 the natural "wipe these, give me fresh ones" gesture — clear does **not** mean
-stop. Do not conflate "user reordered" (queue), "user stopped Radio"
+stop. Do not conflate "user reordered" (queue), "user paused/shut down Radio"
 (radio-session), and "user changed direction" (radio-direction): three distinct
 concerns, three distinct effects on an in-flight refill.
 
@@ -346,6 +353,36 @@ not imperative**. Consequence: a
 deferred it (no UI), but Radio→Main notification is where it first becomes
 necessary.
 
+**Phase B emit model (grilled).** The concrete Phase-B shape:
+
+- **Emission mechanism — an optional field in the Radio run-result envelope.** A
+  Radio run already "emits a result, then ends" (PB2); the notify is an optional
+  field in that result, read by the supervisor at run end and forwarded to Main
+  on the typed channel. It is **not** a tool (no `notify_main` tool) and not a
+  separate mailbox message. One run → at most one notify, which is the natural
+  flood control.
+- **Single producer — Radio.** Only Radio emits (in its run-result). The
+  supervisor only *wakes* Radio (PB1a pacing); it does not emit notifies.
+- **Emit trigger — actionable selection signal only.** The field is present only
+  when Radio has a selection judgement the user can act on. In Phase B that is
+  exactly one event: **candidate-exhaustion-by-direction** — Radio searched,
+  candidates exist, but **0 fit** the current motif/active-variations. It is
+  emitted **every time** it occurs. Absence of the field means "nothing
+  actionable for Main" — either a clean refill or a silent failure (below).
+- **Failures do not notify — they go to an event log.** Provider failure, refill
+  failure, and stall are not actionable by the user (Radio retries; the user
+  cannot fix a provider) and do **not** go through notify. They land in a
+  Radio/Agent-Runtime **event log** (ops/debug). The event log is a **follow-up**
+  — Phase B ships no log yet, so failures simply silent-retry until it lands
+  (see Deferred).
+- **Severity — the field stays; Phase B emits `low` only.** The two-actor
+  severity/interruption framework below remains the design for future phases; in
+  Phase B the severity axis is exercised at a single band (`low`), so the
+  high-impact Notify floor is **dormant** (no Phase-B event triggers it).
+- **Work correlation — the originating Radio run id.** Main ties a notify back
+  to the run that produced it via the run id (the same per-run identity PB9's
+  per-run AbortSignal and supervisor basis table key on).
+
 **Two-actor decision split (refines CONTEXT.md "Speech Level").** CONTEXT.md
 locks the level rule-locked at both ends (routine → Silent; high-impact → Speak
 or proposal) with the middle — "is this worth interrupting the user" — left to
@@ -370,8 +407,8 @@ two-actor ownership split is the load-bearing part, the level count is not.
 The two axes, each owned by the actor that uniquely holds the needed information:
 
 - **Severity axis — owned by Radio + rule-lock.** Radio judges *event*
-  importance (e.g. normal refill vs candidate exhaustion vs repeated provider
-  failure) from Music Experience truth it can read (queue depth, failure counts);
+  importance (e.g. candidate exhaustion) from Music Experience truth it can read
+  (queue depth);
   the two-end rule-lock still bounds it. Main does **not** re-estimate severity —
   it has no broader *event* view than Radio. If Radio under-rates severity, that
   is a Radio signal-quality concern (give Radio the right inputs), not a reason
@@ -389,23 +426,31 @@ non-interrupting form but may **not** make it invisible. So a high-impact event
 (e.g. stream about to stall, provider hard-down) is always surfaced; Main's
 conversational restraint can only change *how* it surfaces, never suppress it.
 This keeps the severity axis's "high-impact must surface" rule-lock penetrating
-the interruption axis. (Rejected: Main able to push high-impact to Silent —
-violates the rule-lock; Radio fixing the level itself — then it could not consume
-"talk less," which lives only in Main's chat context.)
+the interruption axis. (Phase B has no high-impact notify — failures are
+event-log and candidate-exhaustion is `low`, see Phase B emit model — so this
+floor is dormant in Phase B; it activates when a future high-impact,
+user-actionable event is added.) (Rejected: Main able to push high-impact to
+Silent — violates the rule-lock; Radio fixing the level itself — then it could
+not consume "talk less," which lives only in Main's chat context.)
 
-Implementation-open: the typed notify-request shape carries Radio's suggested
-severity (not a bare fact, not a fixed level) plus the minimal payload Main
-needs to decide surfacing. Record as a note against CONTEXT.md "Speech Level" /
-ADR-0033, not a separate ADR.
+Implementation-open: the **exact field names, type choices, and event-kind enum
+value(s)** for the typed notify request. The Phase-B semantics are settled (see
+Phase B emit model): optional run-result field, candidate-exhaustion-by-direction
+only, severity `low`, run-id correlation. Still open: `subject handle`
+(candidate-exhaustion is about the direction, not a concrete object — likely
+unused in Phase B, not finalized), backpressure policy (bounded by
+one-notify-per-run + rare actionable signals — likely a non-issue in Phase B,
+not finalized), and exact spelling. Record as a note against CONTEXT.md "Speech
+Level" / ADR-0033, not a separate ADR.
 
 **Locked payload discipline.** The typed notify request is a **semantic** actor
 signal, not a UI surface DTO. It carries only the minimal fields Main needs to
 decide surfacing under Speech Level:
 
-- suggested severity from Radio;
+- suggested severity from Radio (Phase B: always `low`);
 - reason code / event kind;
 - run/work correlation so Main can tie the signal back to the originating Radio
-  work;
+  work (Phase B: the run id);
 - optional subject handle/ref when the notification is about a concrete public
   object;
 - a short agent summary that Main may reuse as source text.
@@ -548,6 +593,150 @@ one `Agent`; Agent Runtime owns the cascade across actors.
   `Promise.race([gate, abortSignal])`, or the abort will not interrupt until the
   hook's own promise settles. Both are required for the PB9 cascade and the I2
   integration-layer pause to actually stop work.
+- **Prerequisite: Phase A's `assertNoPiToolHooks` guard is removed for PB9.**
+  The A1b guard (commit 118d7f0, `src/agent_runtime/pi_engine.ts`) omitted
+  `beforeToolCall`/`afterToolCall` from the pi adapter options and asserted at
+  runtime that they were absent, on the stated fear that pi tool-call hooks
+  could become a second tool-admission / result-veil path around
+  `StageInterface.dispatch`. That fear is unfounded: every bridged tool's
+  `execute` body is a plain call to `dispatch` (`stage_tool_bridge.ts`), so tool
+  execution — and therefore admission — is locked to `dispatch` by the bridge
+  itself, not by the hook guard. `beforeToolCall`/`afterToolCall` only run
+  around that dispatch call; they cannot replace it, so they cannot open a
+  second admission channel. The guard was over-defensive (defending a threat the
+  bridge already prevents) and is deleted; `beforeToolCall`/`afterToolCall` are
+  restored to the adapter options so PB9's cascade-pause (requirement (b)
+  above) can run in `beforeToolCall`. Admission still has exactly one channel —
+  `dispatch` — guaranteed by the bridge, not re-asserted by a hook guard.
+- **Routing (settled): post-commit observer on every revision-writing command +
+  supervisor basis table + per-run AbortSignal.** The path from "revision
+  bumped" to "which runs abort":
+  1. **Observer — every revision-writing command, post-commit.** Each Music
+     Experience owning command that bumps a concern revision (`append`→queue,
+     `playNow`→playback, steering→radio-direction, radio start/pause/shutdown→
+     radio-session) calls a `revisionObserver` callback **after its transaction
+     commits**, passing `{ concern, newRevision, actor }`. `actor` is who
+     triggered the command — a user button, a Main tool call, or a Radio tool
+     call — taken from the invocation context; it drives the priority verdict
+     below. The command reports the change; it does not know who depends on the
+     concern. It fires post-commit, so it reports an already-durable revision; a
+     rolled-back transaction never fires it. All revision-writing commands fire
+     it uniformly — whether an abort actually happens is decided by the table +
+     priority below, not by which commands are wired.
+  2. **Supervisor basis table.** Each in-flight run registers its Agent Work
+     Basis — the concerns it checks (PB3: a Radio refill registers
+     `{radio-direction, radio-session}`) — at run start and unregisters at run
+     end. The supervisor holds this run → basis map.
+  3. **Abort verdict (table + priority).** On an observer event for concern C
+     from `actor`, the supervisor looks up runs whose basis contains C, then
+     applies PB9's priority direction (user > Main > Radio): the `actor` may
+     abort only lower-priority runs (a Radio write aborts nobody even if a
+     dependent run exists). Each aborted run is stopped by flipping its per-run
+     `AbortSignal` (`pi.abort()`). A bump on a concern no in-flight run depends
+     on (e.g. `playNow` bumping playback, which no Phase-B run checks) fires the
+     observer but aborts nothing — a cheap no-op lookup, not wasted correctness.
+  4. **Per-run AbortSignal.** Each in-flight run owns one `AbortSignal` (the
+     A1-bridged `StageToolContext.abortSignal` plumbing, extended to a per-run
+     signal the supervisor can flip); the run honors it in the pi loop and via
+     the `signal` threaded through each bridged tool's `execute`
+     (`stage_tool_bridge.ts`). This is the cascade-abort path and is independent
+     of `beforeToolCall`, which is the basis-capture gate — a separate PB9
+     component, not part of this routing.
+
+  This closes the Open item "concrete routing from a revision bump to which
+  in-flight runs depend on this concern + how AbortSignals are held per run."
+
+### PB10 — Radio lifecycle is three user controls (start / pause / shutdown); user-button, not agent-driven
+
+Radio is driven by three **user button controls** — `start`, `pause`, `shutdown`
+— that govern the Radio **agent instance lifecycle**. They are user actions on a
+par with playback play/pause: they travel the user-command path and **do not go
+through any agent loop**. ("Agent calls a tool" like `queue.append` is a
+separate, normal mechanism; the lifecycle buttons are not that.) The Radio agent
+has three lifecycle states:
+
+- **Running** — instantiated, pacing-triggered (PB1a). The only state in which
+  the pacing watcher may wake a run.
+- **Paused** — agent instance **suspended and retained** (not killed); pacing is
+  gated off (PB1a: no wake). Everything is preserved across the pause.
+- **Shutdown** — agent instance **killed**; the workspace has no Radio agent
+  until the next `start` instantiates a fresh one.
+
+Transitions and their side effects — each control is a user button whose
+command-layer handling touches the listed owners (Agent Runtime owns the agent
+instance; Music Experience owns queue + playback + radio truth); none of this is
+agent tool use:
+
+- **`start` → Running** (from Paused: resume the same agent; from Shutdown:
+  instantiate a fresh one):
+  - agent instance: resume (Paused) or instantiate fresh (Shutdown);
+  - transcript: retained (Paused) or new/empty (Shutdown);
+  - evolved posture: read from the floor at first run start — kept iff commanded
+    direction (motif/variation) is unchanged (PB8 stamp);
+  - commanded direction: unchanged;
+  - queue: unchanged (Shutdown left it empty, Paused left it full);
+  - playback: co-start (side effect);
+  - radio-session: bump (on generation).
+- **`pause` (Running → Paused)**:
+  - agent instance: suspend, retain (not killed);
+  - transcript / posture / commanded / queue: all retained (frozen);
+  - playback: co-pause (side effect);
+  - in-flight refill: abort — pause is "off", bumps `radio-session`, PB9 cascade;
+  - radio-session: bump (off generation).
+- **`shutdown` (Running/Paused → Shutdown)** — heavier than media `stop`, hence
+  the name:
+  - agent instance: kill;
+  - transcript: not carried to the next agent (new session);
+  - evolved posture: left on the floor; the next `start` keeps it iff commanded
+    direction is unchanged (PB8 stamp);
+  - commanded direction: unchanged (durable);
+  - queue: **cleared**;
+  - playback: co-stop (side effect);
+  - in-flight refill: abort — shutdown is "off", bumps `radio-session`, PB9 cascade;
+  - radio-session: bump (off generation).
+
+Key clarifications:
+
+- **Playback is an independent controller that Radio buttons *co-drive*, not
+  own.** Music playback play/pause is a separate user control over Music
+  Experience's existing `playing | paused` status (PB3 playback concern). The
+  Radio buttons co-drive it as a side effect (`pause`/`shutdown` co-stop, `start`
+  co-starts), but the user may always operate playback independently — Radio
+  `pause` co-stops playback, the user can then press playback `play` to keep
+  listening; the two never conflict. Radio refills the queue; it does not own
+  playback.
+- **`pause` vs `shutdown` differ only in instance/transcript/queue fate.** Both
+  are "Radio off" → both bump `radio-session` (PB3) → both abort the in-flight
+  refill (PB9). What differs: `pause` retains agent instance + transcript +
+  queue (resume is the same agent); `shutdown` kills the instance, drops the
+  transcript, clears the queue (next `start` is a fresh agent). Both retain the
+  durable floor.
+- **`shutdown` is PB8 layered-continuity's first real use case.** The floor
+  (commanded direction + evolved posture) was designed so direction survives
+  transcript loss; `shutdown` deliberately drops the transcript (soul) while the
+  floor endures, and `pause` keeps both. This is why the control is named
+  `shutdown` and not `stop`: media `stop` means "stop-and-reset-to-head", whereas
+  this kills the agent, clears the queue, and forces a fresh soul — a heavier
+  reset. (CONTEXT.md's "Server shutdown" is server teardown — same word,
+  different context; this spec writes "Radio shutdown" in full to avoid
+  ambiguity.)
+- **Posture fate reuses PB8's stamp — no new rule.** `shutdown` does not clear
+  posture itself. The next `start`'s first run start performs PB8's stamp check:
+  motif/variation unchanged since the posture was evolved → stamp matches →
+  posture carries to the fresh agent; direction changed → stamp stale → posture
+  clears. "Inherit posture iff motif and variation are both unchanged" ≡ PB8's
+  "stamp matches → carry".
+- **In-flight refill fate reuses PB9 + PB3 — no new rule.** `pause`/`shutdown`
+  are "off" → bump `radio-session` → the in-flight refill's basis (which includes
+  `radio-session`, PB3) is voided → the PB9 cascade aborts it. `shutdown`'s queue
+  clear is therefore abort-safe three ways: (1) abort usually lands first → the
+  append never commits; (2) if the append is mid-commit → the PB3 CAS fails on
+  the just-bumped `radio-session` → `voided_stale`; (3) if it already landed →
+  the clear removes it. No new state operation.
+
+These are **user-button** controls; in Phase B (in-process, no Web) their entry
+is the user-command path (Phase C attaches the real UI button). The
+OCC/lifecycle semantics above are defined now; the UI surface is Phase C.
 
 ## Cross-Cutting: Harness — Two Layers
 
@@ -600,6 +789,10 @@ phase-A pi Capability Assumptions Ledger.
 - Proposal Unit parking + confirmation: Phase C (roadmap L1). Radio's loop raises
   no blocking approval.
 - Memory / taste: after Phase C.
+- **Radio/Agent-Runtime event log** (PB7 failure surfacing): provider / refill /
+  stall failures are not user-actionable and do not notify; they need a place to
+  land for ops/debug. Phase B ships no log (failures silent-retry); the event
+  log is a follow-up (owner + schema TBD).
 - Richer musical radio-steering vocabulary beyond motif + active variations —
   deliberately deferred (too early to build the full set). Recorded direction, by
   family: anchor (refrain/recall, retire); modulation (brighten/darken,
@@ -611,16 +804,19 @@ phase-A pi Capability Assumptions Ledger.
 
 ## Open (to drill or settle in implementation)
 
-- Exact field names and type choices for the PB7 typed notify request. The
-  semantic payload set is settled: suggested severity, reason/event code,
-  run/work correlation, optional subject handle/ref, short agent summary; no UI
-  copy or Workbench/A2UI surface payload.
-- Cross-actor cancellation cascade: mechanism and touched state are settled by
-  PB9 (trigger = OCC void set; priority-directed user > Main > Radio; no rollback,
-  touches only pi run lifecycle). Implementation-open: the concrete Agent-Runtime
-  routing from a revision bump to "which in-flight runs depend on this concern,"
-  and how `AbortSignal`s are held per run (the A1-bridged `StageToolContext.abortSignal`
-  is the per-run plumbing this builds on).
+- PB7 typed notify request — **Phase-B semantics settled** (see PB7 "Phase B emit
+  model"): optional run-result field; emitted only for
+  candidate-exhaustion-by-direction, every time; severity `low`; run-id
+  correlation; failures → event log. **Still open**: exact field names/type
+  choices and the event-kind enum value(s); `subject handle` (likely unused in
+  Phase B); backpressure policy (likely a non-issue in Phase B). No UI copy or
+  Workbench/A2UI surface payload.
+- Cross-actor cancellation cascade: fully settled by PB9 — trigger = OCC void
+  set, priority-directed (user > Main > Radio), no rollback, touches only pi run
+  lifecycle, and the routing (revision bump → which runs abort → per-run
+  AbortSignal) is settled as "post-commit observer on every revision-writing
+  command + supervisor basis table + per-run AbortSignal" (see PB9 Routing). No
+  part remains open here.
 - Endurance verification *approach* is settled (PB8a: in-harness injected
   compaction, prerequisite-gated). What remains open: the concrete pi
   compaction/transcript API confirmed at PR-B start, and the longer-horizon

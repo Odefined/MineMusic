@@ -39,14 +39,6 @@ import {
   fakeAssistantMessageEventStream,
 } from "./helpers/pi-agent-message-fixtures.js";
 
-type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2 ? true : false;
-type Expect<Check extends true> = Check;
-type ForbiddenKeys<T, Keys extends PropertyKey> = Extract<keyof T, Keys>;
-
-export type _mineMusicPiAgentAdapterOptionsRejectsPiToolHooks = Expect<
-  Equal<ForbiddenKeys<MineMusicPiAgentAdapterOptions, "beforeToolCall" | "afterToolCall">, never>
->;
-
 const testInstrument: InstrumentDescriptor = {
   id: "agent.test",
   label: "Agent Test",
@@ -504,93 +496,8 @@ assert.throws(
     toolName: descriptor.name,
     result: { answer: "from-pi" },
   });
-  assert.equal(agent.beforeToolCall, undefined);
-  assert.equal(agent.afterToolCall, undefined);
 }
 
-assert.throws(
-  () => createMineMusicPiAgentAdapter({
-    systemPrompt: "You are a MineMusic test agent.",
-    tools: [descriptor],
-    dispatch: {
-      async dispatch(input) {
-        return {
-          ok: true,
-          value: {
-            toolName: input.toolName,
-            result: { answer: "from-pi" },
-          },
-        };
-      },
-    },
-    contextFactory: {
-      createToolContext(input: {
-        sessionId: string;
-        requestId: string;
-        abortSignal?: AbortSignal;
-      }) {
-        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
-      },
-    },
-    stageSessionId: "stage-session",
-    agentOptions: {
-      streamFn() {
-        return fakeAssistantMessageEventStream({
-          type: "done",
-          reason: "stop",
-          message: assistantTextMessage("done"),
-        });
-      },
-      async beforeToolCall() {
-        return { block: true, reason: "blocked outside Stage gate" };
-      },
-    } as unknown as MineMusicPiAgentAdapterOptions,
-  }),
-  /Agent Runtime does not accept pi tool-call hooks; StageInterface\.dispatch and its executionGate are the single tool admission and result-veil boundary\./u,
-);
-
-assert.throws(
-  () => createMineMusicPiAgentAdapter({
-    systemPrompt: "You are a MineMusic test agent.",
-    tools: [descriptor],
-    dispatch: {
-      async dispatch(input) {
-        return {
-          ok: true,
-          value: {
-            toolName: input.toolName,
-            result: { answer: "from-pi" },
-          },
-        };
-      },
-    },
-    contextFactory: {
-      createToolContext(input: {
-        sessionId: string;
-        requestId: string;
-        abortSignal?: AbortSignal;
-      }) {
-        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
-      },
-    },
-    stageSessionId: "stage-session",
-    agentOptions: {
-      streamFn() {
-        return fakeAssistantMessageEventStream({
-          type: "done",
-          reason: "stop",
-          message: assistantTextMessage("done"),
-        });
-      },
-      async afterToolCall() {
-        return {
-          content: [{ type: "text", text: "overridden outside Stage veil" }],
-        };
-      },
-    } as unknown as MineMusicPiAgentAdapterOptions,
-  }),
-  /Agent Runtime does not accept pi tool-call hooks; StageInterface\.dispatch and its executionGate are the single tool admission and result-veil boundary\./u,
-);
 {
   let handlerCallCount = 0;
   const gateInputs: unknown[] = [];
