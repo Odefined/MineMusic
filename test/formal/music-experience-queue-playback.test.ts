@@ -489,6 +489,215 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 
 {
   const database = await initializedMusicExperienceDatabase();
+  const materialRefForBatch: Ref = {
+    namespace: "material",
+    kind: "recording",
+    id: "a3_mixed_batch_material",
+  };
+  const candidateMaterialRef: Ref = {
+    namespace: "material",
+    kind: "recording",
+    id: "a3_mixed_batch_candidate_material",
+  };
+  const materialCandidateRef: Ref = {
+    namespace: "material_candidate",
+    kind: "provider_candidate",
+    id: "mc_a3_mixed_batch_candidate",
+  };
+  await seedRecording(database, materialRefForBatch, "A3 Mixed Batch Material", ["Mixed Artist"]);
+  await seedRecording(database, candidateMaterialRef, "A3 Mixed Batch Candidate", ["Mixed Artist"]);
+
+  const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
+  let publicIdCount = 0;
+  const candidateHandles = candidateHandlesFor({
+    publicId: "mh_a3_mixed_candidate_handle",
+    materialCandidateRef,
+  });
+  const handleMinting = createStageInterfaceHandleMintingPort({
+    db: database.context(),
+    clock: () => now,
+    candidateHandles,
+    publicIdFactory: () => `mh_a3_mixed_${++publicIdCount}`,
+  });
+  const materialHandleId = await handleMinting.mint({
+    ownerScope,
+    handleKind: "material",
+    internalAnchor: {
+      materialRef: refKey(materialRefForBatch),
+    },
+  });
+  const candidateHandleId = await handleMinting.mint({
+    ownerScope,
+    handleKind: "candidate",
+    internalAnchor: {
+      materialCandidateRef: refKey(materialCandidateRef),
+    },
+  });
+  const committedCandidateRefs: Ref[] = [];
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: [
+      createMusicExperienceQueueAppendRegistration({
+        candidateCommit: {
+          async commitCandidate(input) {
+            committedCandidateRefs.push(input.materialCandidateRef);
+            return {
+              ok: true,
+              value: {
+                materialRef: candidateMaterialRef,
+                created: true,
+              },
+            };
+          },
+        },
+        materialProjection: createMaterialProjection({ db: database.context() }),
+        queuePlayback,
+      }),
+    ],
+  });
+
+  const appendResult = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "a3-mixed-batch-session",
+    requestId: "a3-mixed-batch-request",
+    clock: () => now,
+    handleMinting,
+  }), {
+    toolName: "music.experience.queue.append",
+    payload: {
+      items: [
+        {
+          kind: "material",
+          id: materialHandleId,
+        },
+        {
+          kind: "candidate",
+          id: candidateHandleId,
+        },
+      ],
+    },
+  });
+
+  assert.equal(appendResult.ok, true);
+  assert.deepEqual(committedCandidateRefs, [materialCandidateRef]);
+  const appendOutput = output<MusicExperienceQueueAppendOutput>(appendResult);
+  assert.deepEqual(appendOutput.items.map((item) => item.position), [1, 2]);
+  assert.equal(appendOutput.queueLength, 2);
+  assertPublicToolOutput(appendOutput);
+  const snapshot = await createMusicExperienceQueuePlaybackRecords({
+    db: database.context(),
+  }).read({ ownerScope });
+  assert.deepEqual(snapshot.queue.map((item) => refKey(item.materialRef)), [
+    refKey(materialRefForBatch),
+    refKey(candidateMaterialRef),
+  ]);
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const radioMaterialRef: Ref = {
+    namespace: "material",
+    kind: "recording",
+    id: "a3_radio_context_material",
+  };
+  await seedRecording(database, radioMaterialRef, "A3 Radio Context Song", ["Radio Artist"]);
+  const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
+  const handleMinting = createStageInterfaceHandleMintingPort({
+    db: database.context(),
+    clock: () => now,
+    publicIdFactory: () => "mh_a3_radio_context",
+  });
+  const materialHandleId = await handleMinting.mint({
+    ownerScope,
+    handleKind: "material",
+    internalAnchor: {
+      materialRef: refKey(radioMaterialRef),
+    },
+  });
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: [
+      createMusicExperienceQueueAppendRegistration({
+        candidateCommit: unusedCandidateCommit(),
+        materialProjection: createMaterialProjection({ db: database.context() }),
+        queuePlayback,
+      }),
+    ],
+  });
+  await database.context().run(
+    `
+      INSERT INTO music_experience_state (
+        owner_scope, workspace_id, queue_revision, radio_direction_revision,
+        radio_session_revision, playback_revision, queue_next_position,
+        playback_status, created_at, updated_at
+      )
+      VALUES (?, 'default', 0, 0, 1, 0, 1, 'paused', ?, ?)
+      ON CONFLICT(owner_scope, workspace_id)
+      DO UPDATE SET radio_session_revision = 1
+    `,
+    [ownerScope, now, now],
+  );
+
+  const staleAppend = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "a3-radio-context-stale-session",
+    requestId: "a3-radio-context-stale-request",
+    actor: "radio_agent",
+    commandBasis: {
+      radioDirectionRevision: 0,
+      radioSessionRevision: 0,
+    },
+    clock: () => now,
+    handleMinting,
+  }), {
+    toolName: "music.experience.queue.append",
+    payload: {
+      items: [
+        {
+          kind: "material",
+          id: materialHandleId,
+        },
+      ],
+    },
+  });
+  expectToolError(staleAppend, "voided_stale");
+
+  const freshAppend = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "a3-radio-context-fresh-session",
+    requestId: "a3-radio-context-fresh-request",
+    actor: "radio_agent",
+    commandBasis: {
+      radioDirectionRevision: 0,
+      radioSessionRevision: 1,
+    },
+    clock: () => now,
+    handleMinting,
+  }), {
+    toolName: "music.experience.queue.append",
+    payload: {
+      items: [
+        {
+          kind: "material",
+          id: materialHandleId,
+        },
+      ],
+    },
+  });
+  assert.equal(freshAppend.ok, true);
+  const snapshot = await createMusicExperienceQueuePlaybackRecords({
+    db: database.context(),
+  }).read({ ownerScope });
+  assert.equal(snapshot.queue.length, 1);
+  assert.equal(snapshot.queue[0]?.provenance, "radio_agent");
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
   const winnerRef: Ref = {
     namespace: "material",
     kind: "recording",
@@ -652,23 +861,44 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 
 {
   const database = await initializedMusicExperienceDatabase();
+  const firstRef: Ref = {
+    namespace: "material",
+    kind: "recording",
+    id: "a3_multi_item_first",
+  };
+  const secondRef: Ref = {
+    namespace: "material",
+    kind: "recording",
+    id: "a3_multi_item_second",
+  };
+  await seedRecording(database, firstRef, "A3 Multi First", ["Multi Artist"]);
+  await seedRecording(database, secondRef, "A3 Multi Second", ["Multi Artist"]);
   const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
+  let publicIdCount = 0;
   const handleMinting = createStageInterfaceHandleMintingPort({
     db: database.context(),
     clock: () => now,
-    publicIdFactory: () => "mh_a3_multi_item_invalid",
+    publicIdFactory: () => `mh_a3_multi_item_${++publicIdCount}`,
   });
-  let candidateCommitCalled = false;
+  const firstHandleId = await handleMinting.mint({
+    ownerScope,
+    handleKind: "material",
+    internalAnchor: {
+      materialRef: refKey(firstRef),
+    },
+  });
+  const secondHandleId = await handleMinting.mint({
+    ownerScope,
+    handleKind: "material",
+    internalAnchor: {
+      materialRef: refKey(secondRef),
+    },
+  });
   const stageInterface = createStageInterface({
     instruments: [musicExperienceInstrument],
     registrations: [
       createMusicExperienceQueueAppendRegistration({
-        candidateCommit: {
-          commitCandidate() {
-            candidateCommitCalled = true;
-            throw new Error("Multi-item queue append must fail at the schema gate before candidate commit.");
-          },
-        },
+        candidateCommit: unusedCandidateCommit(),
         materialProjection: createMaterialProjection({ db: database.context() }),
         queuePlayback,
       }),
@@ -686,19 +916,22 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     payload: {
       items: [
         {
-          kind: "candidate",
-          id: "candidate_that_must_not_commit",
+          kind: "material",
+          id: firstHandleId,
         },
         {
           kind: "material",
-          id: "bad_material_that_must_not_resolve",
+          id: secondHandleId,
         },
       ],
     },
   });
 
-  expectToolError(appendResult, "stage_interface.invalid_input");
-  assert.equal(candidateCommitCalled, false);
+  assert.equal(appendResult.ok, true);
+  const appendOutput = output<MusicExperienceQueueAppendOutput>(appendResult);
+  assert.deepEqual(appendOutput.items.map((item) => item.position), [1, 2]);
+  assert.equal(appendOutput.queueLength, 2);
+  assertPublicToolOutput(appendOutput);
 
   await database.close();
 }

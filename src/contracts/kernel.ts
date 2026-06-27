@@ -26,6 +26,18 @@ export type StageWarning = {
 // from Phase B onward, compared by owning commands at commit time.
 export type ConcernRevision = number;
 
+// Set of independent CAS preconditions checked by an owning command at commit
+// time. A failed equality check is reported by the command boundary as
+// `voided_stale`.
+export type CommandPreconditionSet = {
+  radioDirectionRevision?: ConcernRevision;
+  queueRevision?: ConcernRevision;
+  radioSessionRevision?: ConcernRevision;
+  playbackRevision?: ConcernRevision;
+};
+
+export type AgentActorKind = "main_agent" | "radio_agent";
+
 export type FormalArea =
   | "server_host"
   | "stage_interface"

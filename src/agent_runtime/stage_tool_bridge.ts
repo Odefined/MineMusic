@@ -3,7 +3,12 @@ import type {
   AgentToolResult,
 } from "@earendil-works/pi-agent-core";
 
-import type { Result, StageError } from "../contracts/kernel.js";
+import type {
+  AgentActorKind,
+  CommandPreconditionSet,
+  Result,
+  StageError,
+} from "../contracts/kernel.js";
 import type {
   JsonSchema,
   StageToolContext,
@@ -27,6 +32,8 @@ export type AgentRuntimeStageToolContextFactoryPort = {
   createToolContext(input: {
     sessionId: string;
     requestId: string;
+    actor?: AgentActorKind;
+    commandBasis?: CommandPreconditionSet;
     abortSignal?: AbortSignal;
   }): StageToolContext;
 };

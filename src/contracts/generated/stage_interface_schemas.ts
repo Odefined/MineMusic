@@ -589,8 +589,7 @@ export const musicExperienceQueueAppendInputSchema = {
         "$ref": "#/definitions/MusicItemHandle"
       },
       "minItems": 1,
-      "maxItems": 1,
-      "description": "Slice-1 single candidate or durable material item to append to the logical MineMusic queue. Phase B widens this to batch-of-N."
+      "description": "Candidate or durable material items to append to the logical MineMusic queue in input order."
     }
   },
   "required": [

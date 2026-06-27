@@ -1,4 +1,10 @@
-import { parseRefKey, refKey, type ConcernRevision, type Ref } from "../contracts/kernel.js";
+import {
+  parseRefKey,
+  refKey,
+  type CommandPreconditionSet,
+  type ConcernRevision,
+  type Ref,
+} from "../contracts/kernel.js";
 import type {
   MusicExperiencePlaybackStatus,
   MusicExperienceQueueItemProvenance,
@@ -6,7 +12,10 @@ import type {
   MusicExperienceSnapshot,
   MusicExperienceWorkspaceKey,
 } from "../contracts/music_experience.js";
-import type { MusicDatabaseContext } from "../storage/database.js";
+import {
+  MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
+} from "../contracts/music_experience.js";
+import type { MusicDatabaseContext, MusicDatabaseParameter } from "../storage/database.js";
 import { DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID } from "./schema.js";
 
 export type CreateMusicExperienceQueuePlaybackRecordsInput = {
@@ -18,13 +27,11 @@ export type MusicExperienceQueuePlaybackRecords = {
   read(input: {
     ownerScope: string;
   }): Promise<MusicExperienceSnapshot>;
-  countQueue(input: {
-    ownerScope: string;
-  }): Promise<number>;
   append(input: {
     ownerScope: string;
     materialRefs: readonly Ref[];
     provenance: MusicExperienceQueueItemProvenance;
+    basis?: CommandPreconditionSet;
     now: string;
   }): Promise<{
     appended: readonly MusicExperienceQueueItemSnapshot[];
@@ -44,11 +51,27 @@ export type MusicExperienceQueuePlaybackRecords = {
 
 type StateRow = {
   queue_revision: number;
+  radio_direction_revision: number;
+  radio_session_revision: number;
   playback_revision: number;
+  queue_next_position: number;
   now_playing_material_ref_key: string | null;
   now_playing_material_ref_json: string | Ref | null;
   playback_status: MusicExperiencePlaybackStatus;
 };
+
+// Columns surfaced by every state-row read (SELECT) and write (RETURNING).
+// Centralized so the three call sites cannot drift when a column is added.
+const STATE_ROW_COLUMNS = [
+  "queue_revision",
+  "radio_direction_revision",
+  "radio_session_revision",
+  "playback_revision",
+  "queue_next_position",
+  "now_playing_material_ref_key",
+  "now_playing_material_ref_json",
+  "playback_status",
+].join(", ");
 
 type QueueItemRow = {
   position: number;
@@ -93,19 +116,6 @@ export function createMusicExperienceQueuePlaybackRecords(
         playback: playbackFromRow(state),
       };
     },
-    async countQueue(countInput) {
-      const key = workspaceKey(countInput.ownerScope, workspaceId);
-      const row = await db.get<{ queue_length: number }>(
-        `
-          SELECT COUNT(*)::int AS queue_length
-          FROM music_experience_queue_items
-          WHERE owner_scope = ?
-            AND workspace_id = ?
-        `,
-        [key.ownerScope, key.workspaceId],
-      );
-      return row?.queue_length ?? 0;
-    },
     async append(appendInput) {
       if (appendInput.materialRefs.length === 0) {
         throw new Error("MusicExperienceQueueCommand.append requires at least one materialRef.");
@@ -113,64 +123,51 @@ export function createMusicExperienceQueuePlaybackRecords(
 
       const key = workspaceKey(appendInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: appendInput.now });
-      const maxPositionRow = await db.get<{ max_position: number | null }>(
+
+      const mintRow = await db.get<{ base_position: number }>(
         `
-          SELECT MAX(position) AS max_position
-          FROM music_experience_queue_items
+          UPDATE music_experience_state
+          SET queue_next_position = queue_next_position + ?
           WHERE owner_scope = ?
             AND workspace_id = ?
+          RETURNING queue_next_position - ? AS base_position
         `,
-        [key.ownerScope, key.workspaceId],
+        [appendInput.materialRefs.length, key.ownerScope, key.workspaceId, appendInput.materialRefs.length],
       );
-      const firstPosition = (maxPositionRow?.max_position ?? 0) + 1;
+
+      if (mintRow === undefined) {
+        throw new Error("Music Experience queue position mint did not return a state row.");
+      }
+
+      const state = await updateQueueRevision({
+        db,
+        key,
+        now: appendInput.now,
+        ...(appendInput.basis === undefined ? {} : { basis: appendInput.basis }),
+      });
+
+      const countBeforeInsert = await countQueueRows({ db, key });
+      if (countBeforeInsert + appendInput.materialRefs.length > MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH) {
+        throw new QueueFullError();
+      }
+
+      const firstPosition = mintRow.base_position;
       const appended = appendInput.materialRefs.map((materialRef, index) => ({
         position: firstPosition + index,
         materialRef,
         provenance: appendInput.provenance,
       }));
 
-      for (const item of appended) {
-        await db.run(
-          `
-            INSERT INTO music_experience_queue_items (
-              owner_scope,
-              workspace_id,
-              position,
-              material_ref_key,
-              material_ref_json,
-              provenance,
-              created_at,
-              updated_at
-            )
-            VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?)
-          `,
-          [
-            key.ownerScope,
-            key.workspaceId,
-            item.position,
-            refKey(item.materialRef),
-            JSON.stringify(item.materialRef),
-            item.provenance,
-            appendInput.now,
-            appendInput.now,
-          ],
-        );
-      }
-
-      const state = await updateQueueRevision({ db, key, now: appendInput.now });
-      const countRow = await db.get<{ queue_length: number }>(
-        `
-          SELECT COUNT(*)::int AS queue_length
-          FROM music_experience_queue_items
-          WHERE owner_scope = ?
-            AND workspace_id = ?
-        `,
-        [key.ownerScope, key.workspaceId],
-      );
+      await insertQueueItems({
+        db,
+        key,
+        items: appended,
+        now: appendInput.now,
+      });
 
       return {
         appended,
-        queueLength: countRow?.queue_length ?? appended.length,
+        queueLength: countBeforeInsert + appended.length,
         queueRevision: state.queue_revision,
       };
     },
@@ -193,11 +190,58 @@ export function createMusicExperienceQueuePlaybackRecords(
   };
 }
 
+async function insertQueueItems(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  items: readonly MusicExperienceQueueItemSnapshot[];
+  now: string;
+}): Promise<void> {
+  if (input.items.length === 0) {
+    throw new Error("Music Experience queue insert requires at least one item.");
+  }
+
+  const valuesSql = input.items.map(() => "(?, ?, ?, ?, ?::jsonb, ?, ?, ?)").join(", ");
+  const params: MusicDatabaseParameter[] = [];
+  for (const item of input.items) {
+    params.push(
+      input.key.ownerScope,
+      input.key.workspaceId,
+      item.position,
+      refKey(item.materialRef),
+      JSON.stringify(item.materialRef),
+      item.provenance,
+      input.now,
+      input.now,
+    );
+  }
+
+  await input.db.run(
+    `
+      INSERT INTO music_experience_queue_items (
+        owner_scope,
+        workspace_id,
+        position,
+        material_ref_key,
+        material_ref_json,
+        provenance,
+        created_at,
+        updated_at
+      )
+      VALUES ${valuesSql}
+    `,
+    params,
+  );
+}
+
 async function ensureState(input: {
   db: MusicDatabaseContext;
   key: MusicExperienceWorkspaceKey;
   now: string;
-}): Promise<StateRow> {
+}): Promise<void> {
+  // INSERT ... ON CONFLICT DO NOTHING guarantees the state row exists after
+  // this call (freshly inserted or pre-existing). Callers re-assert existence
+  // via their own UPDATE ... RETURNING, so a redundant SELECT here would only
+  // add a round-trip on every append/playNow.
   await input.db.run(
     `
       INSERT INTO music_experience_state (
@@ -214,14 +258,6 @@ async function ensureState(input: {
     `,
     [input.key.ownerScope, input.key.workspaceId, input.now, input.now],
   );
-
-  const row = await readState(input);
-
-  if (row === undefined) {
-    throw new Error("Music Experience state row was not created.");
-  }
-
-  return row;
 }
 
 async function readState(input: {
@@ -230,8 +266,7 @@ async function readState(input: {
 }): Promise<StateRow | undefined> {
   return input.db.get<StateRow>(
     `
-      SELECT queue_revision, playback_revision, now_playing_material_ref_key,
-        now_playing_material_ref_json, playback_status
+      SELECT ${STATE_ROW_COLUMNS}
       FROM music_experience_state
       WHERE owner_scope = ?
         AND workspace_id = ?
@@ -240,11 +275,43 @@ async function readState(input: {
   );
 }
 
+async function countQueueRows(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+}): Promise<number> {
+  const row = await input.db.get<{ queue_length: number }>(
+    `
+      SELECT COUNT(*)::int AS queue_length
+      FROM music_experience_queue_items
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+    `,
+    [input.key.ownerScope, input.key.workspaceId],
+  );
+  return row?.queue_length ?? 0;
+}
+
 async function updateQueueRevision(input: {
   db: MusicDatabaseContext;
   key: MusicExperienceWorkspaceKey;
+  basis?: CommandPreconditionSet;
   now: string;
 }): Promise<StateRow> {
+  const conditions: string[] = [];
+  const params: (string | number)[] = [input.now, input.key.ownerScope, input.key.workspaceId];
+  const basisConditions: Array<[fragment: string, revision: ConcernRevision | undefined]> = [
+    ["AND radio_direction_revision = ?", input.basis?.radioDirectionRevision],
+    ["AND queue_revision = ?", input.basis?.queueRevision],
+    ["AND radio_session_revision = ?", input.basis?.radioSessionRevision],
+    ["AND playback_revision = ?", input.basis?.playbackRevision],
+  ];
+  for (const [fragment, revision] of basisConditions) {
+    if (revision !== undefined) {
+      conditions.push(fragment);
+      params.push(revision);
+    }
+  }
+
   const row = await input.db.get<StateRow>(
     `
       UPDATE music_experience_state
@@ -252,14 +319,14 @@ async function updateQueueRevision(input: {
         updated_at = ?
       WHERE owner_scope = ?
         AND workspace_id = ?
-      RETURNING queue_revision, playback_revision, now_playing_material_ref_key,
-        now_playing_material_ref_json, playback_status
+        ${conditions.join("\n        ")}
+      RETURNING ${STATE_ROW_COLUMNS}
     `,
-    [input.now, input.key.ownerScope, input.key.workspaceId],
+    params,
   );
 
   if (row === undefined) {
-    throw new Error("Music Experience queue revision update did not return a state row.");
+    throw new StaleCommandPreconditionError();
   }
 
   return row;
@@ -281,8 +348,7 @@ async function updatePlayback(input: {
         updated_at = ?
       WHERE owner_scope = ?
         AND workspace_id = ?
-      RETURNING queue_revision, playback_revision, now_playing_material_ref_key,
-        now_playing_material_ref_json, playback_status
+      RETURNING ${STATE_ROW_COLUMNS}
     `,
     [
       refKey(input.materialRef),
@@ -298,6 +364,20 @@ async function updatePlayback(input: {
   }
 
   return row;
+}
+
+export class StaleCommandPreconditionError extends Error {
+  constructor() {
+    super("Music Experience command precondition was stale at commit time.");
+    this.name = "StaleCommandPreconditionError";
+  }
+}
+
+export class QueueFullError extends Error {
+  constructor() {
+    super("Music Experience queue is full.");
+    this.name = "QueueFullError";
+  }
 }
 
 function playbackFromRow(row: StateRow): MusicExperienceSnapshot["playback"] {

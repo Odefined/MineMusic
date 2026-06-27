@@ -3,7 +3,13 @@
 // importing stage_core (stage_core assembles Stage Interface contributions,
 // not the reverse).
 
-import type { ConcernRevision, FormalArea, Result } from "./kernel.js";
+import type {
+  AgentActorKind,
+  CommandPreconditionSet,
+  ConcernRevision,
+  FormalArea,
+  Result,
+} from "./kernel.js";
 
 export type InstrumentDescriptor = {
   id: string;
@@ -96,6 +102,8 @@ export type StageToolContext = {
   ownerScope: string;
   sessionId: string;
   requestId: string;
+  actor?: AgentActorKind;
+  commandBasis?: CommandPreconditionSet;
   clock: () => string;
   abortSignal?: AbortSignal;
   handleMinting: HandleMintingPort;
@@ -617,8 +625,8 @@ export type MusicExperiencePresentOutput = {
 };
 
 export type MusicExperienceQueueAppendInput = {
-  /** Slice-1 single candidate or durable material item to append to the logical MineMusic queue. Phase B widens this to batch-of-N. */
-  items: readonly [MusicItemHandle];
+  /** Candidate or durable material items to append to the logical MineMusic queue in input order. */
+  items: readonly [MusicItemHandle, ...MusicItemHandle[]];
 };
 
 export type MusicExperienceQueueAppendOutputItem = {

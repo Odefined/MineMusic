@@ -173,7 +173,8 @@ assert.deepEqual(await sourceFilesContaining(
     /\b(?:INSERT INTO|UPDATE|DELETE FROM)\s+music_experience_/u,
 ), [
     "src/music_experience/records.ts",
-], "Music Experience queue/playback table writes must stay behind the records repository called by the owning command");
+    "src/music_experience/schema.ts",
+], "Music Experience queue/playback table writes must stay behind the records repository called by the owning command, except schema-owned migrations/backfills");
 const architectureGraph = await buildArchitectureImportGraph(repositoryRoot, await sourceFilesUnder(join(repositoryRoot, "src")));
 assert.deepEqual(architectureGraph.unresolvedRelativeSpecifiers.map(formatEdge).sort(), [], "source-relative imports must resolve to active source files");
 // ADR-0013: contracts DAG guard (Phase 2).

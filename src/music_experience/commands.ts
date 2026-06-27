@@ -7,7 +7,9 @@ import {
 import type { MusicDatabase } from "../storage/database.js";
 import { assertMaterialRef } from "../music_data_platform/index.js";
 import {
+  QueueFullError,
   createMusicExperienceQueuePlaybackRecords,
+  StaleCommandPreconditionError,
 } from "./records.js";
 
 export type CreateMusicExperienceQueuePlaybackCommandInput = {
@@ -23,13 +25,28 @@ export function createMusicExperienceQueuePlaybackCommand(
         assertMaterialRef(materialRef);
       }
 
-      return input.database.transaction(async (db) => {
-        const records = createMusicExperienceQueuePlaybackRecords({ db });
-        const queueLength = await records.countQueue({
-          ownerScope: commandInput.ownerScope,
+      try {
+        return await input.database.transaction(async (db) => {
+          const records = createMusicExperienceQueuePlaybackRecords({ db });
+          return {
+            ok: true,
+            value: await records.append(commandInput),
+          };
         });
-
-        if (queueLength + commandInput.materialRefs.length > MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH) {
+      } catch (error) {
+        if (error instanceof StaleCommandPreconditionError) {
+          return {
+            ok: false,
+            error: {
+              code: "voided_stale",
+              message: "Music Experience command basis was stale at commit time.",
+              area: "music_experience",
+              retryable: true,
+              suggestedFix: "Refresh the current music experience basis and retry if the action is still desired.",
+            },
+          };
+        }
+        if (error instanceof QueueFullError) {
           return {
             ok: false,
             error: {
@@ -41,12 +58,8 @@ export function createMusicExperienceQueuePlaybackCommand(
             },
           };
         }
-
-        return {
-          ok: true,
-          value: await records.append(commandInput),
-        };
-      });
+        throw error;
+      }
     },
     async playNow(commandInput) {
       assertMaterialRef(commandInput.materialRef);
