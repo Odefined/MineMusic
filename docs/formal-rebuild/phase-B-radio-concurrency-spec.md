@@ -20,6 +20,29 @@ deterministic in-process harness. Includes a minimal Speech Level
 (Silent/Notify) for Radio→Main notification (PB7). No Web, no Proposal Unit
 confirmation flow, no Memory.
 
+## pi Source Fidelity (load-bearing)
+
+Phase B's agent loop, harness seam, transcript continuity, compaction, and abort
+mechanisms **replicate how `@earendil-works/pi-agent-core` actually works — not
+invented alternatives.** pi holds ONE long-lived `Agent` per actor: `_state.messages`
+accumulates across `prompt()`/`continue()` turns (`agent.js` `message_end` → push),
+each turn snapshots the in-memory transcript (`createContextSnapshot`), compaction
+runs in place on the live session, and `SessionRepo` (`create/open/list/delete/fork`
+only) is durability + restart — there is **no per-turn reload and no per-run Agent
+reconstruction**; the only reload is reconstructing the Agent/session at process
+restart. Per-run-start logic uses pi's `agent_start` event (`subscribe`,
+`agent-loop.js`), not `prepareNextTurn` (per-turn) or `beforeToolCall` (per-tool).
+
+**During execution, constantly reference the pinned pi source**
+(`node_modules/@earendil-works/pi-agent-core/dist`: `agent.js`, `agent-loop.js`,
+`harness/agent-harness.js`, `harness/session/*`, `harness/compaction/*`) and
+**replicate its methods — not a 1:1 copy, but match the mechanism.** Any agent-loop
+/ harness / context-loading / compaction / abort design without a pi-source
+precedent is closed-door invention and is forbidden; each such decision must cite
+the pi `file:line` it mirrors. MineMusic builds only what pi genuinely lacks
+(pacing, single-flight, OCC, the PG-backed durability store, the cascade, the
+notify channel).
+
 ## Locked Decisions (grilled)
 
 ### PB1 — Radio is a pi Agent loop; "supervisor" is lifecycle, not an algorithm
@@ -67,9 +90,16 @@ not an un-wired claim:
   already-succeeded job and stall Radio. The supervisor's single-flight (PB1a)
   gates submission and is held submit→terminal, covering the in-flight run and its
   pending retries.
-- **Handler scope:** the job handler runs **one bounded Radio turn** (select +
-  batch-append + emit); all durable writes still go through the owning commands
-  (OCC, PB3). It owns neither pacing nor single-flight.
+- **Handler scope:** the job does **not** execute a turn in a fresh process and
+  does **not** reconstruct the Agent (PB2: one long-lived `Agent` per Radio, held
+  in-process by the supervisor). The Background Work job is a recoverable-execution
+  + single-flight **shell** that triggers one bounded `agent.prompt()` turn (select
+  + batch-append + emit) on the held Agent; the handler runs in the supervisor's
+  process so it can reach that Agent. All durable writes still go through the
+  owning commands (OCC, PB3). It owns neither pacing nor single-flight. (If a
+  future production deploy runs pg-boss workers in separate processes, that
+  multi-process model would force per-job Agent reconstruction — a deferred cost,
+  same family as PB1a's multi-instance deferral, not the Phase B in-process model.)
 - **Recoverable execution owned by Background Work:** retry/backoff **within one
   job** on handler failure, restart-on-failure, delayed run, idempotent
   submission. **Crash-survival / persisted-queue is production-only** (real
@@ -80,11 +110,6 @@ not an un-wired claim:
 - **Harness layers:** OCC correctness is proven at the command layer with no
   Background Work (Two-Layer harness, below); Background Work wiring is
   integration-layer only.
-  (ADR-0037): the transcript is the chain-of-thought *soul*, persisted across
-  runs (compacted) and lossy; the durable radio-truth *floor* (commanded
-  direction + evolved posture) guarantees direction does not reset when the
-  transcript erodes. Compaction is allowed to happen *because* the floor exists —
-  not by Radio self-summarizing in place of the transcript. See PB8.
 
 ### PB1a — Pacing is single-flight low-watermark refill to a fill-target (not a bare single threshold)
 
@@ -215,7 +240,7 @@ submit-gate must coordinate across processes — at that point promote it into t
 Background Work port (its Postgres-backed job state is exactly the cross-process
 coordinator), not before.
 
-### PB2 — Radio runs as discrete re-prompted runs, not a long-lived loop
+### PB2 — Radio runs as discrete re-prompted turns on one long-lived Agent (no live loop)
 
 Between triggers the Radio agent is idle (no live loop). Each trigger — pacing
 (queue depth low) or a commanded-direction change (a user redirection routed
@@ -225,14 +250,23 @@ directive payload message) — runs exactly one bounded Radio turn via
 transcript carries Radio's chain-of-thought continuity across runs (the *soul*,
 ADR-0037) — but **persistence/compaction are not pi-provided at our layer**: the
 low-level `Agent` is volatile (audit @0.80.2 — persistence/compaction live only
-in pi's harness, which MineMusic does not use). MineMusic persists/reloads the
-transcript itself, **root-export-helper-first** (`pi-harness-reuse-conclusions.md`): it
-borrows pi's `SessionRepo` interface shape through an Agent Runtime facade and
-backs it with a MineMusic-built **Postgres** store (pi ships only
+in pi's harness, which MineMusic does not use). MineMusic **mirrors pi's own continuity model, not an invented one** — the
+supervisor holds ONE long-lived low-level `Agent` per Radio instance for its
+lifetime (Running); `_state.messages` accumulates across `prompt()`/`continue()`
+turns exactly as pi does (`agent.js` `message_end` → push, `createContextSnapshot`
+per turn), so chain-of-thought continuity is automatic — **there is no per-run
+reload and no per-run Agent reconstruction.** (The earlier "reloads
+`state.messages` at each run start" wording was closed-door invention: pi never
+reloads per turn.) Durability is MineMusic-built, **root-export-helper-first**
+(`pi-harness-reuse-conclusions.md`): after each turn the supervisor writes the
+accumulated `state.messages` to a MineMusic **Postgres** store (pi ships only
 `JsonlSessionRepo`/`InMemorySessionRepo`; PG is MineMusic-specific — audit line
-190). The low-level `Agent` reloads by assigning into `state.messages` from the
-`SessionRepo`-backed store at each run start; this survives process restart,
-with the radio-truth floor (PB8) as the lossy-transcript fallback. The transcript is lossy and **not** the authoritative continuity
+190). The **only** reload is at process restart, reconstructing the Agent the way
+pi restarts a session — `new Agent({ initialState: { messages: store.load(...) } })`
+(low-level Agent path), or `repo.open` → `session.buildContext` →
+`state.messages` if a harness-style session tree is used (`SessionRepo` exposes
+only `create/open/list/delete/fork` — there is no `reload`). This survives process
+restart, with the radio-truth floor (PB8) as the lossy-transcript fallback. The transcript is lossy and **not** the authoritative continuity
 source anyway; the durable radio-truth floor (PB8) is — which is exactly why the
 floor was designed not to depend on pi compaction. Both trigger kinds enter
 through the same path (a wake that runs one turn).
@@ -350,8 +384,11 @@ candidate (transient, expires)
 Main relays a user's radio redirection by calling Music Experience radio-truth
 commands (musical operations on **motif** / **active variations**). Each bumps
 the per-concern radio-direction revision (PB3) and signals the supervisor to wake
-Radio; Radio reads current motif/variations from the read model at the start of
-its next run (PB2). Routing the change through owned state — not a directive
+Radio; Radio reads current motif/variations from the read model **at run start,
+via the supervisor's `subscribe(agent_start)` hook on the long-lived Agent** (PB2)
+— pi's per-run-start event (`agent-loop.js` `agent_start`), not `prepareNextTurn`
+(per-turn) or `beforeToolCall` (per-tool) — refreshing the system prompt / prompt
+content with the read-model slice. Routing the change through owned state — not a directive
 payload message — unifies three things: the write boundary (radio truth is Music
 Experience-owned), the PB3 OCC revision source, and the wake trigger. This
 refines ADR-0032's "typed messages": the typed Main↔Radio channel is reserved for
@@ -630,7 +667,10 @@ Full rationale and OCC table in ADR-0037. In Phase B terms:
   stale → clear and re-evolve from the new direction. Clearing is conditional
   (not every run) and is **not** a side effect of the steering command — Main
   steering only bumps the commanded revision; stale posture falls away at Radio's
-  next run via stamp mismatch.
+  next run via stamp mismatch. The "at each run start" comparison runs on the
+  supervisor's `subscribe(agent_start)` hook — pi's per-run-start event
+  (`agent-loop.js`); do **not** use `prepareNextTurn` (per-turn) or `beforeToolCall`
+  (per-tool).
 - **Late-write race needs no guard.** A posture write landing just after a
   steering change is handled by the abort cascade (Cross-Cutting, usually kills
   the in-flight run first) plus stamp mismatch (any landed write carries the old
@@ -666,20 +706,29 @@ variable fed to `convertToLlm` and writes nothing back to `context.messages`,
 **not** a transcript-mutation path — an acceptance that erodes only the view
 would false-pass (the store retains the full transcript, so "direction recovered"
 proves nothing: nothing was actually eroded). The deterministic, LLM-free erosion
-mutates the **persisted** transcript and reloads it:
+mutates the **persisted** transcript and simulates a **process restart** (the only
+reload path — PB2), using pi's real reconstruct primitives. (There is **no**
+`store.reload` method: `SessionRepo` exposes only `create/open/list/delete/fork`.
+The earlier `store.reload(...)` wording named a pi method that does not exist.)
 
-1. write the transcript to the Agent-Runtime `SessionRepo` store;
+1. write the accumulated transcript to the MineMusic PG-backed store (in-memory
+   double in the harness);
 2. compact/truncate the **persisted** transcript;
-3. reconstruct the Radio low-level `Agent`;
-4. `agent.state.messages = store.reload(...)` (the public writable accessor —
-   **not** pi's full `compact()`, which requires an LLM + `SessionTreeEntry[]`
-   and is not a deterministic-test path);
+3. reconstruct the Radio low-level `Agent` from the store the way a real restart
+   does — `new Agent({ initialState: { messages: store.load(...) } })` (low-level
+   Agent path), or `repo.open(metadata)` → `session.buildContext()` →
+   `agent.state.messages = context.messages` (harness-style session);
+4. (**not** pi's full `compact()`, which requires an LLM + `SessionTreeEntry[]`
+   and is not a deterministic-test path. Production compaction reuses pi's
+   `prepareCompaction`/`compact`/`appendCompaction` helpers per ADR-0039
+   root-export-helper-first; the test uses LLM-free truncation to simulate the
+   *result* of compaction.);
 5. run the next prompt; assert direction rebuilds from the commanded + posture
    floor without drift.
 
-The store round-trip goes through the `SessionRepo` interface shape (backed by an
-in-memory double in the harness; PG is MineMusic-specific and unneeded for this
-acceptance). A separate, **optional** `transformContext` view-erosion test may
+The round-trip uses the same reload path production uses at restart (PG-backed in
+production; in-memory double in the harness — PG is unneeded for this acceptance).
+A separate, **optional** `transformContext` view-erosion test may
 assert floor sufficiency under context-window pressure; it is **not**
 persistence/compaction acceptance. (Pin the version; re-run the audit on any
 bump — pi's churn is the real risk, not capability.) No fall-back to after-B.
@@ -752,8 +801,8 @@ one `Agent`; Agent Runtime owns the cascade across actors.
   `Promise.race([gate, abortSignal])`, or the abort will not interrupt until the
   hook's own promise settles. Both are required for the PB9 cascade and the I2
   integration-layer pause to actually stop work.
-- **Prerequisite: Phase A's `assertNoPiToolHooks` guard is removed for PB9.**
-  The A1b guard (commit 118d7f0, `src/agent_runtime/pi_engine.ts`) omitted
+- **Prerequisite satisfied: the A1b `assertNoPiToolHooks` guard is already gone.**
+  The A1b guard (commit 118d7f0, `src/agent_runtime/pi_engine.ts`) had omitted
   `beforeToolCall`/`afterToolCall` from the pi adapter options and asserted at
   runtime that they were absent, on the stated fear that pi tool-call hooks
   could become a second tool-admission / result-veil path around
@@ -762,11 +811,13 @@ one `Agent`; Agent Runtime owns the cascade across actors.
   execution — and therefore admission — is locked to `dispatch` by the bridge
   itself, not by the hook guard. `beforeToolCall`/`afterToolCall` only run
   around that dispatch call; they cannot replace it, so they cannot open a
-  second admission channel. The guard was over-defensive (defending a threat the
-  bridge already prevents) and is deleted; `beforeToolCall`/`afterToolCall` are
-  restored to the adapter options so PB9's cascade-pause (requirement (b)
-  above) can run in `beforeToolCall`. Admission still has exactly one channel —
-  `dispatch` — guaranteed by the bridge, not re-asserted by a hook guard.
+  second admission channel. The guard was over-defensive and **was already
+  removed in 62597ef** — `MineMusicPiAgentAdapterOptions` (`pi_engine.ts:18-20`)
+  already passes `beforeToolCall`/`afterToolCall` through. So PB9 needs **no
+  guard deletion**: it only *wires* the hooks into cascade-pause (requirement
+  (b) above) so it can run in `beforeToolCall`. Admission still has exactly one
+  channel — `dispatch` — guaranteed by the bridge, not re-asserted by a hook
+  guard.
 - **Routing (settled): post-commit observer on every revision-writing command +
   supervisor basis table + per-run AbortSignal.** The path from "revision
   bumped" to "which runs abort":
