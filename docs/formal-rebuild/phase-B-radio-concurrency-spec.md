@@ -54,22 +54,29 @@ not an un-wired claim:
 - **Job type:** `agent_runtime.radio_refill_run` (new; the port already carries
   `music_data_platform.*` job types — `src/background_work/backend.ts`).
 - **Payload:** `{ workspaceId, ownerScope, radioSessionRevision,
-  radioDirectionRevision, wakeReason: "low_watermark" | "direction_changed",
-  runId }`.
+  radioDirectionRevision, wakeReason: "low_watermark" | "direction_changed" }`.
+  (`runId` is not a separate random field — it **is** the job id, so work
+  correlation ties to the generation below.)
 - **Idempotency key:** derived from `{ workspaceId, radioSessionRevision,
-  radioDirectionRevision, wakeReason }` so the same refill intent is not
-  double-submitted; the supervisor's single-flight (PB1a) gates submission and is
-  held submit→terminal, covering the in-flight run and its pending retries.
+  radioDirectionRevision, wakeReason, refillGeneration }`. `refillGeneration` is a
+  supervisor monotonic counter, incremented on each submit: retries of **one** job
+  share the key (de-duplicated), but the **next** refill under the same direction
+  — e.g. a refill that succeeded yet did not fill above `low` (PB1a allows "may
+  add fewer") — gets a new generation and is **not** de-duplicated. A key without
+  the generation would dedupe a legitimate second refill against the
+  already-succeeded job and stall Radio. The supervisor's single-flight (PB1a)
+  gates submission and is held submit→terminal, covering the in-flight run and its
+  pending retries.
 - **Handler scope:** the job handler runs **one bounded Radio turn** (select +
   batch-append + emit); all durable writes still go through the owning commands
   (OCC, PB3). It owns neither pacing nor single-flight.
-- **Recoverable execution owned by Background Work:** retry/backoff on failure
-  (this is what prevents the persistent-failure hot-loop — an in-supervisor
-  cooldown would re-implement backoff and violate the split),
-  restart-on-failure, delayed run, idempotent submission. **Crash-survival /
-  persisted-queue is production-only** (real pg-boss) and is not exercised by the
-  in-process harness; retry/backoff **is** exercised, via a fake
-  `BackgroundWorkBackend` with a fake clock.
+- **Recoverable execution owned by Background Work:** retry/backoff **within one
+  job** on handler failure, restart-on-failure, delayed run, idempotent
+  submission. **Crash-survival / persisted-queue is production-only** (real
+  pg-boss), not exercised by the in-process harness; intra-job retry/backoff
+  **is** exercised, via a fake `BackgroundWorkBackend` with a fake clock. The
+  **inter-job** layer of hot-loop prevention (a pacing cooldown after a *failed*
+  terminal) is in PB1a, not recoverable execution.
 - **Harness layers:** OCC correctness is proven at the command layer with no
   Background Work (Two-Layer harness, below); Background Work wiring is
   integration-layer only.
@@ -177,6 +184,31 @@ port and harness:
   flag + wake gate) is the same decision loop as the low-watermark read; they
   belong together in the supervisor. The Radio supervisor is a single in-process
   actor (ADR-0032), so an in-process submit-gate suffices.
+
+**Terminal observation is a required port capability.** Holding submit→terminal
+needs the supervisor to observe the job's terminal state, but the current
+`BackgroundWorkBackend` port (`src/background_work/backend.ts`) exposes only
+`submit` / `registerHandler` / `start` / `stop` and returns `{ jobId, submission }`
+— no job status, terminal callback, or await-completion. Phase B extends the port
+with one narrow terminal-observation capability (e.g. `awaitTerminal(jobId)` or
+`onJobStateChange`; exact shape is implementation); the supervisor releases
+single-flight on the observed terminal. A domain run-state table is **not**
+needed: it could not authoritatively track the pending-retry window (only the
+backend knows whether it will retry), and `runId` = jobId already provides work
+correlation.
+
+**Hot-loop prevention is two non-overlapping layers.** *Intra-job*: Background
+Work owns retry/backoff on a handler failure (PB1). *Inter-job*: after a **failed**
+terminal the supervisor applies a pacing cooldown before the next generation,
+reusing Background Work's `runAfter` (delayed run) for the delay itself — pacing
+decides only *whether* to re-submit, so no backoff is re-implemented in the
+supervisor. Without this inter-job cooldown a persistent provider failure would
+re-submit a fresh generation every `retryLimit × backoff`: a throttled but
+unbounded loop (each generation is a new job, so Background Work's per-job backoff
+resets). A **succeeded** terminal is not cooled down — if depth is still below
+`low`, the next generation is submitted straight away, because the run made
+progress. **Exhaustion** (0 fit) is neither: it is the exhaustion back-off above
+(stop until direction-change), not a failure cooldown.
 
 Deferred: if Radio is ever deployed as multiple supervisor instances, the
 submit-gate must coordinate across processes — at that point promote it into the
@@ -801,8 +833,20 @@ agent tool use:
   - evolved posture: read from the floor at first run start — kept iff commanded
     direction (motif/variation) is unchanged (PB8 stamp);
   - commanded direction: unchanged;
-  - queue: unchanged (Shutdown left it empty, Paused left it full);
-  - playback: co-start (side effect);
+  - queue: Shutdown left it empty; Paused left it full, **retained only if the
+    commanded direction (motif/variation) is unchanged since pause** — if it
+    changed while Radio was off, the retained queue is stale and is cleared
+    (refresh) so Radio refills with the new direction before playing. (Detection:
+    snapshot the radio-direction revision at pause; on start, mismatch ⇒ clear.)
+    This refresh is **start-only**; a direction change *while Running* does not
+    clear the queue (Radio refills on top — a gradual mix — and the now-playing
+    track is untouched);
+  - playback: co-start **only if a track is playable** (side effect). From Paused
+    with an unchanged direction, playback resumes; from Shutdown (empty), or after
+    a start refresh, playback starts when the first appended track becomes
+    `nowPlaying`. (Schema guard: `playback_status = 'playing'` requires a non-null
+    `now_playing_material_ref`, forbidding the incoherent "playing nothing"
+    state.);
   - radio-session: bump (on generation).
 - **`pause` (Running → Paused)**:
   - agent instance: suspend, retain (not killed);

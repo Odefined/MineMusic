@@ -144,8 +144,13 @@ isolates three things and deliberately leaks a fourth:
      `abort()`; it must `Promise.race([gate, abortSignal])`.
   3. **`waitForIdle()` resolves strictly after `agent_end` + all listeners
      settle** (the deterministic test harness depends on this).
-  4. **`state.messages` is an externally writable transcript** (PB8a injects
-     erosion via direct assignment / `transformContext`, LLM-free).
+  4. **`state.messages` is an externally writable transcript** — the transcript
+     mutation seam PB8a uses (direct assignment, LLM-free). `transformContext` is a
+     separate, **view-only** context-pressure seam (it feeds `convertToLlm` a
+     local variable and writes nothing back to `context.messages` / `state.messages`
+     / the store — `agent-loop.js` @0.80.2:172-177); it is **not**
+     persistence/compaction acceptance (PB8a accepts only the persisted-transcript
+     round-trip).
   This list *is* the audit's capability ledger, repurposed: not "assumptions to
   verify" but "the engine semantics MineMusic is coupled to."
 
