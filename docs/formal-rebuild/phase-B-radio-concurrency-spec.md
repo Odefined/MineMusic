@@ -46,6 +46,33 @@ does not replace the LLM. Supervisor responsibilities:
   the supervisor owns pacing + single-flight; Agent Runtime owns the Radio run
   itself (prompt, context, lifecycle). See PB1a for why single-flight stays in
   the supervisor rather than reusing a pg-boss singleton. Continuity is layered
+
+**Background Work wiring (recoverable execution, made executable).** The Radio
+run is submitted as one Background Work job, so PB1's "reuse" is a real contract,
+not an un-wired claim:
+
+- **Job type:** `agent_runtime.radio_refill_run` (new; the port already carries
+  `music_data_platform.*` job types — `src/background_work/backend.ts`).
+- **Payload:** `{ workspaceId, ownerScope, radioSessionRevision,
+  radioDirectionRevision, wakeReason: "low_watermark" | "direction_changed",
+  runId }`.
+- **Idempotency key:** derived from `{ workspaceId, radioSessionRevision,
+  radioDirectionRevision, wakeReason }` so the same refill intent is not
+  double-submitted; the supervisor's single-flight (PB1a) gates submission and is
+  held submit→terminal, covering the in-flight run and its pending retries.
+- **Handler scope:** the job handler runs **one bounded Radio turn** (select +
+  batch-append + emit); all durable writes still go through the owning commands
+  (OCC, PB3). It owns neither pacing nor single-flight.
+- **Recoverable execution owned by Background Work:** retry/backoff on failure
+  (this is what prevents the persistent-failure hot-loop — an in-supervisor
+  cooldown would re-implement backoff and violate the split),
+  restart-on-failure, delayed run, idempotent submission. **Crash-survival /
+  persisted-queue is production-only** (real pg-boss) and is not exercised by the
+  in-process harness; retry/backoff **is** exercised, via a fake
+  `BackgroundWorkBackend` with a fake clock.
+- **Harness layers:** OCC correctness is proven at the command layer with no
+  Background Work (Two-Layer harness, below); Background Work wiring is
+  integration-layer only.
   (ADR-0037): the transcript is the chain-of-thought *soul*, persisted across
   runs (compacted) and lossy; the durable radio-truth *floor* (commanded
   direction + evolved posture) guarantees direction does not reset when the
@@ -95,6 +122,22 @@ Resolution:
   to add little is its prerogative as long as depth has not fallen below `low`.
   Anti-oscillation comes from the batch jumping depth well above `low`, not from
   `high` acting as a hysteresis band.
+- **Exhaustion backs off pacing (the wake gate's fourth leg).** The wake gate is
+  depth < `low` **and** `refilling = false` **and** `Running` **and**
+  `not-exhausted-for-current-direction`. candidate-exhaustion-by-direction (PB7:
+  searched, candidates exist, 0 fit) means refill is *impossible* for this
+  direction — re-running Radio re-searches the same stable pool and re-exhausts,
+  so the supervisor must not re-wake on the low watermark for a direction it has
+  already found dry. On exhaustion the supervisor records the exhausted
+  `radio_direction_revision` and stops re-waking until either (a) the direction
+  revision changes (user steered — a new direction may not be dry), or (b) Radio
+  is restarted (`shutdown`→`start`, a fresh instance). `pause`/resume does **not**
+  reset it: the same instance still holds the same dry direction. This kills the
+  cross-run notify storm at the source (PB7) — one exhaustion run per direction ⇒
+  PB7's one-notify-per-run is effectively one-notify-per-direction, with no
+  separate suppression-key machinery. (This is also the gap fix the three-leg
+  gate needed: depth + single-flight + lifecycle assumed refill is always
+  possible; exhaustion is the case where it is not.)
 - **Batch size is a supervisor hint, agency stays with Radio.** The supervisor
   suggests **~5 tracks** per refill (5 → 10, closing the band in one run), but
   "how many" remains Radio's agentic decision (PB1): it may add fewer when the
@@ -106,30 +149,37 @@ The numbers (`low = 5`, `high = 10`, hint `5`) are the starting operating point,
 tunable in implementation; the load-bearing decisions are single-flight
 non-reentrancy, low-as-sole-wake-line, and batch-size-stays-agentic.
 
-**Single-flight lives in the supervisor (in-process), not as a reused pg-boss
-singleton.** A second external review proposed making the whole refill a
-Background Work job keyed by a pg-boss `singletonKey`. We reuse Background Work
-for *recoverable execution* (retry/restart/lifecycle/idempotent submit — PB1),
-but the single-flight lock stays an in-process supervisor flag, for three
-reasons grounded in the actual port and harness:
+**Single-flight lives in the supervisor (in-process) and gates submission to the
+Background Work job — it is not a reused pg-boss singleton.** The Radio run is
+submitted as a Background Work job (`agent_runtime.radio_refill_run`, PB1) so
+recoverable execution (retry/backoff/restart-on-failure) is reused, not
+re-implemented. But the single-flight *lock* stays an in-process supervisor flag
+that **gates submission**: acquired before the job is submitted and held **from
+submit to terminal** (success or final failure), so an in-flight run and its
+pending Background-Work retries count as one occupied slot — preventing double
+execution while the wake gate still sees a low depth. A second external review
+proposed instead keying the whole refill by a pg-boss `singletonKey`; that is
+rejected (the MineMusic-owned port, ADR-0027, deliberately exposes only
+`idempotencyKey`, not `singletonKey`), for three reasons grounded in the actual
+port and harness:
 - **Semantics differ.** Single-flight means "while a run is *in flight* (a
-  seconds-to-tens-of-seconds LLM turn), do not start another, however low depth
-  goes." pg-boss `singleton` semantics are *enqueue-time de-duplication*, and the
-  MineMusic-owned Background Work port (ADR-0027) deliberately exposes only
-  `idempotencyKey`, not `singletonKey` — using it would first require widening the
-  port and verifying pg-boss's active-job singleton behaviour first-hand.
+  seconds-to-tens-of-seconds LLM turn) or has a retry pending, do not start
+  another." pg-boss `singleton` semantics are *enqueue-time de-duplication*; the
+  in-process submit-gate models the in-flight + pending state directly, which
+  enqueue-time de-dup cannot.
 - **Harness testability.** Phase B's correctness harness is deterministic and
-  in-process and does **not** run a pg-boss runtime (the Two-Layer harness, below;
-  PB3 correctness is proven by direct command-layer calls). A single-flight flag
-  is a pure in-process state machine, directly testable; a pg-boss-backed lock
-  would drag a job runtime into the pacing tests.
+  in-process and does **not** run a pg-boss runtime (the Two-Layer harness,
+  below; PB3 correctness is proven by direct command-layer calls). The
+  single-flight submit-gate is a pure in-process state machine, directly
+  testable; the Background Work job runs through a fake `BackgroundWorkBackend`
+  (with a fake clock for backoff) only in the integration layer.
 - **Cohesion + no premature multi-process cost.** Single-flight (`refilling`
   flag + wake gate) is the same decision loop as the low-watermark read; they
   belong together in the supervisor. The Radio supervisor is a single in-process
-  actor (ADR-0032), so an in-process lock suffices.
+  actor (ADR-0032), so an in-process submit-gate suffices.
 
-Deferred: if Radio is ever deployed as multiple supervisor instances, single-
-flight must coordinate across processes — at that point promote it into the
+Deferred: if Radio is ever deployed as multiple supervisor instances, the
+submit-gate must coordinate across processes — at that point promote it into the
 Background Work port (its Postgres-backed job state is exactly the cross-process
 coordinator), not before.
 
@@ -338,6 +388,58 @@ That partial candidate-materialization is acceptable only because the commit is
 idempotent and user-invisible; PB6 tests must assert the intended retry
 semantics instead of implying one cross-owner atomic transaction.
 
+**Concurrent-append position allocation (carry-forward from Phase A).** Phase A
+left an explicit carry-forward: a transaction or process-local guard is **not** a
+concurrency mechanism, so under two concurrent writers the queue must allocate
+positions atomically. The current Phase A append is `SELECT MAX(position)` then
+`INSERT` (`records.ts:117`) — a read-modify-write race: a Radio append and a Main
+append can both read the same tail and collide on the `position` primary key
+(`schema.ts:42`). Phase B replaces it with a monotonic tail counter.
+
+- **Counter column.** `music_experience_state` gains
+  `queue_next_position INTEGER NOT NULL DEFAULT 1` (schema contribution bumped).
+  The counter is append-only and never recycled; positions are an ordering key,
+  not a dense array, so gaps from voided appends are harmless.
+- **Atomic mint (all appenders uniform).** Position allocation is one atomic
+  statement, shared by every writer (Radio / Main / user):
+  ```sql
+  UPDATE music_experience_state
+     SET queue_next_position = queue_next_position + :N
+   WHERE owner_scope = :o AND workspace_id = :w
+  RETURNING queue_next_position - :N AS base_position;
+  ```
+  Batch items take `position = base_position + index`. `SELECT MAX(position)` is
+  forbidden. Two concurrent mints serialize on the `music_experience_state` row
+  lock ⇒ unique, contiguous, input-ordered positions.
+- **Decoupled from the basis CAS (PB3 "checked set ≠ bumped set").** Position
+  mint is a third, mechanical concern — neither checked nor bumped. Radio layers
+  its basis CAS on top as a separate statement in the same transaction:
+  ```sql
+  UPDATE music_experience_state
+     SET queue_revision = queue_revision + 1
+   WHERE owner_scope = :o AND workspace_id = :w
+     AND radio_direction_revision = :basis_dir
+     AND radio_session_revision = :basis_session;
+  ```
+  Zero rows ⇒ `voided_stale` ⇒ the whole append transaction rolls back, including
+  the counter increment (no position gap, no residual insert). Main/user append
+  has no basis and bumps `queue_revision` unconditionally. (Prerequisite: PB3's
+  radio concern columns `radio_direction_revision` / `radio_session_revision`
+  must be added to `music_experience_state`, which today carries only
+  `queue_revision` + `playback_revision`.)
+- **Scope: append-only; reorder deferred.** `reorder`/`move` is not a Phase B
+  command (`commands.ts` ships only `append`), so Phase B's position column is
+  append-only monotonic — no concurrent "rewrite existing positions." Reorder
+  lands with the Phase C Web UI; its position-coexistence tests defer with it.
+- **Row lock does not cross the LLM turn.** The append transaction is the short
+  counter-mint + INSERT + CAS sequence; the LLM turn precedes it (basis captured
+  at turn start, PB3:218-219), so the row lock is held for milliseconds only.
+
+Tests: concurrent Radio + Main append ⇒ no duplicate position and both land;
+batch-of-N ⇒ positions contiguous and input-ordered; append racing
+pause/shutdown ⇒ voided by the `radio_session` CAS; retry after
+`commitCandidate` ⇒ no duplicate queue entries unless the caller re-appends.
+
 ### PB7 — Radio→Main is a notify signal under Speech Level, not an imperative speak
 
 Radio does not command Main to speak. It emits a notify-worthy signal (it
@@ -359,15 +461,20 @@ necessary.
   Radio run already "emits a result, then ends" (PB2); the notify is an optional
   field in that result, read by the supervisor at run end and forwarded to Main
   on the typed channel. It is **not** a tool (no `notify_main` tool) and not a
-  separate mailbox message. One run → at most one notify, which is the natural
-  flood control.
+  separate mailbox message. One run → at most one notify. Cross-run flooding is
+  prevented at the source by PB1a's exhaustion back-off (one exhaustion run per
+  direction ⇒ effectively one notify per direction), not by a notify-layer
+  suppression key.
 - **Single producer — Radio.** Only Radio emits (in its run-result). The
   supervisor only *wakes* Radio (PB1a pacing); it does not emit notifies.
 - **Emit trigger — actionable selection signal only.** The field is present only
   when Radio has a selection judgement the user can act on. In Phase B that is
   exactly one event: **candidate-exhaustion-by-direction** — Radio searched,
   candidates exist, but **0 fit** the current motif/active-variations. It is
-  emitted **every time** it occurs. Absence of the field means "nothing
+  emitted whenever an exhaustion run occurs; PB1a's exhaustion back-off ensures
+  at most one such run per direction revision, so this is
+  one-notify-per-direction in practice (no separate suppression state on the
+  notify channel). Absence of the field means "nothing
   actionable for Main" — either a clean refill or a silent failure (below).
 - **Failures do not notify — they go to an event log.** Provider failure, refill
   failure, and stall are not actionable by the user (Radio retries; the user
@@ -518,12 +625,32 @@ ADR-0032's load-bearing endurance risk into a Phase B risk-down.
 The prerequisite gate is **passed**, verified against
 `@earendil-works/pi-agent-core@0.80.2` (audit:
 `pi-agent-core-capability-audit-0.80.2.md`): `agent.state.messages` is a public
-writable accessor and direct truncation works LLM-free (runtime-verified). The
-deterministic, LLM-free injection uses **direct `state.messages` assignment** (or
-the per-turn `transformContext` hook) — **not** pi's full `compact()` API, which
-requires an LLM + `SessionTreeEntry[]` and is therefore not a deterministic-test
-path. (Pin the version; re-run the audit on any bump — pi's churn is the real
-risk, not capability.) No fall-back to after-B.
+writable accessor and direct truncation works LLM-free (runtime-verified).
+
+**Persistence acceptance is the persisted-transcript round-trip, not a view-only
+hook.** `transformContext` is view-only: pi assigns its return to a *local*
+variable fed to `convertToLlm` and writes nothing back to `context.messages`,
+`state.messages`, or the store (`agent-loop.js` @0.80.2:172-177). It is therefore
+**not** a transcript-mutation path — an acceptance that erodes only the view
+would false-pass (the store retains the full transcript, so "direction recovered"
+proves nothing: nothing was actually eroded). The deterministic, LLM-free erosion
+mutates the **persisted** transcript and reloads it:
+
+1. write the transcript to the Agent-Runtime `SessionRepo` store;
+2. compact/truncate the **persisted** transcript;
+3. reconstruct the Radio low-level `Agent`;
+4. `agent.state.messages = store.reload(...)` (the public writable accessor —
+   **not** pi's full `compact()`, which requires an LLM + `SessionTreeEntry[]`
+   and is not a deterministic-test path);
+5. run the next prompt; assert direction rebuilds from the commanded + posture
+   floor without drift.
+
+The store round-trip goes through the `SessionRepo` interface shape (backed by an
+in-memory double in the harness; PG is MineMusic-specific and unneeded for this
+acceptance). A separate, **optional** `transformContext` view-erosion test may
+assert floor sufficiency under context-window pressure; it is **not**
+persistence/compaction acceptance. (Pin the version; re-run the audit on any
+bump — pi's churn is the real risk, not capability.) No fall-back to after-B.
 
 ### PB9 — Cross-actor cancellation cascade: trigger = OCC void set, priority-directed, state-touchless
 
@@ -806,11 +933,11 @@ phase-A pi Capability Assumptions Ledger.
 
 - PB7 typed notify request — **Phase-B semantics settled** (see PB7 "Phase B emit
   model"): optional run-result field; emitted only for
-  candidate-exhaustion-by-direction, every time; severity `low`; run-id
-  correlation; failures → event log. **Still open**: exact field names/type
-  choices and the event-kind enum value(s); `subject handle` (likely unused in
-  Phase B); backpressure policy (likely a non-issue in Phase B). No UI copy or
-  Workbench/A2UI surface payload.
+  candidate-exhaustion-by-direction, once per direction revision (PB1a's
+  exhaustion back-off prevents the cross-run notify storm — no suppression key);
+  severity `low`; run-id correlation; failures → event log. **Still open**: exact
+  field names/type choices and the event-kind enum value(s); `subject handle`
+  (likely unused in Phase B). No UI copy or Workbench/A2UI surface payload.
 - Cross-actor cancellation cascade: fully settled by PB9 — trigger = OCC void
   set, priority-directed (user > Main > Radio), no rollback, touches only pi run
   lifecycle, and the routing (revision bump → which runs abort → per-run

@@ -651,7 +651,11 @@ agent-visible object. Any public tool that returns a music item emits the same
 pattern: a Music Item Handle beside a tool-specific Public Handle Description.
 The agent passes back only the Music Item Handle.
 
-- `library`: a known, durable MineMusic library item. Stable indefinitely.
+- `material`: a durable material identity (the single durable item-handle
+  currency). Stable indefinitely. A material is **not** presupposed to be in the
+  owner library: a bare committed material is durable but not library-admitted
+  (ADR-0040; PB4). "Is this item in the library" is answered by each tool's own
+  semantics, not by the handle kind.
 - `candidate`: an unconfirmed provider candidate. Stable only while its
   underlying unconfirmed candidate is still held in runtime cache; an expired
   candidate handle fails explicitly and must not silently re-resolve. Its
@@ -659,20 +663,21 @@ The agent passes back only the Music Item Handle.
   exposed it.
 
 Provider origin does not make an item a `candidate`: if MineMusic can currently
-resolve the provider item to a durable library item, the public handle kind is
-`library`. `candidate` is only for an unresolved provider item not yet admitted
-to the library.
+resolve the provider item to a durable material, the public handle kind is
+`material`. `candidate` is only for an unresolved provider item not yet
+durable-materialized.
 
 A Music Item Handle carries an opaque public `id` scoped by handle kind. It is
 never a raw durable material ref, material candidate ref, source ref, canonical
 ref, provider entity id, provider item id, or database key; those internal
 anchors are resolved only inside MineMusic. The durable item kind is named
-`library`, not `material`, because the agent-visible object is a MineMusic
-library item rather than the internal material model. The unconfirmed item kind
-is named `candidate`, not `provider` or `temporary`, because it describes an
-item not yet admitted to the library and must not be confused with Music
-Provider Scope Handle. A `candidate` handle that has expired must fail
-explicitly rather than silently resolve to a different item.
+`material` (ADR-0040 retired the earlier `library` item-handle kind); "library"
+survives only as a *scope* — the MusicScope owner-visible baseline — never as an
+item-handle kind. The unconfirmed item kind is named `candidate`, not `provider`
+or `temporary`, because it describes an item not yet durable-materialized and
+must not be confused with Music Provider Scope Handle. A `candidate` handle that
+has expired must fail explicitly rather than silently resolve to a different
+item.
 _Avoid_: every internal anchor in the Public Handle Veil (see Stage Interface
 Tool Frame): materialRef, materialCandidateRef, sourceRef, canonicalRef,
 sourceLibraryRef, ownerRelationPoolRef, resultSetId, provider entity id, raw
@@ -746,12 +751,16 @@ relations: `library.relation.get`, `library.relation.save`,
 `library.relation.unfavorite`, `library.relation.block`, and
 `library.relation.unblock`.
 
-`get` reads the current owner relation state for one durable MineMusic library
-item. The edit tools express user intent to add or remove one current owner
-relation fact for one durable MineMusic library item. They are not generic
-relation setters, not Collection membership tools, and not candidate-admission
-tools; a candidate must first become a durable library item through a
-consumption tool such as `music.experience.present`.
+These tools take a `material` item handle (ADR-0040). `get` reads the current
+owner relation state for one material; reading the state of a never-admitted
+material is legal and returns `saved:false, favorite:false, blocked:false`
+(ADR-0040). The edit tools express user intent to add or remove one current
+owner relation fact for one material — `save`/`favorite` are themselves the
+explicit library admission (PB4), not a separate admission ceremony. They are
+not generic relation setters, not Collection membership tools, and not
+candidate-admission tools; a `candidate` must first be durable-materialized
+through a consumption tool such as `music.experience.present` (which returns a
+`material` handle).
 Each edit reports the item relation state after the edit: whether the item is
 currently saved, favorite, and blocked. `blocked` is mutually exclusive with
 the positive library relations: blocking an item clears saved and favorite;
@@ -1253,7 +1262,8 @@ Candidate Commit is an internal owning command, not an agent-facing tool. The
 agent never calls commit directly; a consumption action such as
 `music.experience.present` resolves a Music Item Handle of kind `candidate`
 back to the internal material candidate ref, invokes the commit command, and
-mints a Music Item Handle of kind `library` for the newly durable item. The
+mints a Music Item Handle of kind `material` for the newly durable item (ADR-0040:
+present durable-materializes; it is **not** library admission). The
 commit command itself receives and returns internal refs
 (`materialCandidateRef` -> `materialRef`); public handle conversion stays on
 the consumption-action side, and the input candidate handle does not become a
