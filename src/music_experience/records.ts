@@ -27,9 +27,6 @@ export type MusicExperienceQueuePlaybackRecords = {
   read(input: {
     ownerScope: string;
   }): Promise<MusicExperienceSnapshot>;
-  countQueue(input: {
-    ownerScope: string;
-  }): Promise<number>;
   append(input: {
     ownerScope: string;
     materialRefs: readonly Ref[];
@@ -62,6 +59,19 @@ type StateRow = {
   now_playing_material_ref_json: string | Ref | null;
   playback_status: MusicExperiencePlaybackStatus;
 };
+
+// Columns surfaced by every state-row read (SELECT) and write (RETURNING).
+// Centralized so the three call sites cannot drift when a column is added.
+const STATE_ROW_COLUMNS = [
+  "queue_revision",
+  "radio_direction_revision",
+  "radio_session_revision",
+  "playback_revision",
+  "queue_next_position",
+  "now_playing_material_ref_key",
+  "now_playing_material_ref_json",
+  "playback_status",
+].join(", ");
 
 type QueueItemRow = {
   position: number;
@@ -105,19 +115,6 @@ export function createMusicExperienceQueuePlaybackRecords(
         queue: rows.map(queueItemFromRow),
         playback: playbackFromRow(state),
       };
-    },
-    async countQueue(countInput) {
-      const key = workspaceKey(countInput.ownerScope, workspaceId);
-      const row = await db.get<{ queue_length: number }>(
-        `
-          SELECT COUNT(*)::int AS queue_length
-          FROM music_experience_queue_items
-          WHERE owner_scope = ?
-            AND workspace_id = ?
-        `,
-        [key.ownerScope, key.workspaceId],
-      );
-      return row?.queue_length ?? 0;
     },
     async append(appendInput) {
       if (appendInput.materialRefs.length === 0) {
@@ -240,7 +237,11 @@ async function ensureState(input: {
   db: MusicDatabaseContext;
   key: MusicExperienceWorkspaceKey;
   now: string;
-}): Promise<StateRow> {
+}): Promise<void> {
+  // INSERT ... ON CONFLICT DO NOTHING guarantees the state row exists after
+  // this call (freshly inserted or pre-existing). Callers re-assert existence
+  // via their own UPDATE ... RETURNING, so a redundant SELECT here would only
+  // add a round-trip on every append/playNow.
   await input.db.run(
     `
       INSERT INTO music_experience_state (
@@ -257,14 +258,6 @@ async function ensureState(input: {
     `,
     [input.key.ownerScope, input.key.workspaceId, input.now, input.now],
   );
-
-  const row = await readState(input);
-
-  if (row === undefined) {
-    throw new Error("Music Experience state row was not created.");
-  }
-
-  return row;
 }
 
 async function readState(input: {
@@ -273,9 +266,7 @@ async function readState(input: {
 }): Promise<StateRow | undefined> {
   return input.db.get<StateRow>(
     `
-      SELECT queue_revision, playback_revision, now_playing_material_ref_key,
-        radio_direction_revision, radio_session_revision, queue_next_position,
-        now_playing_material_ref_json, playback_status
+      SELECT ${STATE_ROW_COLUMNS}
       FROM music_experience_state
       WHERE owner_scope = ?
         AND workspace_id = ?
@@ -308,21 +299,17 @@ async function updateQueueRevision(input: {
 }): Promise<StateRow> {
   const conditions: string[] = [];
   const params: (string | number)[] = [input.now, input.key.ownerScope, input.key.workspaceId];
-  if (input.basis?.radioDirectionRevision !== undefined) {
-    conditions.push("AND radio_direction_revision = ?");
-    params.push(input.basis.radioDirectionRevision);
-  }
-  if (input.basis?.queueRevision !== undefined) {
-    conditions.push("AND queue_revision = ?");
-    params.push(input.basis.queueRevision);
-  }
-  if (input.basis?.radioSessionRevision !== undefined) {
-    conditions.push("AND radio_session_revision = ?");
-    params.push(input.basis.radioSessionRevision);
-  }
-  if (input.basis?.playbackRevision !== undefined) {
-    conditions.push("AND playback_revision = ?");
-    params.push(input.basis.playbackRevision);
+  const basisConditions: Array<[fragment: string, revision: ConcernRevision | undefined]> = [
+    ["AND radio_direction_revision = ?", input.basis?.radioDirectionRevision],
+    ["AND queue_revision = ?", input.basis?.queueRevision],
+    ["AND radio_session_revision = ?", input.basis?.radioSessionRevision],
+    ["AND playback_revision = ?", input.basis?.playbackRevision],
+  ];
+  for (const [fragment, revision] of basisConditions) {
+    if (revision !== undefined) {
+      conditions.push(fragment);
+      params.push(revision);
+    }
   }
 
   const row = await input.db.get<StateRow>(
@@ -333,9 +320,7 @@ async function updateQueueRevision(input: {
       WHERE owner_scope = ?
         AND workspace_id = ?
         ${conditions.join("\n        ")}
-      RETURNING queue_revision, radio_direction_revision, radio_session_revision,
-        playback_revision, queue_next_position, now_playing_material_ref_key,
-        now_playing_material_ref_json, playback_status
+      RETURNING ${STATE_ROW_COLUMNS}
     `,
     params,
   );
@@ -363,9 +348,7 @@ async function updatePlayback(input: {
         updated_at = ?
       WHERE owner_scope = ?
         AND workspace_id = ?
-      RETURNING queue_revision, radio_direction_revision, radio_session_revision,
-        playback_revision, queue_next_position, now_playing_material_ref_key,
-        now_playing_material_ref_json, playback_status
+      RETURNING ${STATE_ROW_COLUMNS}
     `,
     [
       refKey(input.materialRef),
