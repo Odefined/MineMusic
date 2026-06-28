@@ -139,10 +139,12 @@ interaction state, playback/queue/radio truth, durable facts, or agent run/work
 state.
 
 The Web boundary serializes Workspace Snapshot/Events as an AG-UI profile;
-embedded agents read the in-process read model directly (ADR-0031). That AG-UI
-`state` is download-only; upstream writes go through typed Workbench actions, not
-an AG-UI state round-trip, and authority placement is split by multi-writer
-contention rather than durability (ADR-0036). Radio Agent
+embedded agents receive Agent Runtime Workspace Context assembled from
+area-owned projections plus Workbench-owned interaction-state facts, not the Web
+wire shape or the retired composed Workbench agent seam. AG-UI `state` is
+download-only; upstream writes go through typed Workbench actions, not an AG-UI
+state round-trip, and authority placement is split by multi-writer contention
+rather than durability (ADR-0036). Radio Agent
 is a peer actor of Main Agent within Agent Runtime, coordinating through typed
 messages (ADR-0032). User-agent
 concurrency uses ownership serialization, the per-area Agent Work Basis, and Pi

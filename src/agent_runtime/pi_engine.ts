@@ -9,10 +9,6 @@ import {
 
 import type { ToolDeclaration } from "../contracts/stage_interface.js";
 import {
-  renderSystemPromptWithSessionContext,
-  type AgentSessionContext,
-} from "./session_context.js";
-import {
   createStageToolBridge,
   isStageToolErrorDetails,
   type AgentRuntimeStageToolContextFactoryPort,
@@ -33,11 +29,9 @@ export type CreateMineMusicPiAgentAdapterInput = {
   contextFactory: AgentRuntimeStageToolContextFactoryPort;
   stageSessionId: string;
   /**
-   * Construction-time context for adapter-level tests or alternate one-shot
-   * assembly. The A4 Main Agent session refreshes `state.systemPrompt` at each
-   * user-turn boundary instead of relying on this initial prompt path.
+   * Agent Runtime callers pass an already assembled system prompt. Turn-start
+   * context refresh belongs to the owning actor session/run controller.
    */
-  sessionContext?: AgentSessionContext;
   initialMessages?: readonly AgentMessage[];
   llmProviderSessionId?: string;
   agentOptions: MineMusicPiAgentAdapterOptions;
@@ -49,12 +43,7 @@ export function createMineMusicPiAgentAdapter(input: CreateMineMusicPiAgentAdapt
     afterToolCall: stageToolErrorAwareAfterToolCall(input.agentOptions.afterToolCall),
     ...(input.llmProviderSessionId === undefined ? {} : { sessionId: input.llmProviderSessionId }),
     initialState: {
-      systemPrompt: input.sessionContext === undefined
-        ? input.systemPrompt
-        : renderSystemPromptWithSessionContext({
-            systemPrompt: input.systemPrompt,
-            sessionContext: input.sessionContext,
-          }),
+      systemPrompt: input.systemPrompt,
       ...(input.initialMessages === undefined ? {} : { messages: input.initialMessages.slice() }),
       tools: createStageToolBridge({
         tools: input.tools,

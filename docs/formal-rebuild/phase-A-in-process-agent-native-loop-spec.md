@@ -597,12 +597,14 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
   discipline carried into queue/playback and later playback/radio writes.
 - **Turn driving (harness).** A user turn is `agent.prompt(userMessage)` then
   `agent.waitForIdle()`; the harness then reads the queue/now-playing projection
-  **through the A2 read-model seam** and asserts the outcome. The agent's tools
-  are the A1-bridged Stage tools (`lookup`, `present`, `queue.append`,
-  `playback.play`). A4 currently captures pre-refactor context once at the start
-  of each user turn and injects that snapshot into the agent prompt for that turn;
-  do not reuse a single adapter/system-prompt instance across turns without a
-  refresh path. The refresh path should reuse pi's stateful `Agent` semantics:
+  through the shared Agent Runtime Workspace Context assembler and asserts the
+  outcome. The agent's tools are the A1-bridged Stage tools (`lookup`,
+  `present`, `queue.append`, `playback.play`). A4 originally captured
+  pre-refactor context once at the start of each user turn; Agent Context
+  PR3.1/PR3.2/PR3.3 migrated the refresh path to shared `ActorDefinition`
+  objects and Workspace Context assembly. Do not reuse a single
+  adapter/system-prompt instance across turns without a refresh path. The refresh
+  path should reuse pi's stateful `Agent` semantics:
   pi snapshots the current `state.systemPrompt`, `state.messages`, and
   `state.tools` when `prompt()` enters `runAgentLoop`, so A4 can update the
   MineMusic-rendered system prompt at the user-turn boundary while preserving

@@ -63,10 +63,11 @@ Rules:
   state, or Memory.
 
 Actor Identity must name the product role without sounding like a generic
-chatbot scaffold. It also must not leak implementation or data-pipeline terms
-such as material, append, refill, run floor, handle minting, storage,
-projection, or queue mutation into the model face unless the actor truly needs
-that public product term for a decision.
+chatbot scaffold. Its implementation guard is structural: the identity rail is
+stored as `role` / `job` / `persona`, is rendered separately from operational
+instructions and workspace facts, and is sourced from exactly one
+`ActorDefinition` per actor. Do not guard identity quality with forbidden-string
+or keyword-list checks.
 
 Actor Identity is not operational guidance, current workspace state, tool
 availability, run payload, transcript continuity, or durable memory.
@@ -625,7 +626,8 @@ of queue, now-playing, radio truth, or revision facts.
   `ActorDefinition` per actor.
 - Actor identity is stored as a raw prompt string instead of structured
   `ActorIdentity`.
-- Actor identity leaks internal data-pipeline language into the model face.
+- Actor identity quality is guarded by forbidden-string or keyword-list checks
+  instead of structural ownership, field-shape, and rail-boundary checks.
 - Workspace Context is organized by internal architecture area names such as
   `musicExperience` instead of workspace-visible section names.
 - Radio receives only `queueLength` when it needs queue item identity to avoid
@@ -699,8 +701,9 @@ The following are not yet grilled and must not be filled as settled:
   module inline prompt strings.
 - Actor identity and instruction are separate; identity is structured
   `role` / `job` / `persona` data and instruction is operational guidance.
-- Actor identity does not start with `"You are"` and does not expose internal
-  data-pipeline terms on the model face.
+- Actor identity is structurally separated from instruction and workspace
+  facts; guards check source, field shape, and rail boundaries rather than
+  forbidden substrings.
 - Main and Radio use that shared path.
 - Radio receives current queue item identity, not only queue length, through
   Workspace Context.

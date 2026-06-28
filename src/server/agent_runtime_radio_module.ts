@@ -13,6 +13,9 @@ import {
   createRadioSupervisor,
   createRadioToolBridge,
   createRadioRunResultRecorder,
+  createWorkspaceContextAssembler,
+  radioDefinition,
+  renderAgentRuntimeSystemPrompt,
   restoreRadioAgentTranscript,
   type MineMusicPiAgentAdapterOptions,
   type RadioWakeDecision,
@@ -22,21 +25,20 @@ import type { RadioWakeReason } from "../contracts/agent_runtime.js";
 import type {
   ToolDeclaration,
 } from "../contracts/stage_interface.js";
-import type { WorkbenchMusicExperienceReadPort } from "../contracts/workbench_interface.js";
+import type { MusicExperienceWorkspaceProjectionPort } from "../contracts/music_experience.js";
 import {
   createMusicExperienceQueuePlaybackRecords,
   DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID,
 } from "../music_experience/index.js";
 import type { RuntimeModule } from "../stage_core/index.js";
 import type { MusicDatabaseContext } from "../storage/index.js";
-import { createWorkspaceReadModelComposer } from "../workbench_interface/index.js";
 
 export type CreateAgentRuntimeRadioModuleInput = {
   ownerScope?: string;
   workspaceId?: string;
   database(): MusicDatabaseContext | undefined;
   backgroundWork(): BackgroundWorkBackend | undefined;
-  musicExperienceRead(): WorkbenchMusicExperienceReadPort | undefined;
+  musicExperienceRead(): MusicExperienceWorkspaceProjectionPort | undefined;
   notifyChannel(): MainRadioNotifyChannel | undefined;
   agentOptions(): MineMusicPiAgentAdapterOptions | undefined;
   tools(): readonly ToolDeclaration[];
@@ -47,12 +49,6 @@ export type CreateAgentRuntimeRadioModuleInput = {
 export type AgentRuntimeRadioModule = RuntimeModule & {
   wake(reason: RadioWakeReason): Promise<RadioWakeDecision>;
 };
-
-const radioBaseSystemPrompt = [
-  "You are the MineMusic Radio Agent.",
-  "Run one bounded refill turn when woken.",
-  "Use the Radio Run Floor as durable direction truth and avoid material already in the queue.",
-].join("\n");
 
 export function createAgentRuntimeRadioModule(
   input: CreateAgentRuntimeRadioModuleInput,
@@ -85,7 +81,10 @@ export function createAgentRuntimeRadioModule(
       // mutable state), so it is built once and shared by the pacing read.
       const queuePlaybackRecords = createMusicExperienceQueuePlaybackRecords({ db, workspaceId });
       const agent = createMineMusicPiAgentAdapter({
-        systemPrompt: radioBaseSystemPrompt,
+        systemPrompt: renderAgentRuntimeSystemPrompt({
+          actor: radioDefinition,
+          workspaceContext: {},
+        }),
         tools: [],
         dispatch: lazyDispatch(input),
         contextFactory: radioContextFactory(),
@@ -99,8 +98,7 @@ export function createAgentRuntimeRadioModule(
         transcriptStore,
       });
 
-      const runStartRead = createWorkspaceReadModelComposer({
-        clock: () => new Date().toISOString(),
+      const workspaceContext = createWorkspaceContextAssembler({
         musicExperience: musicExperienceRead,
       });
       const runPort = createPiRadioRefillRunPort({
@@ -108,10 +106,10 @@ export function createAgentRuntimeRadioModule(
         workspaceId,
         agent,
         transcriptStore,
-        baseSystemPrompt: radioBaseSystemPrompt,
-        runStartRead,
+        actor: radioDefinition,
+        workspaceContext,
         clock: () => new Date().toISOString(),
-        prepareRun(payload, _runStartContext) {
+        prepareRun(payload, _workspaceContext) {
           currentRunResultRecorder = createRadioRunResultRecorder();
           currentRadioBasis = {
             radioDirectionRevision: payload.radioDirectionRevision,

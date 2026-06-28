@@ -196,7 +196,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
       },
     },
   });
-  const workbenchSlice = await readModel.readMusicExperience({ ownerScope });
+  const workbenchSlice = await readModel.readWorkspaceProjection({ ownerScope });
 
   assert.deepEqual(workbenchSlice, {
     revision: 1,
@@ -378,7 +378,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
       },
     },
   });
-  const workbenchSlice = await readModel.readMusicExperience({ ownerScope });
+  const workbenchSlice = await readModel.readWorkspaceProjection({ ownerScope });
   assert.deepEqual(workbenchSlice, {
     revision: 1,
     queue: [

@@ -58,7 +58,7 @@ import {
   type StageInterfaceRuntimePorts,
   type StageToolContextFactory,
 } from "../stage_interface/index.js";
-import type { WorkbenchMusicExperienceReadPort } from "../contracts/workbench_interface.js";
+import type { MusicExperienceWorkspaceProjectionPort } from "../contracts/music_experience.js";
 import type { MusicExperienceQueuePlaybackCommand } from "../contracts/music_experience.js";
 import {
   createCollectionRecords,
@@ -99,7 +99,7 @@ export type ServerHost = {
   retrievalQuery(): RetrievalQueryService | undefined;
   localizeProviderSource(): LocalizeProviderSourceCommand | undefined;
   toolContextFactory(): StageToolContextFactory | undefined;
-  musicExperienceRead(): WorkbenchMusicExperienceReadPort | undefined;
+  musicExperienceRead(): MusicExperienceWorkspaceProjectionPort | undefined;
 };
 
 export type CreateServerHostInput = {
@@ -392,7 +392,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     return queuePlaybackCommand;
   }
 
-  function readDefaultMusicExperienceReadPort(): WorkbenchMusicExperienceReadPort | undefined {
+  function readDefaultMusicExperienceReadPort(): MusicExperienceWorkspaceProjectionPort | undefined {
     const materialProjection = musicDataPlatformModule?.materialProjection();
     const handleMinting = readStageInterfaceRuntimePorts()?.handleMinting;
 

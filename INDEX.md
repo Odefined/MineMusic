@@ -196,20 +196,21 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   `ToolDeclaration[]`, injected `dispatch`, and an injected Stage tool context
   factory, with provider-safe pi tool-name mapping and provider/Stage session
   separation, and with pi tool-call hooks rejected so Stage `executionGate`
-  remains the single tool-admission path; A2 also introduced the minimal
-  `src/workbench_interface` in-process read-model seam and pre-refactor Agent
-  Runtime context capture/rendering over it; A3 added Music Experience
-  queue/playback Postgres truth, owning commands, Workbench read projection, and
+  remains the single tool-admission path; A2 introduced the minimal
+  `src/workbench_interface` root, whose old composed agent seam has since been
+  retired by Agent Context PR3.1/PR3.2/PR3.3; A3 added Music Experience
+  queue/playback Postgres truth, owning commands, workspace projection, and
   Stage tools; A4 added the long-lived pi Main Agent turn session with
-  turn-start pre-refactor context refresh and harness-visible pi final assistant
-  message/status/error/text. Radio, Memory, skill runtime, and Web remain out of
-  scope.
+  turn-start shared Workspace Context refresh and harness-visible pi final
+  assistant message/status/error/text. Memory, skill runtime, and Web remain out
+  of scope.
 - `docs/formal-rebuild/agent-context-engineering-spec.md`: current Agent
   Runtime context-engineering authority. It decomposes embedded-agent context
   into Actor Identity, Actor Instruction, Capability Context, Workspace Context,
   Invocation Context, Continuity Context, and Knowledge / Memory Context, and
   requires Main and Radio to share the same Workspace Context assembly model
-  instead of maintaining separate workspace-state renderers.
+  instead of maintaining separate workspace-state renderers. PR3.1/PR3.2/PR3.3
+  implement the shared assembler for Main and Radio.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

@@ -428,7 +428,7 @@ const ownerScope = "local";
     },
   });
 
-  const slice = await readModel.readMusicExperience({ ownerScope });
+  const slice = await readModel.readWorkspaceProjection({ ownerScope });
   assert.deepEqual(slice.radio, {
     directionRevision: 1,
     direction: {
@@ -526,7 +526,7 @@ const ownerScope = "local";
     },
   });
 
-  const slice = await readModel.readMusicExperience({ ownerScope });
+  const slice = await readModel.readWorkspaceProjection({ ownerScope });
   assert.deepEqual(projectedBatchInputs.map((refs) => refs.map(refKey)), [[
     refKey(queuedRef),
     refKey(postureRef),
@@ -605,7 +605,7 @@ const ownerScope = "local";
     },
   });
 
-  const slice = await readModel.readMusicExperience({ ownerScope });
+  const slice = await readModel.readWorkspaceProjection({ ownerScope });
   assert.equal(batchCallCount, 1);
   assert.deepEqual(singleCallRefs, [
     refKey(queuedRef),

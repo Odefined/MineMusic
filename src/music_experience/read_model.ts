@@ -1,12 +1,12 @@
 import { refKey, type Ref } from "../contracts/kernel.js";
 import type {
-  WorkbenchMaterialMusicItemHandle,
-  WorkbenchRadioDirection,
-  WorkbenchRadioDirectionValue,
-  WorkbenchRadioPosture,
-  WorkbenchMusicExperienceReadPort,
-  WorkbenchMusicItemSummary,
-} from "../contracts/workbench_interface.js";
+  MusicExperienceWorkspaceMaterialHandle,
+  MusicExperienceWorkspaceProjectionPort,
+  MusicExperienceWorkspaceRadioDirection,
+  MusicExperienceWorkspaceRadioDirectionValue,
+  MusicExperienceWorkspaceRadioPosture,
+  MusicExperienceWorkspaceItemSummary,
+} from "../contracts/music_experience.js";
 import type { MusicMaterial } from "../contracts/music_data_platform.js";
 import type { RadioDirectionValue } from "../contracts/music_experience.js";
 import {
@@ -33,11 +33,11 @@ export type CreateMusicExperienceReadModelInput = {
 
 export function createMusicExperienceReadModel(
   input: CreateMusicExperienceReadModelInput,
-): WorkbenchMusicExperienceReadPort {
+): MusicExperienceWorkspaceProjectionPort {
   const records = createMusicExperienceQueuePlaybackRecords({ db: input.db });
 
   return {
-    async readMusicExperience(readInput) {
+    async readWorkspaceProjection(readInput) {
       const snapshot = await records.read(readInput);
       const materialRefs = uniqueMaterialRefs([
         ...snapshot.queue.map((item) => item.materialRef),
@@ -46,7 +46,7 @@ export function createMusicExperienceReadModel(
         ...snapshot.radio.direction.activeVariations.flatMap(radioMaterialRefs),
         ...snapshot.radio.posture.lean.flatMap(radioMaterialRefs),
       ]);
-      const summaries = new Map<string, WorkbenchMusicItemSummary>();
+      const summaries = new Map<string, MusicExperienceWorkspaceItemSummary>();
       const projectedMaterials = await projectMaterialsForRead(input.materialProjection, materialRefs);
 
       for (const materialRef of materialRefs) {
@@ -89,7 +89,7 @@ export function createMusicExperienceReadModel(
   };
 }
 
-function formatWorkbenchMaterialHandle(publicId: string): WorkbenchMaterialMusicItemHandle {
+function formatWorkbenchMaterialHandle(publicId: string): MusicExperienceWorkspaceMaterialHandle {
   if (publicId.length === 0 || publicId.includes("]") || publicId.includes("\r") || publicId.includes("\n")) {
     throw new Error("Workbench material handle public id must be non-empty and must not contain ']', CR, or LF.");
   }
@@ -147,8 +147,8 @@ function uniqueMaterialRefs(refs: readonly Ref[]): readonly Ref[] {
 
 function nowPlayingSlice(
   materialRef: Ref | undefined,
-  summaries: ReadonlyMap<string, WorkbenchMusicItemSummary>,
-): { nowPlaying: WorkbenchMusicItemSummary } | Record<string, never> {
+  summaries: ReadonlyMap<string, MusicExperienceWorkspaceItemSummary>,
+): { nowPlaying: MusicExperienceWorkspaceItemSummary } | Record<string, never> {
   if (materialRef === undefined) {
     return {};
   }
@@ -165,8 +165,8 @@ function radioDirectionSlice(
     motif?: RadioDirectionValue;
     activeVariations: readonly RadioDirectionValue[];
   },
-  summaries: ReadonlyMap<string, WorkbenchMusicItemSummary>,
-): WorkbenchRadioDirection {
+  summaries: ReadonlyMap<string, MusicExperienceWorkspaceItemSummary>,
+): MusicExperienceWorkspaceRadioDirection {
   return {
     ...radioMotifSlice(direction.motif, summaries),
     activeVariations: direction.activeVariations.flatMap((item) => radioValueSlice(item, summaries)),
@@ -179,8 +179,8 @@ function radioPostureSlice(
     commandedRevisionStamp?: number;
     stale: boolean;
   },
-  summaries: ReadonlyMap<string, WorkbenchMusicItemSummary>,
-): WorkbenchRadioPosture {
+  summaries: ReadonlyMap<string, MusicExperienceWorkspaceItemSummary>,
+): MusicExperienceWorkspaceRadioPosture {
   return {
     lean: posture.lean.flatMap((item) => radioValueSlice(item, summaries)),
     ...(posture.commandedRevisionStamp === undefined ? {} : {
@@ -192,8 +192,8 @@ function radioPostureSlice(
 
 function radioMotifSlice(
   value: RadioDirectionValue | undefined,
-  summaries: ReadonlyMap<string, WorkbenchMusicItemSummary>,
-): { motif: WorkbenchRadioDirectionValue } | Record<string, never> {
+  summaries: ReadonlyMap<string, MusicExperienceWorkspaceItemSummary>,
+): { motif: MusicExperienceWorkspaceRadioDirectionValue } | Record<string, never> {
   if (value === undefined) {
     return {};
   }
@@ -204,8 +204,8 @@ function radioMotifSlice(
 
 function radioValueSlice(
   value: RadioDirectionValue,
-  summaries: ReadonlyMap<string, WorkbenchMusicItemSummary>,
-): readonly WorkbenchRadioDirectionValue[] {
+  summaries: ReadonlyMap<string, MusicExperienceWorkspaceItemSummary>,
+): readonly MusicExperienceWorkspaceRadioDirectionValue[] {
   switch (value.kind) {
     case "text":
       return [{ kind: "text", text: value.text }];

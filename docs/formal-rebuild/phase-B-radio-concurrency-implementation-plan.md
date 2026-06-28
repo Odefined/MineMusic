@@ -105,7 +105,7 @@ PR6 (PB8a)                 endurance acceptance: injected transcript erosion + f
 - `src/music_experience/records.ts` — radio-truth records: read commanded direction + posture; write commanded direction (unconditional UPDATE within the steering transaction + bump `radio_direction_revision`); write posture (**no revision bump**; stamp current `radio_direction_revision`).
 - `src/music_experience/commands.ts` (or new `radio_commands.ts`) — `setRadioDirection` (motif + variations; bumps `radio_direction_revision`), `writeRadioPosture` (lean list; OCC-invisible).
 - `src/contracts/music_experience.ts` — `RadioDirectionValue` discriminated union `text | material | scope` (PB5 "Value shape", ADR-0037 §3); `VariationItem`; motif (single slot) + active variations (ordered list); `EvolvedPosture` (bounded lean list, no motif); command input/output types.
-- `src/music_experience/read_model.ts` — PR2 landed the current `readMusicExperience` extension for radio direction + posture + stamp and the queue-internal dedup read. PR3.1 migrates the agent-facing consumption of those facts to a section-agnostic Music Experience Workspace projection port consumed by the shared Agent Runtime Workspace Context assembler, rather than further expanding `WorkbenchMusicExperienceReadPort` as an agent seam.
+- `src/music_experience/read_model.ts` — PR2 landed radio direction + posture + stamp and the queue-internal dedup read. PR3.1 migrates the agent-facing consumption of those facts to the section-agnostic `MusicExperienceWorkspaceProjectionPort` consumed by the shared Agent Runtime Workspace Context assembler, rather than further expanding a Workbench-owned agent seam.
 
 **Dependencies:** PR1 (`radio_direction_revision` column).
 
@@ -193,7 +193,9 @@ deletion waits until both actors have migrated.
   section lists.
 - `ActorDefinition` validation maps dotted Stage names to model-visible names and
   fails fast when backticked instruction tokens are not in the actor's tool pack.
-- No data-pipeline terms in identity.
+- Identity guard is structural: one `ActorDefinition`, separated identity /
+  instruction rails, non-empty `role` / `job` / `persona`, and no
+  forbidden-string or keyword-list check.
 - Exactly one new assembler path.
 
 **Verification:** `npm run typecheck`; targeted Agent Runtime context tests.

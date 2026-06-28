@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEntityKind, MaterialIdentityStatus, MaterialLifecycleStatus, MusicAlbum, MusicArtist, MusicMaterial, MusicRecording, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, PlayableLink, ProviderMaterialCandidate, SourceAlbum, SourceArtist, SourceEntity, SourceEntityKind, SourceLibraryImportBatchStatus, SourceLibraryImportCompletionReason, SourceLibraryImportItemOutcome, SourceNavigationLink, SourcePreferencePolicy, SourcePreferencePurpose, SourcePreferenceSelector, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../src/contracts/music_data_platform.js";
-import type { AgentSessionContext, RadioNotifyRequest } from "../../src/contracts/agent_runtime.js";
+import type { RadioNotifyRequest } from "../../src/contracts/agent_runtime.js";
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../../src/contracts/storage.js";
 import type { ConcernRevision, Ref, Result, StageError } from "../../src/contracts/kernel.js";
-import type { EvolvedPostureSnapshot, MusicExperiencePlaybackPlayCommandOutput, MusicExperiencePlaybackSnapshot, MusicExperiencePlaybackStatus, MusicExperienceQueueAppendCommandOutput, MusicExperienceQueueItemProvenance, MusicExperienceQueueItemSnapshot, MusicExperienceQueuePlaybackCommand, MusicExperienceRadioTruthCommand, MusicExperienceRadioTruthSnapshot, MusicExperienceSetRadioDirectionCommandOutput, MusicExperienceSnapshot, MusicExperienceWriteRadioPostureCommandOutput, RadioDirectionSnapshot, RadioDirectionValue } from "../../src/contracts/music_experience.js";
+import type { EvolvedPostureSnapshot, MusicExperiencePlaybackPlayCommandOutput, MusicExperiencePlaybackSnapshot, MusicExperiencePlaybackStatus, MusicExperienceQueueAppendCommandOutput, MusicExperienceQueueItemProvenance, MusicExperienceQueueItemSnapshot, MusicExperienceQueuePlaybackCommand, MusicExperienceRadioTruthCommand, MusicExperienceRadioTruthSnapshot, MusicExperienceSetRadioDirectionCommandOutput, MusicExperienceSnapshot, MusicExperienceWorkspaceProjection, MusicExperienceWorkspaceProjectionPort, MusicExperienceWriteRadioPostureCommandOutput, RadioDirectionSnapshot, RadioDirectionValue } from "../../src/contracts/music_experience.js";
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
-import type { WorkbenchMusicExperienceReadPort, WorkbenchMusicExperienceSlice, WorkspaceReadModel, WorkspaceReadModelReader } from "../../src/contracts/workbench_interface.js";
 import type { LibraryImportLibraryKind, LibraryImportListSourcesInput, LibraryImportListSourcesOutput, LibraryRelationItemInput, LibraryRelationStateOutput, MaterialMusicItemHandle, MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePresentInput, MusicExperiencePresentOutput, MusicItemHandle, PublicDisplayLink, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
 import { assertRefSafe, refKey } from "../../src/contracts/kernel.js";
 import { hasPrefixOrV1Token, tokenizePrefixOrV1Text } from "../../src/contracts/music_data_platform.js";
@@ -96,16 +95,13 @@ export type _stageRuntimeStatusShape = Expect<Equal<StageRuntimeStatus, "created
 export type _runtimeModuleStatusShape = Expect<Equal<RuntimeModuleStatus, "created" | "initializing" | "initialized" | "stopping" | "stopped" | "failed">>;
 export type _runtimeModuleOwnerAreas = Expect<Equal<RuntimeModuleOwnerArea, "stage_core" | "agent_runtime" | "workbench_interface" | "extension" | "music_data_platform" | "music_intelligence" | "music_experience" | "memory" | "effect_boundary">>;
 export type _runtimeSnapshotShapes = Expect<Equal<keyof RuntimeErrorSummary, "code" | "message" | "area"> & Equal<keyof RuntimeModuleSnapshot, "id" | "ownerArea" | "status" | "error"> & Equal<keyof StageRuntimeSnapshot, "status" | "modules" | "interfaceContract" | "error" | "cleanupErrors"> & Equal<ForbiddenKeys<StageRuntimeSnapshot, "handlers" | "config" | "providerDescriptors" | "dbPath">, never>>;
-export type _workbenchMusicExperienceSliceShape = Expect<Equal<keyof WorkbenchMusicExperienceSlice, "revision" | "queue" | "nowPlaying" | "radio">>;
-export type _workspaceReadModelShape = Expect<Equal<keyof WorkspaceReadModel, "ownerScope" | "capturedAt" | "musicExperience">>;
-export type _agentSessionContextIsOverWorkspaceReadModel = Expect<Equal<AgentSessionContext, WorkspaceReadModel>>;
+export type _musicExperienceWorkspaceProjectionShape = Expect<Equal<keyof MusicExperienceWorkspaceProjection, "revision" | "queue" | "nowPlaying" | "radio">>;
+export type _musicExperienceWorkspaceProjectionPortShape = Expect<Equal<keyof MusicExperienceWorkspaceProjectionPort, "readWorkspaceProjection">>;
 export type _radioNotifyRequestSubjectShape = Expect<
     Equal<keyof RadioNotifyRequest, "speechLevel" | "severity" | "eventKind" | "runId" | "radioDirectionRevision" | "subject" | "summary"> &
     Equal<NonNullable<RadioNotifyRequest["subject"]>["handle"], MaterialMusicItemHandle> &
     Equal<ForbiddenKeys<NonNullable<RadioNotifyRequest["subject"]>, "materialRef">, never>
 >;
-export type _workbenchMusicExperienceReadPortShape = Expect<Equal<keyof WorkbenchMusicExperienceReadPort, "readMusicExperience">>;
-export type _workspaceReadModelReaderShape = Expect<Equal<keyof WorkspaceReadModelReader, "readWorkspace">>;
 const sourceRef: Ref = {
     namespace: "source_netease",
     kind: "track",
