@@ -1559,15 +1559,16 @@ catalog integration. Design authority:
   path rather than a side effect of runtime config. When mounted, Radio sees only
   its explicit discovery/catalog/queue-append Stage tool pack. Agent Runtime owns
   the Radio tool-pack allow-list, selected declaration guard, cached pi bridge,
-  and run-result extraction from pi messages; Server Host only wires those
-  helpers into the composed module. Agent Runtime now owns the
+  generic Stage-tool-result observation hook, and Radio run-local result
+  recorder; Server Host only wires those helpers into the composed module. Agent Runtime now owns the
   `agent_runtime.radio_refill_run` job payload/result contracts,
   internal `Running` / `Paused` / `Shutdown` wake-gate state, minimal
   `Silent` / `Notify` speech level, Radio→Main notify channel, low-watermark
   single-flight supervisor, exhaustion suppression by `radio_direction_revision`,
   failed-terminal plus zero-progress `no_action` cooldown via `runAfter`,
-  queue-append-derived run results instead of fabricated success, queue append
-  `voided_stale` / `operation_aborted` error-code mapping to
+  queue-append-derived run results recorded from Stage dispatch results instead
+  of transcript scraping or fabricated success, queue append `voided_stale` /
+  `operation_aborted` error-code mapping to
   `RadioRunResult.outcome = "voided_stale"` without Background Work failure,
   no automatic follow-up refill after a terminal `voided_stale` success,
   cooperative abort as `voided_stale`, public-handle shaped notify subjects, and

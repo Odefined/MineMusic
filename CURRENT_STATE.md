@@ -822,14 +822,15 @@ restored as compatibility layers.
   remains an explicit seam for the later user-command lifecycle path rather than
   a side effect of runtime config. When mounted, Radio sees only its explicit
   discovery/catalog/queue-append Stage tool pack. Agent Runtime owns the Radio
-  tool-pack allow-list, selected declaration guard, cached pi bridge, and
-  run-result extraction from pi messages; Server Host only wires those helpers
-  into the composed module. The run result is extracted from queue-append facts
-  rather than fabricated as unconditional success; queue append `voided_stale` /
-  `operation_aborted` tool-result errors become
+  tool-pack allow-list, selected declaration guard, cached pi bridge, generic
+  Stage-tool-result observation hook, and Radio run-local result recorder; Server
+  Host only wires those helpers into the composed module. The run result is
+  recorded from Stage dispatch results, not scraped from pi transcript messages
+  or fabricated as unconditional success; queue append `voided_stale` /
+  `operation_aborted` command errors become
   `RadioRunResult.outcome = "voided_stale"` instead of Background Work failures,
   while no successful append remains `no_action`; candidate-exhaustion notify is
-  still Radio agent judgement, not inferred by the runtime extractor. A terminal
+  still Radio agent judgement, not inferred by the result recorder. A terminal
   `voided_stale` success does not auto-submit a follow-up low-watermark refill.
   Radio cooperative aborts return `voided_stale` rather than failed terminal
   outcomes, and Radio→Main notify subjects use public handle-shaped objects, not

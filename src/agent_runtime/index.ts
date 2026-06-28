@@ -44,6 +44,7 @@ export type {
   StageToolDispatchPort,
   StageToolBridgeDetails,
   StageToolErrorDetails,
+  StageToolResultObserver,
 } from "./stage_tool_bridge.js";
 export {
   createPiRadioRefillRunPort,
@@ -97,8 +98,8 @@ export type {
   RadioToolBridgeCache,
 } from "./radio_tool_pack.js";
 export {
-  radioResultFromMessages,
-} from "./radio_result_extraction.js";
+  createRadioRunResultRecorder,
+} from "./radio_run_result_recorder.js";
 export type {
-  RadioResultFromMessagesInput,
-} from "./radio_result_extraction.js";
+  RadioRunResultRecorder,
+} from "./radio_run_result_recorder.js";

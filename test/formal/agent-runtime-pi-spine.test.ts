@@ -172,6 +172,12 @@ assert.throws(
       payload: unknown;
     }
     | undefined;
+  let observed:
+    | {
+      toolName: string;
+      result: Result<ToolCallOutput>;
+    }
+    | undefined;
   const controller = new AbortController();
   const dispatch: StageToolDispatchPort = {
     async dispatch(input) {
@@ -197,6 +203,9 @@ assert.throws(
         return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
       },
     },
+    observeToolResult(input) {
+      observed = input;
+    },
     stageSessionId: "stage-session",
   });
 
@@ -218,6 +227,16 @@ assert.throws(
   assert.equal(dispatched?.ctx.sessionId, "stage-session");
   assert.equal(dispatched?.ctx.requestId, "tool-call-1");
   assert.equal(dispatched?.ctx.abortSignal, controller.signal);
+  assert.deepEqual(observed, {
+    toolName: descriptor.name,
+    result: {
+      ok: true,
+      value: {
+        toolName: descriptor.name,
+        result: { answer: "found" },
+      },
+    },
+  });
 }
 
 {

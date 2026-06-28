@@ -37,10 +37,9 @@ export type CreatePiRadioRefillRunPortInput = RadioTranscriptKey & {
     runStartContext: WorkspaceReadModel | undefined,
     signal: AbortSignal,
   ) => Promise<void> | void;
-  resultFromMessages?: (input: {
+  resultFromRun?: (input: {
     runId: string;
     payload: RadioRefillRunJobPayload;
-    newMessages: readonly AgentMessage[];
   }) => RadioRunResult | Promise<RadioRunResult>;
 };
 
@@ -141,14 +140,13 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
       }
       throwIfFinalAssistantFailed(runInput.runId, newMessages);
 
-      if (input.resultFromMessages === undefined) {
+      if (input.resultFromRun === undefined) {
         throw new Error(`Radio refill run '${runInput.runId}' has no result extractor.`);
       }
 
-      const result = await input.resultFromMessages({
+      const result = await input.resultFromRun({
         runId: runInput.runId,
         payload: runInput.payload,
-        newMessages,
       });
 
       if (result.runId !== runInput.runId) {

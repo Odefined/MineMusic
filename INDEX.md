@@ -519,9 +519,10 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   capped transcript persistence.
 - `src/agent_runtime/radio_tool_pack.ts`: Agent Runtime-owned Radio Stage tool
   allow-list, selected declaration guard, and cached pi bridge construction.
-- `src/agent_runtime/radio_result_extraction.ts`: Agent Runtime-owned extraction
-  of `RadioRunResult` from pi messages, including queue-append outcomes,
-  stale/abort mapping, and non-progress no-action results.
+- `src/agent_runtime/radio_run_result_recorder.ts`: Agent Runtime-owned run-local
+  observer that records Stage tool results as they return from dispatch and
+  builds `RadioRunResult` from queue-append outcomes, stale/abort mapping, and
+  non-progress no-action results.
 - `src/agent_runtime/radio_session_repo_facade.ts`: Agent Runtime-owned Radio
   transcript store facade and in-memory harness double.
 - `src/agent_runtime/schema.ts`: Agent Runtime schema contributions, including

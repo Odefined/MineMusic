@@ -5,7 +5,7 @@ import {
   createInMemoryRadioTranscriptStore,
   createMineMusicPiAgentAdapter,
   createPiRadioRefillRunPort,
-  radioResultFromMessages,
+  createRadioRunResultRecorder,
   restoreRadioAgentTranscript,
   type RadioTranscriptStore,
 } from "../../src/agent_runtime/index.js";
@@ -31,7 +31,7 @@ const key = {
     agent: firstAgent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
-    resultFromMessages: defaultRadioResult,
+    resultFromRun: defaultRadioResult,
     onRunStart(payload) {
       runStarts.push(`${payload.wakeReason}:${payload.refillGeneration}`);
     },
@@ -75,7 +75,7 @@ const key = {
     agent: restartedAgent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:02.000Z",
-    resultFromMessages: defaultRadioResult,
+    resultFromRun: defaultRadioResult,
   });
   await restartedRunPort.runRadioRefill({
     runId: "radio-job-3",
@@ -108,7 +108,7 @@ const key = {
     agent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
-    resultFromMessages: defaultRadioResult,
+    resultFromRun: defaultRadioResult,
     baseSystemPrompt: "Base radio prompt.",
     runStartRead: {
       async readWorkspace() {
@@ -135,15 +135,12 @@ const key = {
 }
 
 {
-  assert.deepEqual(radioResultFromMessages({
-    runId: "radio-result-test",
-    payload: payloadWithRevisions({ refillGeneration: 11, radioSessionRevision: 3, radioDirectionRevision: 5 }),
-    newMessages: [{
-      role: "toolResult",
-      toolCallId: "queue-append-call",
-      toolName: "music_experience_queue_append",
-      content: [{ type: "text", text: "ok" }],
-      details: {
+  const appendedRecorder = createRadioRunResultRecorder();
+  appendedRecorder.observeToolResult({
+    toolName: "music.experience.queue.append",
+    result: {
+      ok: true,
+      value: {
         toolName: "music.experience.queue.append",
         result: {
           items: [
@@ -154,9 +151,11 @@ const key = {
           queueRevision: 9,
         },
       },
-      isError: false,
-      timestamp: 0,
-    }],
+    },
+  });
+  assert.deepEqual(appendedRecorder.result({
+    runId: "radio-result-test",
+    payload: payloadWithRevisions({ refillGeneration: 11, radioSessionRevision: 3, radioDirectionRevision: 5 }),
   }), {
     runId: "radio-result-test",
     radioDirectionRevision: 5,
@@ -165,40 +164,40 @@ const key = {
     appendedCount: 2,
   });
 
-  assert.throws(() => radioResultFromMessages({
+  const failedRecorder = createRadioRunResultRecorder();
+  failedRecorder.observeToolResult({
+    toolName: "music.experience.queue.append",
+    result: {
+      ok: false,
+      error: {
+        code: "queue_append_failed",
+        message: "append failed",
+        area: "music_experience",
+        retryable: false,
+      },
+    },
+  });
+  assert.throws(() => failedRecorder.result({
     runId: "radio-result-error-test",
     payload: payloadWithRevisions({ refillGeneration: 12, radioSessionRevision: 3, radioDirectionRevision: 5 }),
-    newMessages: [{
-      role: "toolResult",
-      toolCallId: "queue-append-call",
-      toolName: "music_experience_queue_append",
-      content: [{ type: "text", text: "append failed" }],
-      details: {},
-      isError: true,
-      timestamp: 0,
-    }],
   }), /failed during music\.experience\.queue\.append/);
 
-  assert.deepEqual(radioResultFromMessages({
-    runId: "radio-result-stale-test",
-    payload: payloadWithRevisions({ refillGeneration: 13, radioSessionRevision: 3, radioDirectionRevision: 5 }),
-    newMessages: [{
-      role: "toolResult",
-      toolCallId: "queue-append-call",
-      toolName: "music_experience_queue_append",
-      content: [{ type: "text", text: "Music Experience command basis was stale at commit time." }],
-      details: {
-        toolName: "music.experience.queue.append",
+  const staleRecorder = createRadioRunResultRecorder();
+  staleRecorder.observeToolResult({
+    toolName: "music.experience.queue.append",
+    result: {
+      ok: false,
         error: {
           code: "voided_stale",
           message: "Music Experience command basis was stale at commit time.",
           area: "music_experience",
           retryable: true,
         },
-      },
-      isError: true,
-      timestamp: 0,
-    }],
+    },
+  });
+  assert.deepEqual(staleRecorder.result({
+    runId: "radio-result-stale-test",
+    payload: payloadWithRevisions({ refillGeneration: 13, radioSessionRevision: 3, radioDirectionRevision: 5 }),
   }), {
     runId: "radio-result-stale-test",
     radioDirectionRevision: 5,
@@ -207,10 +206,10 @@ const key = {
     appendedCount: 0,
   });
 
-  assert.deepEqual(radioResultFromMessages({
+  const idleRecorder = createRadioRunResultRecorder();
+  assert.deepEqual(idleRecorder.result({
     runId: "radio-result-idle-test",
     payload: payloadWithRevisions({ refillGeneration: 14, radioSessionRevision: 3, radioDirectionRevision: 5 }),
-    newMessages: [assistantTextMessage("radio idle")],
   }), {
     runId: "radio-result-idle-test",
     radioDirectionRevision: 5,
@@ -236,7 +235,7 @@ const key = {
     agent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
-    resultFromMessages: defaultRadioResult,
+    resultFromRun: defaultRadioResult,
   });
 
   await assert.rejects(
@@ -263,7 +262,7 @@ const key = {
     agent: createTestRadioAgent("save-failed"),
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
-    resultFromMessages: defaultRadioResult,
+    resultFromRun: defaultRadioResult,
   });
 
   await assert.rejects(
@@ -307,7 +306,7 @@ const key = {
     agent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
-    resultFromMessages: defaultRadioResult,
+    resultFromRun: defaultRadioResult,
   });
   const running = runPort.runRadioRefill({
     runId: "radio-job-abort",
@@ -334,7 +333,7 @@ const key = {
     agent: createTestRadioAgent("pre-abort"),
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
-    resultFromMessages: defaultRadioResult,
+    resultFromRun: defaultRadioResult,
   });
 
   assert.deepEqual(await runPort.runRadioRefill({
@@ -360,7 +359,7 @@ const key = {
     agent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
-    resultFromMessages: defaultRadioResult,
+    resultFromRun: defaultRadioResult,
     runStartRead: {
       readWorkspace() {
         return new Promise((resolve) => {

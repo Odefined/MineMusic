@@ -2,6 +2,7 @@ import type { BackgroundWorkBackend } from "../background_work/index.js";
 import type {
   AgentRuntimeStageToolContextFactoryPort,
   MainRadioNotifyChannel,
+  RadioRunResultRecorder,
   RadioToolBridgeCache,
   StageToolDispatchPort,
 } from "../agent_runtime/index.js";
@@ -11,7 +12,7 @@ import {
   createPostgresRadioTranscriptStore,
   createRadioSupervisor,
   createRadioToolBridge,
-  radioResultFromMessages,
+  createRadioRunResultRecorder,
   restoreRadioAgentTranscript,
   type MineMusicPiAgentAdapterOptions,
   type RadioWakeDecision,
@@ -63,6 +64,7 @@ export function createAgentRuntimeRadioModule(
     radioDirectionRevision: number;
     radioSessionRevision: number;
   } | undefined;
+  let currentRunResultRecorder: RadioRunResultRecorder | undefined;
   let radioToolBridgeCache: RadioToolBridgeCache | undefined;
 
   return {
@@ -110,13 +112,21 @@ export function createAgentRuntimeRadioModule(
         runStartRead,
         clock: () => new Date().toISOString(),
         prepareRun(payload, _runStartContext) {
+          currentRunResultRecorder = createRadioRunResultRecorder();
           currentRadioBasis = {
             radioDirectionRevision: payload.radioDirectionRevision,
             radioSessionRevision: payload.radioSessionRevision,
           };
           agent.state.tools = radioTools();
         },
-        resultFromMessages: radioResultFromMessages,
+        resultFromRun(resultInput) {
+          const recorder = requirePort(currentRunResultRecorder, "Radio run result recorder");
+          try {
+            return recorder.result(resultInput);
+          } finally {
+            currentRunResultRecorder = undefined;
+          }
+        },
       });
 
       supervisor = createRadioSupervisor({
@@ -147,6 +157,7 @@ export function createAgentRuntimeRadioModule(
       await supervisor?.stop();
       supervisor = undefined;
       currentRadioBasis = undefined;
+      currentRunResultRecorder = undefined;
       radioToolBridgeCache = undefined;
       return { ok: true, value: undefined };
     },
@@ -174,6 +185,9 @@ export function createAgentRuntimeRadioModule(
       dispatch: lazyDispatch(input),
       contextFactory: radioContextFactory(),
       stageSessionId: "radio",
+      observeToolResult(result) {
+        currentRunResultRecorder?.observeToolResult(result);
+      },
     });
     return radioToolBridgeCache.bridge;
   }

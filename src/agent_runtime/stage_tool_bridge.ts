@@ -53,11 +53,17 @@ export type StageToolDispatchPort = {
   }): Promise<Result<ToolCallOutput>>;
 };
 
+export type StageToolResultObserver = (input: {
+  toolName: string;
+  result: Result<ToolCallOutput>;
+}) => Promise<void> | void;
+
 export type CreateStageToolBridgeInput = {
   tools: readonly ToolDeclaration[];
   dispatch: StageToolDispatchPort;
   contextFactory: AgentRuntimeStageToolContextFactoryPort;
   stageSessionId: string;
+  observeToolResult?: StageToolResultObserver;
   requestIdForToolCall?: (input: {
     internalToolName: string;
     piToolName: string;
@@ -99,6 +105,10 @@ function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
         ctx,
         toolName: descriptor.name,
         payload: params,
+      });
+      await input.observeToolResult?.({
+        toolName: descriptor.name,
+        result,
       });
 
       if (!result.ok) {

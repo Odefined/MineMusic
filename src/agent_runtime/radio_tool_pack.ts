@@ -2,6 +2,7 @@ import type { ToolDeclaration } from "../contracts/stage_interface.js";
 import {
   createStageToolBridge,
   type AgentRuntimeStageToolContextFactoryPort,
+  type StageToolResultObserver,
   type StageToolDispatchPort,
 } from "./stage_tool_bridge.js";
 
@@ -27,6 +28,7 @@ export type CreateRadioToolBridgeInput = {
   dispatch: StageToolDispatchPort;
   contextFactory: AgentRuntimeStageToolContextFactoryPort;
   stageSessionId: string;
+  observeToolResult?: StageToolResultObserver;
 };
 
 export function selectRadioStageToolDeclarations(
@@ -68,6 +70,7 @@ export function createRadioToolBridge(
       dispatch: input.dispatch,
       contextFactory: input.contextFactory,
       stageSessionId: input.stageSessionId,
+      ...(input.observeToolResult === undefined ? {} : { observeToolResult: input.observeToolResult }),
     }),
   };
 }
