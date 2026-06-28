@@ -13,7 +13,7 @@ import { createMusicDataPlatformScopeAvailabilityRowProvider } from "../../src/m
 import { createMusicDiscoveryRuntimeModule, createMusicScopeAvailabilityPort, type MusicScopeAvailabilityPort } from "../../src/music_intelligence/stage_adapter/index.js";
 import { isMusicIntelligenceError, type MusicIntelligenceErrorCode, } from "../../src/music_intelligence/index.js";
 import { createMusicExperienceQueuePlaybackCommand, musicExperienceSchemas } from "../../src/music_experience/index.js";
-import { RADIO_STAGE_TOOL_NAMES, radioResultFromMessages, selectRadioStageToolDeclarations, } from "../../src/server/agent_runtime_radio_module.js";
+import { RADIO_STAGE_TOOL_NAMES, selectRadioStageToolDeclarations, } from "../../src/agent_runtime/index.js";
 import { createExtensionRuntimeRetrievalProviderSearchPort, createMusicDataPlatformRuntimeModule, createMusicExperienceServerRuntimeModule, createMineMusicExtensionRuntime, createServerHost, createStageToolContextAssembly, } from "../../src/server/index.js";
 import { createExtensionRuntimeModule, createStageRuntime, } from "../../src/stage_core/index.js";
 import { createStageInterfaceRuntimePorts, stageInterfaceSchemas, type StageInterfaceRuntimePorts } from "../../src/stage_interface/index.js";
@@ -215,99 +215,6 @@ assert.equal(listedImportSources.ok, true);
 if (listedImportSources.ok) {
     assert.equal(listedImportSources.value.toolName, "library.import.list_sources");
 }
-assert.deepEqual(radioResultFromMessages({
-    runId: "radio-result-test",
-    payload: {
-        workspaceId: "default",
-        ownerScope: "local",
-        radioSessionRevision: 3,
-        radioDirectionRevision: 5,
-        wakeReason: "low_watermark",
-        refillGeneration: 1,
-        suggestedAppendCount: 2,
-    },
-    newMessages: [{
-        role: "toolResult",
-        toolCallId: "queue-append-call",
-        toolName: "music_experience_queue_append",
-        content: [{ type: "text", text: "ok" }],
-        details: {
-            toolName: "music.experience.queue.append",
-            result: {
-                items: [
-                    { item: { kind: "material", id: "material:one" }, position: 0 },
-                    { item: { kind: "material", id: "material:two" }, position: 1 },
-                ],
-                queueLength: 2,
-                queueRevision: 9,
-            },
-        },
-        isError: false,
-        timestamp: 0,
-    }],
-}), {
-    runId: "radio-result-test",
-    radioDirectionRevision: 5,
-    radioSessionRevision: 3,
-    outcome: "appended",
-    appendedCount: 2,
-});
-assert.throws(() => radioResultFromMessages({
-    runId: "radio-result-error-test",
-    payload: {
-        workspaceId: "default",
-        ownerScope: "local",
-        radioSessionRevision: 3,
-        radioDirectionRevision: 5,
-        wakeReason: "low_watermark",
-        refillGeneration: 1,
-        suggestedAppendCount: 2,
-    },
-    newMessages: [{
-        role: "toolResult",
-        toolCallId: "queue-append-call",
-        toolName: "music_experience_queue_append",
-        content: [{ type: "text", text: "voided stale" }],
-        details: {},
-        isError: true,
-        timestamp: 0,
-    }],
-}), /failed during music\.experience\.queue\.append/);
-assert.deepEqual(radioResultFromMessages({
-    runId: "radio-result-stale-test",
-    payload: {
-        workspaceId: "default",
-        ownerScope: "local",
-        radioSessionRevision: 3,
-        radioDirectionRevision: 5,
-        wakeReason: "low_watermark",
-        refillGeneration: 1,
-        suggestedAppendCount: 2,
-    },
-    newMessages: [{
-        role: "toolResult",
-        toolCallId: "queue-append-call",
-        toolName: "music_experience_queue_append",
-        content: [{ type: "text", text: "Music Experience command basis was stale at commit time." }],
-        details: {
-            toolName: "music.experience.queue.append",
-            error: {
-                code: "voided_stale",
-                message: "Music Experience command basis was stale at commit time.",
-                area: "music_experience",
-                retryable: true,
-            },
-        },
-        isError: true,
-        timestamp: 0,
-    }],
-}), {
-    runId: "radio-result-stale-test",
-    radioDirectionRevision: 5,
-    radioSessionRevision: 3,
-    outcome: "voided_stale",
-    appendedCount: 0,
-});
 const stopped = await host.stop();
 assert.equal(stopped.ok, true);
 assert.equal(host.snapshot().status, "stopped");

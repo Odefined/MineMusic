@@ -516,7 +516,12 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   registration.
 - `src/agent_runtime/radio_run.ts`: Phase B Radio run substrate over one
   long-lived pi `Agent`, using `agent_start` / `agent_end` for run-start and
-  capped transcript persistence, with explicit run-result extraction.
+  capped transcript persistence.
+- `src/agent_runtime/radio_tool_pack.ts`: Agent Runtime-owned Radio Stage tool
+  allow-list, selected declaration guard, and cached pi bridge construction.
+- `src/agent_runtime/radio_result_extraction.ts`: Agent Runtime-owned extraction
+  of `RadioRunResult` from pi messages, including queue-append outcomes,
+  stale/abort mapping, and non-progress no-action results.
 - `src/agent_runtime/radio_session_repo_facade.ts`: Agent Runtime-owned Radio
   transcript store facade and in-memory harness double.
 - `src/agent_runtime/schema.ts`: Agent Runtime schema contributions, including
@@ -529,8 +534,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   composer, internal source library import seam accessor, optional Radio runtime
   mounting without startup wake, and the composed Tool Context Factory accessor.
 - `src/server/agent_runtime_radio_module.ts`: Agent Runtime Radio composition
-  module, Radio tool-pack restriction, cached Radio Stage tool bridge, and
-  queue-append-derived run-result extraction.
+  module that wires database, Background Work, Workbench read model, transcript
+  store, Radio run port, supervisor, and Stage tool context dependencies.
 - `src/server/config.ts`: Server Host default runtime composition config.
 - `src/server/music_data_platform_runtime_module.ts`: Server Host composition
   module for Music Data Platform-owned ports and commands from an injected

@@ -5,6 +5,7 @@ import {
   createInMemoryRadioTranscriptStore,
   createMineMusicPiAgentAdapter,
   createPiRadioRefillRunPort,
+  radioResultFromMessages,
   restoreRadioAgentTranscript,
   type RadioTranscriptStore,
 } from "../../src/agent_runtime/index.js";
@@ -131,6 +132,92 @@ const key = {
   assert.match(observedSystemPrompt, /musicExperience\.queueLength: 1/);
   assert.match(observedMessagesJson, /target about 5 tracks/);
   assert.equal(observedToolCount, 1);
+}
+
+{
+  assert.deepEqual(radioResultFromMessages({
+    runId: "radio-result-test",
+    payload: payloadWithRevisions({ refillGeneration: 11, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+    newMessages: [{
+      role: "toolResult",
+      toolCallId: "queue-append-call",
+      toolName: "music_experience_queue_append",
+      content: [{ type: "text", text: "ok" }],
+      details: {
+        toolName: "music.experience.queue.append",
+        result: {
+          items: [
+            { item: { kind: "material", id: "material:one" }, position: 0 },
+            { item: { kind: "material", id: "material:two" }, position: 1 },
+          ],
+          queueLength: 2,
+          queueRevision: 9,
+        },
+      },
+      isError: false,
+      timestamp: 0,
+    }],
+  }), {
+    runId: "radio-result-test",
+    radioDirectionRevision: 5,
+    radioSessionRevision: 3,
+    outcome: "appended",
+    appendedCount: 2,
+  });
+
+  assert.throws(() => radioResultFromMessages({
+    runId: "radio-result-error-test",
+    payload: payloadWithRevisions({ refillGeneration: 12, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+    newMessages: [{
+      role: "toolResult",
+      toolCallId: "queue-append-call",
+      toolName: "music_experience_queue_append",
+      content: [{ type: "text", text: "append failed" }],
+      details: {},
+      isError: true,
+      timestamp: 0,
+    }],
+  }), /failed during music\.experience\.queue\.append/);
+
+  assert.deepEqual(radioResultFromMessages({
+    runId: "radio-result-stale-test",
+    payload: payloadWithRevisions({ refillGeneration: 13, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+    newMessages: [{
+      role: "toolResult",
+      toolCallId: "queue-append-call",
+      toolName: "music_experience_queue_append",
+      content: [{ type: "text", text: "Music Experience command basis was stale at commit time." }],
+      details: {
+        toolName: "music.experience.queue.append",
+        error: {
+          code: "voided_stale",
+          message: "Music Experience command basis was stale at commit time.",
+          area: "music_experience",
+          retryable: true,
+        },
+      },
+      isError: true,
+      timestamp: 0,
+    }],
+  }), {
+    runId: "radio-result-stale-test",
+    radioDirectionRevision: 5,
+    radioSessionRevision: 3,
+    outcome: "voided_stale",
+    appendedCount: 0,
+  });
+
+  assert.deepEqual(radioResultFromMessages({
+    runId: "radio-result-idle-test",
+    payload: payloadWithRevisions({ refillGeneration: 14, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+    newMessages: [assistantTextMessage("radio idle")],
+  }), {
+    runId: "radio-result-idle-test",
+    radioDirectionRevision: 5,
+    radioSessionRevision: 3,
+    outcome: "no_action",
+    appendedCount: 0,
+  });
 }
 
 {
@@ -339,13 +426,25 @@ const key = {
 }
 
 function payload(refillGeneration: number) {
+  return payloadWithRevisions({
+    refillGeneration,
+    radioSessionRevision: 0,
+    radioDirectionRevision: 0,
+  });
+}
+
+function payloadWithRevisions(input: {
+  refillGeneration: number;
+  radioSessionRevision: number;
+  radioDirectionRevision: number;
+}) {
   return {
     workspaceId: key.workspaceId,
     ownerScope: key.ownerScope,
-    radioSessionRevision: 0,
-    radioDirectionRevision: 0,
+    radioSessionRevision: input.radioSessionRevision,
+    radioDirectionRevision: input.radioDirectionRevision,
     wakeReason: "low_watermark" as const,
-    refillGeneration,
+    refillGeneration: input.refillGeneration,
     suggestedAppendCount: 5,
   };
 }

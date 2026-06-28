@@ -821,20 +821,23 @@ restored as compatibility layers.
   agent stream options are supplied, and startup does not wake Radio; wake
   remains an explicit seam for the later user-command lifecycle path rather than
   a side effect of runtime config. When mounted, Radio sees only its explicit
-  discovery/catalog/queue-append Stage tool pack; the restricted pi bridge is
-  cached across runs and rebuilt only when the selected Stage tool declarations
-  change. The run result is extracted from queue-append tool results rather than fabricated as
-  `no_action`; queue append `voided_stale` / `operation_aborted` tool-result
-  errors become `RadioRunResult.outcome = "voided_stale"` instead of Background
-  Work failures, and a terminal `voided_stale` success does not auto-submit a
-  follow-up low-watermark refill. Radio cooperative aborts return `voided_stale`
-  rather than failed terminal outcomes, and Radio→Main notify subjects use
-  public handle-shaped objects, not internal material refs. Radio transcript
-  durability is Agent Runtime-owned through `agent_runtime_radio_transcripts`;
-  the run substrate writes a capped tail of the long-lived pi
-  `Agent.state.messages` after `agent_end`; save failures fail the run instead
-  of fabricating success. It reloads only on explicit restart/reconstruction,
-  not per run.
+  discovery/catalog/queue-append Stage tool pack. Agent Runtime owns the Radio
+  tool-pack allow-list, selected declaration guard, cached pi bridge, and
+  run-result extraction from pi messages; Server Host only wires those helpers
+  into the composed module. The run result is extracted from queue-append facts
+  rather than fabricated as unconditional success; queue append `voided_stale` /
+  `operation_aborted` tool-result errors become
+  `RadioRunResult.outcome = "voided_stale"` instead of Background Work failures,
+  while no successful append remains `no_action`; candidate-exhaustion notify is
+  still Radio agent judgement, not inferred by the runtime extractor. A terminal
+  `voided_stale` success does not auto-submit a follow-up low-watermark refill.
+  Radio cooperative aborts return `voided_stale` rather than failed terminal
+  outcomes, and Radio→Main notify subjects use public handle-shaped objects, not
+  internal material refs. Radio transcript durability is Agent Runtime-owned
+  through `agent_runtime_radio_transcripts`; the run substrate writes a capped
+  tail of the long-lived pi `Agent.state.messages` after `agent_end`; save
+  failures fail the run instead of fabricating success. It reloads only on
+  explicit restart/reconstruction, not per run.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection

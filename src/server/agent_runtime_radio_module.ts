@@ -2,6 +2,7 @@ import type { BackgroundWorkBackend } from "../background_work/index.js";
 import type {
   AgentRuntimeStageToolContextFactoryPort,
   MainRadioNotifyChannel,
+  RadioToolBridgeCache,
   StageToolDispatchPort,
 } from "../agent_runtime/index.js";
 import {
@@ -9,19 +10,15 @@ import {
   createPiRadioRefillRunPort,
   createPostgresRadioTranscriptStore,
   createRadioSupervisor,
-  createStageToolBridge,
-  isStageToolErrorDetails,
+  createRadioToolBridge,
+  radioResultFromMessages,
   restoreRadioAgentTranscript,
-  toPiToolName,
-  type CreatePiRadioRefillRunPortInput,
   type MineMusicPiAgentAdapterOptions,
   type RadioWakeDecision,
   type RadioSupervisor,
 } from "../agent_runtime/index.js";
 import type { RadioWakeReason } from "../contracts/agent_runtime.js";
 import type {
-  MusicExperienceQueueAppendOutput,
-  ToolCallOutput,
   ToolDeclaration,
 } from "../contracts/stage_interface.js";
 import type { WorkbenchMusicExperienceReadPort } from "../contracts/workbench_interface.js";
@@ -56,32 +53,6 @@ const radioBaseSystemPrompt = [
   "Use the Radio Run Floor as durable direction truth and avoid material already in the queue.",
 ].join("\n");
 
-const radioQueueAppendToolName = "music.experience.queue.append";
-const radioQueueAppendPiToolName = toPiToolName(radioQueueAppendToolName);
-
-export const RADIO_STAGE_TOOL_NAMES = [
-  "music.discovery.list_scopes",
-  "music.discovery.lookup",
-  "library.catalog.list_scopes",
-  "library.catalog.browse",
-  "library.catalog.sample",
-  "library.catalog.summary",
-  "music.experience.queue.append",
-] as const;
-
-export function selectRadioStageToolDeclarations(
-  tools: readonly ToolDeclaration[],
-): readonly ToolDeclaration[] {
-  const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
-  return RADIO_STAGE_TOOL_NAMES.map((name) => {
-    const tool = toolsByName.get(name);
-    if (tool === undefined) {
-      throw new Error(`Radio Agent requires Stage tool '${name}'.`);
-    }
-    return tool;
-  });
-}
-
 export function createAgentRuntimeRadioModule(
   input: CreateAgentRuntimeRadioModuleInput,
 ): AgentRuntimeRadioModule {
@@ -92,11 +63,7 @@ export function createAgentRuntimeRadioModule(
     radioDirectionRevision: number;
     radioSessionRevision: number;
   } | undefined;
-  let radioToolBridgeCache: {
-    sourceTools: readonly ToolDeclaration[];
-    declarations: readonly ToolDeclaration[];
-    bridge: ReturnType<typeof createStageToolBridge>;
-  } | undefined;
+  let radioToolBridgeCache: RadioToolBridgeCache | undefined;
 
   return {
     descriptor: {
@@ -200,107 +167,16 @@ export function createAgentRuntimeRadioModule(
     };
   }
 
-  function radioTools(): ReturnType<typeof createStageToolBridge> {
-    const tools = input.tools();
-    if (tools.length === 0) {
-      throw new Error("Radio Agent tools used before Stage Runtime is ready.");
-    }
-    if (radioToolBridgeCache?.sourceTools === tools) {
-      return radioToolBridgeCache.bridge;
-    }
-
-    const declarations = selectRadioStageToolDeclarations(tools);
-    if (
-      radioToolBridgeCache !== undefined &&
-      sameToolDeclarations(radioToolBridgeCache.declarations, declarations)
-    ) {
-      radioToolBridgeCache = {
-        ...radioToolBridgeCache,
-        sourceTools: tools,
-      };
-      return radioToolBridgeCache.bridge;
-    }
-
-    const bridge = createStageToolBridge({
-      tools: declarations,
+  function radioTools(): RadioToolBridgeCache["bridge"] {
+    radioToolBridgeCache = createRadioToolBridge({
+      sourceTools: input.tools(),
+      ...(radioToolBridgeCache === undefined ? {} : { cache: radioToolBridgeCache }),
       dispatch: lazyDispatch(input),
       contextFactory: radioContextFactory(),
       stageSessionId: "radio",
     });
-    radioToolBridgeCache = {
-      sourceTools: tools,
-      declarations,
-      bridge,
-    };
-    return bridge;
+    return radioToolBridgeCache.bridge;
   }
-}
-
-function sameToolDeclarations(
-  left: readonly ToolDeclaration[],
-  right: readonly ToolDeclaration[],
-): boolean {
-  return left.length === right.length &&
-    left.every((tool, index) => tool === right[index]);
-}
-
-type RadioResultFromMessagesInput = Parameters<NonNullable<CreatePiRadioRefillRunPortInput["resultFromMessages"]>>[0];
-
-export function radioResultFromMessages(input: RadioResultFromMessagesInput) {
-  let appendedCount = 0;
-  for (const message of input.newMessages) {
-    if (message.role !== "toolResult" || message.toolName !== radioQueueAppendPiToolName) {
-      continue;
-    }
-    if (message.isError) {
-      const error = isStageToolErrorDetails(message.details) ? message.details.error : undefined;
-      if (error?.code === "voided_stale" || error?.code === "operation_aborted") {
-        return radioVoidedStaleResult(input);
-      }
-      throw new Error(`Radio refill run '${input.runId}' failed during ${radioQueueAppendToolName}.`);
-    }
-    const output = queueAppendOutputFromToolDetails(message.details);
-    appendedCount += output.items.length;
-  }
-
-  return {
-    runId: input.runId,
-    radioDirectionRevision: input.payload.radioDirectionRevision,
-    radioSessionRevision: input.payload.radioSessionRevision,
-    outcome: appendedCount > 0 ? "appended" as const : "no_action" as const,
-    appendedCount,
-  };
-}
-
-function radioVoidedStaleResult(input: RadioResultFromMessagesInput) {
-  return {
-    runId: input.runId,
-    radioDirectionRevision: input.payload.radioDirectionRevision,
-    radioSessionRevision: input.payload.radioSessionRevision,
-    outcome: "voided_stale" as const,
-    appendedCount: 0,
-  };
-}
-
-function queueAppendOutputFromToolDetails(details: unknown): MusicExperienceQueueAppendOutput {
-  if (details === null || typeof details !== "object") {
-    throw new Error("Radio queue append tool result details were not an object.");
-  }
-
-  const record = details as { toolName?: unknown; result?: unknown };
-  if (record.toolName !== radioQueueAppendToolName) {
-    throw new Error("Radio queue append tool result details used the wrong tool name.");
-  }
-  if (record.result === null || typeof record.result !== "object") {
-    throw new Error("Radio queue append tool result payload was not an object.");
-  }
-
-  const output = record.result as Partial<MusicExperienceQueueAppendOutput>;
-  if (!Array.isArray(output.items) || typeof output.queueLength !== "number" || typeof output.queueRevision !== "number") {
-    throw new Error("Radio queue append tool result payload had an invalid shape.");
-  }
-
-  return output as MusicExperienceQueueAppendOutput;
 }
 
 function lazyDispatch(input: CreateAgentRuntimeRadioModuleInput): StageToolDispatchPort {
