@@ -6,14 +6,20 @@ import {
   type Ref,
 } from "../contracts/kernel.js";
 import type {
+  EvolvedPostureSnapshot,
   MusicExperiencePlaybackStatus,
   MusicExperienceQueueItemProvenance,
   MusicExperienceQueueItemSnapshot,
+  MusicExperienceRadioTruthSnapshot,
   MusicExperienceSnapshot,
   MusicExperienceWorkspaceKey,
+  RadioDirectionScopeValue,
+  RadioDirectionSnapshot,
+  VariationItem,
 } from "../contracts/music_experience.js";
 import {
   MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
+  MAX_RADIO_POSTURE_LEAN_ITEMS,
 } from "../contracts/music_experience.js";
 import type { MusicDatabaseContext, MusicDatabaseParameter } from "../storage/database.js";
 import { DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID } from "./schema.js";
@@ -49,6 +55,31 @@ export type MusicExperienceQueuePlaybackRecords = {
   }>;
 };
 
+export type MusicExperienceRadioTruthRecords = {
+  read(input: {
+    ownerScope: string;
+  }): Promise<MusicExperienceRadioTruthSnapshot>;
+  setDirection(input: {
+    ownerScope: string;
+    direction: RadioDirectionSnapshot;
+    now: string;
+  }): Promise<{
+    radioDirectionRevision: ConcernRevision;
+    direction: RadioDirectionSnapshot;
+  }>;
+  writePosture(input: {
+    ownerScope: string;
+    lean: readonly VariationItem[];
+    commandedRevisionStamp: ConcernRevision;
+    now: string;
+  }): Promise<{
+    posture: EvolvedPostureSnapshot;
+  }>;
+  readQueuedMaterialRefs(input: {
+    ownerScope: string;
+  }): Promise<readonly Ref[]>;
+};
+
 type StateRow = {
   queue_revision: number;
   radio_direction_revision: number;
@@ -80,6 +111,13 @@ type QueueItemRow = {
   provenance: MusicExperienceQueueItemProvenance;
 };
 
+type RadioTruthRow = {
+  motif_json: string | VariationItem | null;
+  active_variations_json: string | readonly VariationItem[];
+  evolved_lean_json: string | readonly VariationItem[];
+  posture_commanded_revision_stamp: number | null;
+};
+
 export function createMusicExperienceQueuePlaybackRecords(
   input: CreateMusicExperienceQueuePlaybackRecordsInput,
 ): MusicExperienceQueuePlaybackRecords {
@@ -109,11 +147,20 @@ export function createMusicExperienceQueuePlaybackRecords(
         return emptySnapshot();
       }
 
+      const radioTruth = await readRadioTruth({
+        db,
+        key,
+        radioDirectionRevision: state.radio_direction_revision,
+      });
+
       return {
         queueRevision: state.queue_revision,
+        radioDirectionRevision: state.radio_direction_revision,
+        radioSessionRevision: state.radio_session_revision,
         playbackRevision: state.playback_revision,
         queue: rows.map(queueItemFromRow),
         playback: playbackFromRow(state),
+        radio: radioTruth,
       };
     },
     async append(appendInput) {
@@ -186,6 +233,98 @@ export function createMusicExperienceQueuePlaybackRecords(
         status: "playing",
         playbackRevision: state.playback_revision,
       };
+    },
+  };
+}
+
+export function createMusicExperienceRadioTruthRecords(
+  input: CreateMusicExperienceQueuePlaybackRecordsInput,
+): MusicExperienceRadioTruthRecords {
+  const workspaceId = input.workspaceId ?? DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID;
+  const { db } = input;
+
+  return {
+    async read(readInput) {
+      const key = workspaceKey(readInput.ownerScope, workspaceId);
+      const state = await readState({ db, key });
+      if (state === undefined) {
+        return emptyRadioTruthSnapshot(0);
+      }
+
+      return readRadioTruth({
+        db,
+        key,
+        radioDirectionRevision: state.radio_direction_revision,
+      });
+    },
+    async setDirection(setInput) {
+      const key = workspaceKey(setInput.ownerScope, workspaceId);
+      await ensureState({ db, key, now: setInput.now });
+      const state = await updateRadioDirectionRevision({ db, key, now: setInput.now });
+      await writeRadioDirection({
+        db,
+        key,
+        direction: setInput.direction,
+        now: setInput.now,
+      });
+
+      return {
+        radioDirectionRevision: state.radio_direction_revision,
+        direction: setInput.direction,
+      };
+    },
+    async writePosture(writeInput) {
+      if (writeInput.lean.length > MAX_RADIO_POSTURE_LEAN_ITEMS) {
+        throw new RadioTruthValidationError(
+          `Radio evolved posture lean is capped at ${MAX_RADIO_POSTURE_LEAN_ITEMS} item(s).`,
+        );
+      }
+
+      const key = workspaceKey(writeInput.ownerScope, workspaceId);
+      await ensureState({ db, key, now: writeInput.now });
+      const state = await readState({ db, key });
+      if (state === undefined) {
+        throw new Error("Music Experience state row was not available after ensureState.");
+      }
+
+      await writeRadioPosture({
+        db,
+        key,
+        lean: writeInput.lean,
+        commandedRevisionStamp: writeInput.commandedRevisionStamp,
+        now: writeInput.now,
+      });
+
+      return {
+        posture: postureSnapshot({
+          lean: writeInput.lean,
+          commandedRevisionStamp: writeInput.commandedRevisionStamp,
+          currentRadioDirectionRevision: state.radio_direction_revision,
+        }),
+      };
+    },
+    async readQueuedMaterialRefs(readInput) {
+      const key = workspaceKey(readInput.ownerScope, workspaceId);
+      const rows = await db.all<{ material_ref_key: string; material_ref_json: string | Ref }>(
+        `
+          SELECT material_ref_key, material_ref_json
+          FROM music_experience_queue_items
+          WHERE owner_scope = ?
+            AND workspace_id = ?
+          ORDER BY position ASC
+        `,
+        [key.ownerScope, key.workspaceId],
+      );
+
+      const refsByKey = new Map<string, Ref>();
+      for (const row of rows) {
+        const materialRef = materialRefFromStoredJson(row.material_ref_json);
+        if (refKey(materialRef) !== row.material_ref_key) {
+          throw new Error("Music Experience queue item material ref key does not match stored material ref JSON.");
+        }
+        refsByKey.set(row.material_ref_key, materialRef);
+      }
+      return [...refsByKey.values()];
     },
   };
 }
@@ -366,6 +505,127 @@ async function updatePlayback(input: {
   return row;
 }
 
+async function updateRadioDirectionRevision(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  now: string;
+}): Promise<StateRow> {
+  const row = await input.db.get<StateRow>(
+    `
+      UPDATE music_experience_state
+      SET radio_direction_revision = radio_direction_revision + 1,
+        updated_at = ?
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+      RETURNING ${STATE_ROW_COLUMNS}
+    `,
+    [input.now, input.key.ownerScope, input.key.workspaceId],
+  );
+
+  if (row === undefined) {
+    throw new Error("Music Experience radio direction update did not return a state row.");
+  }
+
+  return row;
+}
+
+async function readRadioTruth(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  radioDirectionRevision: ConcernRevision;
+}): Promise<MusicExperienceRadioTruthSnapshot> {
+  const row = await input.db.get<RadioTruthRow>(
+    `
+      SELECT
+        motif_json,
+        active_variations_json,
+        evolved_lean_json,
+        posture_commanded_revision_stamp
+      FROM music_experience_radio_truth
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+    `,
+    [input.key.ownerScope, input.key.workspaceId],
+  );
+
+  if (row === undefined) {
+    return emptyRadioTruthSnapshot(input.radioDirectionRevision);
+  }
+
+  return radioTruthFromRow(row, input.radioDirectionRevision);
+}
+
+async function writeRadioDirection(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  direction: RadioDirectionSnapshot;
+  now: string;
+}): Promise<void> {
+  await input.db.run(
+    `
+      INSERT INTO music_experience_radio_truth (
+        owner_scope,
+        workspace_id,
+        motif_json,
+        active_variations_json,
+        evolved_lean_json,
+        posture_commanded_revision_stamp,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?::jsonb, ?::jsonb, '[]'::jsonb, NULL, ?, ?)
+      ON CONFLICT(owner_scope, workspace_id) DO UPDATE SET
+        motif_json = excluded.motif_json,
+        active_variations_json = excluded.active_variations_json,
+        updated_at = excluded.updated_at
+    `,
+    [
+      input.key.ownerScope,
+      input.key.workspaceId,
+      input.direction.motif === undefined ? null : JSON.stringify(input.direction.motif),
+      JSON.stringify(input.direction.activeVariations),
+      input.now,
+      input.now,
+    ],
+  );
+}
+
+async function writeRadioPosture(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  lean: readonly VariationItem[];
+  commandedRevisionStamp: ConcernRevision;
+  now: string;
+}): Promise<void> {
+  await input.db.run(
+    `
+      INSERT INTO music_experience_radio_truth (
+        owner_scope,
+        workspace_id,
+        motif_json,
+        active_variations_json,
+        evolved_lean_json,
+        posture_commanded_revision_stamp,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, NULL, '[]'::jsonb, ?::jsonb, ?, ?, ?)
+      ON CONFLICT(owner_scope, workspace_id) DO UPDATE SET
+        evolved_lean_json = excluded.evolved_lean_json,
+        posture_commanded_revision_stamp = excluded.posture_commanded_revision_stamp,
+        updated_at = excluded.updated_at
+    `,
+    [
+      input.key.ownerScope,
+      input.key.workspaceId,
+      JSON.stringify(input.lean),
+      input.commandedRevisionStamp,
+      input.now,
+      input.now,
+    ],
+  );
+}
+
 export class StaleCommandPreconditionError extends Error {
   constructor() {
     super("Music Experience command precondition was stale at commit time.");
@@ -377,6 +637,13 @@ export class QueueFullError extends Error {
   constructor() {
     super("Music Experience queue is full.");
     this.name = "QueueFullError";
+  }
+}
+
+export class RadioTruthValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RadioTruthValidationError";
   }
 }
 
@@ -412,6 +679,114 @@ function queueItemFromRow(row: QueueItemRow): MusicExperienceQueueItemSnapshot {
   };
 }
 
+function radioTruthFromRow(
+  row: RadioTruthRow,
+  currentRadioDirectionRevision: ConcernRevision,
+): MusicExperienceRadioTruthSnapshot {
+  const direction = {
+    ...(row.motif_json === null ? {} : { motif: variationItemFromStoredJson(row.motif_json) }),
+    activeVariations: variationItemsFromStoredJson(row.active_variations_json),
+  };
+
+  return {
+    radioDirectionRevision: currentRadioDirectionRevision,
+    direction,
+    posture: postureSnapshot({
+      lean: variationItemsFromStoredJson(row.evolved_lean_json),
+      commandedRevisionStamp: row.posture_commanded_revision_stamp ?? undefined,
+      currentRadioDirectionRevision,
+    }),
+  };
+}
+
+function postureSnapshot(input: {
+  lean: readonly VariationItem[];
+  commandedRevisionStamp: ConcernRevision | undefined;
+  currentRadioDirectionRevision: ConcernRevision;
+}): EvolvedPostureSnapshot {
+  return {
+    lean: input.lean,
+    ...(input.commandedRevisionStamp === undefined ? {} : { commandedRevisionStamp: input.commandedRevisionStamp }),
+    stale: input.commandedRevisionStamp !== undefined &&
+      input.commandedRevisionStamp !== input.currentRadioDirectionRevision,
+  };
+}
+
+function emptyRadioTruthSnapshot(radioDirectionRevision: ConcernRevision): MusicExperienceRadioTruthSnapshot {
+  return {
+    radioDirectionRevision,
+    direction: {
+      activeVariations: [],
+    },
+    posture: {
+      lean: [],
+      stale: false,
+    },
+  };
+}
+
+function variationItemsFromStoredJson(value: string | readonly VariationItem[]): readonly VariationItem[] {
+  const parsed = typeof value === "string" ? JSON.parse(value) as unknown : value;
+  if (!Array.isArray(parsed)) {
+    throw new Error("Stored Music Experience radio variation list JSON is not an array.");
+  }
+  return parsed.map(variationItemFromStoredJson);
+}
+
+function variationItemFromStoredJson(value: string | VariationItem | unknown): VariationItem {
+  const parsed = typeof value === "string" ? JSON.parse(value) as unknown : value;
+  if (!isRecord(parsed) || typeof parsed.kind !== "string") {
+    throw new Error("Stored Music Experience radio variation item JSON is not an object.");
+  }
+
+  switch (parsed.kind) {
+    case "text": {
+      if (typeof parsed.text !== "string") {
+        throw new Error("Stored Music Experience radio text variation has no text.");
+      }
+      return { kind: "text", text: parsed.text };
+    }
+    case "material": {
+      if (!("materialRef" in parsed)) {
+        throw new Error("Stored Music Experience radio material variation has no materialRef.");
+      }
+      return { kind: "material", materialRef: materialRefFromStoredJson(parsed.materialRef as string | Ref) };
+    }
+    case "scope": {
+      if (!isRecord(parsed.scope) || typeof parsed.scope.kind !== "string") {
+        throw new Error("Stored Music Experience radio scope variation has no scope.");
+      }
+      return { kind: "scope", scope: radioScopeFromStoredJson(parsed.scope) };
+    }
+    default:
+      throw new Error("Stored Music Experience radio variation item kind is not supported.");
+  }
+}
+
+function radioScopeFromStoredJson(value: Record<string, unknown>): RadioDirectionScopeValue {
+  switch (value.kind) {
+    case "all":
+    case "library":
+      return { kind: value.kind };
+    case "source_library":
+    case "relation":
+    case "collection": {
+      if (typeof value.id !== "string") {
+        throw new Error("Stored Music Experience radio scope id is invalid.");
+      }
+      return { kind: value.kind, id: value.id };
+    }
+    case "provider": {
+      if (typeof value.providerId !== "string") {
+        throw new Error("Stored Music Experience radio provider scope id is invalid.");
+      }
+      return { kind: "provider", providerId: value.providerId };
+    }
+    default:
+      throw new Error("Stored Music Experience radio scope kind is not supported.");
+  }
+}
+
 function materialRefFromStoredJson(value: string | Ref): Ref {
   const parsed = typeof value === "string" ? JSON.parse(value) as unknown : value;
   if (
@@ -445,11 +820,14 @@ function workspaceKey(ownerScope: string, workspaceId: string): MusicExperienceW
 function emptySnapshot(): MusicExperienceSnapshot {
   return {
     queueRevision: 0,
+    radioDirectionRevision: 0,
+    radioSessionRevision: 0,
     playbackRevision: 0,
     queue: [],
     playback: {
       status: "paused",
     },
+    radio: emptyRadioTruthSnapshot(0),
   };
 }
 

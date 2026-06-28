@@ -43,6 +43,7 @@ import {
   createMusicExperienceQueuePlaybackCommand,
   createMusicExperienceReadModel,
   musicExperienceQueuePlaybackSchema,
+  musicExperienceRadioTruthSchema,
 } from "../../src/music_experience/index.js";
 import {
   createMusicExperiencePlaybackPlayRegistration,
@@ -76,9 +77,23 @@ import {
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 const ownerScope = "local";
+function emptyRadioTruthSlice(): WorkbenchMusicExperienceSlice["radio"] {
+  return {
+    directionRevision: 0,
+    direction: {
+      activeVariations: [],
+    },
+    posture: {
+      lean: [],
+      stale: false,
+    },
+  };
+}
+
 let currentMusicExperience: WorkbenchMusicExperienceSlice = {
   revision: 0,
   queue: [],
+  radio: emptyRadioTruthSlice(),
 };
 let capturedAtCount = 0;
 const observedProviderContexts: {
@@ -159,6 +174,7 @@ currentMusicExperience = {
       artistsText: "Nemophila",
     },
   ],
+  radio: emptyRadioTruthSlice(),
 };
 
 const secondTurn = await session.runUserTurn({
@@ -570,6 +586,7 @@ function emptyReadModel(): WorkspaceReadModelReader {
         musicExperience: {
           revision: 0,
           queue: [],
+          radio: emptyRadioTruthSlice(),
         },
       };
     },
@@ -614,6 +631,7 @@ async function initializedA4Database(): Promise<MusicDatabase> {
       musicDataPlatformProjectionMaintenanceSchema,
       stageInterfaceHandleRegistrySchema,
       musicExperienceQueuePlaybackSchema,
+      musicExperienceRadioTruthSchema,
     ],
   });
   return database;

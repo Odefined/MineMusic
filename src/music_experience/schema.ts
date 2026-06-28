@@ -88,3 +88,27 @@ export const musicExperienceQueuePlaybackSchema: MusicDatabaseSchemaContribution
     `);
   },
 };
+
+export const musicExperienceRadioTruthSchema: MusicDatabaseSchemaContribution = {
+  id: "music_experience.radio_truth_v1",
+  async apply(context) {
+    await context.run(`
+      CREATE TABLE IF NOT EXISTS music_experience_radio_truth (
+        owner_scope TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        motif_json JSONB,
+        active_variations_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        evolved_lean_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        posture_commanded_revision_stamp INTEGER,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(owner_scope, workspace_id),
+        CHECK (motif_json IS NULL OR jsonb_typeof(motif_json) = 'object'),
+        CHECK (jsonb_typeof(active_variations_json) = 'array'),
+        CHECK (jsonb_typeof(evolved_lean_json) = 'array'),
+        FOREIGN KEY(owner_scope, workspace_id)
+          REFERENCES music_experience_state(owner_scope, workspace_id)
+      )
+    `);
+  },
+};

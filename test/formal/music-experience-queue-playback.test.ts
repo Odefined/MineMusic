@@ -26,6 +26,7 @@ import {
   createMusicExperienceQueuePlaybackRecords,
   createMusicExperienceReadModel,
   musicExperienceQueuePlaybackSchema,
+  musicExperienceRadioTruthSchema,
 } from "../../src/music_experience/index.js";
 import {
   createMusicExperiencePlaybackPlayRegistration,
@@ -52,6 +53,19 @@ const materialRef: Ref = {
   id: "a3_recording_1",
 };
 
+function emptyWorkbenchRadioTruth() {
+  return {
+    directionRevision: 0,
+    direction: {
+      activeVariations: [],
+    },
+    posture: {
+      lean: [],
+      stale: false,
+    },
+  };
+}
+
 assert.equal(musicExperienceQueueAppendDescriptor.name, "music.experience.queue.append");
 assert.equal(musicExperienceQueueAppendDescriptor.sideEffect.runtimeStateWrite, true);
 assert.equal(musicExperienceQueueAppendDescriptor.sideEffect.durableUserStateWrite, false);
@@ -71,10 +85,22 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 
   assert.deepEqual(snapshot, {
     queueRevision: 0,
+    radioDirectionRevision: 0,
+    radioSessionRevision: 0,
     playbackRevision: 0,
     queue: [],
     playback: {
       status: "paused",
+    },
+    radio: {
+      radioDirectionRevision: 0,
+      direction: {
+        activeVariations: [],
+      },
+      posture: {
+        lean: [],
+        stale: false,
+      },
     },
   });
   const stateRow = await database.context().get<{ count: number }>(
@@ -174,6 +200,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.deepEqual(workbenchSlice, {
     revision: 1,
     queue: [],
+    radio: emptyWorkbenchRadioTruth(),
   });
 
   await database.close();
@@ -387,6 +414,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
       label: "A3 Dispatch Song",
       artistsText: "Dispatch Artist",
     },
+    radio: emptyWorkbenchRadioTruth(),
   });
 
   await database.close();
@@ -1157,6 +1185,7 @@ async function initializedMusicExperienceDatabase(): Promise<MusicDatabase> {
     schemas: [
       musicDataPlatformIdentitySchema,
       musicExperienceQueuePlaybackSchema,
+      musicExperienceRadioTruthSchema,
       stageInterfaceHandleRegistrySchema,
     ],
   });

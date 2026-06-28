@@ -15,6 +15,7 @@ import {
   createMusicExperienceQueuePlaybackCommand,
   createMusicExperienceQueuePlaybackRecords,
   musicExperienceQueuePlaybackSchema,
+  musicExperienceRadioTruthSchema,
 } from "../../src/music_experience/index.js";
 import type { MusicDatabase } from "../../src/storage/index.js";
 import {
@@ -333,6 +334,7 @@ async function initializedMusicExperienceDatabase(): Promise<MusicDatabase> {
     schemas: [
       musicDataPlatformIdentitySchema,
       musicExperienceQueuePlaybackSchema,
+      musicExperienceRadioTruthSchema,
     ],
   });
   return database;
@@ -345,6 +347,7 @@ async function initializedSharedMusicExperienceDatabases(label = "shared"): Prom
     schemas: [
       musicDataPlatformIdentitySchema,
       musicExperienceQueuePlaybackSchema,
+      musicExperienceRadioTruthSchema,
     ],
   });
   const secondary = await openUninitializedPostgresTestMusicDatabase({ schema, reset: false });
@@ -352,6 +355,7 @@ async function initializedSharedMusicExperienceDatabases(label = "shared"): Prom
     schemas: [
       musicDataPlatformIdentitySchema,
       musicExperienceQueuePlaybackSchema,
+      musicExperienceRadioTruthSchema,
     ],
   });
   return [primary, secondary];

@@ -790,6 +790,15 @@ restored as compatibility layers.
   refreshes `state.systemPrompt`, runs pi `prompt()` / `waitForIdle()`, returns
   the pi-produced turn messages plus final assistant status/error/text, and
   observes queue/playback outcome through the same seam.
+- Phase B PR1/PR2 Music Experience substrate has landed: `music_experience_state`
+  now carries queue, playback, radio-direction, radio-session, and queue-tail
+  revisions/counters for commit-time OCC, and `music_experience_radio_truth`
+  persists commanded radio direction (motif + ordered active variations) plus
+  Radio-owned evolved posture (`lean` list) stamped with the commanded
+  direction revision it was evolved under. Commanded direction writes bump only
+  `radio_direction_revision`; posture writes are OCC-invisible and never bump
+  revisions. The Music Experience read model now exposes radio truth and a
+  current-queue material-ref read for Phase B queue-internal dedup.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection
