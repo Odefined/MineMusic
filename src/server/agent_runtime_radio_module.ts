@@ -93,6 +93,9 @@ export function createAgentRuntimeRadioModule(
       const musicExperienceRead = requirePort(input.musicExperienceRead(), "Music Experience read model");
       const notifyChannel = requirePort(input.notifyChannel(), "Main Radio notify channel");
       const transcriptStore = createPostgresRadioTranscriptStore({ db });
+      // The records object closes over only {db, workspaceId} (no per-read
+      // mutable state), so it is built once and shared by the pacing read.
+      const queuePlaybackRecords = createMusicExperienceQueuePlaybackRecords({ db, workspaceId });
       const agent = createMineMusicPiAgentAdapter({
         systemPrompt: radioBaseSystemPrompt,
         tools: [],
@@ -137,10 +140,7 @@ export function createAgentRuntimeRadioModule(
         notifyChannel,
         pacingRead: {
           async readRadioPacing(readInput) {
-            const snapshot = await createMusicExperienceQueuePlaybackRecords({
-              db,
-              workspaceId,
-            }).read({ ownerScope: readInput.ownerScope });
+            const snapshot = await queuePlaybackRecords.read({ ownerScope: readInput.ownerScope });
             return {
               queueDepth: snapshot.queue.length,
               radioDirectionRevision: snapshot.radioDirectionRevision,

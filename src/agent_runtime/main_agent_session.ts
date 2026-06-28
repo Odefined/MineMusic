@@ -1,6 +1,7 @@
 import type { Agent, AgentMessage } from "@earendil-works/pi-agent-core";
 
 import type { WorkspaceReadModel, WorkspaceReadModelReader } from "../contracts/workbench_interface.js";
+import { finalAssistantMessage } from "./agent_message_helpers.js";
 import {
   createMineMusicPiAgentAdapter,
   type CreateMineMusicPiAgentAdapterInput,
@@ -121,16 +122,6 @@ function createMainAgentSessionController(input: {
       return input.agent.waitForIdle();
     },
   };
-}
-
-function finalAssistantMessage(messages: readonly AgentMessage[]): MineMusicMainAgentAssistantMessage | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message?.role === "assistant") {
-      return message;
-    }
-  }
-  return undefined;
 }
 
 function assistantResponseText(assistant: MineMusicMainAgentAssistantMessage): string | undefined {

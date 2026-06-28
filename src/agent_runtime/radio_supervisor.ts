@@ -78,10 +78,6 @@ type PendingRefillSubmission = {
   runAfter?: Date;
 };
 
-type ObservedRunResult = {
-  result: RadioRunResult;
-};
-
 const defaultClock: RadioSupervisorClock = {
   now() {
     return new Date();
@@ -99,7 +95,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   let terminalObservationAbortController: AbortController | undefined;
   let terminalObservationJobId: string | undefined;
   let pendingSubmission: PendingRefillSubmission | undefined;
-  const observedRunResultsByJobId = new Map<string, ObservedRunResult>();
+  const observedRunResultsByJobId = new Map<string, RadioRunResult>();
 
   const clock = input.clock ?? defaultClock;
   const lowWatermark = input.lowWatermark ?? 5;
@@ -118,7 +114,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
         throw new Error(`Radio refill run result '${result.runId}' did not match Background Work job '${job.jobId}'.`);
       }
       await handleRunResult(result);
-      observedRunResultsByJobId.set(job.jobId, { result });
+      observedRunResultsByJobId.set(job.jobId, result);
     },
   });
 
@@ -298,7 +294,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     const observedRun = observedRunResultsByJobId.get(terminal.jobId);
     observedRunResultsByJobId.delete(terminal.jobId);
     if (terminal.state === "succeeded") {
-      if (observedRun !== undefined && isNonProgressSuccess(observedRun.result)) {
+      if (observedRun !== undefined && isNonProgressSuccess(observedRun)) {
         cooldownUntil = new Date(clock.now().getTime() + failedTerminalCooldownMs);
       }
       return;

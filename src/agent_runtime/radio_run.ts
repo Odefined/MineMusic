@@ -8,6 +8,7 @@ import type {
   RadioRunResult,
 } from "../contracts/agent_runtime.js";
 import type { WorkspaceReadModel, WorkspaceReadModelReader } from "../contracts/workbench_interface.js";
+import { finalAssistantMessage } from "./agent_message_helpers.js";
 import type {
   RadioTranscriptKey,
   RadioTranscriptStore,
@@ -191,16 +192,6 @@ function voidedStaleResult(
     outcome: "voided_stale",
     appendedCount: 0,
   };
-}
-
-function finalAssistantMessage(messages: readonly AgentMessage[]): Extract<AgentMessage, { role: "assistant" }> | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message?.role === "assistant") {
-      return message;
-    }
-  }
-  return undefined;
 }
 
 function renderRadioRunSystemPrompt(input: {
