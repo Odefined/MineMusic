@@ -41,13 +41,14 @@ assert.equal(host.snapshot().interfaceContract.tools.length, 0);
 assert.deepEqual(host.snapshot().modules.map((module) => module.id), [
     "music-data-platform",
     "extension",
-    "background-work",
     "library-import",
     "library-relation",
     "library-catalog",
     "library-collection",
     "music-discovery",
     "music-experience",
+    "agent-runtime-radio",
+    "background-work",
     "runtime-status",
 ]);
 assert.equal(host.sourceLibraryImport(), undefined);
@@ -63,7 +64,9 @@ assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.library_import_advance",
     "register:music_data_platform.projection_maintenance",
     "register:music_data_platform.local_source_scan_advance",
+    "register:agent_runtime.radio_refill_run",
     "start",
+    "submit:agent_runtime.radio_refill_run",
 ]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     id,
@@ -78,11 +81,6 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     {
         id: "extension",
         ownerArea: "extension",
-        status: "initialized",
-    },
-    {
-        id: "background-work",
-        ownerArea: "stage_core",
         status: "initialized",
     },
     {
@@ -113,6 +111,16 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     {
         id: "music-experience",
         ownerArea: "music_experience",
+        status: "initialized",
+    },
+    {
+        id: "agent-runtime-radio",
+        ownerArea: "agent_runtime",
+        status: "initialized",
+    },
+    {
+        id: "background-work",
+        ownerArea: "stage_core",
         status: "initialized",
     },
     {
@@ -168,7 +176,9 @@ assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.library_import_advance",
     "register:music_data_platform.projection_maintenance",
     "register:music_data_platform.local_source_scan_advance",
+    "register:agent_runtime.radio_refill_run",
     "start",
+    "submit:agent_runtime.radio_refill_run",
     "stop",
 ]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
@@ -184,11 +194,6 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     {
         id: "extension",
         ownerArea: "extension",
-        status: "stopped",
-    },
-    {
-        id: "background-work",
-        ownerArea: "stage_core",
         status: "stopped",
     },
     {
@@ -219,6 +224,16 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     {
         id: "music-experience",
         ownerArea: "music_experience",
+        status: "stopped",
+    },
+    {
+        id: "agent-runtime-radio",
+        ownerArea: "agent_runtime",
+        status: "stopped",
+    },
+    {
+        id: "background-work",
+        ownerArea: "stage_core",
         status: "stopped",
     },
     {
@@ -559,7 +574,8 @@ function createFakeBackgroundWorkBackend(): BackgroundWorkBackend & {
     const log: string[] = [];
     return {
         log,
-        async submit() {
+        async submit(input) {
+            log.push(`submit:${input.jobType}`);
             return {
                 jobId: "server-host-background-job",
                 submission: "created",
@@ -571,6 +587,9 @@ function createFakeBackgroundWorkBackend(): BackgroundWorkBackend & {
         }) {
             void input.handler;
             log.push(`register:${input.jobType}`);
+        },
+        async awaitTerminal(jobId) {
+            throw new Error(`Fake server-host Background Work does not model terminal observation for '${jobId}'.`);
         },
         async start() {
             log.push("start");

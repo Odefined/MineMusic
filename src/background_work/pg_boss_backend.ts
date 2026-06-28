@@ -16,6 +16,7 @@ import type {
   BackgroundWorkHandler,
   BackgroundWorkSubmitInput,
   BackgroundWorkSubmitResult,
+  BackgroundWorkTerminalState,
 } from "./backend.js";
 
 export type PgBossBackgroundWorkClient = {
@@ -27,6 +28,10 @@ export type PgBossBackgroundWorkClient = {
     name: string,
     options?: FindJobsOptions,
   ): Promise<readonly { id: string; data: Payload }[]>;
+  getJobById<Payload extends object>(
+    name: string,
+    id: string,
+  ): Promise<JobWithMetadata<Payload> | null>;
   work<Payload extends object>(
     name: string,
     options: WorkOptions,
@@ -41,6 +46,7 @@ export type CreatePgBossBackgroundWorkBackendInput = {
   queueOptions?: Omit<Queue, "name">;
   workOptions?: WorkOptions;
   stopOptions?: StopOptions;
+  terminalPollIntervalMs?: number;
   client?: PgBossBackgroundWorkClient;
 };
 
@@ -57,6 +63,7 @@ export function createPgBossBackgroundWorkBackend(
   const client = input.client ?? createPgBossClient(input);
   const handlers = new Map<string, HandlerRegistration>();
   const createdQueues = new Set<string>();
+  const jobTypesByJobId = new Map<string, string>();
   let clientStarted = false;
   let workersStarted = false;
 
@@ -82,6 +89,7 @@ export function createPgBossBackgroundWorkBackend(
 
       const createdJobId = await client.send(jobType, submitInput.payload, options);
       if (createdJobId !== null) {
+        jobTypesByJobId.set(createdJobId, jobType);
         return {
           jobId: createdJobId,
           submission: "created",
@@ -97,6 +105,7 @@ export function createPgBossBackgroundWorkBackend(
         throw new Error(`Background Work backend deduplicated job '${jobType}' but no existing job was found.`);
       }
 
+      jobTypesByJobId.set(existingJobId, jobType);
       return {
         jobId: existingJobId,
         submission: "deduplicated",
@@ -119,6 +128,29 @@ export function createPgBossBackgroundWorkBackend(
       handlers.set(jobType, {
         handler: registerInput.handler as BackgroundWorkHandler<object>,
       });
+    },
+
+    async awaitTerminal(jobId: string): Promise<BackgroundWorkTerminalState> {
+      const jobType = jobTypesByJobId.get(jobId);
+      if (jobType === undefined) {
+        throw new Error(`Background Work job '${jobId}' is not known to this backend.`);
+      }
+
+      await ensureClientStarted();
+
+      while (true) {
+        const job = await client.getJobById<object>(jobType, jobId);
+        if (job === null) {
+          throw new Error(`Background Work job '${jobId}' was not found.`);
+        }
+
+        const terminal = terminalState(job);
+        if (terminal !== undefined) {
+          return terminal;
+        }
+
+        await sleep(input.terminalPollIntervalMs ?? 1000);
+      }
     },
 
     async start(): Promise<void> {
@@ -166,6 +198,7 @@ export function createPgBossBackgroundWorkBackend(
       clientStarted = false;
       workersStarted = false;
       createdQueues.clear();
+      jobTypesByJobId.clear();
     },
   };
 
@@ -191,6 +224,27 @@ export function createPgBossBackgroundWorkBackend(
     const jobs = await client.findJobs(jobType, { id: expectedJobId });
     return jobs.find((job) => job.id === expectedJobId)?.id;
   }
+}
+
+function terminalState(job: JobWithMetadata<object>): BackgroundWorkTerminalState | undefined {
+  switch (job.state) {
+    case "completed":
+      return { jobId: job.id, state: "succeeded", output: job.output };
+    case "failed":
+      return { jobId: job.id, state: "failed", output: job.output };
+    case "cancelled":
+      return { jobId: job.id, state: "cancelled", output: job.output };
+    case "active":
+    case "created":
+    case "retry":
+      return undefined;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function createPgBossClient(input: CreatePgBossBackgroundWorkBackendInput): PgBossBackgroundWorkClient {

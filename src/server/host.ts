@@ -4,6 +4,7 @@ import type {
   StageToolContext,
   ToolCallInput,
   ToolCallOutput,
+  ToolDeclaration,
 } from "../contracts/stage_interface.js";
 import {
   createPgBossBackgroundWorkBackend,
@@ -25,10 +26,17 @@ import {
   createMusicExperienceServerRuntimeModule,
 } from "./music_experience_runtime_module.js";
 import {
+  createAgentRuntimeRadioModule,
+  type AgentRuntimeRadioModule,
+} from "./agent_runtime_radio_module.js";
+import {
   createMusicExperienceQueuePlaybackCommand,
   createMusicExperienceReadModel,
   musicExperienceSchemas,
 } from "../music_experience/index.js";
+import {
+  agentRuntimeSchemas,
+} from "../agent_runtime/index.js";
 import {
   createLibraryImportServerRuntimeModule,
 } from "./library_import_runtime_module.js";
@@ -105,6 +113,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
   let queuePlaybackCommand: MusicExperienceQueuePlaybackCommand | undefined;
   let stageInterfaceRuntimePorts: StageInterfaceRuntimePorts | undefined;
   let musicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
+  let runtime: StageRuntime;
   const hostMusicDatabase = createHostManagedMusicDatabase(() => defaultMusicDatabase);
   const backgroundWork: BackgroundWorkBackend | undefined = usesDefaultRuntime
     ? input.backgroundWork ?? createDefaultBackgroundWorkBackend(input.config)
@@ -205,19 +214,38 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
   const backgroundWorkModule: RuntimeModule | undefined = backgroundWork === undefined
     ? undefined
     : createBackgroundWorkRuntimeModule({ backgroundWork });
-  const runtime = input.runtime ?? createStageRuntime({
+  const agentRuntimeRadioModule: AgentRuntimeRadioModule | undefined =
+    musicDataPlatformModule === undefined || backgroundWork === undefined
+      ? undefined
+      : createAgentRuntimeRadioModule({
+          database: () => defaultMusicDatabase?.context(),
+          backgroundWork: () => backgroundWork,
+          musicExperienceRead: () => readDefaultMusicExperienceReadPort(),
+          tools: (): readonly ToolDeclaration[] => runtime.interface.tools,
+          dispatch: () => ({
+            dispatch(dispatchInput) {
+              return runtime.interface.dispatch(dispatchInput.ctx, {
+                toolName: dispatchInput.toolName,
+                payload: dispatchInput.payload,
+              });
+            },
+          }),
+          contextFactory: () => stageToolContextFactory,
+        });
+  runtime = input.runtime ?? createStageRuntime({
     modules: input.modules ?? [
       ...(musicDataPlatformModule === undefined ? [] : [musicDataPlatformModule]),
       createExtensionRuntimeModule({
         runtime: extensionRuntime,
       }),
-      ...(backgroundWorkModule === undefined ? [] : [backgroundWorkModule]),
       ...(libraryImportModule === undefined ? [] : [libraryImportModule]),
       ...(libraryRelationModule === undefined ? [] : [libraryRelationModule]),
       ...(libraryCatalogModule === undefined ? [] : [libraryCatalogModule]),
       ...(libraryCollectionModule === undefined ? [] : [libraryCollectionModule]),
       ...(musicDiscoveryModule === undefined ? [] : [musicDiscoveryModule]),
       ...(musicExperienceModule === undefined ? [] : [musicExperienceModule]),
+      ...(agentRuntimeRadioModule === undefined ? [] : [agentRuntimeRadioModule]),
+      ...(backgroundWorkModule === undefined ? [] : [backgroundWorkModule]),
     ],
   });
 
@@ -236,6 +264,13 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
 
       if (!initialized.ok) {
         await closeDefaultMusicDatabase();
+        return initialized;
+      }
+
+      const radioWoken = await wakeDefaultRadio();
+
+      if (!radioWoken.ok) {
+        return radioWoken;
       }
 
       return initialized;
@@ -274,32 +309,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       return stageToolContextFactory;
     },
     musicExperienceRead() {
-      const materialProjection = musicDataPlatformModule?.materialProjection();
-      const handleMinting = readStageInterfaceRuntimePorts()?.handleMinting;
-
-      if (
-        defaultMusicDatabase === undefined ||
-        materialProjection === undefined ||
-        handleMinting === undefined
-      ) {
-        return undefined;
-      }
-
-      return createMusicExperienceReadModel({
-        db: defaultMusicDatabase.context(),
-        materialProjection,
-        materialHandles: {
-          mintMaterialHandle(input) {
-            return handleMinting.mint({
-              ownerScope: input.ownerScope,
-              handleKind: "material",
-              internalAnchor: {
-                materialRef: refKey(input.materialRef),
-              },
-            });
-          },
-        },
-      });
+      return readDefaultMusicExperienceReadPort();
     },
   };
 
@@ -316,6 +326,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
         ...(schema === undefined ? {} : { schema }),
         ...(maxConnections === undefined ? {} : { maxConnections }),
         schemas: [
+          ...agentRuntimeSchemas,
           ...musicDataPlatformSchemas,
           ...stageInterfaceSchemas,
           ...musicExperienceSchemas,
@@ -367,6 +378,35 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
 
     queuePlaybackCommand ??= createMusicExperienceQueuePlaybackCommand({ database: defaultMusicDatabase });
     return queuePlaybackCommand;
+  }
+
+  function readDefaultMusicExperienceReadPort(): WorkbenchMusicExperienceReadPort | undefined {
+    const materialProjection = musicDataPlatformModule?.materialProjection();
+    const handleMinting = readStageInterfaceRuntimePorts()?.handleMinting;
+
+    if (
+      defaultMusicDatabase === undefined ||
+      materialProjection === undefined ||
+      handleMinting === undefined
+    ) {
+      return undefined;
+    }
+
+    return createMusicExperienceReadModel({
+      db: defaultMusicDatabase.context(),
+      materialProjection,
+      materialHandles: {
+        mintMaterialHandle(input) {
+          return handleMinting.mint({
+            ownerScope: input.ownerScope,
+            handleKind: "material",
+            internalAnchor: {
+              materialRef: refKey(input.materialRef),
+            },
+          });
+        },
+      },
+    });
   }
 
   function readStageInterfaceRuntimePorts(): StageInterfaceRuntimePorts | undefined {
@@ -430,6 +470,30 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     });
 
     return musicScopeAvailabilityPort;
+  }
+
+  async function wakeDefaultRadio(): Promise<Result<StageRuntimeSnapshot>> {
+    if (agentRuntimeRadioModule === undefined) {
+      return { ok: true, value: runtime.snapshot() };
+    }
+
+    try {
+      await agentRuntimeRadioModule.wake("low_watermark");
+      return { ok: true, value: runtime.snapshot() };
+    } catch (cause) {
+      await runtime.stop();
+      await closeDefaultMusicDatabase();
+      return {
+        ok: false,
+        error: {
+          code: "server_host.radio_initial_wake_failed",
+          message: "Server Host failed to wake Radio after runtime initialization.",
+          area: "server_host",
+          retryable: false,
+          cause,
+        },
+      };
+    }
   }
 }
 

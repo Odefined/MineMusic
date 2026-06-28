@@ -12,5 +12,6 @@ export type {
   BackgroundWorkSubmission,
   BackgroundWorkSubmitInput,
   BackgroundWorkSubmitResult,
+  BackgroundWorkTerminalState,
   RegisterBackgroundWorkHandlerInput,
 } from "./backend.js";

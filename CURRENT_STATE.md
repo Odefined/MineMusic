@@ -799,6 +799,19 @@ restored as compatibility layers.
   `radio_direction_revision`; posture writes are OCC-invisible and never bump
   revisions. The Music Experience read model now exposes radio truth and a
   current-queue material-ref read for Phase B queue-internal dedup.
+- Phase B PR3 Radio runtime substrate is in progress on top of that Music
+  Experience floor: Agent Runtime now defines the Radio lifecycle enum
+  (`Running` / `Paused` / `Shutdown`), Radio refill job payload/result types,
+  minimal Speech Level (`Silent` / `Notify`), and a typed Radio→Main notify
+  channel. `radio_supervisor` owns the low-watermark single-flight wake gate,
+  candidate-exhaustion-by-direction suppression, failed-terminal cooldown via
+  Background Work `runAfter`, and `agent_runtime.radio_refill_run` handler
+  registration. Background Work now exposes `awaitTerminal(jobId)` so the
+  supervisor can hold submit→terminal single-flight across retries. Radio
+  transcript durability is Agent Runtime-owned through
+  `agent_runtime_radio_transcripts`; the run substrate writes the long-lived pi
+  `Agent.state.messages` after `agent_end` and reloads only on explicit
+  restart/reconstruction, not per run.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection

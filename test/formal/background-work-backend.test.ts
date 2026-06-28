@@ -33,7 +33,12 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
   readonly sendCalls: SendCall[] = [];
   readonly findJobsCalls: { name: string; id?: string }[] = [];
   readonly workCalls: WorkCall[] = [];
-  private readonly jobs = new Map<string, { name: string; data: object | null | undefined }>();
+  private readonly jobs = new Map<string, {
+    name: string;
+    data: object | null | undefined;
+    state: JobWithMetadata["state"];
+    output?: object | null;
+  }>();
   private generatedJobId = 0;
 
   async start(): Promise<unknown> {
@@ -63,7 +68,7 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
       return null;
     }
 
-    this.jobs.set(id, { name, data });
+    this.jobs.set(id, { name, data, state: "created" });
     return id;
   }
 
@@ -87,6 +92,33 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
     }
 
     return [{ id, data: job.data as Payload }];
+  }
+
+  async getJobById<Payload extends object>(name: string, id: string): Promise<JobWithMetadata<Payload> | null> {
+    const job = this.jobs.get(id);
+    if (job === undefined || job.name !== name) {
+      return null;
+    }
+
+    return fakeJob({
+      id,
+      name,
+      data: job.data as Payload,
+      signal: new AbortController().signal,
+      state: job.state,
+      ...(job.output === undefined ? {} : { output: job.output }),
+    });
+  }
+
+  setJobState(id: string, state: JobWithMetadata["state"], output?: object | null): void {
+    const job = this.jobs.get(id);
+    if (job === undefined) {
+      throw new Error(`Unknown fake job ${id}`);
+    }
+    job.state = state;
+    if (output !== undefined) {
+      job.output = output;
+    }
   }
 
   async work<Payload extends object>(
@@ -234,11 +266,31 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
   assert.deepEqual(client.stopCalls, [{ graceful: true, close: true }]);
 }
 
+{
+  const client = new FakePgBossClient();
+  const backend = createPgBossBackgroundWorkBackend({ client, terminalPollIntervalMs: 1 });
+  const submitted = await backend.submit({
+    jobType: localizeJobType,
+    payload: { sourceRefKey: "source_netease:track:1004" },
+    idempotencyKey: "terminal-source_netease:track:1004",
+  });
+
+  client.setJobState(submitted.jobId, "completed", { status: "ok" });
+
+  assert.deepEqual(await backend.awaitTerminal(submitted.jobId), {
+    jobId: submitted.jobId,
+    state: "succeeded",
+    output: { status: "ok" },
+  });
+}
+
 function fakeJob<Payload extends object>(input: {
   id: string;
   name: string;
   data: Payload;
   signal: AbortSignal;
+  state?: JobWithMetadata["state"];
+  output?: object | null;
 }): JobWithMetadata<Payload> {
   const epoch = new Date(0);
   // Backend reads id/name/data/signal/retryCount/retryLimit; the remaining
@@ -254,7 +306,7 @@ function fakeJob<Payload extends object>(input: {
     expireInSeconds: 900,
     heartbeatSeconds: null,
     priority: 0,
-    state: "active",
+    state: input.state ?? "active",
     retryLimit: 0,
     retryCount: 0,
     retryDelay: 0,
@@ -273,6 +325,6 @@ function fakeJob<Payload extends object>(input: {
     blocking: false,
     pendingDependencies: 0,
     deadLetter: "",
-    output: {},
+    output: input.output ?? {},
   } as JobWithMetadata<Payload>;
 }

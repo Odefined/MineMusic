@@ -18,6 +18,11 @@ export type BackgroundWorkSubmitResult = {
   submission: BackgroundWorkSubmission;
 };
 
+export type BackgroundWorkTerminalState =
+  | { jobId: string; state: "succeeded"; output?: object | null }
+  | { jobId: string; state: "failed"; output?: object | null }
+  | { jobId: string; state: "cancelled"; output?: object | null };
+
 export type BackgroundWorkJob<Payload extends object = Record<string, unknown>> = {
   jobId: string;
   jobType: string;
@@ -46,6 +51,7 @@ export type BackgroundWorkBackend = {
   registerHandler<Payload extends object>(
     input: RegisterBackgroundWorkHandlerInput<Payload>,
   ): void;
+  awaitTerminal(jobId: string): Promise<BackgroundWorkTerminalState>;
   start(): Promise<void>;
   stop(): Promise<void>;
 };

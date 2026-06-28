@@ -1,7 +1,7 @@
 import {
   Agent,
+  type AgentMessage,
   type AgentOptions,
-  type StreamFn,
 } from "@earendil-works/pi-agent-core";
 
 import type { ToolDeclaration } from "../contracts/stage_interface.js";
@@ -17,10 +17,8 @@ import {
 
 export type MineMusicPiAgentAdapterOptions = Omit<
   AgentOptions,
-  "initialState" | "sessionId" | "streamFn"
-> & {
-  streamFn: StreamFn;
-};
+  "initialState" | "sessionId"
+>;
 
 export type CreateMineMusicPiAgentAdapterInput = {
   systemPrompt: string;
@@ -34,6 +32,7 @@ export type CreateMineMusicPiAgentAdapterInput = {
    * user-turn boundary instead of relying on this initial prompt path.
    */
   sessionContext?: AgentSessionContext;
+  initialMessages?: readonly AgentMessage[];
   llmProviderSessionId?: string;
   agentOptions: MineMusicPiAgentAdapterOptions;
 };
@@ -49,6 +48,7 @@ export function createMineMusicPiAgentAdapter(input: CreateMineMusicPiAgentAdapt
             systemPrompt: input.systemPrompt,
             sessionContext: input.sessionContext,
           }),
+      ...(input.initialMessages === undefined ? {} : { messages: input.initialMessages.slice() }),
       tools: createStageToolBridge({
         tools: input.tools,
         dispatch: input.dispatch,

@@ -1,3 +1,4 @@
+import { agentRuntimeSchemas } from "../../src/agent_runtime/index.js";
 import { musicDataPlatformSchemas } from "../../src/music_data_platform/index.js";
 import { musicExperienceSchemas } from "../../src/music_experience/index.js";
 import { createMusicDatabase } from "../../src/storage/index.js";
@@ -8,6 +9,7 @@ await resetPostgresTestSchema(connectionString);
 const database = await createMusicDatabase({
     connectionString,
     schemas: [
+        ...agentRuntimeSchemas,
         ...musicDataPlatformSchemas,
         ...stageInterfaceSchemas,
         ...musicExperienceSchemas,
@@ -112,5 +114,16 @@ const musicExperienceRadioTruthTable = await context.get<{
 `);
 if (musicExperienceRadioTruthTable === undefined) {
     throw new Error("music_experience_radio_truth table was not initialized");
+}
+const agentRuntimeRadioTranscriptsTable = await context.get<{
+    table_name: string;
+}>(`
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name = 'agent_runtime_radio_transcripts'
+`);
+if (agentRuntimeRadioTranscriptsTable === undefined) {
+    throw new Error("agent_runtime_radio_transcripts table was not initialized");
 }
 await database.close();

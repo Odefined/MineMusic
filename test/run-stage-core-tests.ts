@@ -20,6 +20,8 @@ const testModules = [
     "./formal/agent-runtime-pi-spine.test.js",
     "./formal/agent-runtime-session-context.test.js",
     "./formal/agent-runtime-main-agent-session.test.js",
+    "./formal/radio-supervisor.test.js",
+    "./formal/radio-run.test.js",
     "./formal/active-tree.test.js",
     "./formal/mcp-stdio-transport.test.js",
     "./formal/extension-capability-slot.test.js",

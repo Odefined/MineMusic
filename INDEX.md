@@ -504,10 +504,24 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/stage_core/runtime_status.ts`: internal `stage.runtime.status` module
   migrated to the Phase 16A static descriptor + payload handler shape.
 - `src/background_work/backend.ts`: MineMusic-owned Background Work v1 port
-  (`submit`, `registerHandler`, `start`, `stop`) for durable one-time jobs.
+  (`submit`, `registerHandler`, `awaitTerminal`, `start`, `stop`) for durable
+  one-time jobs and terminal observation.
 - `src/background_work/pg_boss_backend.ts`: concrete `pg-boss` adapter confined
   behind the Background Work port.
 - `src/background_work/index.ts`: Background Work public exports.
+- `src/agent_runtime/radio_supervisor.ts`: Phase B Radio supervisor
+  single-flight low-watermark wake gate, exhaustion suppression, terminal
+  cooldown, and Background Work handler registration.
+- `src/agent_runtime/radio_run.ts`: Phase B Radio run substrate over one
+  long-lived pi `Agent`, using `agent_start` / `agent_end` for run-start and
+  transcript persistence.
+- `src/agent_runtime/radio_session_repo_facade.ts`: Agent Runtime-owned Radio
+  transcript store facade and in-memory harness double.
+- `src/agent_runtime/schema.ts`: Agent Runtime schema contributions, including
+  `agent_runtime_radio_transcripts`.
+- `src/agent_runtime/main_radio_channel.ts` and
+  `src/agent_runtime/speech_level.ts`: Phase B typed Radio→Main notify channel
+  and minimal Speech Level vocabulary.
 - `src/server/host.ts`: thin Server Host lifecycle owner, Stage Interface
   dispatch entrypoint, shared music database lifecycle owner, schema-array
   composer, internal source library import seam accessor, and the composed Tool

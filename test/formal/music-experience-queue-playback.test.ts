@@ -726,6 +726,133 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 
 {
   const database = await initializedMusicExperienceDatabase();
+  const candidateMaterialRef: Ref = {
+    namespace: "material",
+    kind: "recording",
+    id: "a3_radio_retry_candidate_material",
+  };
+  const materialCandidateRef: Ref = {
+    namespace: "material_candidate",
+    kind: "provider_candidate",
+    id: "mc_a3_radio_retry_candidate",
+  };
+  await seedRecording(database, candidateMaterialRef, "A3 Radio Retry Candidate", ["Retry Artist"]);
+
+  const materialProjection = createMaterialProjection({ db: database.context() });
+  const queuePlayback = createMusicExperienceQueuePlaybackCommand({ database });
+  const candidateHandles = candidateHandlesFor({
+    publicId: "mh_a3_radio_retry_candidate_handle",
+    materialCandidateRef,
+  });
+  const handleMinting = createStageInterfaceHandleMintingPort({
+    db: database.context(),
+    clock: () => now,
+    candidateHandles,
+    publicIdFactory: () => "mh_a3_radio_retry_material",
+  });
+  const candidateHandleId = await handleMinting.mint({
+    ownerScope,
+    handleKind: "candidate",
+    internalAnchor: {
+      materialCandidateRef: refKey(materialCandidateRef),
+    },
+  });
+  let commitCount = 0;
+  const candidateCommit: CandidateCommitCommand = {
+    async commitCandidate(input) {
+      assert.deepEqual(input.materialCandidateRef, materialCandidateRef);
+      commitCount += 1;
+      return {
+        ok: true,
+        value: {
+          materialRef: candidateMaterialRef,
+          created: commitCount === 1,
+        },
+      };
+    },
+  };
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: [
+      createMusicExperienceQueueAppendRegistration({
+        candidateCommit,
+        materialProjection,
+        queuePlayback,
+      }),
+    ],
+  });
+  await database.context().run(
+    `
+      INSERT INTO music_experience_state (
+        owner_scope, workspace_id, queue_revision, radio_direction_revision,
+        radio_session_revision, playback_revision, queue_next_position,
+        playback_status, created_at, updated_at
+      )
+      VALUES (?, 'default', 0, 0, 1, 0, 1, 'paused', ?, ?)
+      ON CONFLICT(owner_scope, workspace_id)
+      DO UPDATE SET radio_session_revision = 1
+    `,
+    [ownerScope, now, now],
+  );
+
+  const payload = {
+    items: [
+      {
+        kind: "candidate",
+        id: candidateHandleId,
+      },
+    ],
+  };
+  const staleAppend = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "a3-radio-retry-stale-session",
+    requestId: "a3-radio-retry-stale-request",
+    actor: "radio_agent",
+    commandBasis: {
+      radioDirectionRevision: 0,
+      radioSessionRevision: 0,
+    },
+    clock: () => now,
+    handleMinting,
+  }), {
+    toolName: "music.experience.queue.append",
+    payload,
+  });
+  expectToolError(staleAppend, "voided_stale");
+  assert.equal(commitCount, 1);
+  assert.equal((await createMusicExperienceQueuePlaybackRecords({
+    db: database.context(),
+  }).read({ ownerScope })).queue.length, 0);
+
+  const freshAppend = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "a3-radio-retry-fresh-session",
+    requestId: "a3-radio-retry-fresh-request",
+    actor: "radio_agent",
+    commandBasis: {
+      radioDirectionRevision: 0,
+      radioSessionRevision: 1,
+    },
+    clock: () => now,
+    handleMinting,
+  }), {
+    toolName: "music.experience.queue.append",
+    payload,
+  });
+  assert.equal(freshAppend.ok, true);
+  assert.equal(commitCount, 2);
+  const snapshot = await createMusicExperienceQueuePlaybackRecords({
+    db: database.context(),
+  }).read({ ownerScope });
+  assert.equal(snapshot.queue.length, 1);
+  assert.equal(refKey(snapshot.queue[0]!.materialRef), refKey(candidateMaterialRef));
+  assert.equal(snapshot.queue[0]!.provenance, "radio_agent");
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
   const winnerRef: Ref = {
     namespace: "material",
     kind: "recording",

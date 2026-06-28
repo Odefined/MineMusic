@@ -114,7 +114,8 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/storage")))
 ], "formal Storage root must not grow unrelated storage implementations");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/server")))
     .map((file) => relative(repositoryRoot, file))
-    .sort(), [
+	.sort(), [
+    "src/server/agent_runtime_radio_module.ts",
     "src/server/config.ts",
     "src/server/host.ts",
     "src/server/index.ts",
@@ -145,10 +146,16 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/agent_runtime
     .sort(), [
     "src/agent_runtime/index.ts",
     "src/agent_runtime/main_agent_session.ts",
+    "src/agent_runtime/main_radio_channel.ts",
     "src/agent_runtime/pi_engine.ts",
+    "src/agent_runtime/radio_run.ts",
+    "src/agent_runtime/radio_session_repo_facade.ts",
+    "src/agent_runtime/radio_supervisor.ts",
+    "src/agent_runtime/schema.ts",
     "src/agent_runtime/session_context.ts",
+    "src/agent_runtime/speech_level.ts",
     "src/agent_runtime/stage_tool_bridge.ts",
-], "formal Agent Runtime root must stay focused on the pi engine facade, Main Agent turn session, Stage tool bridge, and Session Context in Phase A");
+], "formal Agent Runtime root must stay focused on the pi engine facade, Main Agent turn session, Stage tool bridge, Session Context, and Phase B Radio runtime substrate");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/workbench_interface")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
@@ -183,7 +190,7 @@ assert.deepEqual(architectureGraph.unresolvedRelativeSpecifiers.map(formatEdge).
 // one-directional DAG.
 const contractsDagAllowlist: Readonly<Record<string, readonly string[]>> = {
     "src/contracts/kernel.ts": [],
-    "src/contracts/agent_runtime.ts": ["./workbench_interface.js"],
+    "src/contracts/agent_runtime.ts": ["./kernel.js", "./workbench_interface.js"],
     "src/contracts/music_experience.ts": ["./kernel.js"],
     "src/contracts/music_data_platform.ts": ["./kernel.js"],
     "src/contracts/storage.ts": ["./kernel.js", "./music_data_platform.js"],
@@ -332,10 +339,19 @@ function externalPackageBoundaryFailure(edge: ArchitectureImportEdge): string | 
     if (edge.specifier === "pg-boss" && edge.fromFile !== "src/background_work/pg_boss_backend.ts") {
         return `Only the Background Work pg-boss adapter may import pg-boss directly: ${formatEdge(edge)}`;
     }
+    if (edge.specifier.startsWith("@earendil-works/pi-agent-core/dist/harness/") && !isPiHarnessImportAllowed(edge.fromFile)) {
+        return `Raw pi harness helper imports are limited to Agent Runtime transcript facades and adapter tests: ${formatEdge(edge)}`;
+    }
     if (edge.specifier === "@earendil-works/pi-agent-core" && !isUnderPath(edge.fromFile, "src/agent_runtime")) {
         return `Only Agent Runtime may import pi-agent-core directly: ${formatEdge(edge)}`;
     }
     return undefined;
+}
+function isPiHarnessImportAllowed(file: string): boolean {
+    return file.startsWith("src/agent_runtime/radio_session_repo_facade") ||
+        file.startsWith("test/formal/agent-runtime-") ||
+        file === "test/formal/radio-run.test.ts" ||
+        file === "test/formal/radio-endurance.test.ts";
 }
 function serverBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
     if (edge.toArea === "storage" && (isUnderPath(edge.toFile, "src/storage/postgres") || edge.importedNames.includes("PostgresMusicDatabase") || edge.importedNames.includes("*"))) {
@@ -368,6 +384,26 @@ function musicDataPlatformBoundaryFailure(edge: ArchitectureImportEdge): string 
     return undefined;
 }
 function agentRuntimeBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
+    if (edge.fromFile === "src/agent_runtime/radio_supervisor.ts" && edge.toFile === "src/background_work/index.ts") {
+        const allowedNames = new Set(["BackgroundWorkBackend", "BackgroundWorkTerminalState"]);
+        const forbiddenNames = edge.importedNames.filter((name) => !allowedNames.has(name));
+        return forbiddenNames.length === 0 && edge.importedNames.length > 0
+            ? undefined
+            : `Agent Runtime may import only the narrow Background Work terminal-observation port types for Radio supervisor: ${formatEdge(edge)} symbols=[${edge.importedNames.join(", ")}]`;
+    }
+    if (edge.toArea === "storage") {
+        const storageTypeOnlyFiles = new Set([
+            "src/agent_runtime/index.ts",
+            "src/agent_runtime/radio_session_repo_facade.ts",
+            "src/agent_runtime/schema.ts",
+        ]);
+        if (storageTypeOnlyFiles.has(edge.fromFile) && (
+            edge.toFile === "src/storage/index.ts" ||
+            edge.toFile === "src/storage/database.ts"
+        )) {
+            return undefined;
+        }
+    }
     if (edge.toArea === "stage_interface") {
         return agentRuntimeAllowedStageInterfacePureHelpers.has(edge.toFile ?? "")
             ? undefined

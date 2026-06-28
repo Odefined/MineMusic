@@ -237,6 +237,9 @@ function createFakeBackgroundWork(): FakeBackgroundWork {
         registerHandler(input) {
             handlers.set(input.jobType, input.handler as BackgroundWorkHandler<Record<string, unknown>>);
         },
+        async awaitTerminal(jobId) {
+            throw new Error(`Fake library import Background Work does not model terminal observation for '${jobId}'.`);
+        },
         async start() {},
         async stop() {},
         async drain() {
