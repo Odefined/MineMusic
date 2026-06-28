@@ -5,7 +5,7 @@ import type {
   RadioDirectionSnapshot,
   VariationItem,
 } from "../contracts/music_experience.js";
-import type { Ref } from "../contracts/kernel.js";
+import type { Ref, Result } from "../contracts/kernel.js";
 import {
   MAX_RADIO_POSTURE_LEAN_ITEMS,
   MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
@@ -91,9 +91,9 @@ export function createMusicExperienceRadioTruthCommand(
 ): MusicExperienceRadioTruthCommand {
   return {
     async setRadioDirection(commandInput) {
-      try {
+      return runRadioTruth(async () => {
         validateRadioDirection(commandInput);
-        return await input.database.transaction(async (db) => {
+        return input.database.transaction(async (db) => {
           const records = createMusicExperienceRadioTruthRecords({ db });
           return {
             ok: true,
@@ -107,29 +107,19 @@ export function createMusicExperienceRadioTruthCommand(
             }),
           };
         });
-      } catch (error) {
-        if (error instanceof RadioTruthValidationError) {
-          return radioTruthInvalidResult(error.message);
-        }
-        throw error;
-      }
+      });
     },
     async writeRadioPosture(commandInput) {
-      try {
+      return runRadioTruth(async () => {
         validateVariationItems(commandInput.lean);
-        return await input.database.transaction(async (db) => {
+        return input.database.transaction(async (db) => {
           const records = createMusicExperienceRadioTruthRecords({ db });
           return {
             ok: true,
             value: await records.writePosture(commandInput),
           };
         });
-      } catch (error) {
-        if (error instanceof RadioTruthValidationError) {
-          return radioTruthInvalidResult(error.message);
-        }
-        throw error;
-      }
+      });
     },
   };
 }
@@ -212,4 +202,20 @@ function radioTruthInvalidResult(message: string) {
       suggestedFix: `Pass at most ${MAX_RADIO_POSTURE_LEAN_ITEMS} posture lean item(s) and valid radio direction anchors.`,
     },
   };
+}
+
+// Runs a radio-truth command body, translating declared validation failures into
+// the public radio_truth_invalid Result at this owned command boundary. Every
+// other error (programmer errors, system failures) is rethrown untouched.
+async function runRadioTruth<T>(
+  body: () => Promise<{ ok: true; value: T }>,
+): Promise<Result<T>> {
+  try {
+    return await body();
+  } catch (error) {
+    if (error instanceof RadioTruthValidationError) {
+      return radioTruthInvalidResult(error.message);
+    }
+    throw error;
+  }
 }
