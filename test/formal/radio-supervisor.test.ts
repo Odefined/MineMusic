@@ -152,6 +152,25 @@ async function runRadioSupervisorTests(): Promise<void> {
 
 {
   const harness = createHarness({ queueDepth: 4 });
+  harness.backgroundWork.nextSubmitError = new Error("submit failed");
+
+  await assert.rejects(() => harness.supervisor.wake("low_watermark"), /submit failed/);
+  harness.pacing.radioDirectionRevision = 1;
+
+  const retry = await harness.supervisor.wake("low_watermark");
+  assert.equal(retry.kind, "submitted");
+  if (retry.kind === "submitted") {
+    assert.equal(retry.payload.radioDirectionRevision, 1);
+    assert.equal(retry.payload.radioSessionRevision, 0);
+    assert.equal(retry.payload.refillGeneration, 2);
+  }
+  assert.equal(harness.backgroundWork.submissions.length, 1);
+  assert.equal(harness.backgroundWork.submissions[0]!.input.payload.radioDirectionRevision, 1);
+  assert.equal(harness.backgroundWork.submissions[0]!.input.payload.refillGeneration, 2);
+}
+
+{
+  const harness = createHarness({ queueDepth: 4 });
   harness.backgroundWork.nextSubmitErrorAfterCreate = new Error("submit response lost");
 
   await assert.rejects(() => harness.supervisor.wake("low_watermark"), /submit response lost/);

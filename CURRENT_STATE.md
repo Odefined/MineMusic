@@ -811,14 +811,17 @@ restored as compatibility layers.
   supervisor can hold submit→terminal single-flight across retries without
   relying on a process-local reverse map; transient observation errors keep the
   same job locked and are retried on the next wake instead of submitting a new
-  generation. Server Host shutdown cancels the observer before stopping the
-  backend. Radio sees only its explicit discovery/catalog/queue-append Stage
-  tool pack. Radio cooperative aborts return `voided_stale` rather than a failed
-  terminal, and Radio→Main notify subjects use public handle-shaped objects, not
-  internal material refs. Radio
-  transcript durability is Agent Runtime-owned through
+  generation. Pending submit retries re-read current pacing and discard stale
+  pending payloads when radio-direction or radio-session revision has moved,
+  preventing old-basis retry submission from racing a newer wake. Server Host
+  shutdown cancels the observer before stopping the backend. Radio sees only its
+  explicit discovery/catalog/queue-append Stage tool pack. Radio cooperative
+  aborts return `voided_stale` rather than failed terminal outcomes, and
+  Radio→Main notify subjects use public handle-shaped objects, not internal
+  material refs. Radio transcript durability is Agent Runtime-owned through
   `agent_runtime_radio_transcripts`; the run substrate writes the long-lived pi
-  `Agent.state.messages` after `agent_end` and reloads only on explicit
+  `Agent.state.messages` after `agent_end`; save failures fail the run instead
+  of fabricating success. It reloads only on explicit
   restart/reconstruction, not per run.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.

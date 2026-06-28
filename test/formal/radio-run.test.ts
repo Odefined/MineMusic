@@ -6,6 +6,7 @@ import {
   createMineMusicPiAgentAdapter,
   createPiRadioRefillRunPort,
   restoreRadioAgentTranscript,
+  type RadioTranscriptStore,
 } from "../../src/agent_runtime/index.js";
 import type { StageToolContext } from "../../src/contracts/stage_interface.js";
 import {
@@ -157,6 +158,32 @@ const key = {
 }
 
 {
+  const transcriptStore: RadioTranscriptStore = {
+    async load() {
+      return [];
+    },
+    async save() {
+      throw new Error("transcript save failed");
+    },
+  };
+  const runPort = createPiRadioRefillRunPort({
+    ...key,
+    agent: createTestRadioAgent("save-failed"),
+    transcriptStore,
+    clock: () => "2026-06-28T00:00:00.000Z",
+  });
+
+  await assert.rejects(
+    () => runPort.runRadioRefill({
+      runId: "radio-job-save-failed",
+      payload: payload(6),
+      signal: new AbortController().signal,
+    }),
+    /transcript save failed/,
+  );
+}
+
+{
   const transcriptStore = createInMemoryRadioTranscriptStore();
   const controller = new AbortController();
   const agent = createTestRadioAgent("abort", {
@@ -190,7 +217,7 @@ const key = {
   });
   const running = runPort.runRadioRefill({
     runId: "radio-job-abort",
-    payload: payload(6),
+    payload: payload(7),
     signal: controller.signal,
   });
 
@@ -217,7 +244,7 @@ const key = {
 
   assert.deepEqual(await runPort.runRadioRefill({
     runId: "radio-job-pre-abort",
-    payload: payload(7),
+    payload: payload(8),
     signal: controller.signal,
   }), {
     runId: "radio-job-pre-abort",
@@ -248,14 +275,14 @@ const key = {
   });
   const firstRun = runPort.runRadioRefill({
     runId: "radio-job-concurrent-1",
-    payload: payload(8),
+    payload: payload(9),
     signal: new AbortController().signal,
   });
 
   await assert.rejects(
     () => runPort.runRadioRefill({
       runId: "radio-job-concurrent-2",
-      payload: payload(9),
+      payload: payload(10),
       signal: new AbortController().signal,
     }),
     /cannot start while 'radio-job-concurrent-1' is active/,

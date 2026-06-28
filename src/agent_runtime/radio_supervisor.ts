@@ -169,14 +169,16 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
 
     refilling = true;
     try {
-      if (pendingSubmission !== undefined) {
-        return await submitPendingRefill(pendingSubmission);
-      }
-
       const pacing = await input.pacingRead.readRadioPacing({ ownerScope: input.ownerScope });
       if (lifecycle !== "Running") {
         refilling = false;
         return { kind: "not_running", lifecycle };
+      }
+      if (pendingSubmission !== undefined) {
+        if (pendingSubmissionMatchesPacing(pendingSubmission, pacing)) {
+          return await submitPendingRefill(pendingSubmission);
+        }
+        pendingSubmission = undefined;
       }
       if (pacing.queueDepth >= lowWatermark) {
         refilling = false;
@@ -336,6 +338,14 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   function suggestedAppendCount(pacing: RadioPacingSnapshot): number {
     return Math.max(1, fillTarget - pacing.queueDepth);
   }
+}
+
+function pendingSubmissionMatchesPacing(
+  submission: PendingRefillSubmission,
+  pacing: RadioPacingSnapshot,
+): boolean {
+  return submission.payload.radioDirectionRevision === pacing.radioDirectionRevision &&
+    submission.payload.radioSessionRevision === pacing.radioSessionRevision;
 }
 
 function idempotencyKey(payload: RadioRefillRunJobPayload): string {

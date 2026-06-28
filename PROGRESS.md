@@ -1549,8 +1549,10 @@ catalog integration. Design authority:
   submit through terminal retry completion without a process-local reverse map;
   if terminal observation itself errors transiently, the same job remains locked
   and the next wake retries observation instead of submitting another
-  generation. Server Host cancels that observation before backend shutdown, and
-  Radio sees only its explicit discovery/catalog/queue-append Stage tool pack.
+  generation. Pending submit retries re-read current pacing and discard stale
+  pending payloads when radio-direction or radio-session revision has moved.
+  Server Host cancels that observation before backend shutdown, and Radio sees
+  only its explicit discovery/catalog/queue-append Stage tool pack.
   Agent Runtime now owns the `agent_runtime.radio_refill_run`
   job payload/result contracts, `Running` / `Paused` / `Shutdown` lifecycle
   enum, minimal `Silent` / `Notify` speech level, Radio→Main notify channel,
@@ -1560,8 +1562,8 @@ catalog integration. Design authority:
   shaped notify subjects, and the Radio transcript store
   (`agent_runtime_radio_transcripts`). The run substrate
   mirrors pi by keeping one long-lived `Agent`, using `agent_start` as the
-  run-start seam, persisting after `agent_end`, and reloading transcript only on
-  simulated restart/reconstruction.
+  run-start seam, persisting after `agent_end` with save failures failing the
+  run, and reloading transcript only on simulated restart/reconstruction.
 
 ## 2026-06-27: ADR-0045 Runtime Module Ownership Split
 

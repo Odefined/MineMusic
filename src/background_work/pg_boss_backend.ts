@@ -136,6 +136,9 @@ export function createPgBossBackgroundWorkBackend(
         ? lifecycleAbortController.signal
         : AbortSignal.any([awaitInput.signal, lifecycleAbortController.signal]);
 
+      // Phase B has one in-process Radio supervisor observing one job at a time.
+      // Multi-owner/multi-instance scale should promote this to a backend-backed
+      // event/coordination primitive instead of multiplying polling observers.
       while (true) {
         signal.throwIfAborted();
         const job = await client.getJobById<object>(jobType, awaitInput.jobId);

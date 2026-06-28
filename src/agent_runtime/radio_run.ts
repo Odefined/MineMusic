@@ -58,6 +58,11 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
   let activePayload: RadioRefillRunJobPayload | undefined;
   let activeRunStartContext: WorkspaceReadModel | undefined;
 
+  // pi @0.80.2 fidelity: agent.js:130-139 says listener promises are awaited
+  // before idle; agent.js:261-276 snapshots state before runAgentLoop, and
+  // agent-loop.js:42-49 emits agent_start after that snapshot; agent.js:368-370
+  // appends message_end into state.messages; agent.js:329-344 represents abort
+  // and provider failure as final assistant messages.
   input.agent.subscribe(async (event, signal) => {
     if (event.type === "agent_start" && activePayload !== undefined) {
       await input.onRunStart?.(activePayload, activeRunStartContext, signal);
@@ -98,8 +103,8 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
           return voidedStaleResult(runInput.runId, runInput.payload);
         }
         if (input.baseSystemPrompt !== undefined && activeRunStartContext !== undefined) {
-          // pi snapshots provider context before emitting agent_start, so the
-          // current run floor and tool bridge must be installed before prompt().
+          // The current run floor and tool bridge must be installed before
+          // prompt(), because pi snapshots provider context before agent_start.
           input.agent.state.systemPrompt = renderRadioRunSystemPrompt({
             baseSystemPrompt: input.baseSystemPrompt,
             runStartContext: activeRunStartContext,
