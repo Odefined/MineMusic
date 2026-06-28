@@ -116,7 +116,6 @@ assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.local_source_scan_advance",
     "register:agent_runtime.radio_refill_run",
     "start",
-    "submit:agent_runtime.radio_refill_run",
 ]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     id,
@@ -286,8 +285,6 @@ assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.local_source_scan_advance",
     "register:agent_runtime.radio_refill_run",
     "start",
-    "submit:agent_runtime.radio_refill_run",
-    "await-terminal-aborted",
     "stop",
 ]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({

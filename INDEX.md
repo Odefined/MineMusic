@@ -526,7 +526,7 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/server/host.ts`: thin Server Host lifecycle owner, Stage Interface
   dispatch entrypoint, shared music database lifecycle owner, schema-array
   composer, internal source library import seam accessor, optional Radio runtime
-  mounting, and the composed Tool Context Factory accessor.
+  mounting without startup wake, and the composed Tool Context Factory accessor.
 - `src/server/config.ts`: Server Host default runtime composition config.
 - `src/server/music_data_platform_runtime_module.ts`: Server Host composition
   module for Music Data Platform-owned ports and commands from an injected

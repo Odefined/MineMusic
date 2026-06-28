@@ -277,12 +277,6 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
         return initialized;
       }
 
-      const radioWoken = await wakeDefaultRadio();
-
-      if (!radioWoken.ok) {
-        return radioWoken;
-      }
-
       return initialized;
     },
     async stop() {
@@ -488,30 +482,6 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     });
 
     return musicScopeAvailabilityPort;
-  }
-
-  async function wakeDefaultRadio(): Promise<Result<StageRuntimeSnapshot>> {
-    if (agentRuntimeRadioModule === undefined) {
-      return { ok: true, value: runtime.snapshot() };
-    }
-
-    try {
-      await agentRuntimeRadioModule.wake("low_watermark");
-      return { ok: true, value: runtime.snapshot() };
-    } catch (cause) {
-      await runtime.stop();
-      await closeDefaultMusicDatabase();
-      return {
-        ok: false,
-        error: {
-          code: "server_host.radio_initial_wake_failed",
-          message: "Server Host failed to wake Radio after runtime initialization.",
-          area: "server_host",
-          retryable: false,
-          cause,
-        },
-      };
-    }
   }
 
   async function stopDefaultRadio(): Promise<Result<void> | undefined> {

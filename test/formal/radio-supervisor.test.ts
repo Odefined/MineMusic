@@ -26,25 +26,25 @@ const ownerScope = "owner_radio_supervisor";
 const workspaceId = "default";
 
 async function runRadioSupervisorTests(): Promise<void> {
-  const running = createHarness({ queueDepth: 4, lifecycle: "Running" });
+  const running = createHarness({ queueDepth: 4, wakeGateState: "Running" });
   assert.equal((await running.supervisor.wake("low_watermark")).kind, "submitted");
   assert.equal(running.backgroundWork.submissions.length, 1);
 
-  const paused = createHarness({ queueDepth: 4, lifecycle: "Paused" });
+  const paused = createHarness({ queueDepth: 4, wakeGateState: "Paused" });
   assert.deepEqual(await paused.supervisor.wake("low_watermark"), {
     kind: "not_running",
-    lifecycle: "Paused",
+    wakeGateState: "Paused",
   });
   assert.equal(paused.backgroundWork.submissions.length, 0);
 
-  const shutdown = createHarness({ queueDepth: 4, lifecycle: "Shutdown" });
+  const shutdown = createHarness({ queueDepth: 4, wakeGateState: "Shutdown" });
   assert.deepEqual(await shutdown.supervisor.wake("low_watermark"), {
     kind: "not_running",
-    lifecycle: "Shutdown",
+    wakeGateState: "Shutdown",
   });
   assert.equal(shutdown.backgroundWork.submissions.length, 0);
 
-  const exactlyLow = createHarness({ queueDepth: 5, lifecycle: "Running" });
+  const exactlyLow = createHarness({ queueDepth: 5, wakeGateState: "Running" });
   assert.deepEqual(await exactlyLow.supervisor.wake("low_watermark"), {
     kind: "queue_not_low",
     queueDepth: 5,
@@ -85,7 +85,7 @@ async function runRadioSupervisorTests(): Promise<void> {
 
   await harness.supervisor.stop();
 
-  assert.equal(harness.supervisor.snapshot().lifecycle, "Shutdown");
+  assert.equal(harness.supervisor.snapshot().wakeGateState, "Shutdown");
   assert.equal(harness.supervisor.snapshot().refilling, false);
   assert.equal(harness.supervisor.snapshot().terminalObservationError, undefined);
 }
@@ -126,7 +126,7 @@ async function runRadioSupervisorTests(): Promise<void> {
 
   const wake = harness.supervisor.wake("low_watermark");
   assert.equal(harness.supervisor.snapshot().refilling, true);
-  harness.supervisor.setLifecycle("Paused");
+  harness.supervisor.setWakeGateStateForTest("Paused");
   assert.ok(resolvePacing !== undefined);
   resolvePacing({
     queueDepth: 4,
@@ -134,7 +134,7 @@ async function runRadioSupervisorTests(): Promise<void> {
     radioSessionRevision: 0,
   });
 
-  assert.deepEqual(await wake, { kind: "not_running", lifecycle: "Paused" });
+  assert.deepEqual(await wake, { kind: "not_running", wakeGateState: "Paused" });
   assert.equal(harness.supervisor.snapshot().refilling, false);
   assert.equal(harness.backgroundWork.submissions.length, 0);
 }
@@ -242,8 +242,8 @@ async function runRadioSupervisorTests(): Promise<void> {
   });
   assert.equal(harness.supervisor.snapshot().refilling, false);
 
-  harness.supervisor.setLifecycle("Paused");
-  harness.supervisor.setLifecycle("Running");
+  harness.supervisor.setWakeGateStateForTest("Paused");
+  harness.supervisor.setWakeGateStateForTest("Running");
   assert.deepEqual(await harness.supervisor.wake("low_watermark"), {
     kind: "direction_exhausted",
     radioDirectionRevision: 0,
@@ -442,7 +442,7 @@ async function runRadioSupervisorTests(): Promise<void> {
 
 function createHarness(input: {
   queueDepth: number;
-  lifecycle?: "Running" | "Paused" | "Shutdown";
+  wakeGateState?: "Running" | "Paused" | "Shutdown";
   clock?: RadioSupervisorClock;
   runEpoch?: string;
   failedTerminalCooldownMs?: number;
@@ -479,7 +479,7 @@ function createHarness(input: {
     }),
     ...(input.lowWatermark === undefined ? {} : { lowWatermark: input.lowWatermark }),
     ...(input.fillTarget === undefined ? {} : { fillTarget: input.fillTarget }),
-    ...(input.lifecycle === undefined ? {} : { initialLifecycle: input.lifecycle }),
+    ...(input.wakeGateState === undefined ? {} : { initialWakeGateState: input.wakeGateState }),
   });
 
   return {

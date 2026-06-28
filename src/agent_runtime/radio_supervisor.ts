@@ -8,9 +8,9 @@ import type {
   RegisterBackgroundWorkHandlerInput,
 } from "../background_work/index.js";
 import type {
-  RadioLifecycleState,
   RadioRefillRunJobPayload,
   RadioRunResult,
+  RadioWakeGateState,
   RadioWakeReason,
 } from "../contracts/agent_runtime.js";
 import type { ConcernRevision, StageError } from "../contracts/kernel.js";
@@ -62,12 +62,12 @@ export type CreateRadioSupervisorInput = {
   lowWatermark?: number;
   fillTarget?: number;
   failedTerminalCooldownMs?: number;
-  initialLifecycle?: RadioLifecycleState;
+  initialWakeGateState?: RadioWakeGateState;
 };
 
 export type RadioWakeDecision =
   | { kind: "submitted"; jobId: string; payload: RadioRefillRunJobPayload; runAfter?: Date }
-  | { kind: "not_running"; lifecycle: RadioLifecycleState }
+  | { kind: "not_running"; wakeGateState: RadioWakeGateState }
   | { kind: "already_refilling" }
   | { kind: "terminal_observation_failed"; error: RadioSupervisorErrorSummary }
   | { kind: "queue_not_low"; queueDepth: number; lowWatermark: number }
@@ -76,7 +76,7 @@ export type RadioWakeDecision =
 export type RadioSupervisorErrorSummary = Pick<StageError, "code" | "message" | "area" | "retryable">;
 
 export type RadioSupervisorSnapshot = {
-  lifecycle: RadioLifecycleState;
+  wakeGateState: RadioWakeGateState;
   refilling: boolean;
   refillGeneration: number;
   lowWatermark: number;
@@ -88,7 +88,7 @@ export type RadioSupervisorSnapshot = {
 
 export type RadioSupervisor = {
   wake(reason: RadioWakeReason): Promise<RadioWakeDecision>;
-  setLifecycle(state: RadioLifecycleState): void;
+  setWakeGateStateForTest(state: RadioWakeGateState): void;
   snapshot(): RadioSupervisorSnapshot;
   waitForTerminalObservation(): Promise<void>;
   stop(): Promise<void>;
@@ -106,7 +106,7 @@ const defaultClock: RadioSupervisorClock = {
 };
 
 export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioSupervisor {
-  let lifecycle = input.initialLifecycle ?? "Running";
+  let wakeGateState = input.initialWakeGateState ?? "Running";
   let refilling = false;
   let refillGeneration = 0;
   let exhaustedRadioDirectionRevision: ConcernRevision | undefined;
@@ -142,12 +142,12 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
 
   return {
     wake,
-    setLifecycle(state) {
-      lifecycle = state;
+    setWakeGateStateForTest(state) {
+      wakeGateState = state;
     },
     snapshot() {
       return {
-        lifecycle,
+        wakeGateState,
         refilling,
         refillGeneration,
         lowWatermark,
@@ -163,7 +163,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       return terminalObservation;
     },
     async stop() {
-      lifecycle = "Shutdown";
+      wakeGateState = "Shutdown";
       const activeObservation = terminalObservationAbortController === undefined
         ? undefined
         : terminalObservation;
@@ -176,8 +176,8 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   };
 
   async function wake(reason: RadioWakeReason): Promise<RadioWakeDecision> {
-    if (lifecycle !== "Running") {
-      return { kind: "not_running", lifecycle };
+    if (wakeGateState !== "Running") {
+      return { kind: "not_running", wakeGateState };
     }
     if (terminalObservationError !== undefined) {
       retryTerminalObservation();
@@ -190,9 +190,9 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     refilling = true;
     try {
       const pacing = await input.pacingRead.readRadioPacing({ ownerScope: input.ownerScope });
-      if (lifecycle !== "Running") {
+      if (wakeGateState !== "Running") {
         refilling = false;
-        return { kind: "not_running", lifecycle };
+        return { kind: "not_running", wakeGateState };
       }
       if (pendingSubmission !== undefined) {
         if (pendingSubmissionMatchesPacing(pendingSubmission, pacing)) {
@@ -276,7 +276,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     terminalObservation = observeTerminal(jobId, abortController);
     // Runtime lifecycle boundary: keep terminal observation failures out of the
     // unhandled-rejection channel while the supervisor exposes them via snapshot
-    // and wake decisions. PB7's durable event log is deferred.
+    // and wake decisions. The durable Radio event log is deferred.
     void terminalObservation.catch(() => {});
   }
 
@@ -309,7 +309,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     terminalObservationError = undefined;
     handleTerminalState(terminal);
     refilling = false;
-    if (lifecycle === "Running") {
+    if (wakeGateState === "Running") {
       await wake("low_watermark");
     }
   }

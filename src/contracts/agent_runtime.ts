@@ -7,7 +7,7 @@ import type { WorkbenchMusicItemSummary, WorkspaceReadModel } from "./workbench_
 
 export type AgentSessionContext = WorkspaceReadModel;
 
-export type RadioLifecycleState = "Running" | "Paused" | "Shutdown";
+export type RadioWakeGateState = "Running" | "Paused" | "Shutdown";
 
 export type SpeechLevel = "Silent" | "Notify";
 

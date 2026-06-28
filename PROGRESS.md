@@ -1553,18 +1553,19 @@ catalog integration. Design authority:
   does not collide with retained terminal jobs from an earlier process. Pending
   submit retries re-read current pacing and discard stale pending payloads when
   radio-direction or radio-session revision has moved. Server Host cancels that
-  observation before backend shutdown. The default Server Host mounts and wakes
-  Radio only when explicit Radio agent stream options are supplied; when mounted,
-  Radio sees only its explicit discovery/catalog/queue-append Stage tool pack.
-  Agent Runtime now owns the `agent_runtime.radio_refill_run`
-  job payload/result contracts, `Running` / `Paused` / `Shutdown` lifecycle
-  enum, minimal `Silent` / `Notify` speech level, Radio→Main notify channel,
-  low-watermark single-flight supervisor, exhaustion suppression by
-  `radio_direction_revision`, failed-terminal plus zero-progress `no_action`
-  cooldown via `runAfter`, queue-append-derived run results instead of fabricated
-  `no_action` success, cooperative abort as `voided_stale`, public-handle shaped
-  notify subjects, and the Radio transcript store
-  (`agent_runtime_radio_transcripts`). The run substrate
+  observation before backend shutdown. The default Server Host mounts Radio only
+  when explicit Radio agent stream options are supplied; startup does not wake
+  Radio, leaving wake as an explicit seam for the later user-command lifecycle
+  path rather than a side effect of runtime config. When mounted, Radio sees only
+  its explicit discovery/catalog/queue-append Stage tool pack. Agent Runtime now
+  owns the `agent_runtime.radio_refill_run` job payload/result contracts,
+  internal `Running` / `Paused` / `Shutdown` wake-gate state, minimal
+  `Silent` / `Notify` speech level, Radio→Main notify channel, low-watermark
+  single-flight supervisor, exhaustion suppression by `radio_direction_revision`,
+  failed-terminal plus zero-progress `no_action` cooldown via `runAfter`,
+  queue-append-derived run results instead of fabricated `no_action` success,
+  cooperative abort as `voided_stale`, public-handle shaped notify subjects, and
+  the Radio transcript store (`agent_runtime_radio_transcripts`). The run substrate
   mirrors pi by keeping one long-lived `Agent`, using `agent_start` as the
   run-start seam, persisting a capped transcript tail after `agent_end` with save
   failures failing the run, and reloading transcript only on simulated

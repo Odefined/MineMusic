@@ -800,35 +800,36 @@ restored as compatibility layers.
   revisions. The Music Experience read model now exposes radio truth and a
   current-queue material-ref read for Phase B queue-internal dedup.
 - Phase B PR3 Radio runtime substrate is in progress on top of that Music
-  Experience floor: Agent Runtime now defines the Radio lifecycle enum
+  Experience floor: Agent Runtime now defines the internal Radio wake-gate state
   (`Running` / `Paused` / `Shutdown`), Radio refill job payload/result types,
   minimal Speech Level (`Silent` / `Notify`), and a typed Radio→Main notify
   channel. `radio_supervisor` owns the low-watermark single-flight wake gate,
   candidate-exhaustion-by-direction suppression, failed-terminal and
   zero-progress `no_action` cooldown via Background Work `runAfter`, and
-  `agent_runtime.radio_refill_run` handler registration. Background Work now
-  exposes cancellable terminal observation keyed by `{ jobType, jobId }`, so the
-  supervisor can hold submit→terminal single-flight across retries without
-  relying on a process-local reverse map; transient observation errors keep the
-  same job locked and are retried on the next wake instead of submitting a new
-  generation. Idempotency keys include a supervisor run epoch, so same-process
-  submit recovery does not collide with retained terminal jobs from an earlier
-  process. Pending submit retries re-read current pacing and discard stale
-  pending payloads when radio-direction or radio-session revision has moved,
-  preventing old-basis retry submission from racing a newer wake. Server Host
-  shutdown cancels the observer before stopping the backend. The default Server
-  Host mounts and wakes Radio only when explicit Radio agent stream options are
-  supplied; otherwise the rest of the runtime starts without pretending Radio can
-  run through pi's default unknown provider. When mounted, Radio sees only its
-  explicit discovery/catalog/queue-append Stage tool pack, and the run result is
-  extracted from queue-append tool results rather than fabricated as `no_action`.
-  Radio cooperative aborts return `voided_stale` rather than failed terminal
-  outcomes, and Radio→Main notify subjects use public handle-shaped objects, not
-  internal material refs. Radio transcript durability is Agent Runtime-owned
-  through `agent_runtime_radio_transcripts`; the run substrate writes a capped
-  tail of the long-lived pi `Agent.state.messages` after `agent_end`; save
-  failures fail the run instead of fabricating success. It reloads only on
-  explicit restart/reconstruction, not per run.
+  `agent_runtime.radio_refill_run` handler registration.
+  Background Work now exposes cancellable terminal observation keyed by
+  `{ jobType, jobId }`, so the supervisor can hold submit→terminal single-flight
+  across retries without relying on a process-local reverse map; transient
+  observation errors keep the same job locked and are retried on the next wake
+  instead of submitting a new generation. Idempotency keys include a supervisor
+  run epoch, so same-process submit recovery does not collide with retained
+  terminal jobs from an earlier process. Pending submit retries re-read current
+  pacing and discard stale pending payloads when radio-direction or
+  radio-session revision has moved, preventing old-basis retry submission from
+  racing a newer wake. Server Host shutdown cancels the observer before stopping
+  the backend. The default Server Host mounts Radio only when explicit Radio
+  agent stream options are supplied, and startup does not wake Radio; wake
+  remains an explicit seam for the later user-command lifecycle path rather than
+  a side effect of runtime config. When mounted, Radio sees only its explicit
+  discovery/catalog/queue-append Stage tool pack, and the run result is
+  extracted from queue-append tool results rather than fabricated as
+  `no_action`. Radio cooperative aborts return `voided_stale` rather than failed
+  terminal outcomes, and Radio→Main notify subjects use public handle-shaped
+  objects, not internal material refs. Radio transcript durability is Agent
+  Runtime-owned through `agent_runtime_radio_transcripts`; the run substrate
+  writes a capped tail of the long-lived pi `Agent.state.messages` after
+  `agent_end`; save failures fail the run instead of fabricating success. It
+  reloads only on explicit restart/reconstruction, not per run.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection
