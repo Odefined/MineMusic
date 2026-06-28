@@ -10,6 +10,7 @@ import {
   createPostgresRadioTranscriptStore,
   createRadioSupervisor,
   createStageToolBridge,
+  isStageToolErrorDetails,
   restoreRadioAgentTranscript,
   toPiToolName,
   type CreatePiRadioRefillRunPortInput,
@@ -91,6 +92,11 @@ export function createAgentRuntimeRadioModule(
     radioDirectionRevision: number;
     radioSessionRevision: number;
   } | undefined;
+  let radioToolBridgeCache: {
+    sourceTools: readonly ToolDeclaration[];
+    declarations: readonly ToolDeclaration[];
+    bridge: ReturnType<typeof createStageToolBridge>;
+  } | undefined;
 
   return {
     descriptor: {
@@ -99,6 +105,7 @@ export function createAgentRuntimeRadioModule(
       label: "Agent Runtime Radio",
     },
     async initialize() {
+      radioToolBridgeCache = undefined;
       const db = requirePort(input.database(), "music database");
       const backgroundWork = requirePort(input.backgroundWork(), "Background Work");
       const musicExperienceRead = requirePort(input.musicExperienceRead(), "Music Experience read model");
@@ -173,6 +180,7 @@ export function createAgentRuntimeRadioModule(
       await supervisor?.stop();
       supervisor = undefined;
       currentRadioBasis = undefined;
+      radioToolBridgeCache = undefined;
       return { ok: true, value: undefined };
     },
   };
@@ -197,13 +205,43 @@ export function createAgentRuntimeRadioModule(
     if (tools.length === 0) {
       throw new Error("Radio Agent tools used before Stage Runtime is ready.");
     }
-    return createStageToolBridge({
-      tools: selectRadioStageToolDeclarations(tools),
+    if (radioToolBridgeCache?.sourceTools === tools) {
+      return radioToolBridgeCache.bridge;
+    }
+
+    const declarations = selectRadioStageToolDeclarations(tools);
+    if (
+      radioToolBridgeCache !== undefined &&
+      sameToolDeclarations(radioToolBridgeCache.declarations, declarations)
+    ) {
+      radioToolBridgeCache = {
+        ...radioToolBridgeCache,
+        sourceTools: tools,
+      };
+      return radioToolBridgeCache.bridge;
+    }
+
+    const bridge = createStageToolBridge({
+      tools: declarations,
       dispatch: lazyDispatch(input),
       contextFactory: radioContextFactory(),
       stageSessionId: "radio",
     });
+    radioToolBridgeCache = {
+      sourceTools: tools,
+      declarations,
+      bridge,
+    };
+    return bridge;
   }
+}
+
+function sameToolDeclarations(
+  left: readonly ToolDeclaration[],
+  right: readonly ToolDeclaration[],
+): boolean {
+  return left.length === right.length &&
+    left.every((tool, index) => tool === right[index]);
 }
 
 type RadioResultFromMessagesInput = Parameters<NonNullable<CreatePiRadioRefillRunPortInput["resultFromMessages"]>>[0];
@@ -215,6 +253,10 @@ export function radioResultFromMessages(input: RadioResultFromMessagesInput) {
       continue;
     }
     if (message.isError) {
+      const error = isStageToolErrorDetails(message.details) ? message.details.error : undefined;
+      if (error?.code === "voided_stale" || error?.code === "operation_aborted") {
+        return radioVoidedStaleResult(input);
+      }
       throw new Error(`Radio refill run '${input.runId}' failed during ${radioQueueAppendToolName}.`);
     }
     const output = queueAppendOutputFromToolDetails(message.details);
@@ -227,6 +269,16 @@ export function radioResultFromMessages(input: RadioResultFromMessagesInput) {
     radioSessionRevision: input.payload.radioSessionRevision,
     outcome: appendedCount > 0 ? "appended" as const : "no_action" as const,
     appendedCount,
+  };
+}
+
+function radioVoidedStaleResult(input: RadioResultFromMessagesInput) {
+  return {
+    runId: input.runId,
+    radioDirectionRevision: input.payload.radioDirectionRevision,
+    radioSessionRevision: input.payload.radioSessionRevision,
+    outcome: "voided_stale" as const,
+    appendedCount: 0,
   };
 }
 

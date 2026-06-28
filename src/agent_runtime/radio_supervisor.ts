@@ -307,26 +307,30 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     }
     terminalObservationJobId = undefined;
     terminalObservationError = undefined;
-    handleTerminalState(terminal);
+    const terminalHandling = handleTerminalState(terminal);
     refilling = false;
-    if (wakeGateState === "Running") {
+    if (wakeGateState === "Running" && terminalHandling.rewake) {
       await wake("low_watermark");
     }
   }
 
-  function handleTerminalState(terminal: BackgroundWorkTerminalState): void {
+  function handleTerminalState(terminal: BackgroundWorkTerminalState): { rewake: boolean } {
     const observedRun = observedRunResultsByJobId.get(terminal.jobId);
     observedRunResultsByJobId.delete(terminal.jobId);
     if (terminal.state === "succeeded") {
+      if (observedRun?.outcome === "voided_stale") {
+        return { rewake: false };
+      }
       if (observedRun !== undefined && isNonProgressSuccess(observedRun)) {
         cooldownUntil = new Date(clock.now().getTime() + failedTerminalCooldownMs);
       }
-      return;
+      return { rewake: true };
     }
     if (terminal.state === "cancelled") {
-      return;
+      return { rewake: false };
     }
     cooldownUntil = new Date(clock.now().getTime() + failedTerminalCooldownMs);
+    return { rewake: true };
   }
 
   function isNonProgressSuccess(result: RadioRunResult): boolean {

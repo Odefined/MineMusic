@@ -273,6 +273,41 @@ assert.throws(() => radioResultFromMessages({
         timestamp: 0,
     }],
 }), /failed during music\.experience\.queue\.append/);
+assert.deepEqual(radioResultFromMessages({
+    runId: "radio-result-stale-test",
+    payload: {
+        workspaceId: "default",
+        ownerScope: "local",
+        radioSessionRevision: 3,
+        radioDirectionRevision: 5,
+        wakeReason: "low_watermark",
+        refillGeneration: 1,
+        suggestedAppendCount: 2,
+    },
+    newMessages: [{
+        role: "toolResult",
+        toolCallId: "queue-append-call",
+        toolName: "music_experience_queue_append",
+        content: [{ type: "text", text: "Music Experience command basis was stale at commit time." }],
+        details: {
+            toolName: "music.experience.queue.append",
+            error: {
+                code: "voided_stale",
+                message: "Music Experience command basis was stale at commit time.",
+                area: "music_experience",
+                retryable: true,
+            },
+        },
+        isError: true,
+        timestamp: 0,
+    }],
+}), {
+    runId: "radio-result-stale-test",
+    radioDirectionRevision: 5,
+    radioSessionRevision: 3,
+    outcome: "voided_stale",
+    appendedCount: 0,
+});
 const stopped = await host.stop();
 assert.equal(stopped.ok, true);
 assert.equal(host.snapshot().status, "stopped");

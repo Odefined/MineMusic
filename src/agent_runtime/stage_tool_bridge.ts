@@ -28,6 +28,13 @@ import {
 
 type PiJsonSchema = JsonSchema;
 
+export type StageToolErrorDetails = {
+  toolName: string;
+  error: Pick<StageError, "code" | "message" | "area" | "retryable" | "suggestedFix">;
+};
+
+export type StageToolBridgeDetails = ToolCallOutput | StageToolErrorDetails;
+
 export type AgentRuntimeStageToolContextFactoryPort = {
   createToolContext(input: {
     sessionId: string;
@@ -58,7 +65,7 @@ export type CreateStageToolBridgeInput = {
   }) => string;
 };
 
-export function createStageToolBridge(input: CreateStageToolBridgeInput): AgentTool<PiJsonSchema, ToolCallOutput>[] {
+export function createStageToolBridge(input: CreateStageToolBridgeInput): AgentTool<PiJsonSchema, StageToolBridgeDetails>[] {
   assertUniqueProviderSafeToolNames(input.tools);
   return input.tools.map((descriptor) => createPiToolForStageTool({
     ...input,
@@ -70,7 +77,7 @@ export function createStageToolBridge(input: CreateStageToolBridgeInput): AgentT
 function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
   descriptor: ToolDeclaration;
   piToolName: string;
-}): AgentTool<PiJsonSchema, ToolCallOutput> {
+}): AgentTool<PiJsonSchema, StageToolBridgeDetails> {
   const { descriptor } = input;
 
   return {
@@ -78,7 +85,7 @@ function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
     label: descriptor.label,
     description: renderModelVisibleToolDescription(descriptor),
     parameters: descriptor.inputSchema,
-    async execute(toolCallId, params, signal): Promise<AgentToolResult<ToolCallOutput>> {
+    async execute(toolCallId, params, signal): Promise<AgentToolResult<StageToolBridgeDetails>> {
       const ctx = input.contextFactory.createToolContext({
         sessionId: input.stageSessionId,
         requestId: input.requestIdForToolCall?.({
@@ -95,7 +102,7 @@ function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
       });
 
       if (!result.ok) {
-        throw new Error(stageToolFailureMessage(descriptor, result.error));
+        return stageToolErrorResult(descriptor, result.error);
       }
 
       return {
@@ -104,6 +111,26 @@ function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
       };
     },
   };
+}
+
+export function isStageToolErrorDetails(value: unknown): value is StageToolErrorDetails {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  const record = value as { toolName?: unknown; error?: unknown };
+  if (typeof record.toolName !== "string" || record.error === null || typeof record.error !== "object") {
+    return false;
+  }
+  const error = record.error as {
+    code?: unknown;
+    message?: unknown;
+    area?: unknown;
+    retryable?: unknown;
+  };
+  return typeof error.code === "string" &&
+    typeof error.message === "string" &&
+    typeof error.area === "string" &&
+    typeof error.retryable === "boolean";
 }
 
 export function toPiToolName(internalName: string): string {
@@ -120,12 +147,40 @@ function summarizeStageToolResult(descriptor: ToolDeclaration, result: unknown):
   return summary.text;
 }
 
+function stageToolErrorResult(
+  descriptor: ToolDeclaration,
+  error: StageError,
+): AgentToolResult<StageToolErrorDetails> {
+  const text = stageToolFailureMessage(descriptor, error);
+  return {
+    content: [{ type: "text", text }],
+    details: {
+      toolName: descriptor.name,
+      error: stageToolErrorDetails(error),
+    },
+  };
+}
+
 function stageToolFailureMessage(descriptor: ToolDeclaration, error: StageError): string {
   if (classifyStageToolFailure(error) !== "tool_result_error") {
-    return `Tool '${descriptor.name}' failed due to an internal runtime error.`;
+    throw new Error(`Tool '${descriptor.name}' failed due to an internal runtime error.`);
   }
 
   const errorText = renderPublicToolErrorText({ descriptor, error });
 
-  return errorText.kind === "invariantFailure" ? errorText.message : errorText.text;
+  if (errorText.kind === "invariantFailure") {
+    throw new Error(errorText.message);
+  }
+
+  return errorText.text;
+}
+
+function stageToolErrorDetails(error: StageError): StageToolErrorDetails["error"] {
+  return {
+    code: error.code,
+    message: error.message,
+    area: error.area,
+    retryable: error.retryable,
+    ...(error.suggestedFix === undefined ? {} : { suggestedFix: error.suggestedFix }),
+  };
 }

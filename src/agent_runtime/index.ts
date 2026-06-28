@@ -35,12 +35,15 @@ export type {
 } from "./session_context.js";
 export {
   createStageToolBridge,
+  isStageToolErrorDetails,
   toPiToolName,
 } from "./stage_tool_bridge.js";
 export type {
   AgentRuntimeStageToolContextFactoryPort,
   CreateStageToolBridgeInput,
   StageToolDispatchPort,
+  StageToolBridgeDetails,
+  StageToolErrorDetails,
 } from "./stage_tool_bridge.js";
 export {
   createPiRadioRefillRunPort,

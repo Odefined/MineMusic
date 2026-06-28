@@ -511,8 +511,9 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/background_work/index.ts`: Background Work public exports.
 - `src/agent_runtime/radio_supervisor.ts`: Phase B Radio supervisor
   single-flight low-watermark wake gate, exhaustion suppression, terminal
-  observation retry, run-epoch idempotency, failed/non-progress cooldown, and
-  narrow Background Work handler registration.
+  observation retry, run-epoch idempotency, failed/non-progress cooldown,
+  terminal `voided_stale` no-rewake handling, and narrow Background Work handler
+  registration.
 - `src/agent_runtime/radio_run.ts`: Phase B Radio run substrate over one
   long-lived pi `Agent`, using `agent_start` / `agent_end` for run-start and
   capped transcript persistence, with explicit run-result extraction.
@@ -527,6 +528,9 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   dispatch entrypoint, shared music database lifecycle owner, schema-array
   composer, internal source library import seam accessor, optional Radio runtime
   mounting without startup wake, and the composed Tool Context Factory accessor.
+- `src/server/agent_runtime_radio_module.ts`: Agent Runtime Radio composition
+  module, Radio tool-pack restriction, cached Radio Stage tool bridge, and
+  queue-append-derived run-result extraction.
 - `src/server/config.ts`: Server Host default runtime composition config.
 - `src/server/music_data_platform_runtime_module.ts`: Server Host composition
   module for Music Data Platform-owned ports and commands from an injected

@@ -2,6 +2,8 @@ import {
   Agent,
   type AgentMessage,
   type AgentOptions,
+  type AfterToolCallContext,
+  type AfterToolCallResult,
   type StreamFn,
 } from "@earendil-works/pi-agent-core";
 
@@ -12,6 +14,7 @@ import {
 } from "./session_context.js";
 import {
   createStageToolBridge,
+  isStageToolErrorDetails,
   type AgentRuntimeStageToolContextFactoryPort,
   type StageToolDispatchPort,
 } from "./stage_tool_bridge.js";
@@ -43,6 +46,7 @@ export type CreateMineMusicPiAgentAdapterInput = {
 export function createMineMusicPiAgentAdapter(input: CreateMineMusicPiAgentAdapterInput): Agent {
   return new Agent({
     ...input.agentOptions,
+    afterToolCall: stageToolErrorAwareAfterToolCall(input.agentOptions.afterToolCall),
     ...(input.llmProviderSessionId === undefined ? {} : { sessionId: input.llmProviderSessionId }),
     initialState: {
       systemPrompt: input.sessionContext === undefined
@@ -60,4 +64,31 @@ export function createMineMusicPiAgentAdapter(input: CreateMineMusicPiAgentAdapt
       }),
     },
   });
+}
+
+function stageToolErrorAwareAfterToolCall(
+  userAfterToolCall: AgentOptions["afterToolCall"],
+): NonNullable<AgentOptions["afterToolCall"]> {
+  return async (context, signal) => {
+    const bridgeErrorPatch: AfterToolCallResult | undefined = isStageToolErrorDetails(context.result.details)
+      ? { isError: true }
+      : undefined;
+    const userContext: AfterToolCallContext = bridgeErrorPatch === undefined
+      ? context
+      : { ...context, isError: true };
+    const userPatch = await userAfterToolCall?.(userContext, signal);
+
+    if (bridgeErrorPatch === undefined) {
+      return userPatch;
+    }
+    if (userPatch === undefined) {
+      return bridgeErrorPatch;
+    }
+
+    const merged: AfterToolCallResult = {
+      ...userPatch,
+      isError: userPatch.isError ?? true,
+    };
+    return merged;
+  };
 }

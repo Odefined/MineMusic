@@ -386,13 +386,20 @@ assert.throws(
     stageSessionId: "stage-session",
   });
 
-  await assert.rejects(
-    () => {
-      assert.ok(tool !== undefined);
-      return tool.execute("tool-call-2", { query: "" });
+  assert.ok(tool !== undefined);
+  const failed = await tool.execute("tool-call-2", { query: "" });
+  assert.equal(failed.content[0]?.type, "text");
+  assert.match(failed.content[0]?.text ?? "", /Bad query\.\nSuggested fix: Use a better query\./u);
+  assert.deepEqual(failed.details, {
+    toolName: descriptor.name,
+    error: {
+      code: "agent.test.bad_query",
+      message: "Bad query.",
+      area: "agent_runtime",
+      retryable: false,
+      suggestedFix: "Use a better query.",
     },
-    /Bad query\.\nSuggested fix: Use a better query\./u,
-  );
+  });
 }
 
 {
@@ -769,6 +776,16 @@ assert.throws(
   assert.equal(toolResult?.isError, true);
   assert.equal(toolResult?.content[0]?.type, "text");
   assert.match(toolResult?.content[0]?.text ?? "", /Bad query\.\nSuggested fix: Use a better query\./u);
+  assert.deepEqual(toolResult?.details, {
+    toolName: descriptor.name,
+    error: {
+      code: "agent.test.bad_query",
+      message: "Bad query.",
+      area: "agent_runtime",
+      retryable: false,
+      suggestedFix: "Use a better query.",
+    },
+  });
 }
 
 {
