@@ -1546,15 +1546,19 @@ catalog integration. Design authority:
 - Phase B PR3 has started the Radio actor runtime substrate. Background Work now
   has a cancellable terminal-observation port keyed by `{ jobType, jobId }` over
   pg-boss job state, so a Radio supervisor can hold a single-flight refill from
-  submit through terminal retry completion without a process-local reverse map.
-  Server Host cancels that observation before backend shutdown, and Radio sees
-  only its explicit discovery/catalog/queue-append Stage tool pack. Agent Runtime
-  now owns the `agent_runtime.radio_refill_run`
+  submit through terminal retry completion without a process-local reverse map;
+  if terminal observation itself errors transiently, the same job remains locked
+  and the next wake retries observation instead of submitting another
+  generation. Server Host cancels that observation before backend shutdown, and
+  Radio sees only its explicit discovery/catalog/queue-append Stage tool pack.
+  Agent Runtime now owns the `agent_runtime.radio_refill_run`
   job payload/result contracts, `Running` / `Paused` / `Shutdown` lifecycle
   enum, minimal `Silent` / `Notify` speech level, Radio→Main notify channel,
   low-watermark single-flight supervisor, exhaustion suppression by
-  `radio_direction_revision`, failed-terminal cooldown via `runAfter`, and the
-  Radio transcript store (`agent_runtime_radio_transcripts`). The run substrate
+  `radio_direction_revision`, failed-terminal plus zero-progress `no_action`
+  cooldown via `runAfter`, cooperative abort as `voided_stale`, public-handle
+  shaped notify subjects, and the Radio transcript store
+  (`agent_runtime_radio_transcripts`). The run substrate
   mirrors pi by keeping one long-lived `Agent`, using `agent_start` as the
   run-start seam, persisting after `agent_end`, and reloading transcript only on
   simulated restart/reconstruction.

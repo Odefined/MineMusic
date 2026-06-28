@@ -170,12 +170,20 @@ async function runRadioSupervisorTests(): Promise<void> {
 
 {
   const harness = createHarness({ queueDepth: 4 });
+  harness.runPort.nextResult = (input) => ({
+    runId: input.runId,
+    radioDirectionRevision: input.payload.radioDirectionRevision,
+    radioSessionRevision: input.payload.radioSessionRevision,
+    outcome: "appended",
+    appendedCount: 1,
+  });
 
   const first = await harness.supervisor.wake("low_watermark");
   assert.equal(first.kind, "submitted");
   assert.equal((await harness.supervisor.wake("low_watermark")).kind, "already_refilling");
   assert.equal(harness.backgroundWork.submissions.length, 1);
 
+  await harness.backgroundWork.runJob(harness.backgroundWork.submissions[0]!.jobId);
   harness.backgroundWork.resolveTerminal(harness.backgroundWork.submissions[0]!.jobId, "succeeded");
   await harness.supervisor.waitForTerminalObservation();
 
@@ -270,6 +278,7 @@ async function runRadioSupervisorTests(): Promise<void> {
   const harness = createHarness({ queueDepth: 4 });
 
   await harness.supervisor.wake("low_watermark");
+  const jobId = harness.backgroundWork.submissions[0]!.jobId;
   harness.backgroundWork.rejectTerminal(harness.backgroundWork.submissions[0]!.jobId, new Error("lost terminal observer"));
   await assert.rejects(
     () => harness.supervisor.waitForTerminalObservation(),
@@ -280,6 +289,11 @@ async function runRadioSupervisorTests(): Promise<void> {
   assert.equal(decision.kind, "terminal_observation_failed");
   assert.equal(harness.supervisor.snapshot().refilling, true);
   assert.equal(harness.backgroundWork.submissions.length, 1);
+
+  harness.backgroundWork.resolveTerminal(jobId, "succeeded");
+  await harness.supervisor.waitForTerminalObservation();
+  assert.equal(harness.supervisor.snapshot().terminalObservationError, undefined);
+  assert.equal(harness.backgroundWork.submissions.length, 2);
 }
 
 {
@@ -328,8 +342,32 @@ async function runRadioSupervisorTests(): Promise<void> {
 }
 
 {
-  const harness = createHarness({ queueDepth: 4 });
+  const clock = createFakeClock("2026-06-28T00:00:00.000Z");
+  const harness = createHarness({ queueDepth: 4, clock, failedTerminalCooldownMs: 10_000 });
+
   await harness.supervisor.wake("low_watermark");
+  await harness.backgroundWork.runJob(harness.backgroundWork.submissions[0]!.jobId);
+  harness.backgroundWork.resolveTerminal(harness.backgroundWork.submissions[0]!.jobId, "succeeded");
+  await harness.supervisor.waitForTerminalObservation();
+
+  assert.equal(harness.backgroundWork.submissions.length, 2);
+  assert.equal(
+    harness.backgroundWork.submissions[1]!.input.runAfter?.toISOString(),
+    "2026-06-28T00:00:10.000Z",
+  );
+}
+
+{
+  const harness = createHarness({ queueDepth: 4 });
+  harness.runPort.nextResult = (input) => ({
+    runId: input.runId,
+    radioDirectionRevision: input.payload.radioDirectionRevision,
+    radioSessionRevision: input.payload.radioSessionRevision,
+    outcome: "appended",
+    appendedCount: 1,
+  });
+  await harness.supervisor.wake("low_watermark");
+  await harness.backgroundWork.runJob(harness.backgroundWork.submissions[0]!.jobId);
   harness.backgroundWork.resolveTerminal(harness.backgroundWork.submissions[0]!.jobId, "succeeded");
   await harness.supervisor.waitForTerminalObservation();
 

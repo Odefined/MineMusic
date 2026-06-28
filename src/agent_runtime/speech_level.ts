@@ -1,7 +1,4 @@
-import type {
-  RadioNotifyRequest,
-  RadioRunResult,
-} from "../contracts/agent_runtime.js";
+import type { RadioNotifyRequest } from "../contracts/agent_runtime.js";
 
 export function candidateExhaustionNotify(input: {
   runId: string;
@@ -16,8 +13,4 @@ export function candidateExhaustionNotify(input: {
     radioDirectionRevision: input.radioDirectionRevision,
     summary: input.summary,
   };
-}
-
-export function notifyFromRunResult(result: RadioRunResult): RadioNotifyRequest | undefined {
-  return result.notify;
 }

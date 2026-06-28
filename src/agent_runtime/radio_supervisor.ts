@@ -7,7 +7,6 @@ import type {
 } from "../contracts/agent_runtime.js";
 import type { ConcernRevision } from "../contracts/kernel.js";
 import type { MainRadioNotifyChannel } from "./main_radio_channel.js";
-import { notifyFromRunResult } from "./speech_level.js";
 
 export const RADIO_REFILL_JOB_TYPE = "agent_runtime.radio_refill_run";
 
@@ -79,6 +78,10 @@ type PendingRefillSubmission = {
   runAfter?: Date;
 };
 
+type ObservedRunResult = {
+  result: RadioRunResult;
+};
+
 const defaultClock: RadioSupervisorClock = {
   now() {
     return new Date();
@@ -94,7 +97,9 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   let terminalObservationError: unknown;
   let terminalObservation: Promise<void> = Promise.resolve();
   let terminalObservationAbortController: AbortController | undefined;
+  let terminalObservationJobId: string | undefined;
   let pendingSubmission: PendingRefillSubmission | undefined;
+  const observedRunResultsByJobId = new Map<string, ObservedRunResult>();
 
   const clock = input.clock ?? defaultClock;
   const lowWatermark = input.lowWatermark ?? 5;
@@ -113,6 +118,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
         throw new Error(`Radio refill run result '${result.runId}' did not match Background Work job '${job.jobId}'.`);
       }
       await handleRunResult(result);
+      observedRunResultsByJobId.set(job.jobId, { result });
     },
   });
 
@@ -144,6 +150,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       terminalObservationAbortController?.abort();
       await activeObservation;
       terminalObservationAbortController = undefined;
+      terminalObservationJobId = undefined;
       refilling = false;
     },
   };
@@ -153,6 +160,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       return { kind: "not_running", lifecycle };
     }
     if (terminalObservationError !== undefined) {
+      retryTerminalObservation();
       return { kind: "terminal_observation_failed", error: terminalObservationError };
     }
     if (refilling) {
@@ -224,15 +232,30 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     });
     pendingSubmission = undefined;
     const observationAbortController = new AbortController();
-    terminalObservationAbortController = observationAbortController;
-    terminalObservation = observeTerminal(submitted.jobId, observationAbortController);
-    void terminalObservation.catch(() => {});
+    startTerminalObservation(submitted.jobId, observationAbortController);
     return {
       kind: "submitted",
       jobId: submitted.jobId,
       payload: submission.payload,
       ...(submission.runAfter === undefined ? {} : { runAfter: submission.runAfter }),
     };
+  }
+
+  function retryTerminalObservation(): void {
+    if (terminalObservationJobId === undefined || terminalObservationAbortController !== undefined) {
+      return;
+    }
+    startTerminalObservation(terminalObservationJobId, new AbortController());
+  }
+
+  function startTerminalObservation(jobId: string, abortController: AbortController): void {
+    terminalObservationAbortController = abortController;
+    terminalObservationJobId = jobId;
+    terminalObservation = observeTerminal(jobId, abortController);
+    // Runtime lifecycle boundary: keep terminal observation failures out of the
+    // unhandled-rejection channel while the supervisor exposes them via snapshot
+    // and wake decisions. PB7's durable event log is deferred.
+    void terminalObservation.catch(() => {});
   }
 
   async function observeTerminal(jobId: string, abortController: AbortController): Promise<void> {
@@ -260,6 +283,8 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     if (terminalObservationAbortController === abortController) {
       terminalObservationAbortController = undefined;
     }
+    terminalObservationJobId = undefined;
+    terminalObservationError = undefined;
     handleTerminalState(terminal);
     refilling = false;
     if (lifecycle === "Running") {
@@ -268,10 +293,24 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   }
 
   function handleTerminalState(terminal: BackgroundWorkTerminalState): void {
+    const observedRun = observedRunResultsByJobId.get(terminal.jobId);
+    observedRunResultsByJobId.delete(terminal.jobId);
     if (terminal.state === "succeeded") {
+      if (observedRun !== undefined && isNonProgressSuccess(observedRun.result)) {
+        cooldownUntil = new Date(clock.now().getTime() + failedTerminalCooldownMs);
+      }
+      return;
+    }
+    if (terminal.state === "cancelled") {
       return;
     }
     cooldownUntil = new Date(clock.now().getTime() + failedTerminalCooldownMs);
+  }
+
+  function isNonProgressSuccess(result: RadioRunResult): boolean {
+    return result.appendedCount === 0 &&
+      result.outcome !== "candidate_exhaustion_by_direction" &&
+      result.outcome !== "voided_stale";
   }
 
   async function handleRunResult(result: RadioRunResult): Promise<void> {
@@ -282,9 +321,8 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     if (result.notify !== undefined && result.notify.runId !== result.runId) {
       throw new Error(`Radio notify run '${result.notify.runId}' did not match run result '${result.runId}'.`);
     }
-    const notify = notifyFromRunResult(result);
-    if (notify !== undefined) {
-      await input.notifyChannel.notify(notify);
+    if (result.notify !== undefined) {
+      await input.notifyChannel.notify(result.notify);
     }
   }
 

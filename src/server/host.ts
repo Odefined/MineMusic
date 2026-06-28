@@ -249,6 +249,8 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       ...(libraryCollectionModule === undefined ? [] : [libraryCollectionModule]),
       ...(musicDiscoveryModule === undefined ? [] : [musicDiscoveryModule]),
       ...(musicExperienceModule === undefined ? [] : [musicExperienceModule]),
+      // Radio registers the agent_runtime.radio_refill_run handler during
+      // initialize(); Background Work starts workers and forbids late handlers.
       ...(agentRuntimeRadioModule === undefined ? [] : [agentRuntimeRadioModule]),
       ...(backgroundWorkModule === undefined ? [] : [backgroundWorkModule]),
     ],

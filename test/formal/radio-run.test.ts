@@ -194,11 +194,39 @@ const key = {
     signal: controller.signal,
   });
 
-  await assert.rejects(
-    () => running,
-    /ended aborted: background job aborted/,
-  );
+  assert.deepEqual(await running, {
+    runId: "radio-job-abort",
+    radioDirectionRevision: 0,
+    radioSessionRevision: 0,
+    outcome: "voided_stale",
+    appendedCount: 0,
+  });
   assert.equal(abortCalls, 1);
+}
+
+{
+  const transcriptStore = createInMemoryRadioTranscriptStore();
+  const controller = new AbortController();
+  controller.abort();
+  const runPort = createPiRadioRefillRunPort({
+    ...key,
+    agent: createTestRadioAgent("pre-abort"),
+    transcriptStore,
+    clock: () => "2026-06-28T00:00:00.000Z",
+  });
+
+  assert.deepEqual(await runPort.runRadioRefill({
+    runId: "radio-job-pre-abort",
+    payload: payload(7),
+    signal: controller.signal,
+  }), {
+    runId: "radio-job-pre-abort",
+    radioDirectionRevision: 0,
+    radioSessionRevision: 0,
+    outcome: "voided_stale",
+    appendedCount: 0,
+  });
+  assert.equal(transcriptStore.snapshot(key).length, 0);
 }
 
 {
@@ -220,14 +248,14 @@ const key = {
   });
   const firstRun = runPort.runRadioRefill({
     runId: "radio-job-concurrent-1",
-    payload: payload(7),
+    payload: payload(8),
     signal: new AbortController().signal,
   });
 
   await assert.rejects(
     () => runPort.runRadioRefill({
       runId: "radio-job-concurrent-2",
-      payload: payload(8),
+      payload: payload(9),
       signal: new AbortController().signal,
     }),
     /cannot start while 'radio-job-concurrent-1' is active/,

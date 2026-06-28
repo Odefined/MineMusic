@@ -82,5 +82,4 @@ export type {
 } from "./radio_supervisor.js";
 export {
   candidateExhaustionNotify,
-  notifyFromRunResult,
 } from "./speech_level.js";

@@ -511,7 +511,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/background_work/index.ts`: Background Work public exports.
 - `src/agent_runtime/radio_supervisor.ts`: Phase B Radio supervisor
   single-flight low-watermark wake gate, exhaustion suppression, terminal
-  cooldown, and Background Work handler registration.
+  observation retry, failed/non-progress cooldown, and Background Work handler
+  registration.
 - `src/agent_runtime/radio_run.ts`: Phase B Radio run substrate over one
   long-lived pi `Agent`, using `agent_start` / `agent_end` for run-start and
   transcript persistence.

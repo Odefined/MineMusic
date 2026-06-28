@@ -804,13 +804,18 @@ restored as compatibility layers.
   (`Running` / `Paused` / `Shutdown`), Radio refill job payload/result types,
   minimal Speech Level (`Silent` / `Notify`), and a typed Radio→Main notify
   channel. `radio_supervisor` owns the low-watermark single-flight wake gate,
-  candidate-exhaustion-by-direction suppression, failed-terminal cooldown via
-  Background Work `runAfter`, and `agent_runtime.radio_refill_run` handler
-  registration. Background Work now exposes cancellable terminal observation
-  keyed by `{ jobType, jobId }`, so the supervisor can hold submit→terminal
-  single-flight across retries without relying on a process-local reverse map;
-  Server Host shutdown cancels the observer before stopping the backend. Radio
-  sees only its explicit discovery/catalog/queue-append Stage tool pack. Radio
+  candidate-exhaustion-by-direction suppression, failed-terminal and
+  zero-progress `no_action` cooldown via Background Work `runAfter`, and
+  `agent_runtime.radio_refill_run` handler registration. Background Work now
+  exposes cancellable terminal observation keyed by `{ jobType, jobId }`, so the
+  supervisor can hold submit→terminal single-flight across retries without
+  relying on a process-local reverse map; transient observation errors keep the
+  same job locked and are retried on the next wake instead of submitting a new
+  generation. Server Host shutdown cancels the observer before stopping the
+  backend. Radio sees only its explicit discovery/catalog/queue-append Stage
+  tool pack. Radio cooperative aborts return `voided_stale` rather than a failed
+  terminal, and Radio→Main notify subjects use public handle-shaped objects, not
+  internal material refs. Radio
   transcript durability is Agent Runtime-owned through
   `agent_runtime_radio_transcripts`; the run substrate writes the long-lived pi
   `Agent.state.messages` after `agent_end` and reloads only on explicit

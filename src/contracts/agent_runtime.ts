@@ -2,8 +2,8 @@
 // assembled over the Workbench Interface in-process read model rather than over
 // Web/AG-UI wire state.
 
-import type { ConcernRevision, Ref } from "./kernel.js";
-import type { WorkspaceReadModel } from "./workbench_interface.js";
+import type { ConcernRevision } from "./kernel.js";
+import type { WorkbenchMusicItemSummary, WorkspaceReadModel } from "./workbench_interface.js";
 
 export type AgentSessionContext = WorkspaceReadModel;
 
@@ -23,7 +23,7 @@ export type RadioNotifyRequest = {
   eventKind: RadioNotifyEventKind;
   runId: string;
   radioDirectionRevision: ConcernRevision;
-  subject?: { kind: "material"; materialRef: Ref };
+  subject?: { kind: "material"; handle: WorkbenchMusicItemSummary["item"] };
   summary: string;
 };
 

@@ -81,7 +81,7 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
         );
       }
       if (runInput.signal.aborted) {
-        throw new Error(`Radio refill run '${runInput.runId}' was aborted before start.`);
+        return voidedStaleResult(runInput.runId, runInput.payload);
       }
 
       activeRunId = runInput.runId;
@@ -95,7 +95,7 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
           ownerScope: input.ownerScope,
         });
         if (runInput.signal.aborted) {
-          throw new Error(`Radio refill run '${runInput.runId}' was aborted before prompt.`);
+          return voidedStaleResult(runInput.runId, runInput.payload);
         }
         if (input.baseSystemPrompt !== undefined && activeRunStartContext !== undefined) {
           // pi snapshots provider context before emitting agent_start, so the
@@ -106,6 +106,9 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
           });
         }
         await input.prepareRun?.(runInput.payload, activeRunStartContext, runInput.signal);
+        if (runInput.signal.aborted) {
+          return voidedStaleResult(runInput.runId, runInput.payload);
+        }
         firstNewMessageIndex = input.agent.state.messages.length;
         runInput.signal.addEventListener("abort", abortAgent, { once: true });
         await input.agent.prompt(await promptForPayload(input, {
@@ -122,6 +125,9 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
       }
 
       const newMessages = input.agent.state.messages.slice(firstNewMessageIndex);
+      if (finalAssistantAborted(newMessages)) {
+        return voidedStaleResult(runInput.runId, runInput.payload);
+      }
       throwIfFinalAssistantFailed(runInput.runId, newMessages);
 
       const result = await input.resultFromMessages?.({
@@ -159,10 +165,27 @@ async function promptForPayload(
 
 function throwIfFinalAssistantFailed(runId: string, messages: readonly AgentMessage[]): void {
   const assistant = finalAssistantMessage(messages);
-  if (assistant?.stopReason === "error" || assistant?.stopReason === "aborted") {
+  if (assistant?.stopReason === "error") {
     const suffix = assistant.errorMessage === undefined ? "" : `: ${assistant.errorMessage}`;
     throw new Error(`Radio refill run '${runId}' ended ${assistant.stopReason}${suffix}`);
   }
+}
+
+function finalAssistantAborted(messages: readonly AgentMessage[]): boolean {
+  return finalAssistantMessage(messages)?.stopReason === "aborted";
+}
+
+function voidedStaleResult(
+  runId: string,
+  payload: RadioRefillRunJobPayload,
+): RadioRunResult {
+  return {
+    runId,
+    radioDirectionRevision: payload.radioDirectionRevision,
+    radioSessionRevision: payload.radioSessionRevision,
+    outcome: "voided_stale",
+    appendedCount: 0,
+  };
 }
 
 function finalAssistantMessage(messages: readonly AgentMessage[]): Extract<AgentMessage, { role: "assistant" }> | undefined {
@@ -180,6 +203,9 @@ function renderRadioRunSystemPrompt(input: {
   runStartContext: WorkspaceReadModel;
 }): string {
   const radio = input.runStartContext.musicExperience.radio;
+  // Transitional PR3 behavior: until Radio's posture-write command is wired
+  // into the run, stale posture is stripped from the prompt floor rather than
+  // durably cleared. ADR-0037 keeps the durable clear Radio-owned at run start.
   const posture = radio.posture.stale ? { ...radio.posture, lean: [] } : radio.posture;
   return [
     input.baseSystemPrompt,
