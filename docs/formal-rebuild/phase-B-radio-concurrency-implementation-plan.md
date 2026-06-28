@@ -10,9 +10,17 @@ Constraints (stated by the user):
 - PB numbering is **exposition order** (concept-first); PRs follow **implementation-dependency order** (substrate-first). The two are different by nature and need not match; "if you have a better order, you can of course adjust."
 - Each PR explicitly traces back to the PBs it covers.
 
-This version **introduces no parallel numbering** — PRs are ordered by dependency, each lists its PBs directly, and a `PB→PR` map table sits at the end. Spec citations are **section-level (`PBx`)**, not line numbers, because the spec line numbers drift on edit; the plan's own prose carries the specificity.
+This version preserves the landed PR1 / PR2 / PR3 numbering and inserts the
+Agent Context refactor as PR3.1 / PR3.2 / PR3.3 after landed PR3 and before PR4.
+PR4 / PR5 / PR6 keep their numbering. Spec citations are **section-level
+(`PBx`)**, not line numbers, because the spec line numbers drift on edit; the
+plan's own prose carries the specificity.
 
-**Recommended count: 6 PRs** (7 logical units compressed to 6: the Background Work port extension folds into the Radio-actor PR; the "integration layer" half of the two-layer harness folds into the cascade PR; endurance stays its own risk-down PR). PR3 is the largest and has one optional split point.
+**Recommended count: 9 PRs**: the original six dependency-ordered PRs plus
+PR3.1 / PR3.2 / PR3.3 for the Agent Context refactor. The Background Work port
+extension remains folded into the landed Radio-actor PR; the "integration layer"
+half of the two-layer harness remains folded into the cascade PR; endurance
+stays its own risk-down PR.
 
 ## pi Source Fidelity (load-bearing — read before any agent-loop/harness work)
 
@@ -34,6 +42,12 @@ PR1 (PB3+PB6)              OCC substrate: columns + CAS + atomic position mint +
 PR2 (PB5+PB8)              radio-truth + posture + read-model + queue-internal dedup read     [no pi]
         │
 PR3 (PB1+PB1a+PB2+PB4-confirm+PB7+PB10-enum+BW-port)  Radio actor runtime (largest)           [pi; run stubbed]
+        │
+PR3.1 (Agent Context spec)      ActorDefinition + Workspace Context assembler + ME projection port
+        │
+PR3.2 (Agent Context spec)      Radio consumes shared assembler; retire Radio Run Floor
+        │
+PR3.3 (Agent Context spec)      Main consumes shared assembler; retire old Workbench agent seam
         │
 PR4 (PB9)                  cross-actor cascade + observer + per-run AbortSignal + pi integration harness
         │
@@ -91,7 +105,7 @@ PR6 (PB8a)                 endurance acceptance: injected transcript erosion + f
 - `src/music_experience/records.ts` — radio-truth records: read commanded direction + posture; write commanded direction (unconditional UPDATE within the steering transaction + bump `radio_direction_revision`); write posture (**no revision bump**; stamp current `radio_direction_revision`).
 - `src/music_experience/commands.ts` (or new `radio_commands.ts`) — `setRadioDirection` (motif + variations; bumps `radio_direction_revision`), `writeRadioPosture` (lean list; OCC-invisible).
 - `src/contracts/music_experience.ts` — `RadioDirectionValue` discriminated union `text | material | scope` (PB5 "Value shape", ADR-0037 §3); `VariationItem`; motif (single slot) + active variations (ordered list); `EvolvedPosture` (bounded lean list, no motif); command input/output types.
-- `src/music_experience/read_model.ts` — extend `readMusicExperience` to return radio direction + posture + stamp; add the queue-internal dedup read (the set of material refs currently in the queue, so Radio's selection pass excludes them).
+- `src/music_experience/read_model.ts` — PR2 landed the current `readMusicExperience` extension for radio direction + posture + stamp and the queue-internal dedup read. PR3.1 migrates the agent-facing consumption of those facts to a section-agnostic Music Experience Workspace projection port consumed by the shared Agent Runtime Workspace Context assembler, rather than further expanding `WorkbenchMusicExperienceReadPort` as an agent seam.
 
 **Dependencies:** PR1 (`radio_direction_revision` column).
 
@@ -124,14 +138,14 @@ PR6 (PB8a)                 endurance acceptance: injected transcript erosion + f
 - `test/formal/background-work-backend.test.ts` — extend `FakePgBossClient` to support `awaitTerminal` + fake-clock backoff.
 - `src/agent_runtime/` (new files):
   - `radio_supervisor.ts` — lifecycle enum, `refilling` single-flight flag, wake gate (depth < `low` AND not refilling AND `Running` AND not-exhausted-for-current-direction), `refillGeneration` counter, exhaustion record (the exhausted `radio_direction_revision`), submit-to-BW with idempotency key `{workspaceId, radioSessionRevision, radioDirectionRevision, wakeReason, refillGeneration}` (PB1 "Idempotency key"), release single-flight on `awaitTerminal`, inter-job failed-terminal cooldown via `runAfter` (PB1a "Hot-loop prevention is two non-overlapping layers").
-  - `radio_run.ts` — one bounded Radio turn on the supervisor's **long-lived** `Agent`: capture basis `{radioDirectionRevision, radioSessionRevision}` at turn start (PB3 "Commit mechanism… captures the basis at turn start"), call `agent.prompt(...)` (the transcript accumulates in `_state.messages` automatically — **no reload, no reconstruct**), select + batch-append (via `queue.append`, provenance `radio_agent`) + emit the run result; **after** the turn (`agent_end` + `waitForIdle`) persist the accumulated `agent.state.messages` to the PG store. Run-start logic — PB8 posture stamp check (carry iff stamp matches current `radio_direction_revision`, else clear/re-evolve) and PB5 read-model motif injection — runs on the supervisor's `subscribe(agent_start)` hook (pi's per-run-start event, `agent-loop.js`), **not** `prepareNextTurn`/`beforeToolCall`.
+  - `radio_run.ts` — one bounded Radio turn on the supervisor's **long-lived** `Agent`: capture basis `{radioDirectionRevision, radioSessionRevision}` at turn start (PB3 "Commit mechanism… captures the basis at turn start"), call `agent.prompt(...)` (the transcript accumulates in `_state.messages` automatically — **no reload, no reconstruct**), select + batch-append (via `queue.append`, provenance `radio_agent`) + emit the run result; **after** the turn (`agent_end` + `waitForIdle`) persist the accumulated `agent.state.messages` to the PG store. Run-start logic — PB8 posture stamp check (carry iff stamp matches current `radio_direction_revision`, else clear/re-evolve) and the PB5 direction refresh — runs on the supervisor's `subscribe(agent_start)` hook (pi's per-run-start event, `agent-loop.js`), **not** `prepareNextTurn`/`beforeToolCall`. PR3.2 replaces the landed PR3 temporary legacy direction injection with the shared Workspace Context assembler.
   - `radio_session_repo_facade.ts` + PG transcript store — the MineMusic-built durability layer, **root-export-helper-first** (ADR-0039 §3). PR3 ships **a real Postgres-backed Agent Runtime transcript repository for production** (PB2 "survives process restart") **plus an in-memory double for the deterministic harness** (PB8a — PG unneeded for that acceptance). **Writes only after each turn** (persist `agent.state.messages` to PG); **reads only at restart** — reconstruct via `new Agent({ initialState: { messages: store.load(...) } })` (low-level Agent path) or `repo.open`→`session.buildContext`→`state.messages` (harness-style session). `SessionRepo` exposes `create/open/list/delete/fork` — **no `reload`** (that was an invented method, now removed). **No per-run reload**: production reads come from the long-lived Agent's `_state.messages`. Compaction reuses pi's `prepareCompaction`/`compact`/`appendCompaction` helpers on the held Agent/session (ADR-0039). PG store is Phase B production scope, not deferred.
   - `main_radio_channel.ts` — typed Main↔Radio channel; Phase B has only Radio→Main notify requests (PB5 "refines ADR-0032's typed messages", ADR-0032). Net-new; no directive kind.
   - `speech_level.ts` — minimal `Silent | Notify` level vocabulary + the two-actor severity/interruption split (PB7 "Two-actor decision split"); Phase B emits `low` only (PB7 "Phase B emit model").
 - `src/contracts/agent_runtime.ts` — `RadioRunResult` (with optional `notify?`), `RadioNotifyRequest` (severity, reason/event-kind, run-id correlation, optional subject handle, short agent summary — PB7 "Locked payload discipline"; **no** UI/badge/card payload), `RadioLifecycleState`, `SpeechLevel`.
 - `src/server/host.ts` — register the `agent_runtime.radio_refill_run` job handler (PB1 "Job type"); wire Radio as a runtime module; wire the Main↔Radio channel.
 
-**Dependencies:** PR1 (batch append + CAS columns + `radio_session_revision`), PR2 (radio-truth read for run-start direction + posture).
+**Dependencies:** PR1 (batch append + CAS columns + `radio_session_revision`), PR2 (radio-truth read for run-start direction + posture). PR3.1 and PR3.2 are follow-up migrations on top of this landed PR3; they are not prerequisites for the landed substrate.
 
 **Guards / tests** (new `test/formal/radio-supervisor.test.ts`, in-process, fake BackgroundWorkBackend + fake clock, **no real LLM**, run handler stubbed):
 1. Wake gate three-state: depth < low + refilling=false + `Running` ⇒ wakes; + `Paused` ⇒ no wake; + `Shutdown` ⇒ no wake.
@@ -145,9 +159,117 @@ PR6 (PB8a)                 endurance acceptance: injected transcript erosion + f
 
 **Verification:** `npm run typecheck`; `npm run test:stage-core radio-supervisor`; `npm run test:stage-core background-work-backend`.
 
-**Stopping condition:** wake gate correct across all three lifecycle states + exhaustion; single-flight coalesces; notify forwarded once per actionable run; failed-terminal cools down, succeeded does not; idempotency key correct across retries vs generations; **one long-lived Agent per Radio** accumulates `_state.messages` across `prompt()` turns with NO per-run reload/reconstruct; run-start stamp/read-model logic runs on `subscribe(agent_start)`; transcript persisted after each turn to PG; **cross-context two-step (test 7) voids on stale basis and the idempotent retry resolves the same material ref and appends exactly once, with a committed-but-not-appended material treated as a benign orphan (PB4)**; a simulated restart reconstructs the Agent from PG and continuity survives (in-memory double in the harness).
+**Stopping condition:** wake gate correct across all three lifecycle states + exhaustion; single-flight coalesces; notify forwarded once per actionable run; failed-terminal cools down, succeeded does not; idempotency key correct across retries vs generations; **one long-lived Agent per Radio** accumulates `_state.messages` across `prompt()` turns with NO per-run reload/reconstruct; run-start stamp/context logic runs on `subscribe(agent_start)`; transcript persisted after each turn to PG; **cross-context two-step (test 7) voids on stale basis and the idempotent retry resolves the same material ref and appends exactly once, with a committed-but-not-appended material treated as a benign orphan (PB4)**; a simulated restart reconstructs the Agent from PG and continuity survives (in-memory double in the harness). The temporary legacy context injection path is retired by PR3.2.
 
 **Optional split point:** if the BW port extension is contentious in review, split it into PR3a (port + fake backend) immediately before this PR. Default: keep folded.
+
+---
+
+## PR3.1 — Agent Context core: ActorDefinition + Workspace Context assembler + Music Experience projection port
+
+**Covers:** `docs/formal-rebuild/agent-context-engineering-spec.md` (Agent Context core), not a PB increment.
+
+**Goal:** Build the shared substrate Main and Radio will both consume, alongside
+the existing soon-retired Workbench seam. Do not delete the old seam in this PR;
+deletion waits until both actors have migrated.
+
+**Files touched:**
+- `src/agent_runtime/actor_definition.ts` — `ActorDefinition` type plus
+  `mainDefinition` / `radioDefinition` from the Agent Context spec.
+- `src/agent_runtime/workspace_context_assembler.ts` — receives
+  `{ actor, ownerScope }`, reads declared sections from area projection ports plus
+  Workbench interaction-state, emits encoded Workspace Context.
+- `src/agent_runtime/workspace_context_encoder.ts` — encodes `listening` queue
+  lines with `[material:mh_<opaque>]` handles + labels, and `radio` direction /
+  posture / `directionRevision`.
+- `src/contracts/music_experience.ts` — re-home the existing agent-facing slice
+  as a section-agnostic `MusicExperienceWorkspaceProjectionPort`.
+
+**Dependencies:** PR2 (radio truth + queue/now-playing reads).
+
+**Guards / tests:**
+- Assembler emits `listening` queue identity and `radio` facts.
+- `declaredWorkspaceSections` selects sections; callers cannot pass ad hoc
+  section lists.
+- `ActorDefinition` validation maps dotted Stage names to model-visible names and
+  fails fast when backticked instruction tokens are not in the actor's tool pack.
+- No data-pipeline terms in identity.
+- Exactly one new assembler path.
+
+**Verification:** `npm run typecheck`; targeted Agent Runtime context tests.
+
+**Stopping condition:** shared definitions and assembler exist, old seam still
+works for current actors, and no actor has a second new context path.
+
+---
+
+## PR3.2 — Radio consumes the shared assembler; retire the Radio Run Floor
+
+**Covers:** `docs/formal-rebuild/agent-context-engineering-spec.md` (Radio application), replaces the landed PR3 Radio-only prompt floor.
+
+**Goal:** Move Radio's run-start context load from `renderRadioRunSystemPrompt`
+to the shared Workspace Context assembler, while preserving PR3's long-lived pi
+Agent, `agent_start` timing, transcript persistence, PB8 posture-stamp carry /
+clear, and Radio run result behavior.
+
+**Files touched:**
+- `src/agent_runtime/radio_run.ts` — delete `renderRadioRunSystemPrompt`; run-start
+  refresh drives the shared assembler (`radio` + `listening`) into
+  `state.systemPrompt` before the pi snapshot.
+- `src/server/agent_runtime_radio_module.ts` — drop the inline
+  `radioBaseSystemPrompt` ownership and wire `radioDefinition`.
+- `src/contracts/agent_runtime.ts` — replace prose Radio invocation with JSON
+  `{run:{kind:"radio_refill",runId,wakeReason,suggestedAppendCount,basis:{radioDirectionRevision,radioSessionRevision}}}`.
+
+**Dependencies:** PR3.1, PR2, landed PR3.
+
+**Guards / tests:**
+- Radio run-start `systemPrompt` equals shared assembler output, not a Radio-only
+  renderer.
+- Radio sees current queue handles/labels for dedupe, not only queue length.
+- Invocation Context is JSON and carries basis revisions separately from
+  Workspace Context.
+- `agent_start` timing remains the run-start seam.
+
+**Verification:** `npm run typecheck`; `npm run test:stage-core radio-run radio-supervisor`.
+
+**Stopping condition:** no Radio-only Run Floor renderer remains; Radio behavior
+is unchanged except for the context source and JSON invocation shape.
+
+---
+
+## PR3.3 — Main consumes the shared assembler; retire the Workbench agent seam
+
+**Covers:** `docs/formal-rebuild/agent-context-engineering-spec.md` (Main application), completing the shared-path migration.
+
+**Goal:** Move Main's turn-start context refresh onto the same assembler and
+delete the old agent composition seam once both actors have migrated.
+
+**Files touched:**
+- `src/agent_runtime/main_agent_session.ts` — per-turn refresh drives the shared
+  assembler plus `mainDefinition` into `state.systemPrompt`.
+- Delete `src/agent_runtime/session_context.ts`.
+- `src/workbench_interface/read_model.ts` and
+  `src/contracts/workbench_interface.ts` — remove `WorkspaceReadModel`,
+  `WorkspaceReadModelReader`, `readWorkspace`, `createWorkspaceReadModelComposer`,
+  and `WorkbenchMusicExperienceReadPort` in the agent-seam sense. Workbench keeps
+  its own interaction-state read path for Web/future work.
+- `test/formal/agent-runtime-main-agent-session.test.ts` — update turn-start
+  context assertions.
+
+**Dependencies:** PR3.1, PR3.2.
+
+**Guards / tests:**
+- Forbidden-import/usage test proves no agent path uses the retired seam or old
+  renderers.
+- Main `systemPrompt` comes from the shared assembler.
+- Main turn behavior remains unchanged apart from context source.
+
+**Verification:** `npm run typecheck`; `npm run test:stage-core agent-runtime-main-agent-session agent-runtime-session-context`.
+
+**Stopping condition:** Main and Radio both use one assembler path, and the old
+agent-facing Workbench seam/renderers are gone. Placing Main migration in Phase B
+is intentional so the shared context path is complete before PR4 cascade work.
 
 ---
 

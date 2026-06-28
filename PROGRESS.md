@@ -1474,7 +1474,7 @@ catalog integration. Design authority:
   to a single Web-stream tee'd read (D28) so the content hash and music-metadata
   share one file open instead of violating the single-read contract.
 
-## Phase A1a/A1b/A2: Agent Runtime Pi Spine, Guards, And Session Context Seam
+## Phase A1a/A1b/A2: Agent Runtime Pi Spine, Guards, And Pre-Refactor Context Seam
 
 - `@earendil-works/pi-agent-core` is pinned at `0.80.2`; the package audit and
   ADR/spec references have been refreshed against the current root-exported pi
@@ -1521,16 +1521,18 @@ catalog integration. Design authority:
   explicit Phase A4 decision replacing the earlier read-side-only bounded
   projection plan.
 - A4 adds `createMineMusicMainAgentSession`, a MineMusic-owned turn facade over
-  a long-lived pi `Agent`. Each `runUserTurn` captures fresh Session Context
-  through the A2 Workbench read-model seam, refreshes the pi
-  `state.systemPrompt` at the user-turn boundary, then delegates loop control to
-  pi `prompt()` / `waitForIdle()` while preserving pi-owned transcript,
-  lifecycle, queueing, abort, and tool execution behavior. The facade returns
-  the pi-produced turn messages plus final assistant status/error/text. The
-  formal A4 harness drives `lookup -> present -> queue.append -> playback.play`
-  through the A1-bridged Stage tools and verifies the Music Experience read
-  projection reflects the queue/now-playing outcome. Radio, Memory, skill
-  runtime, and Web behavior are still unimplemented.
+  a long-lived pi `Agent`. Each `runUserTurn` currently captures fresh
+  pre-refactor Session Context through the A2 Workbench read-model seam,
+  refreshes the pi `state.systemPrompt` at the user-turn boundary, then delegates
+  loop control to pi `prompt()` / `waitForIdle()` while preserving pi-owned
+  transcript, lifecycle, queueing, abort, and tool execution behavior. The
+  facade returns the pi-produced turn messages plus final assistant
+  status/error/text. The current Agent Context spec marks this context source for
+  migration to shared `ActorDefinition` objects and the Agent Runtime Workspace
+  Context assembler. The formal A4 harness drives `lookup -> present ->
+  queue.append -> playback.play` through the A1-bridged Stage tools and verifies
+  the Music Experience read projection reflects the queue/now-playing outcome.
+  Radio, Memory, skill runtime, and Web behavior are still unimplemented.
 - Phase B PR1/PR2 adds the Music Experience command/read substrate for Radio +
   concurrency without adding the Radio actor runtime yet. Queue append now has
   per-concern OCC basis support, atomic tail-position minting, batch append, and
@@ -1543,7 +1545,7 @@ catalog integration. Design authority:
   projection, and the PR2 harness covers late posture writes, empty stamped
   posture, value-shape validation, cap enforcement, and current-queue dedup
   reads.
-- Phase B PR3 has started the Radio actor runtime substrate. Background Work now
+- Phase B PR3 has landed the Radio actor runtime substrate. Background Work now
   has a cancellable terminal-observation port keyed by `{ jobType, jobId }` over
   pg-boss job state, so a Radio supervisor can hold a single-flight refill from
   submit through terminal retry completion without a process-local reverse map;
@@ -1609,12 +1611,12 @@ runtime module:
 `docs/formal-rebuild/agent-context-engineering-spec.md` establishes the current
 Agent Runtime context-engineering authority for embedded MineMusic agents:
 
-- context is split into six rails: Actor Instruction, Capability Context,
-  Workspace Context, Invocation Context, Continuity Context, and
-  Knowledge / Memory Context;
-- Workspace Context is the current workspace fact projection over the shared
-  in-process read model and area-owned public projections, emitted as JSON
-  organized by workspace-visible sections;
+- context is split into seven rails: Actor Identity, Actor Instruction,
+  Capability Context, Workspace Context, Invocation Context, Continuity Context,
+  and Knowledge / Memory Context;
+- Workspace Context is the current workspace fact projection assembled by Agent
+  Runtime from area-owned projections plus Workbench interaction-state facts,
+  emitted as compact data organized by workspace-visible sections;
 - Main and Radio may receive different selected Workspace Context sections, but
   the shared assembly model owns section selection, section shape, and
   compression rather than letting actors maintain separate hand-written
@@ -1626,7 +1628,7 @@ Agent Runtime context-engineering authority for embedded MineMusic agents:
   existing `library.catalog.summary` public output; it is a library-shaped taste
   hint, not durable Memory or an explicit user preference rule;
 - `Session Context` is retained only as a legacy umbrella term; new design and
-  code should use the six rails explicitly.
+  code should use the seven rails explicitly.
 
 ## Next Formal Milestones
 

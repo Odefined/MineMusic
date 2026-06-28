@@ -7,8 +7,9 @@
 > (Listening outcomes / play-history are deferred to the Memory phase, not Phase
 > B — see Deferred.)
 > Parent: `docs/formal-rebuild/agent-native-workbench-roadmap.md` (Phase B).
-> Depends on: Phase A (in-process loop, Music Experience queue/playback,
-> read-model seam, Session Context).
+> Depends on: Phase A (in-process loop, Music Experience queue/playback) and the
+> Agent Runtime context rails / shared Workspace Context assembler defined in
+> `docs/formal-rebuild/agent-context-engineering-spec.md`.
 > Authority: planning. Architecture facts live in ADR-0032/0033/0037 and the
 > Consensus doc. Names marked _(proposed)_ are not locked.
 
@@ -354,8 +355,8 @@ vector. There is no distributed causality and no merge of concurrent histories;
 each entry is a standalone equality precondition. Call it a
 `CommandPreconditionSet` (a set of `ConcernRevision` assertions, per the
 roadmap's shared-primitive note); reserve "Agent Work Basis" for the
-agent-facing snapshot of those revisions carried in Session Context. Note
-against ADR-0033.
+agent-facing snapshot of those revisions carried as Invocation Context `basis`.
+Note against ADR-0033.
 
 ### PB4 — Three-layer item model; queue holds durable material refs
 
@@ -384,11 +385,14 @@ candidate (transient, expires)
 Main relays a user's radio redirection by calling Music Experience radio-truth
 commands (musical operations on **motif** / **active variations**). Each bumps
 the per-concern radio-direction revision (PB3) and signals the supervisor to wake
-Radio; Radio reads current motif/variations from the read model **at run start,
-via the supervisor's `subscribe(agent_start)` hook on the long-lived Agent** (PB2)
-— pi's per-run-start event (`agent-loop.js` `agent_start`), not `prepareNextTurn`
-(per-turn) or `beforeToolCall` (per-tool) — refreshing the system prompt / prompt
-content with the read-model slice. Routing the change through owned state — not a directive
+Radio; Radio reads current motif/variations through the shared Agent Runtime
+Workspace Context assembler's `radio` section **at run start, via the
+supervisor's `subscribe(agent_start)` hook on the long-lived Agent** (PB2) —
+pi's per-run-start event (`agent-loop.js` `agent_start`), not `prepareNextTurn`
+(per-turn) or `beforeToolCall` (per-tool) — refreshing `state.systemPrompt` with
+the assembler output before the pi snapshot. Basis revisions such as
+`radioDirectionRevision` and `radioSessionRevision` ride the Radio Invocation
+Context `basis`, not Workspace Context. Routing the change through owned state — not a directive
 payload message — unifies three things: the write boundary (radio truth is Music
 Experience-owned), the PB3 OCC revision source, and the wake trigger. This
 refines ADR-0032's "typed messages": the typed Main↔Radio channel is reserved for

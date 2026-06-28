@@ -67,9 +67,11 @@ domain code):
   `StageToolContext`. (In-process dispatch is already a first-class path; the
   MCP-stdio driver is just one transport over the same `dispatch`.)
 - A2 — minimal in-process Workspace read-model composition seam (a minimal
-  Workbench Interface, read-model only, one area slice wired) + Session Context
-  defined over that seam, never over an AG-UI wire format (ADR-0031). Phase C
-  grows this seam rather than re-pointing Session Context.
+  Workbench Interface, read-model only, one area slice wired) + pre-refactor
+  Session Context defined over that seam, never over an AG-UI wire format
+  (ADR-0031). The current Agent Context spec supersedes the Session Context
+  framing with the shared Workspace Context assembler; Phase C still preserves
+  the in-process/never-wire invariant.
 - A3 — minimal Music Experience area: queue/playback truth behind an owning
   command (write-boundary hard rule).
 - A4 — wire the agent to the play/queue outcome.

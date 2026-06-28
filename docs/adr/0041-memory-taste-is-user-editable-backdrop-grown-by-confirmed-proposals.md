@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted (product direction); grilled 2026-06-24.
+Accepted (product direction); grilled 2026-06-24. Terminology amended by
+`docs/formal-rebuild/agent-context-engineering-spec.md`: the taste carrier maps
+to Knowledge / Memory Context, not the legacy mixed `Session Context` bucket.
 
 Memory is deferred to its own phase after Phase C (roadmap "Cross-Cutting /
 Later"; phase-B PB8 defers the play-history / listening-outcome record to be
@@ -87,9 +89,9 @@ cleanup ≠ taste).
   "Recommendation Responsibility": Memory provides long-term taste; Main or Radio
   makes the final judgment), and populated by a confirmed-proposal intake plus
   direct explicit statements.
-- Taste enters agent reasoning through Session Context as a compact, low-weight
-  context slice; it must not be wired to outrank the current radio direction or an
-  explicit request (decision 2).
+- Taste enters agent reasoning through Knowledge / Memory Context as a compact,
+  low-weight context slice; it must not be wired to outrank the current radio
+  direction or an explicit request (decision 2).
 - The taste-proposal path reuses the Agent-Runtime Speech Level (Notify) and the
   "Agent proposes" permission band; it introduces no new consent mechanism beyond
   what the PRD already names.

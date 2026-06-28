@@ -2,7 +2,13 @@
 
 ## Status
 
-Accepted
+Amended. The Web/AG-UI serialization decision, the in-process-vs-wire split, and
+the multi-owner projection model stand. The older agent-facing clause that named
+`Session Context` as a projection of the same Workbench-composed read model is
+superseded by `docs/formal-rebuild/agent-context-engineering-spec.md`: embedded
+agents now receive Workspace Context as one of seven Agent Runtime context rails,
+assembled by Agent Runtime from area-owned projections plus Workbench
+interaction-state facts.
 
 ## Context
 
@@ -40,16 +46,17 @@ assembled from owning-area projections. (In pattern terms it is a **CQRS compose
 read model / materialized view** over the owning areas — the read side is a
 separate composed projection, not the areas' write models.)
 
-- Embedded Main/Radio agents read this read model in process. Their agent-facing
-  view is Session Context, a projection of the same read model. They do not
-  consume a serialized wire format.
+- Embedded Main/Radio agents read in-process current facts. Their original
+  agent-facing `Session Context` framing as a projection of the same
+  Workbench-composed read model is superseded by the Agent Runtime Workspace
+  Context assembler; they still do not consume a serialized wire format.
 - Serialization happens only at the Web boundary, and that serialization is an
   AG-UI profile. Workspace Snapshot/Events map onto AG-UI
   `StateSnapshot`/`StateDelta` (RFC 6902); agent work trace maps onto AG-UI
   activity/tool events.
 - The multi-owner projection model (every field owned by a source area) and the
-  Workspace-Snapshot-vs-Session-Context split are preserved. AG-UI is the
-  external serialization, not the internal ownership model.
+  Workspace-Snapshot-vs-agent-context split are preserved. AG-UI is the external
+  serialization, not the internal ownership model.
 
 ## Rejected Alternatives
 
@@ -67,8 +74,23 @@ separate composed projection, not the areas' write models.)
 
 - The Web-boundary serializer must conform to an AG-UI profile; Web UI can use
   AG-UI-compatible clients.
-- Session Context must be defined over the in-process read model, never over the
-  AG-UI wire format.
+- Agent-facing Workspace Context is assembled by Agent Runtime from area-owned
+  projections plus Workbench interaction-state facts, never over the AG-UI wire
+  format.
 - Multi-observer consistency at the Web edge uses AG-UI snapshot + JSON-Patch
   delta + resnapshot-on-divergence (see ADR-0033).
 - A2UI surfaces (ADR-0034) ride this AG-UI boundary.
+
+## Refinements (later ADRs / phase specs)
+
+- **Agent-facing context rail split (amended).** The `Session Context` wording in
+  this ADR predates the seven-rail Agent Context Engineering model. New work must
+  follow `docs/formal-rebuild/agent-context-engineering-spec.md`: Agent Runtime
+  owns Actor Identity, Actor Instruction, Capability Context selection, Workspace
+  Context assembly, Invocation Context placement, Continuity Context persistence
+  boundaries, and Knowledge / Memory Context placement. The Workspace Context
+  assembler reads area-owned projections and Workbench interaction-state facts
+  through in-process ports; it is not defined over the AG-UI wire format. This
+  refinement preserves this ADR's Web serialization boundary and multi-owner
+  projection invariant while retiring the old agent-facing `Session Context`
+  bucket.

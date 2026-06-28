@@ -133,7 +133,8 @@ A grilling pass resolved the three seams ADR-0031/0036 left open.
 
 - Inbound `RunAgentInput.state` is dropped at the transport adapter entry. It is
   not read as a workspace write, as agent context, or for divergence detection;
-  Session Context is assembled only from the server-side read model (ADR-0031).
+  embedded-agent context is assembled only from server-side in-process facts
+  (ADR-0031, amended by the Agent Context Engineering spec).
 - The rationale is not staleness — inbound state may be *fresher* than the
   server (an uncommitted optimistic edit) — but that the flat blob carries no
   per-area revision, so the server cannot distinguish a user's fresh optimistic

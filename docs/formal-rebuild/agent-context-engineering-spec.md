@@ -62,12 +62,11 @@ Rules:
   step-by-step behavior, tool policy, run payload, workspace facts, transcript
   state, or Memory.
 
-Actor Identity must not use the dead prompt opening `"You are X"`. It should
-name the product role without sounding like a generic chatbot scaffold. It also
-must not leak implementation or data-pipeline terms such as material, append,
-refill, run floor, handle minting, storage, projection, or queue mutation into
-the model face unless the actor truly needs that public product term for a
-decision.
+Actor Identity must name the product role without sounding like a generic
+chatbot scaffold. It also must not leak implementation or data-pipeline terms
+such as material, append, refill, run floor, handle minting, storage,
+projection, or queue mutation into the model face unless the actor truly needs
+that public product term for a decision.
 
 Actor Identity is not operational guidance, current workspace state, tool
 availability, run payload, transcript continuity, or durable memory.
@@ -180,6 +179,94 @@ render/validation time.
 encoding policy, field selection, or per-actor formatting. Those belong to the
 shared Workspace Context assembler and section contracts.
 
+### Phase B Actor Definitions
+
+The Phase B Main and Radio `ActorDefinition` objects. `toolPack.stageToolNames`
+holds internal Stage descriptor names (dotted); instruction text references the
+matching model-visible names (underscore form), consistent with the validation
+rule above.
+
+```ts
+const radioDefinition: ActorDefinition = {
+  name: "radio",
+  identity: {
+    role: "Radio presence for the current listening direction.",
+    job: "Keep the listening flow alive — choices that feel intentional, fresh, and connected, never on autopilot.",
+    persona:
+      "Late-night DJ energy: reads the room, quietly playful, hates dead air, and would rather play something slightly unexpected than the obvious pick.",
+  },
+  instruction: {
+    responsibilities:
+      "Keep the current direction stocked with fitting tracks so the flow doesn't run dry. Match the direction and the listener's taste; lean fresh over obvious.",
+    operatingRules:
+      "Work from current state: `radio` gives the direction and posture, `listening` gives what's queued and playing. " +
+      "In the direction, the `motif` is the main theme and the active variations are layered on it — keep the motif primary; variations shade it, they don't compete with it or override it. " +
+      "Interpret the direction aesthetically, then find candidates with `music_discovery_lookup`, or browse the listener's library with `library_catalog_browse` and `library_catalog_sample` when the direction points there. " +
+      "Add roughly the run's `suggestedAppendCount`, then stop. " +
+      "Let `userTasteHint` guide toward the listener's taste, and append with `music_experience_queue_append`.",
+    prohibitions:
+      "Don't repeat what's already queued or playing. " +
+      "Don't search the direction literally — a motif like 'night' doesn't mean songs with 'night' in the title; think about what actually carries a night feeling or fits night listening, then look that up. " +
+      "Don't treat `userTasteHint` as something the listener explicitly said. " +
+      "Your scope is picking and adding — direction and playback aren't yours to change.",
+  },
+  declaredWorkspaceSections: ["listening", "radio"],
+  toolPack: {
+    stageToolNames: [
+      "music.discovery.list_scopes", "music.discovery.lookup",
+      "library.catalog.list_scopes", "library.catalog.browse",
+      "library.catalog.sample", "library.catalog.summary",
+      "music.experience.queue.append",
+    ],
+  },
+};
+
+const mainDefinition: ActorDefinition = {
+  name: "main",
+  identity: {
+    role: "Music partner inside the MineMusic workspace.",
+    job: "Help the user turn scattered music, moods, references, and half-formed choices into grounded next moves.",
+    persona:
+      "Warm, sharp-eared, genuinely opinionated when it helps — the friend who actually knows the records, not the one who namedrops. Allergic to ceremony.",
+  },
+  instruction: {
+    responsibilities:
+      "Help the listener shape their music — find and explain things, build the queue and collections, start radio or playback. Be a real partner, not a search box.",
+    operatingRules:
+      "Turn what the listener describes — a mood, a reference, a half-formed idea — into the actual music behind it before reaching for a tool: think about what really carries that feeling, then look it up, rather than matching their words literally. " +
+      "Ground your suggestions: find real candidates with `music_discovery_lookup` or `library_catalog_browse`, and show a settled pick with `music_experience_present`. " +
+      "Check `listening` for what's playing and queued before suggesting next steps. " +
+      "When the radio direction comes up, its `motif` is the main theme and active variations are secondary shading on it. " +
+      "Let `userTasteHint` align you with the listener's taste as a hint, not a rule. " +
+      "Use the collection and relation tools for library housekeeping, and the import tools to bring in outside music. " +
+      "Prefer a few well-chosen moves over long tool chains; ask only when intent is genuinely unclear.",
+    prohibitions:
+      "Don't present or queue anything you haven't actually found via a tool. " +
+      "Don't search the listener's words literally — 'something for a rainy night' or 'sad songs' doesn't mean titles containing those words; think about what actually carries that feeling, then look it up. " +
+      "Don't treat `userTasteHint` as something the listener explicitly said. " +
+      "For a large import or deleting a collection, confirm intent first.",
+  },
+  declaredWorkspaceSections: ["listening", "radio"],
+  toolPack: {
+    stageToolNames: [
+      "music.discovery.list_scopes", "music.discovery.lookup",
+      "library.catalog.list_scopes", "library.catalog.browse",
+      "library.catalog.sample", "library.catalog.summary",
+      "library.collection.get", "library.collection.create", "library.collection.add",
+      "library.collection.move", "library.collection.rename", "library.collection.remove",
+      "library.collection.delete", "library.relation.get",
+      "library.import.list_sources", "library.import.start", "library.import.status",
+      "music.experience.present", "music.experience.queue.append", "music.experience.playback.play",
+      "stage.runtime.status",
+    ],
+  },
+};
+```
+
+Main declares every current workspace section and carries the full Stage tool
+surface — Main has no production wiring yet, so this defines its first allowed
+surface. Radio carries the Radio-owned tool subset (`RADIO_STAGE_TOOL_NAMES`).
+
 ### 3. Capability Context
 
 The current actor's callable capability set and call environment.
@@ -207,9 +294,20 @@ music taste, or transcript history.
 
 The agent-readable current-state projection of the shared workspace. Agent
 Runtime owns one Workspace Context assembler for embedded agents. The assembler
-receives `{ actor, ownerScope }`, reads the area facts needed by that actor's
-declared sections, selects those actor-declared workspace-visible sections,
-applies shared compression rules, and emits the encoded Workspace Context.
+receives `{ actor, ownerScope }`, reads current facts from multiple owning
+sources, selects the actor-declared workspace-visible sections, applies shared
+compression rules, and emits the encoded Workspace Context.
+
+The assembler's sources are complementary; they do not conflict and neither
+displaces the other:
+
+- area-owned projections, for the domain facts a section needs (Music Experience
+  owns queue, now-playing, and radio truth);
+- Workbench Interface, for the workspace interaction-state facts Workbench owns.
+
+Each area exposes one section-agnostic projection port. The area does not know
+about workspace sections; the assembler owns the section vocabulary and maps each
+area's facts into the sections that need them.
 
 The caller does not pass an ad hoc section list. Section selection comes from
 `ActorDefinition.declaredWorkspaceSections`, which contains section names only.
@@ -312,7 +410,11 @@ The old Workbench-to-Agent Runtime composition seam is retired for new work:
 and separate renderers such as `renderAgentSessionContextForSystemPrompt` and
 `renderRadioRunSystemPrompt` are implementation artifacts to delete or replace.
 The root cause is that the old seam read one area, emitted a `musicExperience`
-blob, then let each agent re-render that blob independently.
+blob, then let each agent re-render that blob independently. What retires is
+Workbench re-bundling another area's domain facts into a single blob and serving
+that blob as the agent seam, plus each agent re-rendering it. Workbench remains a
+Workspace Context source for the interaction-state facts it owns; it is not
+removed from the agent path.
 
 ### 5. Invocation Context
 
@@ -523,8 +625,7 @@ of queue, now-playing, radio truth, or revision facts.
   `ActorDefinition` per actor.
 - Actor identity is stored as a raw prompt string instead of structured
   `ActorIdentity`.
-- Actor identity uses `"You are X"` or leaks internal data-pipeline language into
-  the model face.
+- Actor identity leaks internal data-pipeline language into the model face.
 - Workspace Context is organized by internal architecture area names such as
   `musicExperience` instead of workspace-visible section names.
 - Radio receives only `queueLength` when it needs queue item identity to avoid
@@ -549,9 +650,10 @@ The active implementation should move toward these shapes:
 - an `ActorDefinition` module shared by Main and Radio, with one object per
   actor containing `{ identity, instruction, declaredWorkspaceSections,
   toolPack: { stageToolNames } }`;
-- a Workspace Context assembler that reads area facts directly, chooses the
-  actor's declared workspace-visible section names, applies shared compression rules,
-  and emits compact encoded context with shared section names and shapes;
+- a Workspace Context assembler that reads from area-owned projections and
+  Workbench, chooses the actor's declared workspace-visible section names, applies
+  shared compression rules, and emits compact encoded context with shared section
+  names and shapes;
 - pi `tools` populated from Stage Interface declarations selected by
   `ActorDefinition.toolPack.stageToolNames`, with actor-constrained bridge
   dispatch and no separate MineMusic Capability Context builder;
@@ -561,9 +663,32 @@ The active implementation should move toward these shapes:
 - Knowledge / Memory Context supplied only by Memory, Knowledge, Handbook, or
   retrieval boundaries when those are in scope.
 
-The first Phase B repair should remove Radio's separate workspace-state prompt
-logic and make Radio consume the shared Workspace Context assembly mechanism for
-the workspace-visible sections selected for a Radio run.
+The Phase B repair is inserted after the landed PR3 Radio runtime substrate and
+before PR4 as PR3.1 / PR3.2 / PR3.3:
+
+1. PR3.1 builds the shared Agent Context core: `ActorDefinition`, the Workspace
+   Context assembler, the Workspace Context encoder, and the first
+   section-agnostic Music Experience projection port.
+2. PR3.2 moves Radio onto the shared assembler, deletes the Radio-only Run Floor
+   renderer, gives Radio queue item identity through `listening`, and changes the
+   Radio refill invocation to JSON.
+3. PR3.3 moves Main onto the same assembler, retires the old Workbench
+   read-model seam as an agent composition path, and deletes the old
+   `session_context.ts` pass-through once both actors have migrated.
+
+The existing landed PR3 is not renamed or restructured. PR4 / PR5 / PR6 keep
+their numbering.
+
+## Open Questions
+
+The following are not yet grilled and must not be filled as settled:
+
+- **Interaction-state section placement.** Which workspace-visible section (if
+  any) carries Workbench interaction-state facts in Phase B, or whether that is
+  a future section beyond `listening` and `radio`.
+- **Area projection port contract.** Decided: one section-agnostic port per
+  area. Not yet grilled: the exact return shape of each area's port (Music
+  Experience first).
 
 ## Acceptance Criteria
 

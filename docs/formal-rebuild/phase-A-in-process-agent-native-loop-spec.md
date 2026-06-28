@@ -1,7 +1,8 @@
 # Phase A — In-Process Agent-Native Loop (slice 1) Spec
 
 > Status: Planned
-> Owner: Agent Runtime (new area: pi adapter, Main Agent loop, Session Context),
+> Owner: Agent Runtime (new area: pi adapter, Main Agent loop, Agent Context
+> Engineering / Workspace Context assembly),
 > a minimal Workbench Interface (in-process Workspace read-model composition seam
 > only), Music Experience extension (queue/playback truth + command), and Server
 > Host composition. No Stage Interface schema changes for A1.
@@ -92,39 +93,39 @@ instead of pi's provider-session hint.
 - Verification: harness test — pi loop issues a `lookup` call, receives veiled
   result, terminates.
 
-### A2 — minimal in-process read-model seam + Session Context over it
+### A2 — minimal in-process read-model seam + pre-refactor Session Context
 
-Goal: establish the in-process Workspace read-model composition seam that
-ADR-0031 requires Session Context to be defined over, wired with one area slice
-in slice 1, and assemble the Main Agent's Session Context from it — never from an
-AG-UI wire format.
+Goal: establish the in-process current-fact path for Main without using an
+AG-UI wire format. This landed before the seven-rail Agent Context Engineering
+spec, so the implemented A2 seam is a pre-refactor path to migrate: new design
+uses Actor Identity / Actor Instruction from `ActorDefinition`, Capability
+Context from the actor tool pack, Workspace Context from the shared Agent
+Runtime assembler over area projections plus Workbench interaction-state,
+Invocation Context as the user turn prompt, and Continuity Context in pi
+`messages` (`docs/formal-rebuild/agent-context-engineering-spec.md`).
 
-- Read-model seam: introduce a minimal **Workbench Interface** whose sole Phase-A
-  responsibility is composing the in-process Workspace read model from
-  owning-area public projections. In slice 1 it composes exactly one slice — the
-  A3 queue/now-playing projection. It does **not** include Workspace
+- Pre-refactor read-model seam: introduce a minimal **Workbench Interface** whose
+  sole Phase-A responsibility is composing the in-process Workspace read model
+  from owning-area public projections. In slice 1 it composes exactly one slice —
+  the A3 queue/now-playing projection. It does **not** include Workspace
   Protocol/Events, AG-UI serialization, or the Workbench Action Adapter — those
-  are Phase C. This is the seam Phase C grows (more areas + protocol +
-  serialization), so Session Context never needs re-pointing.
-- Session Context: Agent Runtime-owned (per Consensus; not a formal top-level
-  area). Assembled over the read-model seam, never over a wire format
-  (ADR-0031). Minimal field set for a single-writer turn: current queue +
-  now-playing, carrying the queue per-area revision (the Agent Work Basis field
-  is present for contract stability; staleness enforcement is Phase B). Deferred
-  as empty/static in slice 1: task/posture, listening mode, session-local
-  constraints, recent choices/exclusions, workspace focus. Active instruments are
-  not duplicated here (the agent's tools are already supplied to pi via the A1
-  bridge).
+  are Phase C.
+- Agent Context target: Agent Runtime owns the seven rails. The Phase-A Main path
+  should migrate to the shared Workspace Context assembler; even slice 1 emits a
+  `listening` section with queue item labels and public material handles, not a
+  raw `musicExperience` blob or identity pass-through. Active instruments are not
+  duplicated in Workspace Context because pi carries Capability Context through
+  the A1 bridge.
 - Allowed imports: the read-model seam reads area-owned public projections
-  (Music Experience); Session Context reads the seam. Forbidden: Session Context
-  or the seam importing durable area internals; defining either over any wire
-  format.
+  (Music Experience); Agent Runtime reads through narrow projection/context
+  ports. Forbidden: Agent Runtime context assembly or the seam importing durable
+  area internals; defining agent context over any wire format.
 - Guards: forbidden-import test for the minimal Workbench Interface (no
-  presentation/serialization/transport); a test asserting Session Context is
-  built from the in-process read-model seam only (no AG-UI/serialized input type
-  reachable); exact read-port key-set assertion for the composed slice.
-- Verification: harness asserts the agent's Session Context reflects a queue
-  change made by A3's command, observed through the seam.
+  presentation/serialization/transport); a test asserting agent context is built
+  from in-process ports only (no AG-UI/serialized input type reachable); exact
+  read-port key-set assertion for the composed slice while the old seam exists.
+- Verification: harness asserts the agent's turn-start context reflects a queue
+  change made by A3's command, observed through the in-process path.
 
 ### A3 — minimal Music Experience queue/playback truth + owning command
 
@@ -163,7 +164,8 @@ Goal: close the loop — a user turn drives the Main Agent to find music (existi
 - Owner: Agent Runtime (loop behavior), reaching Music Experience tools through
   `dispatch`.
 - New code: agent turn wiring that takes a user message, runs the pi loop with
-  Session Context, and lets it call the find + append/play tools.
+  pre-refactor Agent Runtime context, and lets it call the find + append/play
+  tools.
 - Verification: end-to-end harness — given a user message ("play something
   upbeat"), the loop reaches a `lookup`/present then an append/playNow, and the
   queue/playback projection reflects the result. This is the Phase A exit
@@ -197,8 +199,8 @@ name is scoped (`@earendil-works/pi-agent-core`).
   `@earendil-works/pi-agent-core` for prompt template formatting, session
   repositories, and compaction helpers. Do not interpret "reuse" as vendoring pi
   harness directories into MineMusic: A1a should not copy a pi helper tree or
-  maintain locally modified pi source. MineMusic still owns Session Context assembly,
-  transcript persistence policy, compaction policy, actor lifecycle, Stage tool
+  maintain locally modified pi source. MineMusic still owns Agent Context rail
+  assembly, transcript persistence policy, compaction policy, actor lifecycle, Stage tool
   dispatch, and Main↔Radio coordination. This avoids building a parallel
   prompt/session/compaction vocabulary while keeping the runtime harness
   MineMusic-shaped rather than letting unmodified `AgentHarness` own the
@@ -210,7 +212,7 @@ name is scoped (`@earendil-works/pi-agent-core`).
   `PromptTemplatePort`, `AgentTranscriptSessionPort`, and `AgentCompactionPort`
   — not a single broad `PiHarnessUtilityPort`. A1a should include a
   forbidden-import guard so raw pi helper imports stay inside the Agent Runtime
-  adapter/facade layer and adapter-focused tests. Main, Radio, Session Context
+  adapter/facade layer and adapter-focused tests. Main, Radio, Agent Context
   assembly, tool bridge, and ordinary runtime modules must consume the
   MineMusic facade ports rather than importing pi harness helpers directly.
 
@@ -328,61 +330,55 @@ name is scoped (`@earendil-works/pi-agent-core`).
   MineMusic-built in Phase B; A1's single Main Agent uses pi natively and needs
   none of it.
 
-## A2 Deep Dive: Read-Model Composition Seam + Session Context
+## A2 Deep Dive: Read-Model Composition Seam + Agent Context
 
-Grounded in ADR-0031 (Session Context defined over the in-process read model,
-never a wire format) and the Consensus four-layer boundary (owning areas →
-public projections → Workspace Protocol/Snapshot → Agent Runtime context
-assembly → Session Context). Phase A builds the first in-process layers of that
-chain, both deliberately thin.
+This section records the landed pre-refactor seam and the current target. ADR-0031
+still governs the Web/AG-UI boundary: embedded agents do not consume the wire
+format. Its older Session Context framing is amended by
+`docs/formal-rebuild/agent-context-engineering-spec.md`, which makes the
+Agent-Runtime Workspace Context assembler the new agent-facing path.
 
-- **Two artifacts, two owners — even in slice 1.** The "read-model seam" is two
-  ownership-distinct artifacts, not one: (1) a minimal **Workspace read-model
-  composition** owned by Workbench Interface — composes owning-area projections
+- **Two artifacts, two owners — even in slice 1.** The landed "read-model seam"
+  kept two ownership-distinct artifacts: (1) a minimal **Workspace read-model
+  composition** owned by Workbench Interface, composing owning-area projections
   into an in-process read model (slice 1: only the A3 queue/now-playing
-  projection); (2) a minimal **Session Context** owned by Agent Runtime — the
-  agent-facing reading surface assembled over that read model. Phase A builds
-  both now despite a single area slice, to pin ownership and the import
-  direction (Agent Runtime → Workbench Interface seam → area projections)
-  before Phase C grows them. Same contract-stability philosophy as the queue
-  revision column (present now, enforced in B).
+  projection); (2) an Agent Runtime-owned agent-facing context renderer over
+  that model. New work replaces the second artifact with the shared Workspace
+  Context assembler while preserving the owner split and in-process-only rule.
 
-- **Slice-1 Session Context is a pass-through; assembly is identity.** With one
-  area slice Session Context has nothing to select/compress/phrase (the
-  Consensus-defined essence of assembly). Its shape equals the composed read
-  model's for slice 1; assembly is a no-op, deferred to B/C. The artifact exists
-  in A to own the boundary, not to transform.
+- **Slice-1 Workspace Context still assembles.** The old statement that assembly
+  is identity is superseded. Even with one area slice, Agent Runtime chooses the
+  actor's declared sections, encodes a `listening` section, and includes queue
+  item labels plus public material handles. It must not pass through the
+  `musicExperience` blob as the agent-facing shape.
 
-- **Snapshot, not live.** Session Context is captured once at turn start as an
+- **Snapshot, not live.** Workspace Context is captured once at turn start as an
   immutable snapshot; it does not reflect mid-turn mutations. An agent that
   appends reads the effect from the tool's compact return value (`queue.append`
-  returns queue length/position), not from Session Context. Mid-turn live
+  returns queue length/position), not from Workspace Context. Mid-turn live
   updates are a Phase B concern (concurrent writers racing the queue);
   single-writer Phase A has no consumer for them.
 
-- **Session Context reaches the agent via the system prompt.** pi's low-level
+- **Workspace Context reaches the agent via the system prompt.** pi's low-level
   `Agent` exposes no structured workspace-context field (audit-confirmed: it
-  takes system prompt / tools / stream / persistence), so Session Context is
-  serialized into the turn's system prompt text — the agent observes current
-  queue/now-playing with no extra tool round-trip. (Content must be
-  text-serializable — trivially true for slice 1; revisited if a later slice
-  pressures prompt size.)
+  takes system prompt / tools / stream / persistence), so Workspace Context is
+  encoded into `state.systemPrompt` with Actor Identity and Actor Instruction;
+  Invocation Context is the prompt message, Capability Context is pi tools, and
+  Continuity Context remains pi messages.
 
-- **What this commits Phase C to.** Phase C grows the composition artifact (more
-  slices → Workspace Snapshot + Protocol/Events + AG-UI serialization) and may
-  begin real assembly. Because the two artifacts and the snapshot-via-prompt
-  contract are already split in A, Phase C adds slices to the composition side
-  without re-pointing Session Context or rewiring the agent — the
-  no-re-pointing property ADR-0031 requires.
+- **What this commits Phase C to.** Phase C grows Workbench Protocol/Events and
+  AG-UI serialization for the Web boundary. It must not make embedded-agent
+  context consume the AG-UI wire format; Agent Runtime continues to assemble
+  Workspace Context from in-process ports.
 
 - **Guards sharpened by the above.** forbidden-import for the Workbench
   Interface composition (no presentation/serialization/transport — those are C);
-  forbidden-import that Session Context (Agent Runtime) imports the seam only,
-  not area internals; a test that Session Context is built from the in-process
-  seam only (no AG-UI/serialized type reachable); and a test that the agent's
-  system prompt at turn start reflects a queue change made through A3's command,
-  observed through the seam — i.e. the read→compose→assemble→inject chain is
-  live, not paper.
+  forbidden-import that Agent Runtime context assembly imports only narrow
+  projection/context ports, not area internals; a test that agent context is
+  built from in-process ports only (no AG-UI/serialized type reachable); and a
+  test that the agent's system prompt at turn start reflects a queue change made
+  through A3's command, observed through the in-process path — i.e. the
+  read→assemble→inject chain is live, not paper.
 
 ## A3 Deep Dive: Queue/Playback Truth + Owning Command
 
@@ -520,15 +516,16 @@ since Phase 21.
   `queue.append` before `play`.
 
 - **Projection.** A public queue/now-playing read port exposes current queue +
-  now-playing for Session Context (A2). It is a direct read of queue/playback
+  now-playing for pre-refactor Session Context (A2), and later for the shared
+  Workspace Context assembler. It is a direct read of queue/playback
   truth, not routed through the material projection-maintenance machinery.
   The original A3 projection note allowed the database truth to retain a full
-  queue while A4 bounded the Workbench/Session Context read side
+  queue while A4 bounded the Workbench/agent-context read side
   (`queueHead`/`queueTail`/`queueLength`). ADR-0044 explicitly changes that
   plan: the Music Experience logical queue itself is bounded runtime state. The
   owning queue command rejects appends above
   `MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH = 100` with `queue_full`, so Workbench /
-  Session Context may expose the full queue without hiding unbounded product
+  Agent Runtime context may expose the full queue without hiding unbounded product
   state in a prompt renderer. The database table still stores ordinary queue
   rows; the product invariant keeps both queue state and prompt surface bounded.
 
@@ -602,8 +599,8 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
   `agent.waitForIdle()`; the harness then reads the queue/now-playing projection
   **through the A2 read-model seam** and asserts the outcome. The agent's tools
   are the A1-bridged Stage tools (`lookup`, `present`, `queue.append`,
-  `playback.play`). A4 must capture the Session Context once at the start of
-  each user turn and inject that snapshot into the agent prompt for that turn;
+  `playback.play`). A4 currently captures pre-refactor context once at the start
+  of each user turn and injects that snapshot into the agent prompt for that turn;
   do not reuse a single adapter/system-prompt instance across turns without a
   refresh path. The refresh path should reuse pi's stateful `Agent` semantics:
   pi snapshots the current `state.systemPrompt`, `state.messages`, and
@@ -690,27 +687,29 @@ exactly**; version drift is the real risk, not capability gaps.
   facade, Stage `executionGate` verified as the single domain-admission path,
   tool-result veil cannot be bypassed by pi `afterToolCall`, and synthetic
   Stage-tool session ids remain separate from pi provider-session ids.
-- PR A2: **implemented** — minimal Workbench Interface in-process read-model
-  seam over an injected Music Experience projection port, Agent Runtime Session
-  Context capture/identity assembly over that seam, system-prompt rendering, and
-  guards proving no AG-UI/web/transport or area-internal imports. A3 supplies
-  the real queue/playback truth behind the projection port.
+- PR A2: **implemented (pre-refactor)** — minimal Workbench Interface in-process
+  read-model seam over an injected Music Experience projection port, Agent
+  Runtime context capture/identity assembly over that seam, system-prompt
+  rendering, and guards proving no AG-UI/web/transport or area-internal imports.
+  The current Agent Context spec supersedes this agent-facing shape with the
+  shared Workspace Context assembler.
 - PR A3a/A3b: **implemented** — queue/playback truth + owning command +
   projection, agent-facing queue/play tool registrations, gate posture, survivor
   projection discipline, cooperative abort checks, hard queue length cap
   (`queue_full`), and guards.
-- PR A4: **implemented** — long-lived pi `Agent` turn session, turn-start
-  Session Context refresh through `state.systemPrompt`, pi `prompt()` /
+- PR A4: **implemented (pre-refactor)** — long-lived pi `Agent` turn session,
+  turn-start context refresh through `state.systemPrompt`, pi `prompt()` /
   `waitForIdle()` loop delegation, harness-visible response/messages, and
   deterministic end-to-end harness over `lookup -> present -> queue.append ->
-  playback.play`.
+  playback.play`. The context source is scheduled to migrate to the shared
+  Workspace Context assembler.
 
 ## Exit Criteria
 
 - A deterministic in-process harness drives a full user turn to a queue/playback
   change through the owning command.
 - Guards in place: Agent Runtime forbidden-imports, dispatch-only tool access,
-  Session-Context-over-read-model, queue write-capability, tool output leak.
+  in-process-only agent context, queue write-capability, tool output leak.
 - No Web, Radio, concurrency, proposal, Memory, or skill-runtime code
   introduced.
 

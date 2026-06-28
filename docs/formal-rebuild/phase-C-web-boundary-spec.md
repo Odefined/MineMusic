@@ -6,8 +6,9 @@
 > Workbench Action Adapter, A2UI surfaces), Effect Boundary (Proposal Unit
 > confirmation), Agent Runtime (proposal resume), Server Host (Web transport).
 > Parent: `docs/formal-rebuild/agent-native-workbench-roadmap.md` (Phase C).
-> Depends on: Phase A (read-model seam, Session Context, Music Experience), Phase
-> B (concurrency/OCC, agent work).
+> Depends on: Phase A (in-process read-model seam, pre-refactor Session Context,
+> Music Experience) and the Agent Context Engineering supersession of that seam;
+> Phase B (concurrency/OCC, agent work).
 > Authority: planning. Architecture facts live in ADR-0031/0033/0034/0036, the
 > Consensus doc, and CONTEXT.md (`Proposal Unit`).
 

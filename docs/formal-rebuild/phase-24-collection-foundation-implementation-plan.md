@@ -90,7 +90,7 @@ This plan implements the locked decisions in
 - **Invariants 1-8** (see decision record): `material_ref_key` immutability;
   block does not remove membership; `library.collection.get` reads fact table;
   `membershipSignals` collections branch; ADR-0035 failure contract; facade
-  `assertWorkflowFacingOwnerScope`; Session Context does not own Collection
+  `assertWorkflowFacingOwnerScope`; Workspace Context does not own Collection
   facts; write boundary.
 
 ## PR 24A — Slice 1: Collection fact table + write boundary

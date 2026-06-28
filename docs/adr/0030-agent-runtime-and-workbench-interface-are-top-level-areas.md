@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Accepted; terminology amended by
+`docs/formal-rebuild/agent-context-engineering-spec.md`. The decision that Agent
+Runtime and Workbench Interface are top-level areas stands. The historical
+`Session Context` term is now a legacy umbrella under Agent Runtime; new work
+uses the seven Agent Context rails and the shared Workspace Context assembler.
 
 ## Context
 
@@ -53,12 +57,13 @@ embedded agents:
 - user action adaptation into area-owned commands.
 - product-level card and work projections assembled from owning areas.
 
-Session Context is not a formal top-level area. It is an Agent Runtime-owned,
-agent-facing context view assembled from Workbench Interface state/projections
-and other area-owned public projections.
+Session Context is not a formal top-level area. Under the current Agent Context
+Engineering vocabulary, it is a legacy umbrella for Agent Runtime-owned
+agent-facing context rails. Workspace Context is assembled from Workbench
+Interface interaction-state facts and other area-owned public projections.
 
 Music Experience owns live and consequential playback, queue, radio, and
-recommendation state. Session Context may contain a compact agent-readable
+recommendation state. Workspace Context may contain a compact agent-readable
 summary of that state, but it does not own it.
 
 Stage Interface remains the owner of Stage Tool contracts: tool names,
@@ -99,7 +104,7 @@ wiring, but it does not own their semantics.
   `src/workbench_interface/`.
 - New contract files are `src/contracts/agent_runtime.ts` and
   `src/contracts/workbench_interface.ts`.
-- Session Context belongs under Agent Runtime as context contract/assembly,
+- Agent Context rails and Workspace Context assembly belong under Agent Runtime,
   not under `src/session_context/`.
 - The Pi concrete adapter lives under Agent Runtime, for example
   `src/agent_runtime/engine_adapters/pi/`.

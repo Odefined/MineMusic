@@ -291,10 +291,11 @@ durability.
 6. **Facade `assertWorkflowFacingOwnerScope`.** Collection facade methods each
    call `assertWorkflowFacingOwnerScope(commandInput.ownerScope)` at the facade
    layer, mirroring `ownerRelations` (not `identity`, which is unwrapped).
-7. **Session Context does not own Collection facts.** Collection state is read
-   as an owning-area projection exposed to the in-process agent through Session
-   Context's read-model aggregation (`ADR-0031`); Session Context never owns
-   Collection facts (`CONTEXT.md`, Session Context section).
+7. **Workspace Context does not own Collection facts.** Collection state enters
+   agent context only through the shared Agent-Runtime Workspace Context
+   assembler reading the Collection area's section-agnostic projection port;
+   Agent Context never owns Collection facts (`CONTEXT.md`, Workspace Context
+   and Session Context sections).
 8. **Write boundary.** Only the owning Collection command writes Collection
    truth (`collection_commands.ts`). `collection_records.ts` is a read port
    with zero write tokens (relation-pattern, not repository-pattern). All

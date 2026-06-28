@@ -126,14 +126,17 @@ assembled from owning areas. Web UI is a host/client surface that consumes this
 boundary; it is not the owner of workspace protocol or business state.
 
 Agent Context Engineering is Agent Runtime-owned context assembly for embedded
-agents. It separates model context into Actor Instruction, Capability Context,
-Workspace Context, Invocation Context, Continuity Context, and
-Knowledge / Memory Context. Workspace Context is the agent-readable current
-workspace fact projection over Workbench Interface state/projections and
-area-owned public projections such as Music Experience, Music Data Platform,
-Music Intelligence, Memory, and Effect proposal summaries. Agent Context
-Engineering is not a top-level area and does not own workspace interaction
-state, playback/queue/radio truth, durable facts, or agent run/work state.
+agents. It separates model context into Actor Identity, Actor Instruction,
+Capability Context, Workspace Context, Invocation Context, Continuity Context,
+and Knowledge / Memory Context. Actor Identity is structured
+`{ role, job, persona }` from `ActorDefinition.identity`, not a raw prompt
+opening. Workspace Context is the agent-readable current workspace fact
+projection assembled by Agent Runtime from Workbench Interface interaction-state
+facts and area-owned public projections such as Music Experience, Music Data
+Platform, Music Intelligence, Memory, and Effect proposal summaries. Agent
+Context Engineering is not a top-level area and does not own workspace
+interaction state, playback/queue/radio truth, durable facts, or agent run/work
+state.
 
 The Web boundary serializes Workspace Snapshot/Events as an AG-UI profile;
 embedded agents read the in-process read model directly (ADR-0031). That AG-UI

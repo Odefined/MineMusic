@@ -780,14 +780,15 @@ restored as compatibility layers.
   Session Context as an Agent Runtime-owned context view.
 - `docs/formal-rebuild/agent-context-engineering-spec.md` now records the
   current Agent Runtime context-engineering model. Embedded-agent context is
-  split into Actor Instruction, Capability Context, Workspace Context,
-  Invocation Context, Continuity Context, and Knowledge / Memory Context.
-  Workspace Context is the current workspace fact projection over the shared
-  in-process read model and is emitted as JSON organized by workspace-visible
-  sections; Main and Radio may receive different selected sections, but section
-  names, shapes, and compression are produced by the same Workspace Context
-  assembly model rather than separate renderers. Phase B Knowledge / Memory
-  Context starts with `userTasteHint` generated from existing
+  split into Actor Identity, Actor Instruction, Capability Context, Workspace
+  Context, Invocation Context, Continuity Context, and Knowledge / Memory
+  Context. Workspace Context is the current workspace fact projection assembled
+  by Agent Runtime from area-owned projections plus Workbench interaction-state
+  facts and emitted as compact data organized by workspace-visible sections;
+  Main and Radio may receive different selected sections, but section names,
+  shapes, and compression are produced by the same Workspace Context assembly
+  model rather than separate renderers. Phase B Knowledge / Memory Context
+  starts with `userTasteHint` generated from existing
   `library.catalog.summary` public output; it is a taste hint, not durable
   Memory.
 - Phase A3 queue/playback truth has landed in Music Experience:
@@ -798,10 +799,12 @@ restored as compatibility layers.
   by the owning command (`queue_full`); ADR-0044 records this as an explicit
   decision replacing Phase A's earlier read-side-only bounded projection plan.
   A4 adds a MineMusic Main Agent turn session over a long-lived pi `Agent`: each
-  user turn captures Session Context through the Workbench read-model seam,
-  refreshes `state.systemPrompt`, runs pi `prompt()` / `waitForIdle()`, returns
-  the pi-produced turn messages plus final assistant status/error/text, and
-  observes queue/playback outcome through the same seam.
+  user turn currently captures pre-refactor Session Context through the Workbench
+  read-model seam, refreshes `state.systemPrompt`, runs pi `prompt()` /
+  `waitForIdle()`, returns the pi-produced turn messages plus final assistant
+  status/error/text, and observes queue/playback outcome through the same seam.
+  The current Agent Context spec marks that path for migration to shared
+  `ActorDefinition` objects and the Agent Runtime Workspace Context assembler.
 - Phase B PR1/PR2 Music Experience substrate has landed: `music_experience_state`
   now carries queue, playback, radio-direction, radio-session, and queue-tail
   revisions/counters for commit-time OCC, and `music_experience_radio_truth`
@@ -811,8 +814,8 @@ restored as compatibility layers.
   `radio_direction_revision`; posture writes are OCC-invisible and never bump
   revisions. The Music Experience read model now exposes radio truth and a
   current-queue material-ref read for Phase B queue-internal dedup.
-- Phase B PR3 Radio runtime substrate is in progress on top of that Music
-  Experience floor: Agent Runtime now defines the internal Radio wake-gate state
+- Phase B PR3 Radio runtime substrate has landed on top of that Music Experience
+  floor: Agent Runtime now defines the internal Radio wake-gate state
   (`Running` / `Paused` / `Shutdown`), Radio refill job payload/result types,
   minimal Speech Level (`Silent` / `Notify`), and a typed Radio→Main notify
   channel. `radio_supervisor` owns the low-watermark single-flight wake gate,

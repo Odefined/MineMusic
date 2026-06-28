@@ -165,12 +165,14 @@ basis check. See ADR-0033.
 
 Agent Runtime-owned assembly model for embedded-agent model context.
 
-Agent Context Engineering separates context into Actor Instruction, Capability
-Context, Workspace Context, Invocation Context, Continuity Context, and
-Knowledge / Memory Context. Main Agent and Radio Agent may receive different
-selected workspace-visible sections, but one shared Agent Runtime assembler owns
-reading the required area facts, selecting the actor's declared sections,
-compressing repeated semantics, and encoding the Workspace Context. Callers pass
+Agent Context Engineering separates context into Actor Identity, Actor
+Instruction, Capability Context, Workspace Context, Invocation Context,
+Continuity Context, and Knowledge / Memory Context. Actor Identity comes from
+`ActorDefinition.identity` as structured `role` / `job` / `persona` data, not a
+raw prompt opening. Main Agent and Radio Agent may receive different selected
+workspace-visible sections, but one shared Agent Runtime assembler owns reading
+the required area facts, selecting the actor's declared sections, compressing
+repeated semantics, and encoding the Workspace Context. Callers pass
 `{ actor, ownerScope }`; they do not pass ad hoc section lists. Main and Radio
 must not maintain separate hand-written descriptions or separate compression
 logic for the same Workspace Context facts.

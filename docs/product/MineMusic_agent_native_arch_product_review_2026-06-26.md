@@ -4,11 +4,16 @@
 评审日期：2026-06-26  
 角色：建设性架构师 + 红队挑战者
 
+> Supersession note (2026-06-29): this review predates
+> `docs/formal-rebuild/agent-context-engineering-spec.md`. Read mentions of
+> Session Context as pre-refactor terminology; current design uses seven Agent
+> Context rails and the shared Workspace Context assembler.
+
 ---
 
 ## 0. 对系统核心架构的理解与评审重点
 
-MineMusic 的目标不是把一个外部 agent 接到音乐应用上，而是把 Agent Runtime 作为产品 runtime 的一等组件：Main/Radio agent 通过 Stage Interface 能力和 Workbench/Session Context 深度参与播放、推荐、Radio 和 UI。Stage Interface 是唯一 agent-facing callable boundary；Workbench Interface 负责 Web 与 embedded agents 共享的 Workspace Snapshot / Protocol / A2UI；Music Experience 拥有播放、队列、Radio、推荐批次与 History；Music Data Platform 拥有 source/material/canonical/owner facts/projections；Effect Boundary 负责权限、proposal 和 side-effect governance。P0 文档的核心主张是“agent 深嵌体验，但 domain truth 仍归 owning area”，评审重点就是检查 Pi、tool、Web、provider、Memory 是否会越权吞掉这些 ownership。第二个重点是 sequencing：A/B/C 的 deepest-risk-first 是否在降低架构风险的同时推迟了产品价值验证。第三个重点是边界纪律：这些 guard 是真正的安全网，还是会演化成早期产品的迭代负担。
+MineMusic 的目标不是把一个外部 agent 接到音乐应用上，而是把 Agent Runtime 作为产品 runtime 的一等组件：Main/Radio agent 通过 Stage Interface 能力和 Workbench/Agent Context 深度参与播放、推荐、Radio 和 UI。Stage Interface 是唯一 agent-facing callable boundary；Workbench Interface 负责 Web 与 embedded agents 共享的 Workspace Snapshot / Protocol / A2UI；Music Experience 拥有播放、队列、Radio、推荐批次与 History；Music Data Platform 拥有 source/material/canonical/owner facts/projections；Effect Boundary 负责权限、proposal 和 side-effect governance。P0 文档的核心主张是“agent 深嵌体验，但 domain truth 仍归 owning area”，评审重点就是检查 Pi、tool、Web、provider、Memory 是否会越权吞掉这些 ownership。第二个重点是 sequencing：A/B/C 的 deepest-risk-first 是否在降低架构风险的同时推迟了产品价值验证。第三个重点是边界纪律：这些 guard 是真正的安全网，还是会演化成早期产品的迭代负担。
 
 ---
 
@@ -37,7 +42,7 @@ MineMusic 的目标不是把一个外部 agent 接到音乐应用上，而是把
 | 关键发现 | 结论 | 证据 | 风险 | 改进建议 | 等级 |
 |---|---|---|---|---|---|
 | 1. import 方向在设计上单向，但当前 guard 有一部分是 brittle file-list | 架构要求 Domain 不 import Stage Interface，Stage Core 只 composition；测试有 root/file list 和 contracts DAG。 | `ARCHITECTURE.md` Import Direction；`test/formal/active-tree.test.ts` 有 root/file-list/contract DAG guard。 | file-list guard 会在正常扩展时频繁更新，容易被“改快点”弱化。 | 加 AST/import graph rule：按 owner area 与 `stage_adapter` 例外判定，而不是靠完整文件名单。 | should |
-| 2. Session Context 定义在 in-process read model 之上是正确方向 | A2 明确把 Workbench read-model composition 与 Agent Runtime Session Context 分成两个 artifacts，Phase C 只扩展 composition，不 re-point Session Context。 | Phase A spec A2 Deep Dive。 | 该 seam 尚处 planning；若实现时为了快直接从 AG-UI/DTO 拼 prompt，会破坏 A→C 演进。 | A2 第一 PR 只做最小 read-model seam + prompt injection，并加“no AG-UI type reachable”测试。 | must |
+| 2. Embedded-agent context 不走 AG-UI wire format 是正确方向 | A2 明确把 Workbench read-model composition 与 Agent Runtime pre-refactor Session Context 分成两个 artifacts；当前 spec 进一步改为七轨 + shared Workspace Context assembler。 | Phase A spec A2 Deep Dive；Agent Context Engineering spec。 | 若实现时为了快直接从 AG-UI/DTO 拼 prompt，会破坏 A→C 演进和当前七轨模型。 | Context PR 只走 in-process area projections + Workbench interaction-state，并加“no AG-UI type reachable”测试。 | must |
 | 3. Pi port 的 leak 是必要的，但必须持续被收窄 | Pi audit 证明低层 `Agent` 没有 persistence/compaction/subagent；MineMusic 需自己建 transcript persistence、Radio coordination、OCC。 | Pi audit：low-level Agent volatile，无 subagent；pi harness reuse note：不采用 full AgentHarness。 | “deliberately leaky port”可能逐步变成 raw pi API 扩散，尤其是 compaction/session helpers。 | 只允许 `src/agent_runtime/engine_adapters/pi/**` 和 facade 测试 import raw pi；加 version-pinned conformance tests。 | must |
 
 **四套 taxonomy 判断：**不合并是对的，因为它们分类对象不同：user action meaning、agent speech severity、effect permission、actor preemption。风险是开发者把它们都塞进一个 command envelope。建议每套 taxonomy 必须有唯一 entry assignment point 和一张 examples table。
@@ -52,7 +57,7 @@ MineMusic 的目标不是把一个外部 agent 接到音乐应用上，而是把
 |---|---|---|---|---|---|
 | 1. A/B/C 是架构风险优先，不是产品验证优先 | Roadmap 先 Main in-process，再 Radio/OCC，再 Web/human，逻辑上降低 concurrency/transport 风险。 | Roadmap 的 sequencing principle：one concurrent writer per phase，in-process before wire。 | 用户是否想要“agent-native 音乐工作台”会到 Phase C 才被真实验证，可能架构做深但产品命题不成立。 | 并行做 C0：只读 Web prototype / Wizard-of-Oz Radio / fake A2UI，不进入 formal write path，只验证用户行为。 | must |
 | 2. `ConcernRevision` 提前埋列是合理前瞻 | A3 加 revision，B 才 CAS enforcement；PB3 细化为 per-concern revision，避免 queue reorder void Radio append。 | Phase A A3 和 Phase B PB3。 | 如果过早抽象成 generic version vector，会引入分布式 causality 误解。 | 按 PB3 命名为 `CommandPreconditionSet` + `ConcernRevision`，不要叫 version vector。 | should |
-| 3. 几个硬骨头已经接近“锁死” | Pi engine、Postgres 统一、Session Context 定义点、Stage Interface tool descriptor 是一旦落地很难改的结构。 | Architecture / Phase A / Pi audit / Current State。 | 早期锁得太死会拖慢 pivot；锁得太松会边界腐烂。 | 每个硬骨头写 exit criteria：Pi churn、DB contention、prompt size、tool selection failure 触发复盘。 | must |
+| 3. 几个硬骨头已经接近“锁死” | Pi engine、Postgres 统一、Agent Context rail/Workspace Context assembler 定义点、Stage Interface tool descriptor 是一旦落地很难改的结构。 | Architecture / Phase A / Pi audit / Current State。 | 早期锁得太死会拖慢 pivot；锁得太松会边界腐烂。 | 每个硬骨头写 exit criteria：Pi churn、DB contention、prompt size、tool selection failure 触发复盘。 | must |
 
 ---
 

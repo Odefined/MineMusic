@@ -68,6 +68,11 @@ and guard strategy before editing.
 - A new or clarified boundary needs a project-native guard when feasible:
   forbidden-import test, exact port key-set assertion, output leak test, or
   writer-capability guard.
+- Do not use broad forbidden-string, substring, or keyword-list checks as a
+  guard for architectural quality, actor identity, instruction quality, or
+  model-facing prose. Guard contracts structurally instead: ownership, source,
+  field shape, allowed capabilities, selected sections, import direction,
+  dispatch path, output schema, or explicit public surface.
 
 ## Write Boundaries
 

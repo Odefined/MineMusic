@@ -26,13 +26,14 @@ This final synthesis fuses:
 The download draft contributes the Workbench Interface, Workspace
 Protocol/projection, expanded Music Experience, Main/Radio peer actor, and
 controlled Card IR/A2UI directions. The revised draft contributes Agent Runtime
-as an internal MineMusic runtime component, Session Context as an
-agent-readable context assembly surface, Stage Interface tool ownership, and Pi
-behind a MineMusic-owned engine port.
+as an internal MineMusic runtime component, the agent-readable context assembly
+surface now expressed as Agent Context Engineering rails, Stage Interface tool
+ownership, and Pi behind a MineMusic-owned engine port.
 
 The final model keeps those contributions under explicit MineMusic owners and
-rejects the parts that would make Session Context a top-level state owner, put
-Agent Runtime under Stage Core, or place Pi product adapters under Server Host.
+rejects the parts that would make the legacy Session Context term a top-level
+state owner, put Agent Runtime under Stage Core, or place Pi product adapters
+under Server Host.
 
 ## Final Decisions
 
@@ -172,55 +173,60 @@ update in the workbench.
 Do not use Workspace Events as the durable fact source for Music Experience,
 Agent Runtime, Effect Boundary, Music Data Platform, or Memory.
 
-### Session Context
+### Agent Context Engineering
 
-`Session Context` is not a formal top-level area.
+`Session Context` is a legacy umbrella term, not a formal top-level area and
+not the current design surface for new work.
 
-It is an Agent Runtime-owned, agent-facing context view assembled from:
+New work uses the seven Agent Context Engineering rails defined in
+`docs/formal-rebuild/agent-context-engineering-spec.md`:
 
-- Workbench Interface state and projections.
-- Music Experience projections.
-- Music Data Platform / Music Intelligence public projections.
-- Effect proposal summaries.
-- other area-owned public context slices as needed.
+- Actor Identity.
+- Actor Instruction.
+- Capability Context.
+- Workspace Context.
+- Invocation Context.
+- Continuity Context.
+- Knowledge / Memory Context.
 
-Session Context names the context contract that agents read. It does not own
-the underlying workspace state, music state, durable facts, or agent runtime
-state.
+Agent Runtime owns context assembly for embedded agents. Workbench Interface
+remains an interaction-state source; Music Experience, Music Data Platform,
+Music Intelligence, Memory, and Effect Boundary own the facts they project into
+Workspace Context. The context rails do not own the underlying workspace state,
+music state, durable facts, or agent runtime state.
 
 The revised draft's useful contribution here is that Agent Runtime needs an
 explicit context assembly contract for prompt, actor, and run behavior. That
 agent-readable view belongs to Agent Runtime, not to Workbench Interface.
 
-### Workspace Protocol And Session Context
+### Workspace Protocol And Agent Context
 
-`Workspace Protocol` and `Session Context` solve different problems and must
-not be collapsed into each other.
+`Workspace Protocol` and Agent Context Engineering solve different problems and
+must not be collapsed into each other.
 
 `Workspace Snapshot` is the public workbench surface observed by Web and
 embedded agents. It is produced through Workbench Protocol from Workbench
 Interaction State plus public projections from owning areas.
 
-`Session Context` is the Agent Runtime reading surface. Agent Runtime assembles
-it from Workspace Snapshot plus area-owned public projections such as Music
-Experience, Music Data Platform, Music Intelligence, Memory, and Effect
-proposal summaries.
+Workspace Context is the Agent Runtime current-state rail. Agent Runtime
+assembles it from area-owned projections plus Workbench interaction-state facts;
+it is not a renamed Workspace Snapshot and not an AG-UI wire-format consumer.
 
 The boundary is:
 
 ```text
 Owning areas
 -> public projections
--> Workspace Protocol / Workspace Snapshot
--> Agent Runtime context assembly
--> Session Context
+-> Workbench Interface interaction state where needed
+-> Agent Runtime Workspace Context assembly
+-> Agent Context rails
 ```
 
 The same domain fact may appear in both surfaces, but with different purposes:
-Workspace Protocol exposes the public workspace timeline; Session Context
-selects, compresses, and phrases context for agent work.
+Workspace Protocol exposes the public workspace timeline; Workspace Context
+selects, compresses, and encodes current facts for agent work.
 
-Do not make Session Context the public workspace synchronization model. Do not
+Do not make Agent Context the public workspace synchronization model. Do not
 make Workspace Protocol the prompt-context model.
 
 ### Agent Runtime
@@ -447,13 +453,13 @@ It owns both live music experience state and consequential music history:
 Workbench Interface presents and routes music experience interactions, but it
 does not own playback, queue, or radio truth.
 
-Session Context may include compact Music Experience state for agent context,
+Workspace Context may include compact Music Experience state for agent context,
 but it does not own that state.
 
 The fusion decision is that the download draft's expanded Music Experience
 model wins for live playback, queue, and radio ownership. The revised draft's
-Session Context model remains useful only as an agent-readable summary of that
-state.
+Session Context model is superseded by the Workspace Context rail: useful only
+as an agent-readable summary of that state, never as the owner.
 
 Music Experience owns:
 
@@ -464,9 +470,11 @@ Music Experience owns:
 - recommendation batches and presented recommendation events.
 - skip/open/play feedback and listening outcomes.
 
-Session Context may read and compress this into agent context, for example:
-current radio mode, current item, queue summary, recent skips, active direction,
-and relevant area revisions. That compact view is not the source of truth.
+Workspace Context may read and compress this into agent context, for example:
+current radio mode, current item, queue lines with public handles, recent skips,
+active direction, and relevant current revisions. Run precondition revisions
+belong to Invocation Context `basis`. That compact view is not the source of
+truth.
 
 ### Recommendation Responsibility
 
