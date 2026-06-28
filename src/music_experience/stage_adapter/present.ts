@@ -42,9 +42,9 @@ export const musicExperiencePresentDescriptor: ToolDeclaration = {
   ownerArea: "music_experience",
   description: "Present a candidate or material music item as a durable user-facing MusicCard.",
   usage: {
-    useWhen: "Use after the agent has chosen a specific candidate or material item to present in the conversation or user-facing display.",
+    useWhen: "Use after the agent has chosen a specific candidate or material bracket handle to present in the conversation or user-facing display.",
     doNotUseWhen: "Do not use for lookup, browsing, provider search, playback, saving, rating, or final musical judgement.",
-    outputSemantics: "Returns a durable material handle plus a compact MusicCard; candidate inputs are committed to a durable material before presentation.",
+    outputSemantics: "Returns a durable [material:...] handle plus a compact MusicCard; [candidate:...] inputs are committed to a durable material before presentation.",
   },
   examples: [
     {
@@ -99,12 +99,12 @@ export const musicExperiencePresentDescriptor: ToolDeclaration = {
     {
       code: "invalid_input",
       retryable: false,
-      suggestedFixTemplate: "Call music.experience.present with item as a material or candidate MusicItemHandle.",
+      suggestedFixTemplate: "Call music.experience.present with item as a full [material:...] or [candidate:...] handle.",
     },
   ],
   resultSummary(result) {
     const output = result as MusicExperiencePresentOutput;
-    return `Presented ${output.card.label} (${output.card.kind}) as material item ${output.item.id}.`;
+    return `Presented ${output.card.label} (${output.card.kind}) as material item ${output.item}.`;
   },
 };
 

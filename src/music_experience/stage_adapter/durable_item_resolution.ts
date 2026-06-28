@@ -1,8 +1,13 @@
 import { parseRefKey, refKey, type Ref, type Result } from "../../contracts/kernel.js";
 import type { MusicMaterial } from "../../contracts/music_data_platform.js";
 import type {
+  MaterialMusicItemHandle,
   MusicItemHandle,
   StageToolContext,
+} from "../../contracts/stage_interface.js";
+import {
+  formatMusicItemHandle,
+  parseMusicItemHandle,
 } from "../../contracts/stage_interface.js";
 import type {
   CandidateCommitCommand,
@@ -35,18 +40,19 @@ export async function resolveDurableMusicMaterial(
   item: MusicItemHandle,
   ports: ResolveDurableMusicItemPorts,
 ): Promise<Result<MusicMaterial>> {
-  switch (item.kind) {
+  const parsed = parseMusicItemHandle(item);
+  switch (parsed.kind) {
     case "candidate":
-      return resolveCandidate(ctx, item.id, ports);
+      return resolveCandidate(ctx, parsed.id, ports);
     case "material":
-      return resolveMaterial(ctx, item.id, ports);
+      return resolveMaterial(ctx, parsed.id, ports);
   }
 }
 
 export async function mintMaterialItemHandle(
   ctx: StageToolContext,
   materialRef: Ref,
-): Promise<Extract<MusicItemHandle, { kind: "material" }>> {
+): Promise<MaterialMusicItemHandle> {
   const publicId = await ctx.handleMinting.mint({
     ownerScope: ctx.ownerScope,
     handleKind: "material",
@@ -55,10 +61,10 @@ export async function mintMaterialItemHandle(
     },
   });
 
-  return {
+  return formatMusicItemHandle({
     kind: "material",
     id: publicId,
-  };
+  });
 }
 
 export function musicExperienceFail(input: {
@@ -210,7 +216,7 @@ function invalidInput(message: string): Result<never> {
     code: "invalid_input",
     message,
     retryable: false,
-    suggestedFix: "Retry with item as a material or candidate MusicItemHandle.",
+    suggestedFix: "Retry with item as a full [material:...] or [candidate:...] handle.",
   });
 }
 

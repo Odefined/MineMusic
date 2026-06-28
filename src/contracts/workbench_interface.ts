@@ -6,12 +6,10 @@
 import type { ConcernRevision } from "./kernel.js";
 
 export type WorkbenchConcernRevision = ConcernRevision;
+export type WorkbenchMaterialMusicItemHandle = `[material:${string}]`;
 
 export type WorkbenchMusicItemSummary = {
-  item: {
-    kind: "material";
-    id: string;
-  };
+  item: WorkbenchMaterialMusicItemHandle;
   label: string;
   artistsText?: string;
 };

@@ -111,7 +111,7 @@ playback/queue/radio truth, recommendation judgement, Effect decisions,
 process transports, Web component implementation, or runtime graph composition.
 
 Agent Runtime reads Workbench Interface state and projections when assembling
-Session Context. Workspace snapshots and events still require every field and
+Workspace Context. Workspace snapshots and events still require every field and
 payload to have an owning area.
 
 _Avoid_: browser-only UI store, global workspace database, Music Experience
@@ -126,9 +126,10 @@ cross-area product card and work projections are owned by Workbench Interface.
 It is a read model assembled from owning-area projections, not a global state
 store and not a durability owner for the facts it shows.
 
-It is an in-process read model. Embedded agents read it in process — their
-agent-facing view is Session Context — and it is serialized only at the Web
-boundary, as an AG-UI profile (Workspace Snapshot/Events map onto AG-UI
+It is an in-process read model. Embedded-agent Workspace Context assembly reads
+current workspace facts in process and does not consume the Web wire format.
+Workspace Snapshot is serialized only at the Web boundary, as an AG-UI profile
+(Workspace Snapshot/Events map onto AG-UI
 `StateSnapshot` and `StateDelta` as RFC 6902 JSON Patch; agent work trace maps
 onto AG-UI activity/tool events). AG-UI is the external serialization, not the
 internal ownership model. See ADR-0031.
@@ -160,28 +161,61 @@ stale rejection. Ownership serialization minimizes conflicts at the source and
 engine cancellation stops stale work early, but neither replaces the commit-time
 basis check. See ADR-0033.
 
+### Agent Context Engineering
+
+Agent Runtime-owned assembly model for embedded-agent model context.
+
+Agent Context Engineering separates context into Actor Instruction, Capability
+Context, Workspace Context, Invocation Context, Continuity Context, and
+Knowledge / Memory Context. Main Agent and Radio Agent may receive different
+selected workspace-visible sections, but one shared Agent Runtime assembler owns
+reading the required area facts, selecting the actor's declared sections,
+compressing repeated semantics, and encoding the Workspace Context. Callers pass
+`{ actor, ownerScope }`; they do not pass ad hoc section lists. Main and Radio
+must not maintain separate hand-written descriptions or separate compression
+logic for the same Workspace Context facts.
+
+_Avoid_: one prompt blob, actor-specific workspace-state renderer, formal
+top-level area, unified workspace state owner, Stage Core state, generic session
+store.
+
+### Workspace Context
+
+Agent-readable current workspace fact projection.
+
+Workspace Context is assembled by Agent Runtime from area-owned current facts.
+It may include current queue, now-playing, radio truth, and relevant current
+revisions, but it is organized by workspace-visible sections rather than
+internal architecture area names or area read-model blobs. It does not own those
+facts and is not invocation payload, transcript continuity, tool availability,
+durable taste memory, or Web serialization. Its agent-facing output is compact
+encoded data; compression removes repeated semantics and attention noise, not
+facts the actor needs.
+
+_Avoid_: Session Context, Workspace Session, transcript-derived truth, Radio
+Run Floor workspace state, actor-specific workspace compression.
+
+### User Taste Hint
+
+Lightweight context hint about the user's library-shaped music tendencies.
+
+In Phase B, User Taste Hint is generated from the existing
+`library.catalog.summary` public output and enters Knowledge / Memory Context.
+It is not durable Memory, not a hard preference rule, and not proof that the
+user explicitly stated a preference.
+
+_Avoid_: durable Memory, explicit user instruction, Workspace Context fact,
+catalog summary schema fork.
+
 ### Session Context
 
-Agent Runtime-owned context view assembled for embedded MineMusic agents.
+Legacy umbrella term for Agent Runtime-owned agent-facing context.
 
-Session Context names the agent-readable context contract: current
-task/posture, active instruments, current listening mode, session-local
-constraints, recent choices/exclusions, area slice revisions captured as the
-Agent Work Basis, and selected workspace focus as read from Workbench Interface.
+New work should use the Agent Context Engineering rails instead of treating
+Session Context as a mixed bucket for workspace facts, invocation payload,
+continuity, tools, and memory.
 
-Session Context does not own the underlying Workbench Interface state/protocol,
-agent run/message/work state, long-term Memory, Music Data Platform facts,
-owner facts, provider state, playback/queue/radio truth, recommendation
-judgement, presentation-only UI state, Effect policy, process transports, or
-runtime graph composition.
-
-Agent Runtime owns and consumes Session Context. Workbench Interface is the
-shared current-state and protocol owner; Session Context is the agent-facing
-view over that state plus area-owned projections.
-
-_Avoid_: formal top-level area, unified workspace state owner, Workspace
-Session, Stage Core state, Music Experience durable state, generic session
-store.
+_Avoid_: new-code term for Workspace Context, pi session, generic session store.
 
 ### Radio Subagent
 
@@ -667,17 +701,20 @@ resolve the provider item to a durable material, the public handle kind is
 `material`. `candidate` is only for an unresolved provider item not yet
 durable-materialized.
 
-A Music Item Handle carries an opaque public `id` scoped by handle kind. It is
-never a raw durable material ref, material candidate ref, source ref, canonical
-ref, provider entity id, provider item id, or database key; those internal
-anchors are resolved only inside MineMusic. The durable item kind is named
-`material` (ADR-0040 retired the earlier `library` item-handle kind); "library"
-survives only as a *scope* — the MusicScope owner-visible baseline — never as an
-item-handle kind. The unconfirmed item kind is named `candidate`, not `provider`
-or `temporary`, because it describes an item not yet durable-materialized and
-must not be confused with Music Provider Scope Handle. A `candidate` handle that
-has expired must fail explicitly rather than silently resolve to a different
-item.
+A Music Item Handle is a bracket-string public handle such as
+`[material:mh_<opaque>]` or `[candidate:<opaque-id>]`. The agent passes the
+whole string back unchanged; it does not reconstruct a `{ kind, id }` object.
+The id inside the brackets is a stateful public handle minted behind
+`HandleMintingPort`, not identity. It is never a raw durable material ref,
+material candidate ref, source ref, canonical ref, provider entity id, provider
+item id, or database key; those internal anchors are resolved only inside
+MineMusic. The durable item kind is named `material` (ADR-0040 retired the
+earlier `library` item-handle kind); "library" survives only as a *scope* — the
+MusicScope owner-visible baseline — never as an item-handle kind. The
+unconfirmed item kind is named `candidate`, not `provider` or `temporary`,
+because it describes an item not yet durable-materialized and must not be
+confused with Music Provider Scope Handle. A `candidate` handle that has expired
+must fail explicitly rather than silently resolve to a different item.
 _Avoid_: every internal anchor in the Public Handle Veil (see Stage Interface
 Tool Frame): materialRef, materialCandidateRef, sourceRef, canonicalRef,
 sourceLibraryRef, ownerRelationPoolRef, resultSetId, provider entity id, raw
@@ -734,11 +771,12 @@ has no agent-visible structure and must not be derived from, equal to, or parsed
 as an internal ref key. MineMusic owns the private mapping from that public
 `id` to the current internal source-library, relation, or future collection
 anchor.
-A Music Library Scope Handle is returned by MineMusic tools that list or produce
-an owner-scoped library subscope, such as `music.discovery.list_scopes` and
-library intake tools after they resolve a source-library scope. It is not
-constructed by the agent. The agent may pass this handle directly as a
-`MusicScope` item without wrapping it in another object.
+A Music Library Scope Handle is a bracket-string handle such as
+`[source_library:<opaque-id>]`, `[relation:<opaque-id>]`, or
+`[collection:<opaque-id>]`, returned by MineMusic tools that list or produce an
+owner-scoped library subscope. It is not constructed by the agent. The agent may
+pass this handle directly as a `MusicScope` string without wrapping it in
+another object.
 _Avoid_: every internal anchor in the Public Handle Veil (see Stage Interface
 Tool Frame): sourceLibraryRef, ownerRelationPoolRef, public `providerId`, raw
 owner or library key, Collection row id.
@@ -775,9 +813,10 @@ commit, provider save/like API action, Memory preference update.
 
 ### Music Abstract Scope Handle
 
-A Public Agent Protocol handle for an aggregate or built-in music scope, such as
-`all` or the owner-visible `library` baseline. `all` and `library` are reusable
-abstract scope handles, but each scoped tool declares whether it accepts them.
+A Public Agent Protocol bracket-string handle for an aggregate or built-in
+music scope: `[all]` or the owner-visible `[library]` baseline. `[all]` and
+`[library]` are reusable abstract scope handles, but each scoped tool declares
+whether it accepts them.
 A Music Abstract Scope Handle is not a durable library subscope and not a
 provider search scope; durable source-library, relation, and future collection
 scopes use Music Library Scope Handle, while connected provider scopes use Music
@@ -787,21 +826,23 @@ _Avoid_: sourceLibraryRef, ownerRelationPoolRef, collection row id, public
 
 ### Music Provider Scope Handle
 
-A Public Agent Protocol handle for a connected searchable provider as a scoped
-music operation target. It carries a public `providerId` from MineMusic's
-provider registry/scope metadata and is neither an abstract scope nor a durable
-library subscope. The same public `providerId` is reused across agent-facing
-provider scopes and future provider-aware tools; it is not tool-local and must
-not be renamed to a generic scope `id`.
+A Public Agent Protocol bracket-string handle for a connected searchable
+provider as a scoped music operation target, such as `[provider:netease]`. It
+carries a public provider id from MineMusic's provider registry/scope metadata
+and is neither an abstract scope nor a durable library subscope. The same public
+provider id is reused across agent-facing provider scopes and future
+provider-aware tools; it is not tool-local and must not be renamed to a generic
+scope id.
 _Avoid_: provider entity id, provider account id, raw provider key, sourceRef,
 provider library item, Music Library Scope Handle.
 
 ### Music Scope
 
-A Public Agent Protocol input item used by scoped music tools to say where the
-agent wants to retrieve, list, or otherwise operate over music. A Music Scope is
-either a Music Abstract Scope Handle, a concrete Music Library Scope Handle, or
-a Music Provider Scope Handle.
+A Public Agent Protocol bracket-string input used by scoped music tools to say
+where the agent wants to retrieve, list, or otherwise operate over music. A
+Music Scope is either a Music Abstract Scope Handle, a concrete Music Library
+Scope Handle, or a Music Provider Scope Handle; it is not a `{ kind, id }`
+object the agent reconstructs.
 
 Music scopes are agent-facing intent, not internal Retrieval pool algebra.
 The agent may actively choose `library` for the owner-visible MineMusic library
@@ -822,7 +863,8 @@ the v1 listing tool lives
 under the `music.discovery` instrument, it returns reusable Music Scope values,
 not discovery-specific handles. Its optional `kind` input filters the flat
 response to one listed scope kind (`library`, `source_library`, `relation`, or
-`provider`); it filters `ListedMusicScope.kind`, not a separate scope family.
+`provider`); it filters the listed scope's bracket-handle kind, not a separate
+scope family.
 Omitted `kind` returns all explicit selectable scopes, and a valid kind with no
 currently selectable scopes returns an empty list without a warning or error.
 Listed scopes carry required Public Handle Descriptions that help the agent
@@ -852,9 +894,10 @@ Current Stage Modules:
 - Instrument Catalog: available instruments and tool descriptors.
 - Handbook: rendered instrument and tool reference.
 
-Do not classify Session Context as a Stage Module in new work. Historical notes
-may use that older framing, but current formal work treats Session Context as
-an Agent Runtime-owned context view.
+Do not classify Session Context, Workspace Context, or Agent Context Engineering
+as a Stage Module in new work. Historical notes may use that older framing, but
+current formal work treats Agent Context Engineering as Agent Runtime-owned
+context assembly.
 
 Historical notes may mention `src/stage/index.ts` and `SessionContextPort`.
 Do not use that mapping for new formal work.
@@ -1260,10 +1303,10 @@ formal successor to the deleted ephemeral-material presentation rule.
 
 Candidate Commit is an internal owning command, not an agent-facing tool. The
 agent never calls commit directly; a consumption action such as
-`music.experience.present` resolves a Music Item Handle of kind `candidate`
-back to the internal material candidate ref, invokes the commit command, and
-mints a Music Item Handle of kind `material` for the newly durable item (ADR-0040:
-present durable-materializes; it is **not** library admission). The
+`music.experience.present` resolves a `[candidate:...]` Music Item Handle back
+to the internal material candidate ref, invokes the commit command, and mints a
+`[material:...]` Music Item Handle for the newly durable item (ADR-0040: present
+durable-materializes; it is **not** library admission). The
 commit command itself receives and returns internal refs
 (`materialCandidateRef` -> `materialRef`); public handle conversion stays on
 the consumption-action side, and the input candidate handle does not become a
@@ -1282,7 +1325,7 @@ The Core Capability for a user's explicit long-lived music assets, such as kept
 recordings, works, release groups, releases, and artists.
 
 Collection Service is distinct from Memory Service, Event Service, Material
-Store, Source Grounding, and Session Context. A Collection is
+Store, Source Grounding, and Workspace Context. A Collection is
 an owner-scoped group of long-lived relationships to material objects; a
 Collection Item is a member of that Collection whose product-level target is
 `materialRef`. Canonical identity, source refs, and Source Library are external
@@ -1642,9 +1685,9 @@ Storage does not own domain decisions, effect policy, or LLM-facing behavior.
 
 Use `Stage Core` for runtime composition and lifecycle.
 
-Do not use `Stage Core` to mean Session Context or a module that contains every
-capability implementation.
+Do not use `Stage Core` to mean Agent Context Engineering or a module that
+contains every capability implementation.
 
-`Stage Modules` remains the name for small LLM-facing support modules such as
-Session Context, Instrument Catalog, and Handbook. Historical Wave 4-8 notes may
-also mention the removed Material Gate module.
+`Stage Modules` remains an older name for small LLM-facing support modules such
+as Instrument Catalog and Handbook. Historical Wave 4-8 notes may also mention
+Session Context and the removed Material Gate module under that older framing.

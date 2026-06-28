@@ -225,6 +225,33 @@ function generatorFor(sourcePath) {
 
 const TOOL_LIMIT_CONSTRAINT = { type: "integer", minimum: 1, maximum: 100 };
 const NON_EMPTY_STRING_CONSTRAINT = { type: "string", minLength: 1 };
+const MATERIAL_MUSIC_ITEM_HANDLE_CONSTRAINT = {
+  type: "string",
+  pattern: "^\\[material:[^\\]\\r\\n]+\\]$",
+};
+const CANDIDATE_MUSIC_ITEM_HANDLE_CONSTRAINT = {
+  type: "string",
+  pattern: "^\\[candidate:[^\\]\\r\\n]+\\]$",
+};
+const MUSIC_ABSTRACT_SCOPE_HANDLE_CONSTRAINT = {
+  enum: ["[all]", "[library]"],
+};
+const MUSIC_LIBRARY_SCOPE_HANDLE_CONSTRAINT = {
+  type: "string",
+  pattern: "^\\[(source_library|relation|collection):[^\\]\\r\\n]+\\]$",
+};
+const MUSIC_PROVIDER_SCOPE_HANDLE_CONSTRAINT = {
+  type: "string",
+  pattern: "^\\[provider:[^\\]\\r\\n]+\\]$",
+};
+const LIBRARY_CATALOG_SCOPE_CONSTRAINT = {
+  type: "string",
+  pattern: "^\\[(library|source_library:[^\\]\\r\\n]+|relation:[^\\]\\r\\n]+|collection:[^\\]\\r\\n]+)\\]$",
+};
+const LIBRARY_COLLECTION_SCOPE_HANDLE_CONSTRAINT = {
+  type: "string",
+  pattern: "^\\[collection:[^\\]\\r\\n]+\\]$",
+};
 
 // The TS source declares `limit?: number`, which the generator faithfully transcribes as
 // { type: "number" }. Lookup and library-import handlers enforce integer 1..100, so
@@ -280,15 +307,6 @@ function applyNonEmptyStringPropertyOverlay(schema, propertyName) {
   }
 }
 
-const NON_EMPTY_SCOPE_DEFINITIONS = new Set([
-  "MusicLibraryScopeHandle",
-  "MusicProviderScopeHandle",
-  "MusicItemHandle",
-  "ListedMusicScope",
-  "LibraryCatalogScope",
-  "ListedLibraryCatalogScope",
-  "LibraryCatalogScopeInput",
-]);
 const NON_EMPTY_LIBRARY_IMPORT_BATCH_ID_DEFINITIONS = new Set([
   "LibraryImportStatusInput",
 ]);
@@ -322,77 +340,64 @@ function applyLibraryImportBatchIdNonEmptyOverlay(schema) {
   }
 }
 
-// The TS source declares scope-handle `id`/`providerId` as bare `string`, which the
-// generator transcribes as { type: "string" } with no minLength. An empty-string scope
-// handle would pass the AJV gate and reach resolution as a bogus empty-key scope
-// ("source_library:" / "provider:"). Surface non-empty at the STRUCTURAL layer (the
-// owner of shape validity) by tightening the id/providerId of the scope-handle
-// definitions. Scoped to the named definitions so unrelated `id` props (e.g.
-// StageRuntimeStatusInput.modules[].id) are untouched.
-function applyScopeHandleNonEmptyOverlay(schema) {
+function applyMusicItemHandlePatternOverlay(schema) {
   const definitions = schema?.definitions;
   if (definitions === null || typeof definitions !== "object") {
     return;
   }
-  for (const [name, def] of Object.entries(definitions)) {
-    if (NON_EMPTY_SCOPE_DEFINITIONS.has(name)) {
-      tightenNonEmptyStringProperties(def);
-    }
+  if (definitions.MaterialMusicItemHandle !== undefined) {
+    definitions.MaterialMusicItemHandle = {
+      ...MATERIAL_MUSIC_ITEM_HANDLE_CONSTRAINT,
+      description: 'Durable material item handle. Pass the whole bracket string unchanged, e.g. "[material:mh_...]".',
+    };
+  }
+  if (definitions.CandidateMusicItemHandle !== undefined) {
+    definitions.CandidateMusicItemHandle = {
+      ...CANDIDATE_MUSIC_ITEM_HANDLE_CONSTRAINT,
+      description: 'Provider candidate item handle. Pass the whole bracket string unchanged, e.g. "[candidate:...]".',
+    };
   }
 }
 
-function tightenNonEmptyStringProperties(def) {
-  if (def === null || typeof def !== "object") {
+function applyMusicScopeHandlePatternOverlay(schema) {
+  const definitions = schema?.definitions;
+  if (definitions === null || typeof definitions !== "object") {
     return;
   }
-  // Handle both anyOf-wrapped variants (MusicLibraryScopeHandle, ListedMusicScope)
-  // and flat object definitions (MusicProviderScopeHandle).
-  const variants = Array.isArray(def.anyOf) ? def.anyOf : [def];
-  for (const variant of variants) {
-    if (
-      variant === null ||
-      typeof variant !== "object" ||
-      variant.properties === undefined
-    ) {
-      continue;
-    }
-    for (const field of ["id", "providerId"]) {
-      const prop = variant.properties[field];
-      if (
-        prop !== null &&
-        typeof prop === "object" &&
-        prop.type === "string" &&
-        prop.minLength === undefined
-      ) {
-        variant.properties[field] = { ...NON_EMPTY_STRING_CONSTRAINT };
-      }
-    }
+  if (definitions.MusicAbstractScopeHandle !== undefined) {
+    definitions.MusicAbstractScopeHandle = {
+      ...MUSIC_ABSTRACT_SCOPE_HANDLE_CONSTRAINT,
+      description: 'Abstract music scope handle. Pass the whole bracket string unchanged: "[all]" or "[library]".',
+    };
   }
-}
-
-// The present output item is a library MusicItemHandle inlined under
-// properties.item (not a $ref to the MusicItemHandle definition), so the
-// scope-handle overlay above does not reach it. An empty-string item.id would
-// pass the AJV gate while the handle registry would reject it, leaving the
-// public output contract looser than the handle contract. Tighten it here so
-// the structural layer enforces non-empty parity with the input handle.
-function applyPresentOutputHandleNonEmptyOverlay(schema) {
-  const def = schema?.definitions?.MusicExperiencePresentOutput;
-  if (def === null || typeof def !== "object" || def.properties === undefined) {
-    return;
+  if (definitions.MusicLibraryScopeHandle !== undefined) {
+    definitions.MusicLibraryScopeHandle = {
+      ...MUSIC_LIBRARY_SCOPE_HANDLE_CONSTRAINT,
+      description: 'Library-backed music scope handle. Pass the whole bracket string unchanged, e.g. "[source_library:...]", "[relation:...]", or "[collection:...]".',
+    };
   }
-  const item = def.properties.item;
-  if (item === null || typeof item !== "object" || item.properties === undefined) {
-    return;
+  if (definitions.MusicProviderScopeHandle !== undefined) {
+    definitions.MusicProviderScopeHandle = {
+      ...MUSIC_PROVIDER_SCOPE_HANDLE_CONSTRAINT,
+      description: 'Provider music scope handle. Pass the whole bracket string unchanged, e.g. "[provider:netease]".',
+    };
   }
-  const id = item.properties.id;
-  if (
-    id !== null &&
-    typeof id === "object" &&
-    id.type === "string" &&
-    id.minLength === undefined
-  ) {
-    item.properties.id = { ...NON_EMPTY_STRING_CONSTRAINT };
+  if (definitions.LibraryCatalogScope !== undefined) {
+    definitions.LibraryCatalogScope = {
+      ...LIBRARY_CATALOG_SCOPE_CONSTRAINT,
+      description: 'Catalog scope handle. Pass the whole bracket string unchanged, e.g. "[library]", "[source_library:...]", "[relation:...]", or "[collection:...]".',
+    };
+  }
+  if (definitions.LibraryCatalogScopeInput !== undefined) {
+    definitions.LibraryCatalogScopeInput = {
+      $ref: "#/definitions/LibraryCatalogScope",
+    };
+  }
+  if (definitions.LibraryCollectionScopeHandle !== undefined) {
+    definitions.LibraryCollectionScopeHandle = {
+      ...LIBRARY_COLLECTION_SCOPE_HANDLE_CONSTRAINT,
+      description: 'Collection scope handle. Pass the whole bracket string unchanged, e.g. "[collection:...]".',
+    };
   }
 }
 
@@ -543,12 +548,8 @@ const generatedSchemas = schemaTargets.map((target) => {
   ) {
     applyLibraryImportBatchIdNonEmptyOverlay(schema);
   }
-  // Scope-handle definitions are inlined under multiple exports, so apply the
-  // non-empty overlay to every target.
-  applyScopeHandleNonEmptyOverlay(schema);
-  if (target.exportName === "musicExperiencePresentOutputSchema") {
-    applyPresentOutputHandleNonEmptyOverlay(schema);
-  }
+  applyMusicItemHandlePatternOverlay(schema);
+  applyMusicScopeHandlePatternOverlay(schema);
   if (
     target.exportName.endsWith("InputSchema") ||
     target.exportName.endsWith("OutputSchema")

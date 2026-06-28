@@ -71,7 +71,7 @@ not become a catch-all bounded context.
 These names are not top-level formal areas:
 
 - `Stage` as a generic bounded context;
-- `Session Context` as a top-level area;
+- `Session Context` or Agent Context Engineering as a top-level area;
 - `Music Library` or `Library` as a top-level area;
 - `Owner Context`;
 - `Source Provider Platform`;
@@ -125,12 +125,15 @@ adaptation into area-owned commands, and product-level work/card projections
 assembled from owning areas. Web UI is a host/client surface that consumes this
 boundary; it is not the owner of workspace protocol or business state.
 
-Session Context is an Agent Runtime-owned, agent-facing context view. Agent
-Runtime assembles it from Workbench Interface state/projections and
+Agent Context Engineering is Agent Runtime-owned context assembly for embedded
+agents. It separates model context into Actor Instruction, Capability Context,
+Workspace Context, Invocation Context, Continuity Context, and
+Knowledge / Memory Context. Workspace Context is the agent-readable current
+workspace fact projection over Workbench Interface state/projections and
 area-owned public projections such as Music Experience, Music Data Platform,
-Music Intelligence, Memory, and Effect proposal summaries. Session Context is
-not a top-level area and does not own workspace interaction state,
-playback/queue/radio truth, durable facts, or agent run/work state.
+Music Intelligence, Memory, and Effect proposal summaries. Agent Context
+Engineering is not a top-level area and does not own workspace interaction
+state, playback/queue/radio truth, durable facts, or agent run/work state.
 
 The Web boundary serializes Workspace Snapshot/Events as an AG-UI profile;
 embedded agents read the in-process read model directly (ADR-0031). That AG-UI
@@ -445,10 +448,10 @@ before presentation (not to admit it to the library; library admission happens
 only via explicit save/import/relation/collection commands, per ADR-0040);
 presented recommendation history remains a later Music Experience concern.
 
-Radio Mode state belongs in Music Experience. Session Context may include a
-compact agent-readable summary of current radio mode, current item, queue
-summary, recent skips, active direction, and relevant area revisions, but that
-summary is not the source of truth.
+Radio Mode state belongs in Music Experience. Workspace Context may include a
+compact agent-readable projection of current radio mode, current item, queue,
+recent skips, active direction, and relevant area revisions, but that projection
+is not the source of truth.
 
 Memory is independent long-term user/music relationship state. It may target
 material/source/version refs and may be informed by events and owner

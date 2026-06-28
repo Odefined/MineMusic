@@ -14,11 +14,13 @@ import type {
   MusicDiscoveryLookupOutput,
   MusicItemHandle,
   MusicScope,
+  ParsedMusicScope,
   MusicTargetKind,
   StageToolContext,
   StageToolRegistration,
   ToolDeclaration,
 } from "../../contracts/stage_interface.js";
+import { formatMusicItemHandle, formatMusicScopeHandle, parseMusicScopeHandle } from "../../contracts/stage_interface.js";
 import {
   isMusicIntelligenceError,
   type RetrievalPool,
@@ -76,7 +78,7 @@ export const musicDiscoveryLookupDescriptor: ToolDeclaration = {
   usage: {
     useWhen: "Use for active lookup-text-driven library, source-library, relation, or provider retrieval from title, artist, album, or known-alias text chosen by the agent while doing music tasks.",
     doNotUseWhen: "Do not use for mood or semantic recommendation prompts, browsing a scope without lookup text, save, play, favorite, import, or final recommendation workflows.",
-    outputSemantics: "Returns public music item handles plus lookup descriptions; library handles are durable and candidate handles are unconfirmed, read-only, and TTL-bound.",
+    outputSemantics: "Returns public music item handles plus lookup descriptions; material handles are durable and candidate handles are unconfirmed, read-only, and TTL-bound.",
   },
   examples: [
     {
@@ -369,14 +371,14 @@ async function lookupItemForHit(
   hit: RetrievalQueryHit,
 ): Promise<MusicDiscoveryLookupItem> {
   const handleKind = hit.kind === "material" ? "material" : "candidate";
-  const handle: MusicItemHandle = {
+  const handle: MusicItemHandle = formatMusicItemHandle({
     kind: handleKind,
     id: await ctx.handleMinting.mint({
       ownerScope: ctx.ownerScope,
       handleKind,
       internalAnchor: internalAnchorForHit(hit),
     }),
-  };
+  });
 
   return {
     handle,
@@ -509,7 +511,7 @@ function resolveAllLookupScopes(input: {
 }
 
 function resolveConcreteLookupScope(input: {
-  scope: MusicScope;
+  scope: ParsedMusicScope;
   targetKind: MusicTargetKind;
   availability: MusicScopeAvailabilitySnapshot;
 }): Result<ResolvedLookupScope> {
@@ -629,16 +631,16 @@ function libraryScope(): ResolvedLookupScope {
 
 function normalizeLookupScopes(
   inputScopes: LookupFirstPageInput["scopes"],
-): Result<readonly MusicScope[]> {
+): Result<readonly ParsedMusicScope[]> {
   if (inputScopes !== undefined && inputScopes.length === 0) {
     return invalidInput("music.discovery.lookup scopes must be non-empty when present.");
   }
 
-  const rawScopes = inputScopes ?? [{ kind: "library" } satisfies MusicScope];
-  const scopesByKey = new Map<string, MusicScope>();
+  const rawScopes = inputScopes ?? [formatMusicScopeHandle({ kind: "library" })];
+  const scopesByKey = new Map<string, ParsedMusicScope>();
 
   for (const rawScope of rawScopes) {
-    const normalized = normalizeLookupScope(rawScope);
+    const normalized = normalizeLookupScope(scopeHandleFromLookupInput(rawScope));
 
     if (!normalized.ok) {
       return normalized;
@@ -670,41 +672,40 @@ function normalizeLookupScopes(
   };
 }
 
-function normalizeLookupScope(value: MusicScope): Result<MusicScope> {
-  switch (value.kind) {
+type LookupScopeInput = NonNullable<LookupFirstPageInput["scopes"]>[number];
+
+function scopeHandleFromLookupInput(value: LookupScopeInput): MusicScope {
+  return typeof value === "string" ? value : value.scope;
+}
+
+function normalizeLookupScope(value: MusicScope): Result<ParsedMusicScope> {
+  const parsed = parseMusicScopeHandle(value);
+  switch (parsed.kind) {
     case "all":
     case "library":
       return {
         ok: true,
-        value: {
-          kind: value.kind,
-        },
+        value: parsed,
       };
     case "source_library":
     case "relation":
       return {
         ok: true,
-        value: {
-          kind: value.kind,
-          id: value.id,
-        },
+        value: parsed,
       };
     case "provider":
       return {
         ok: true,
-        value: {
-          kind: "provider",
-          providerId: value.providerId,
-        },
+        value: parsed,
       };
     case "collection":
       return invalidInput(COLLECTION_NOT_SUPPORTED_BY_LOOKUP);
     default:
-      return assertNever(value);
+      return assertNever(parsed);
   }
 }
 
-function musicScopeIdentityKey(scope: MusicScope): string {
+function musicScopeIdentityKey(scope: ParsedMusicScope): string {
   switch (scope.kind) {
     case "all":
     case "library":

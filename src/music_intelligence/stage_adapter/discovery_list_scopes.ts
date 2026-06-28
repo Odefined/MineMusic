@@ -18,6 +18,7 @@ import type {
   StageToolRegistration,
   ToolDeclaration,
 } from "../../contracts/stage_interface.js";
+import { formatMusicScopeHandle } from "../../contracts/stage_interface.js";
 import type {
   MusicProviderScopeAvailability,
   MusicRelationScopeAvailability,
@@ -127,7 +128,7 @@ async function handleMusicDiscoveryListScopes(
 
   if (kind === undefined || kind === "library") {
     scopes.push({
-      kind: "library",
+      scope: formatMusicScopeHandle({ kind: "library" }),
       description: libraryMusicScopeDescription(),
     });
   }
@@ -154,8 +155,7 @@ async function handleMusicDiscoveryListScopes(
 
 function listSourceLibraryScope(scope: MusicSourceLibraryScopeAvailability): ListedMusicScope {
   return {
-    kind: "source_library",
-    id: scope.id,
+    scope: formatMusicScopeHandle({ kind: "source_library", id: scope.id }),
     description: sourceLibraryMusicScopeDescription({
       ...(scope.providerName === undefined ? {} : { providerName: scope.providerName }),
       relationName: scope.relationName,
@@ -167,8 +167,7 @@ function listSourceLibraryScope(scope: MusicSourceLibraryScopeAvailability): Lis
 
 function listRelationScope(scope: MusicRelationScopeAvailability): ListedMusicScope {
   return {
-    kind: "relation",
-    id: scope.id,
+    scope: formatMusicScopeHandle({ kind: "relation", id: scope.id }),
     description: relationMusicScopeDescription({
       relationName: scope.relationName,
       targetKind: scope.targetKind,
@@ -179,8 +178,7 @@ function listRelationScope(scope: MusicRelationScopeAvailability): ListedMusicSc
 
 function listProviderScope(scope: MusicProviderScopeAvailability): ListedMusicScope {
   return {
-    kind: "provider",
-    providerId: scope.providerId,
+    scope: formatMusicScopeHandle({ kind: "provider", providerId: scope.providerId }),
     description: providerMusicScopeDescription({
       ...(scope.providerName === undefined ? {} : { providerName: scope.providerName }),
       ...(scope.detailText === undefined ? {} : { detailText: scope.detailText }),

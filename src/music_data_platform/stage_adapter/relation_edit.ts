@@ -12,6 +12,7 @@ import type {
   StageToolRegistration,
   ToolDeclaration,
 } from "../../contracts/stage_interface.js";
+import { parseMusicItemHandle } from "../../contracts/stage_interface.js";
 import {
   isMusicDataPlatformError,
   type LibraryRelationEdit,
@@ -77,12 +78,12 @@ const readErrors = [
   {
     code: "invalid_input",
     retryable: false,
-    suggestedFixTemplate: "Retry with item as a durable material MusicItemHandle. Present candidate items first with music.experience.present.",
+    suggestedFixTemplate: "Retry with item as a full [material:...] handle. Present [candidate:...] handles first with music.experience.present.",
   },
   {
     code: "item_not_found",
     retryable: true,
-    suggestedFixTemplate: "Retry with a current library item handle, or look up and present the item again.",
+    suggestedFixTemplate: "Retry with a current [material:...] item handle, or look up and present the item again.",
   },
   {
     code: "owner_scope_unsupported",
@@ -308,7 +309,8 @@ async function handleLibraryRelation(
   control: LibraryRelationControlPort,
 ): Promise<Result<LibraryRelationStateOutput>> {
   const input = payload as LibraryRelationItemInput;
-  const materialRefResult = await resolveMaterialItemRef(ctx, input.item.id, "Retry with item as a durable material MusicItemHandle. Present candidate items first with music.experience.present.");
+  const item = parseMusicItemHandle(input.item);
+  const materialRefResult = await resolveMaterialItemRef(ctx, item.id, "Retry with item as a full [material:...] handle. Present [candidate:...] handles first with music.experience.present.");
 
   if (!materialRefResult.ok) {
     return materialRefResult;
@@ -349,7 +351,7 @@ function publicRelationError(
         code: "item_not_found",
         message: "Library relation item was not found.",
         retryable: true,
-        suggestedFix: "Retry with a current library item handle, or look up and present the item again.",
+        suggestedFix: "Retry with a current [material:...] item handle, or look up and present the item again.",
       });
     case "music_data.material_not_writable":
       if (edit === "get") {
@@ -357,7 +359,7 @@ function publicRelationError(
           code: "item_not_found",
           message: "Library relation item was not found.",
           retryable: true,
-          suggestedFix: "Retry with a current library item handle, or look up and present the item again.",
+          suggestedFix: "Retry with a current [material:...] item handle, or look up and present the item again.",
         });
       }
 
@@ -388,6 +390,6 @@ function invalidInput(message: string): Result<never> {
     code: "invalid_input",
     message,
     retryable: false,
-    suggestedFix: "Retry with item as a durable material MusicItemHandle. Present candidate items first with music.experience.present.",
+    suggestedFix: "Retry with item as a full [material:...] handle. Present [candidate:...] handles first with music.experience.present.",
   });
 }

@@ -61,30 +61,27 @@ if (allScopes.ok) {
         result: {
             scopes: [
                 {
-                    kind: "library",
+                    scope: "[library]",
                     description: {
                         label: "Library",
                     },
                 },
                 {
-                    kind: "source_library",
-                    id: "scope_saved_recording",
+                    scope: "[source_library:scope_saved_recording]",
                     description: {
                         label: "NetEase Cloud Music saved recording",
                         targetKind: "recording",
                     },
                 },
                 {
-                    kind: "relation",
-                    id: "scope_favorite_recording",
+                    scope: "[relation:scope_favorite_recording]",
                     description: {
                         label: "favorite recording",
                         targetKind: "recording",
                     },
                 },
                 {
-                    kind: "provider",
-                    providerId: "netease",
+                    scope: "[provider:netease]",
                     description: {
                         label: "NetEase Cloud Music",
                     },
@@ -95,7 +92,7 @@ if (allScopes.ok) {
     });
     assertNoInternalScopeLeak(allScopes.value.result);
     assert.equal(
-        allScopes.value.result.scopes.some((scope) => scope.kind === "collection"),
+        allScopes.value.result.scopes.some((scope) => scope.scope.startsWith("[collection:")),
         false,
         "music.discovery.list_scopes must not surface collection scopes (use library.catalog.list_scopes instead)",
     );
@@ -111,8 +108,7 @@ if (providerScopes.ok) {
     assert.deepEqual(providerScopes.value.result, {
         scopes: [
             {
-                kind: "provider",
-                providerId: "netease",
+                scope: "[provider:netease]",
                 description: {
                     label: "NetEase Cloud Music",
                 },

@@ -61,10 +61,10 @@ const queuePlaybackErrors = [
     retryable: true,
     suggestedFixTemplate: "Retry with a current material handle or look up the item again.",
   },
-  {
-    code: "invalid_input",
-    retryable: false,
-    suggestedFixTemplate: "Retry with item as a material or candidate MusicItemHandle.",
+    {
+      code: "invalid_input",
+      retryable: false,
+      suggestedFixTemplate: "Retry with each item as a full [material:...] or [candidate:...] handle.",
   },
   {
     code: "operation_aborted",
@@ -92,7 +92,7 @@ export const musicExperienceQueueAppendDescriptor: ToolDeclaration = {
   usage: {
     useWhen: "Use after choosing one or more concrete music items that should be placed in the current logical queue.",
     doNotUseWhen: "Do not use for lookup, presentation cards, library saving, or making an item the current now-playing selection.",
-    outputSemantics: "Returns compact public material handles, appended positions, queue length, and queue revision; it does not expose storage rows or material refs.",
+    outputSemantics: "Returns compact public [material:...] handles, appended positions, queue length, and queue revision; it does not expose storage rows or material refs.",
   },
   examples: [
     {
@@ -126,7 +126,7 @@ export const musicExperiencePlaybackPlayDescriptor: ToolDeclaration = {
   usage: {
     useWhen: "Use when the user or agent has chosen a specific music item to become the current logical now-playing item.",
     doNotUseWhen: "Do not use for lookup, presentation cards, queue-only appends, library saving, or browser/device audio control.",
-    outputSemantics: "Returns the public material handle and playback revision for the logical now-playing update; it does not control browser or device audio.",
+    outputSemantics: "Returns the public [material:...] handle and playback revision for the logical now-playing update; it does not control browser or device audio.",
   },
   examples: [
     {
@@ -146,7 +146,7 @@ export const musicExperiencePlaybackPlayDescriptor: ToolDeclaration = {
   errors: queuePlaybackErrors,
   resultSummary(result) {
     const output = result as MusicExperiencePlaybackPlayOutput;
-    return `Logical playback now points to material item ${output.item.id}; status is ${output.status}.`;
+    return `Logical playback now points to material item ${output.item}; status is ${output.status}.`;
   },
 };
 

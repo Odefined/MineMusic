@@ -677,7 +677,7 @@ assert.throws(
           ? assistantMessageWithToolCall("tool-call-real-lookup", lookupPiToolName, {
               lookupText: "whoo",
               targetKind: "recording",
-              scopes: [{ kind: "library" }],
+              scopes: ["[library]"],
               limit: 1,
             })
           : assistantTextMessage("done");
@@ -726,10 +726,7 @@ assert.throws(
   assert.deepEqual(output, {
     items: [
       {
-        handle: {
-          kind: "material",
-          id: "public_material_1",
-        },
+        handle: "[material:public_material_1]",
         description: {
           label: "whoo - Nemophila",
           title: "whoo",

@@ -778,6 +778,18 @@ restored as compatibility layers.
 - `docs/adr/0030-agent-runtime-and-workbench-interface-are-top-level-areas.md`
   records Agent Runtime and Workbench Interface as formal top-level areas, with
   Session Context as an Agent Runtime-owned context view.
+- `docs/formal-rebuild/agent-context-engineering-spec.md` now records the
+  current Agent Runtime context-engineering model. Embedded-agent context is
+  split into Actor Instruction, Capability Context, Workspace Context,
+  Invocation Context, Continuity Context, and Knowledge / Memory Context.
+  Workspace Context is the current workspace fact projection over the shared
+  in-process read model and is emitted as JSON organized by workspace-visible
+  sections; Main and Radio may receive different selected sections, but section
+  names, shapes, and compression are produced by the same Workspace Context
+  assembly model rather than separate renderers. Phase B Knowledge / Memory
+  Context starts with `userTasteHint` generated from existing
+  `library.catalog.summary` public output; it is a taste hint, not durable
+  Memory.
 - Phase A3 queue/playback truth has landed in Music Experience:
   `music_experience_state` and `music_experience_queue_items` persist logical
   queue/now-playing runtime state, with `music.experience.queue.append` and

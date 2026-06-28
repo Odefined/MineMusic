@@ -10,6 +10,7 @@ import {
   type RadioTranscriptStore,
 } from "../../src/agent_runtime/index.js";
 import type { StageToolContext } from "../../src/contracts/stage_interface.js";
+import type { WorkspaceReadModel } from "../../src/contracts/workbench_interface.js";
 import {
   assistantErrorMessage,
   assistantTextMessage,
@@ -144,8 +145,8 @@ const key = {
         toolName: "music.experience.queue.append",
         result: {
           items: [
-            { item: { kind: "material", id: "material:one" }, position: 0 },
-            { item: { kind: "material", id: "material:two" }, position: 1 },
+            { item: "[material:material:one]", position: 0 },
+            { item: "[material:material:two]", position: 1 },
           ],
           queueLength: 2,
           queueRevision: 9,
@@ -563,7 +564,7 @@ function fakeRadioTool() {
   };
 }
 
-function workspaceReadModelFixture() {
+function workspaceReadModelFixture(): WorkspaceReadModel {
   return {
     ownerScope: key.ownerScope,
     capturedAt: "2026-06-28T00:00:00.000Z",
@@ -571,7 +572,7 @@ function workspaceReadModelFixture() {
       revision: 11,
       queue: [{
         position: 0,
-        item: { kind: "material" as const, id: "material:already-queued" },
+        item: "[material:material:already-queued]" as const,
         label: "Already Queued",
       }],
       radio: {

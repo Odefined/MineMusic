@@ -170,30 +170,27 @@ if (initialized.ok) {
     assert.deepEqual(scopes.value.result, {
       scopes: [
         {
-          kind: "library",
+          scope: "[library]",
           description: {
             label: "Library",
           },
         },
         {
-          kind: "source_library",
-          id: "source_scope_recordings",
+          scope: "[source_library:source_scope_recordings]",
           description: {
             label: "NetEase Cloud Music saved recording",
             targetKind: "recording",
           },
         },
         {
-          kind: "relation",
-          id: "favorite_recording_scope",
+          scope: "[relation:favorite_recording_scope]",
           description: {
             label: "favorite recording",
             targetKind: "recording",
           },
         },
         {
-          kind: "relation",
-          id: "favorite_album_scope",
+          scope: "[relation:favorite_album_scope]",
           description: {
             label: "favorite album",
             targetKind: "album",
@@ -320,25 +317,25 @@ if (initialized.ok) {
     assert.equal(signalCount(output, "album_artist", "Artist A"), 1);
     assert.equal(signalCount(output, "artist_item", "Artist A"), 1);
     assert.deepEqual(output.membershipSignals?.map((signal) => ({
-      kind: signal.scope.kind,
+      scope: signal.scope.scope,
       label: signal.scope.description.label,
       count: signal.count,
       examples: labels(signal.examples),
     })), [
       {
-        kind: "source_library",
+        scope: "[source_library:source_scope_recordings]",
         label: "NetEase Cloud Music saved recording",
         count: 2,
         examples: ["A One - Artist A", "B Two - Artist B"],
       },
       {
-        kind: "relation",
+        scope: "[relation:favorite_recording_scope]",
         label: "favorite recording",
         count: 2,
         examples: ["C Three - Artist A", "D Four - Artist C"],
       },
       {
-        kind: "relation",
+        scope: "[relation:favorite_album_scope]",
         label: "favorite album",
         count: 1,
         examples: ["Album X - Artist A"],
@@ -349,10 +346,7 @@ if (initialized.ok) {
   const relationSummary = await stageInterface.dispatch(context, {
     toolName: "library.catalog.summary",
     payload: {
-      scope: {
-        kind: "relation",
-        id: "favorite_recording_scope",
-      },
+      scope: "[relation:favorite_recording_scope]",
       sampleCount: 4,
     },
   });
@@ -369,10 +363,7 @@ if (initialized.ok) {
   const oneItemSummary = await stageInterface.dispatch(context, {
     toolName: "library.catalog.summary",
     payload: {
-      scope: {
-        kind: "relation",
-        id: "favorite_album_scope",
-      },
+      scope: "[relation:favorite_album_scope]",
       sampleCount: 1,
     },
   });

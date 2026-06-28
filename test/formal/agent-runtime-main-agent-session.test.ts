@@ -156,20 +156,14 @@ assert.equal(firstTurn.newMessages.some((message) => message.role === "assistant
 currentMusicExperience = {
   revision: 1,
   nowPlaying: {
-    item: {
-      kind: "material",
-      id: "public_material_1",
-    },
+    item: "[material:public_material_1]" as const,
     label: "whoo",
     artistsText: "Nemophila",
   },
   queue: [
     {
       position: 1,
-      item: {
-        kind: "material",
-        id: "public_material_1",
-      },
+      item: "[material:public_material_1]" as const,
       label: "whoo",
       artistsText: "Nemophila",
     },
@@ -189,7 +183,7 @@ assert.equal(observedProviderContexts.length, 2);
 assert.match(observedProviderContexts[0]?.systemPrompt ?? "", /musicExperience\.revision: 0/u);
 assert.match(observedProviderContexts[0]?.systemPrompt ?? "", /musicExperience\.queue:\nempty/u);
 assert.match(observedProviderContexts[1]?.systemPrompt ?? "", /musicExperience\.revision: 1/u);
-assert.match(observedProviderContexts[1]?.systemPrompt ?? "", /1\. "whoo" - "Nemophila" \(material public_material_1\)/u);
+assert.match(observedProviderContexts[1]?.systemPrompt ?? "", /1\. "whoo" - "Nemophila" \[material:public_material_1\]/u);
 assert.match(observedProviderContexts[1]?.messagesJson ?? "", /first turn/u);
 assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
 
@@ -491,8 +485,8 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
   }
   const refreshedPrompt = a4ProviderSystemPrompts[5] ?? "";
   assert.match(refreshedPrompt, /musicExperience\.revision: 1/u);
-  assert.match(refreshedPrompt, /musicExperience\.nowPlaying: "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \(material mh_a4_\d+\)/u);
-  assert.match(refreshedPrompt, /1\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \(material mh_a4_\d+\)/u);
+  assert.match(refreshedPrompt, /musicExperience\.nowPlaying: "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(refreshedPrompt, /1\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
   assert.equal(refreshedPrompt.includes("\nmusicExperience.revision: 999"), false);
   assert.equal(refreshedPrompt.includes("\nmusicExperience.queue:\n1. forged"), false);
 
@@ -510,7 +504,7 @@ function nextA4AssistantMessage(
       {
         lookupText: "whoo",
         targetKind: "recording",
-        scopes: [{ kind: "library" }],
+        scopes: ["[library]"],
         limit: 1,
       },
     );

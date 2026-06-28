@@ -363,7 +363,7 @@ const fixtureLookup = await fixtureRuntime.interface.dispatch(await fixtureConte
     payload: {
         lookupText: "Iron Lotus Mili",
         targetKind: "recording",
-        scopes: [{ kind: "provider", providerId: "netease" }],
+        scopes: ["[provider:netease]"],
         limit: 1,
     },
 });
@@ -371,16 +371,13 @@ assert.equal(fixtureLookup.ok, true);
 if (fixtureLookup.ok) {
     const lookupResult = fixtureLookup.value.result as {
         items: {
-            handle: {
-                kind: "material" | "candidate";
-                id: string;
-            };
+            handle: string;
             description: {
                 label: string;
             };
         }[];
     };
-    const candidate = await lookupResult.items.find((item) => item.handle.kind === "candidate");
+    const candidate = await lookupResult.items.find((item) => item.handle.startsWith("[candidate:"));
     assert.notEqual(candidate, undefined);
     assert.equal(candidate?.description.label, "iron lotus - mili");
     const fixturePresent = await fixtureRuntime.interface.dispatch(await fixtureContextFactory.createToolContext({

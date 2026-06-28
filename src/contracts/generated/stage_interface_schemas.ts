@@ -164,116 +164,21 @@ export const musicScopeSchema = {
       ]
     },
     "MusicAbstractScopeHandle": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "all",
-              "description": "\"all\": the whole currently available surface (library plus connected providers, where supported)."
-            }
-          },
-          "required": [
-            "kind"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "library",
-              "description": "\"library\": the owner-visible MineMusic library baseline."
-            }
-          },
-          "required": [
-            "kind"
-          ],
-          "additionalProperties": false
-        }
-      ]
+      "enum": [
+        "[all]",
+        "[library]"
+      ],
+      "description": "Abstract music scope handle. Pass the whole bracket string unchanged: \"[all]\" or \"[library]\"."
     },
     "MusicLibraryScopeHandle": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "source_library",
-              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "relation",
-              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "collection",
-              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        }
-      ]
+      "type": "string",
+      "pattern": "^\\[(source_library|relation|collection):[^\\]\\r\\n]+\\]$",
+      "description": "Library-backed music scope handle. Pass the whole bracket string unchanged, e.g. \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
     },
     "MusicProviderScopeHandle": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "provider",
-          "description": "\"provider\": a connected searchable provider used as a scope."
-        },
-        "providerId": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "kind",
-        "providerId"
-      ],
-      "additionalProperties": false
+      "type": "string",
+      "pattern": "^\\[provider:[^\\]\\r\\n]+\\]$",
+      "description": "Provider music scope handle. Pass the whole bracket string unchanged, e.g. \"[provider:netease]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -285,44 +190,22 @@ export const musicItemHandleSchema = {
     "MusicItemHandle": {
       "anyOf": [
         {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "material",
-              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/MaterialMusicItemHandle"
         },
         {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "candidate",
-              "description": "\"candidate\": an unconfirmed provider item not yet committed to a durable material."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/CandidateMusicItemHandle"
         }
       ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "CandidateMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[candidate:[^\\]\\r\\n]+\\]$",
+      "description": "Provider candidate item handle. Pass the whole bracket string unchanged, e.g. \"[candidate:...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -426,44 +309,22 @@ export const musicExperiencePresentInputSchema = {
     "MusicItemHandle": {
       "anyOf": [
         {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "material",
-              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/MaterialMusicItemHandle"
         },
         {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "candidate",
-              "description": "\"candidate\": an unconfirmed provider item not yet committed to a durable material."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/CandidateMusicItemHandle"
         }
       ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "CandidateMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[candidate:[^\\]\\r\\n]+\\]$",
+      "description": "Provider candidate item handle. Pass the whole bracket string unchanged, e.g. \"[candidate:...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -473,23 +334,7 @@ export const musicExperiencePresentOutputSchema = {
   "type": "object",
   "properties": {
     "item": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "material",
-          "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-        },
-        "id": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "kind",
-        "id"
-      ],
-      "additionalProperties": false
+      "$ref": "#/definitions/MaterialMusicItemHandle"
     },
     "card": {
       "$ref": "#/definitions/MusicCard"
@@ -501,6 +346,11 @@ export const musicExperiencePresentOutputSchema = {
   ],
   "additionalProperties": false,
   "definitions": {
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
     "MusicCard": {
       "type": "object",
       "properties": {
@@ -600,44 +450,22 @@ export const musicExperienceQueueAppendInputSchema = {
     "MusicItemHandle": {
       "anyOf": [
         {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "material",
-              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/MaterialMusicItemHandle"
         },
         {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "candidate",
-              "description": "\"candidate\": an unconfirmed provider item not yet committed to a durable material."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/CandidateMusicItemHandle"
         }
       ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "CandidateMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[candidate:[^\\]\\r\\n]+\\]$",
+      "description": "Provider candidate item handle. Pass the whole bracket string unchanged, e.g. \"[candidate:...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -670,23 +498,7 @@ export const musicExperienceQueueAppendOutputSchema = {
       "type": "object",
       "properties": {
         "item": {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "material",
-              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-            },
-            "id": {
-              "type": "string",
-              "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/MaterialMusicItemHandle"
         },
         "position": {
           "type": "number"
@@ -697,6 +509,11 @@ export const musicExperienceQueueAppendOutputSchema = {
         "position"
       ],
       "additionalProperties": false
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
     },
     "ConcernRevision": {
       "type": "number"
@@ -721,44 +538,22 @@ export const musicExperiencePlaybackPlayInputSchema = {
     "MusicItemHandle": {
       "anyOf": [
         {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "material",
-              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/MaterialMusicItemHandle"
         },
         {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "candidate",
-              "description": "\"candidate\": an unconfirmed provider item not yet committed to a durable material."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/CandidateMusicItemHandle"
         }
       ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "CandidateMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[candidate:[^\\]\\r\\n]+\\]$",
+      "description": "Provider candidate item handle. Pass the whole bracket string unchanged, e.g. \"[candidate:...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -768,23 +563,7 @@ export const musicExperiencePlaybackPlayOutputSchema = {
   "type": "object",
   "properties": {
     "item": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "material",
-          "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-        },
-        "id": {
-          "type": "string",
-          "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
-        }
-      },
-      "required": [
-        "kind",
-        "id"
-      ],
-      "additionalProperties": false
+      "$ref": "#/definitions/MaterialMusicItemHandle"
     },
     "status": {
       "type": "string",
@@ -801,6 +580,11 @@ export const musicExperiencePlaybackPlayOutputSchema = {
   ],
   "additionalProperties": false,
   "definitions": {
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
     "ConcernRevision": {
       "type": "number"
     }
@@ -867,132 +651,53 @@ export const musicDiscoveryLookupInputSchema = {
       ]
     },
     "MusicAbstractScopeHandle": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "all",
-              "description": "\"all\": the whole currently available surface (library plus connected providers, where supported)."
-            }
-          },
-          "required": [
-            "kind"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "library",
-              "description": "\"library\": the owner-visible MineMusic library baseline."
-            }
-          },
-          "required": [
-            "kind"
-          ],
-          "additionalProperties": false
-        }
-      ]
+      "enum": [
+        "[all]",
+        "[library]"
+      ],
+      "description": "Abstract music scope handle. Pass the whole bracket string unchanged: \"[all]\" or \"[library]\"."
     },
     "MusicLibraryScopeHandle": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "source_library",
-              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "relation",
-              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "collection",
-              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        }
-      ]
+      "type": "string",
+      "pattern": "^\\[(source_library|relation|collection):[^\\]\\r\\n]+\\]$",
+      "description": "Library-backed music scope handle. Pass the whole bracket string unchanged, e.g. \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
     },
     "MusicProviderScopeHandle": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "provider",
-          "description": "\"provider\": a connected searchable provider used as a scope."
-        },
-        "providerId": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "kind",
-        "providerId"
-      ],
-      "additionalProperties": false
+      "type": "string",
+      "pattern": "^\\[provider:[^\\]\\r\\n]+\\]$",
+      "description": "Provider music scope handle. Pass the whole bracket string unchanged, e.g. \"[provider:netease]\"."
     },
     "ListedMusicScope": {
       "anyOf": [
         {
           "type": "object",
           "properties": {
-            "kind": {
+            "scope": {
               "type": "string",
-              "const": "library"
+              "const": "[library]"
             },
             "description": {
               "$ref": "#/definitions/MusicScopeDescription"
             }
           },
           "required": [
-            "kind",
+            "scope",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "$ref": "#/definitions/MusicLibraryScopeHandle"
+            },
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            }
+          },
+          "required": [
+            "scope",
             "description"
           ],
           "additionalProperties": false
@@ -1004,92 +709,16 @@ export const musicDiscoveryLookupInputSchema = {
             "description": {
               "$ref": "#/definitions/MusicScopeDescription"
             },
-            "kind": {
-              "type": "string",
-              "const": "source_library",
-              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "relation",
-              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "collection",
-              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
             "targetKinds": {
               "$ref": "#/definitions/NonEmptyMusicTargetKinds"
             },
-            "kind": {
-              "type": "string",
-              "const": "provider",
-              "description": "\"provider\": a connected searchable provider used as a scope."
-            },
-            "providerId": {
-              "type": "string",
-              "minLength": 1
+            "scope": {
+              "$ref": "#/definitions/MusicProviderScopeHandle"
             }
           },
           "required": [
             "description",
-            "kind",
-            "providerId",
+            "scope",
             "targetKinds"
           ]
         }
@@ -1167,16 +796,32 @@ export const musicListScopesOutputSchema = {
         {
           "type": "object",
           "properties": {
-            "kind": {
+            "scope": {
               "type": "string",
-              "const": "library"
+              "const": "[library]"
             },
             "description": {
               "$ref": "#/definitions/MusicScopeDescription"
             }
           },
           "required": [
-            "kind",
+            "scope",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "$ref": "#/definitions/MusicLibraryScopeHandle"
+            },
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            }
+          },
+          "required": [
+            "scope",
             "description"
           ],
           "additionalProperties": false
@@ -1188,92 +833,16 @@ export const musicListScopesOutputSchema = {
             "description": {
               "$ref": "#/definitions/MusicScopeDescription"
             },
-            "kind": {
-              "type": "string",
-              "const": "source_library",
-              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "relation",
-              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "collection",
-              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
             "targetKinds": {
               "$ref": "#/definitions/NonEmptyMusicTargetKinds"
             },
-            "kind": {
-              "type": "string",
-              "const": "provider",
-              "description": "\"provider\": a connected searchable provider used as a scope."
-            },
-            "providerId": {
-              "type": "string",
-              "minLength": 1
+            "scope": {
+              "$ref": "#/definitions/MusicProviderScopeHandle"
             }
           },
           "required": [
             "description",
-            "kind",
-            "providerId",
+            "scope",
             "targetKinds"
           ]
         }
@@ -1305,12 +874,22 @@ export const musicListScopesOutputSchema = {
         "artist"
       ]
     },
+    "MusicLibraryScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[(source_library|relation|collection):[^\\]\\r\\n]+\\]$",
+      "description": "Library-backed music scope handle. Pass the whole bracket string unchanged, e.g. \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
+    },
     "NonEmptyMusicTargetKinds": {
       "type": "array",
       "items": {
         "$ref": "#/definitions/MusicTargetKind"
       },
       "minItems": 1
+    },
+    "MusicProviderScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[provider:[^\\]\\r\\n]+\\]$",
+      "description": "Provider music scope handle. Pass the whole bracket string unchanged, e.g. \"[provider:netease]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -1359,88 +938,67 @@ export const libraryCatalogListScopesOutputSchema = {
         {
           "type": "object",
           "properties": {
-            "kind": {
+            "scope": {
               "type": "string",
-              "const": "library"
+              "const": "[library]"
             },
             "description": {
               "$ref": "#/definitions/MusicScopeDescription"
             }
           },
           "required": [
-            "kind",
+            "scope",
             "description"
           ],
           "additionalProperties": false
         },
         {
           "type": "object",
-          "additionalProperties": false,
           "properties": {
+            "scope": {
+              "type": "string"
+            },
             "description": {
               "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "source_library",
-              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
             }
           },
           "required": [
-            "description",
-            "id",
-            "kind"
-          ]
+            "scope",
+            "description"
+          ],
+          "additionalProperties": false
         },
         {
           "type": "object",
-          "additionalProperties": false,
           "properties": {
+            "scope": {
+              "type": "string"
+            },
             "description": {
               "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "relation",
-              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
             }
           },
           "required": [
-            "description",
-            "id",
-            "kind"
-          ]
+            "scope",
+            "description"
+          ],
+          "additionalProperties": false
         },
         {
           "type": "object",
-          "additionalProperties": false,
           "properties": {
+            "scope": {
+              "type": "string"
+            },
             "description": {
               "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "collection",
-              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
             }
           },
           "required": [
-            "description",
-            "id",
-            "kind"
-          ]
+            "scope",
+            "description"
+          ],
+          "additionalProperties": false
         }
       ]
     },
@@ -1498,204 +1056,12 @@ export const libraryCatalogBrowseInputSchema = {
   "additionalProperties": false,
   "definitions": {
     "LibraryCatalogScopeInput": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/LibraryCatalogScope"
-        },
-        {
-          "$ref": "#/definitions/ListedLibraryCatalogScope"
-        }
-      ]
+      "$ref": "#/definitions/LibraryCatalogScope"
     },
     "LibraryCatalogScope": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "library"
-            }
-          },
-          "required": [
-            "kind"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "source_library",
-              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "relation",
-              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "collection",
-              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        }
-      ]
-    },
-    "ListedLibraryCatalogScope": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "library"
-            },
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            }
-          },
-          "required": [
-            "kind",
-            "description"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "source_library",
-              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "relation",
-              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "collection",
-              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        }
-      ]
-    },
-    "MusicScopeDescription": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "targetKind": {
-          "$ref": "#/definitions/MusicTargetKind"
-        },
-        "detailText": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "label"
-      ]
-    },
-    "MusicTargetKind": {
       "type": "string",
-      "enum": [
-        "recording",
-        "album",
-        "artist"
-      ]
+      "pattern": "^\\[(library|source_library:[^\\]\\r\\n]+|relation:[^\\]\\r\\n]+|collection:[^\\]\\r\\n]+)\\]$",
+      "description": "Catalog scope handle. Pass the whole bracket string unchanged, e.g. \"[library]\", \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
     },
     "LibraryCatalogBrowseSort": {
       "type": "string",
@@ -1730,23 +1096,7 @@ export const libraryCatalogBrowseOutputSchema = {
       "type": "object",
       "properties": {
         "item": {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "material",
-              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/MaterialMusicItemHandle"
         },
         "description": {
           "$ref": "#/definitions/PublicHandleDescription"
@@ -1757,6 +1107,11 @@ export const libraryCatalogBrowseOutputSchema = {
         "description"
       ],
       "additionalProperties": false
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
     },
     "PublicHandleDescription": {
       "type": "object",
@@ -1798,204 +1153,12 @@ export const libraryCatalogSampleInputSchema = {
   "additionalProperties": false,
   "definitions": {
     "LibraryCatalogScopeInput": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/LibraryCatalogScope"
-        },
-        {
-          "$ref": "#/definitions/ListedLibraryCatalogScope"
-        }
-      ]
+      "$ref": "#/definitions/LibraryCatalogScope"
     },
     "LibraryCatalogScope": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "library"
-            }
-          },
-          "required": [
-            "kind"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "source_library",
-              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "relation",
-              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "collection",
-              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        }
-      ]
-    },
-    "ListedLibraryCatalogScope": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "library"
-            },
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            }
-          },
-          "required": [
-            "kind",
-            "description"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "source_library",
-              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "relation",
-              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "collection",
-              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        }
-      ]
-    },
-    "MusicScopeDescription": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "targetKind": {
-          "$ref": "#/definitions/MusicTargetKind"
-        },
-        "detailText": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "label"
-      ]
-    },
-    "MusicTargetKind": {
       "type": "string",
-      "enum": [
-        "recording",
-        "album",
-        "artist"
-      ]
+      "pattern": "^\\[(library|source_library:[^\\]\\r\\n]+|relation:[^\\]\\r\\n]+|collection:[^\\]\\r\\n]+)\\]$",
+      "description": "Catalog scope handle. Pass the whole bracket string unchanged, e.g. \"[library]\", \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -2020,23 +1183,7 @@ export const libraryCatalogSampleOutputSchema = {
       "type": "object",
       "properties": {
         "item": {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "material",
-              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/MaterialMusicItemHandle"
         },
         "description": {
           "$ref": "#/definitions/PublicHandleDescription"
@@ -2047,6 +1194,11 @@ export const libraryCatalogSampleOutputSchema = {
         "description"
       ],
       "additionalProperties": false
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
     },
     "PublicHandleDescription": {
       "type": "object",
@@ -2083,204 +1235,12 @@ export const libraryCatalogSummaryInputSchema = {
   "additionalProperties": false,
   "definitions": {
     "LibraryCatalogScopeInput": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/LibraryCatalogScope"
-        },
-        {
-          "$ref": "#/definitions/ListedLibraryCatalogScope"
-        }
-      ]
+      "$ref": "#/definitions/LibraryCatalogScope"
     },
     "LibraryCatalogScope": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "library"
-            }
-          },
-          "required": [
-            "kind"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "source_library",
-              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "relation",
-              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "collection",
-              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
-        }
-      ]
-    },
-    "ListedLibraryCatalogScope": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "library"
-            },
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            }
-          },
-          "required": [
-            "kind",
-            "description"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "source_library",
-              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "relation",
-              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "kind": {
-              "type": "string",
-              "const": "collection",
-              "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "description",
-            "id",
-            "kind"
-          ]
-        }
-      ]
-    },
-    "MusicScopeDescription": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "targetKind": {
-          "$ref": "#/definitions/MusicTargetKind"
-        },
-        "detailText": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "label"
-      ]
-    },
-    "MusicTargetKind": {
       "type": "string",
-      "enum": [
-        "recording",
-        "album",
-        "artist"
-      ]
+      "pattern": "^\\[(library|source_library:[^\\]\\r\\n]+|relation:[^\\]\\r\\n]+|collection:[^\\]\\r\\n]+)\\]$",
+      "description": "Catalog scope handle. Pass the whole bracket string unchanged, e.g. \"[library]\", \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -2346,23 +1306,7 @@ export const libraryCatalogSummaryOutputSchema = {
       "type": "object",
       "properties": {
         "item": {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "material",
-              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/MaterialMusicItemHandle"
         },
         "description": {
           "$ref": "#/definitions/PublicHandleDescription"
@@ -2373,6 +1317,11 @@ export const libraryCatalogSummaryOutputSchema = {
         "description"
       ],
       "additionalProperties": false
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
     },
     "PublicHandleDescription": {
       "type": "object",
@@ -2441,72 +1390,51 @@ export const libraryCatalogSummaryOutputSchema = {
           "anyOf": [
             {
               "type": "object",
-              "additionalProperties": false,
               "properties": {
+                "scope": {
+                  "type": "string"
+                },
                 "description": {
                   "$ref": "#/definitions/MusicScopeDescription"
-                },
-                "kind": {
-                  "type": "string",
-                  "const": "source_library",
-                  "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
-                },
-                "id": {
-                  "type": "string",
-                  "minLength": 1
                 }
               },
               "required": [
-                "description",
-                "id",
-                "kind"
-              ]
+                "scope",
+                "description"
+              ],
+              "additionalProperties": false
             },
             {
               "type": "object",
-              "additionalProperties": false,
               "properties": {
+                "scope": {
+                  "type": "string"
+                },
                 "description": {
                   "$ref": "#/definitions/MusicScopeDescription"
-                },
-                "kind": {
-                  "type": "string",
-                  "const": "relation",
-                  "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
-                },
-                "id": {
-                  "type": "string",
-                  "minLength": 1
                 }
               },
               "required": [
-                "description",
-                "id",
-                "kind"
-              ]
+                "scope",
+                "description"
+              ],
+              "additionalProperties": false
             },
             {
               "type": "object",
-              "additionalProperties": false,
               "properties": {
+                "scope": {
+                  "type": "string"
+                },
                 "description": {
                   "$ref": "#/definitions/MusicScopeDescription"
-                },
-                "kind": {
-                  "type": "string",
-                  "const": "collection",
-                  "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-                },
-                "id": {
-                  "type": "string",
-                  "minLength": 1
                 }
               },
               "required": [
-                "description",
-                "id",
-                "kind"
-              ]
+                "scope",
+                "description"
+              ],
+              "additionalProperties": false
             }
           ]
         },
@@ -2961,30 +1889,21 @@ export const libraryRelationItemInputSchema = {
   "type": "object",
   "properties": {
     "item": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "material",
-          "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-        },
-        "id": {
-          "type": "string",
-          "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
-        }
-      },
-      "required": [
-        "kind",
-        "id"
-      ],
-      "additionalProperties": false,
-      "description": "The durable material item whose relation state to read or edit. Candidate handles are rejected."
+      "$ref": "#/definitions/MaterialMusicItemHandle",
+      "description": "The durable material item whose relation state to read or edit, as a bracket handle like \"[material:mh_...]\". Candidate handles are rejected."
     }
   },
   "required": [
     "item"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "definitions": {
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    }
+  }
 } as const satisfies JsonSchema;
 
 export const libraryRelationStateOutputSchema = {
@@ -3077,23 +1996,9 @@ export const libraryCollectionGetInputSchema = {
   "additionalProperties": false,
   "definitions": {
     "LibraryCollectionScopeHandle": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "collection",
-          "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-        },
-        "id": {
-          "type": "string",
-          "description": "Opaque scope id from list_scopes; pass it back unchanged."
-        }
-      },
-      "required": [
-        "kind",
-        "id"
-      ],
-      "additionalProperties": false
+      "type": "string",
+      "pattern": "^\\[collection:[^\\]\\r\\n]+\\]$",
+      "description": "Collection scope handle. Pass the whole bracket string unchanged, e.g. \"[collection:...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -3116,23 +2021,9 @@ export const libraryCollectionRenameInputSchema = {
   "additionalProperties": false,
   "definitions": {
     "LibraryCollectionScopeHandle": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "collection",
-          "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-        },
-        "id": {
-          "type": "string",
-          "description": "Opaque scope id from list_scopes; pass it back unchanged."
-        }
-      },
-      "required": [
-        "kind",
-        "id"
-      ],
-      "additionalProperties": false
+      "type": "string",
+      "pattern": "^\\[collection:[^\\]\\r\\n]+\\]$",
+      "description": "Collection scope handle. Pass the whole bracket string unchanged, e.g. \"[collection:...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -3145,23 +2036,7 @@ export const libraryCollectionItemInputSchema = {
       "$ref": "#/definitions/LibraryCollectionScopeHandle"
     },
     "item": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "material",
-          "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-        },
-        "id": {
-          "type": "string",
-          "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
-        }
-      },
-      "required": [
-        "kind",
-        "id"
-      ],
-      "additionalProperties": false
+      "$ref": "#/definitions/MaterialMusicItemHandle"
     }
   },
   "required": [
@@ -3171,23 +2046,14 @@ export const libraryCollectionItemInputSchema = {
   "additionalProperties": false,
   "definitions": {
     "LibraryCollectionScopeHandle": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "collection",
-          "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-        },
-        "id": {
-          "type": "string",
-          "description": "Opaque scope id from list_scopes; pass it back unchanged."
-        }
-      },
-      "required": [
-        "kind",
-        "id"
-      ],
-      "additionalProperties": false
+      "type": "string",
+      "pattern": "^\\[collection:[^\\]\\r\\n]+\\]$",
+      "description": "Collection scope handle. Pass the whole bracket string unchanged, e.g. \"[collection:...]\"."
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -3200,23 +2066,7 @@ export const libraryCollectionMoveInputSchema = {
       "$ref": "#/definitions/LibraryCollectionScopeHandle"
     },
     "item": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "material",
-          "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-        },
-        "id": {
-          "type": "string",
-          "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
-        }
-      },
-      "required": [
-        "kind",
-        "id"
-      ],
-      "additionalProperties": false
+      "$ref": "#/definitions/MaterialMusicItemHandle"
     },
     "toPosition": {
       "type": "number",
@@ -3231,23 +2081,14 @@ export const libraryCollectionMoveInputSchema = {
   "additionalProperties": false,
   "definitions": {
     "LibraryCollectionScopeHandle": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "collection",
-          "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-        },
-        "id": {
-          "type": "string",
-          "description": "Opaque scope id from list_scopes; pass it back unchanged."
-        }
-      },
-      "required": [
-        "kind",
-        "id"
-      ],
-      "additionalProperties": false
+      "type": "string",
+      "pattern": "^\\[collection:[^\\]\\r\\n]+\\]$",
+      "description": "Collection scope handle. Pass the whole bracket string unchanged, e.g. \"[collection:...]\"."
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -3266,23 +2107,9 @@ export const libraryCollectionDeleteInputSchema = {
   "additionalProperties": false,
   "definitions": {
     "LibraryCollectionScopeHandle": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "collection",
-          "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-        },
-        "id": {
-          "type": "string",
-          "description": "Opaque scope id from list_scopes; pass it back unchanged."
-        }
-      },
-      "required": [
-        "kind",
-        "id"
-      ],
-      "additionalProperties": false
+      "type": "string",
+      "pattern": "^\\[collection:[^\\]\\r\\n]+\\]$",
+      "description": "Collection scope handle. Pass the whole bracket string unchanged, e.g. \"[collection:...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -3341,23 +2168,9 @@ export const libraryCollectionStateOutputSchema = {
       "additionalProperties": false
     },
     "LibraryCollectionScopeHandle": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "const": "collection",
-          "description": "\"collection\": a durable user-named Collection scope (opaque id from list_scopes)."
-        },
-        "id": {
-          "type": "string",
-          "description": "Opaque scope id from list_scopes; pass it back unchanged."
-        }
-      },
-      "required": [
-        "kind",
-        "id"
-      ],
-      "additionalProperties": false
+      "type": "string",
+      "pattern": "^\\[collection:[^\\]\\r\\n]+\\]$",
+      "description": "Collection scope handle. Pass the whole bracket string unchanged, e.g. \"[collection:...]\"."
     },
     "LibraryCollectionKind": {
       "anyOf": [
@@ -3382,29 +2195,18 @@ export const libraryCollectionStateOutputSchema = {
       "type": "object",
       "properties": {
         "item": {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "material",
-              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-            },
-            "id": {
-              "type": "string",
-              "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/MaterialMusicItemHandle"
         }
       },
       "required": [
         "item"
       ],
       "additionalProperties": false
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -3449,44 +2251,22 @@ export const musicDiscoveryLookupOutputSchema = {
     "MusicItemHandle": {
       "anyOf": [
         {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "material",
-              "description": "\"material\": a durable MineMusic material reference. Stable indefinitely."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/MaterialMusicItemHandle"
         },
         {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "candidate",
-              "description": "\"candidate\": an unconfirmed provider item not yet committed to a durable material."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/CandidateMusicItemHandle"
         }
       ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "CandidateMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[candidate:[^\\]\\r\\n]+\\]$",
+      "description": "Provider candidate item handle. Pass the whole bracket string unchanged, e.g. \"[candidate:...]\"."
     },
     "MusicDiscoveryLookupItemDescription": {
       "type": "object",

@@ -1,4 +1,5 @@
-import type { LibraryImportDriveOutput, LibraryImportLibraryKind, LibraryImportListSourcesOutput, LibraryImportStatusOutput, MusicDiscoveryLookupOutput, MusicListScopesOutput, MusicScope, MusicTargetKind, ToolCallOutput, } from "../../src/contracts/stage_interface.js";
+import type { LibraryImportDriveOutput, LibraryImportLibraryKind, LibraryImportListSourcesOutput, LibraryImportSourceLibraryScope, LibraryImportStatusOutput, MusicDiscoveryLookupOutput, MusicListScopesOutput, MusicScope, MusicTargetKind, ToolCallOutput, } from "../../src/contracts/stage_interface.js";
+import { formatMusicScopeHandle } from "../../src/contracts/stage_interface.js";
 import type { createServerHost as createServerHostFn, } from "../../src/server/index.js";
 import type { createStageToolContext as createStageToolContextFn, } from "../../src/stage_interface/index.js";
 import { createPostgresTestSchema, postgresTestDatabaseUrl } from "../support/postgres.js";
@@ -122,25 +123,23 @@ async function dispatch<T>(host: SmokeServerHost, ctx: SmokeStageToolContext, to
     }
     return toolResult<T>(result.value, toolName);
 }
-async function verifyScopeListing(host: SmokeServerHost, ctx: SmokeStageToolContext, sourceLibraryScope: Extract<MusicScope, {
-    kind: "source_library";
-}>): Promise<void> {
+async function verifyScopeListing(host: SmokeServerHost, ctx: SmokeStageToolContext, sourceLibraryScope: LibraryImportSourceLibraryScope): Promise<void> {
     const listed = await dispatch<MusicListScopesOutput>(host, ctx, "music.discovery.list_scopes", {
         kind: "source_library",
     });
-    const found = listed?.scopes.some((scope) => scope.kind === "source_library" && scope.id === sourceLibraryScope.id) ?? false;
+    const handle = formatMusicScopeHandle({ kind: "source_library", id: sourceLibraryScope.id });
+    const found = listed?.scopes.some((scope) => scope.scope === handle) ?? false;
     if (!found) {
         console.error("NCM library-import agent smoke failed: imported sourceLibraryScope was not listed by music.discovery.list_scopes.");
         process.exitCode = 1;
     }
 }
-async function verifyLookup(host: SmokeServerHost, ctx: SmokeStageToolContext, sourceLibraryScope: Extract<MusicScope, {
-    kind: "source_library";
-}>, text: string, targetKind: MusicTargetKind): Promise<void> {
+async function verifyLookup(host: SmokeServerHost, ctx: SmokeStageToolContext, sourceLibraryScope: LibraryImportSourceLibraryScope, text: string, targetKind: MusicTargetKind): Promise<void> {
+    const scope = formatMusicScopeHandle({ kind: "source_library", id: sourceLibraryScope.id });
     const lookup = await dispatch<MusicDiscoveryLookupOutput>(host, ctx, "music.discovery.lookup", {
         lookupText: text,
         targetKind,
-        scopes: [sourceLibraryScope],
+        scopes: [scope],
         limit: 5,
     });
     if (lookup !== undefined && lookup.items.length === 0) {

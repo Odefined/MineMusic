@@ -19,10 +19,16 @@ import type {
   LibraryCollectionRenameInput,
   LibraryCollectionState,
   LibraryCollectionStateOutput,
-  MusicItemHandle,
+  MaterialMusicItemHandle,
   StageToolContext,
   StageToolRegistration,
   ToolDeclaration,
+} from "../../contracts/stage_interface.js";
+import {
+  formatMusicItemHandle,
+  formatMusicScopeHandle,
+  parseMusicItemHandle,
+  parseMusicScopeHandle,
 } from "../../contracts/stage_interface.js";
 import {
   isMusicDataPlatformError,
@@ -34,10 +40,10 @@ import { collectionScopeId } from "./collection_scope.js";
 import { resolveMaterialItemRef, stageEditFail } from "./library_handle_resolution.js";
 
 // D9: the agent addresses a Collection by its catalog scope handle
-// ({ kind:"collection", id }) from library.catalog.list_scopes. The handler
+// ([collection:...]) from library.catalog.list_scopes. The handler
 // resolves the scope id to a collectionRef via the scope-availability port,
 // resolves item handles to materialRef via the handle-minting port, and veils
-// the post-edit state (opaque scope handle, minted library item handles; no
+// the post-edit state (opaque scope handle, minted [material:...] item handles; no
 // collectionRef/materialRef/position leaks). 24D surfaces only catalog-visible
 // Collections (recording/album/artist/mixed); work/release carry no scope id.
 
@@ -129,7 +135,7 @@ const getErrors = [
   {
     code: "invalid_input",
     retryable: false,
-    suggestedFixTemplate: "Retry with a catalog-visible collection scope handle from library.catalog.list_scopes and a durable material item handle.",
+    suggestedFixTemplate: "Retry with a catalog-visible collection scope handle from library.catalog.list_scopes and a full [material:...] item handle.",
   },
   {
     code: "collection_not_found",
@@ -153,7 +159,7 @@ const editErrors = [
   {
     code: "item_not_found",
     retryable: true,
-    suggestedFixTemplate: "Retry with a current library item handle, or look up and present the item again.",
+    suggestedFixTemplate: "Retry with a current [material:...] item handle, or look up and present the item again.",
   },
   {
     code: "collection_name_taken",
@@ -253,7 +259,7 @@ export const libraryCollectionGetDescriptor = readDescriptor({
   description: "Read one MineMusic library Collection's current state and members without editing it.",
   useWhen: "Use when the user or agent needs to know the name, kind, and member items of a durable library Collection.",
   doNotUseWhen: "Do not use to browse a Collection's catalog rows (use library.catalog.browse with the collection scope), edit membership, or create/rename/delete a Collection.",
-  outputSemantics: "Returns the Collection's scope handle, name, kind, item count, and a position-ordered list of member item handles; it does not expose collection refs, material refs, or positions.",
+  outputSemantics: "Returns the Collection's scope handle, name, kind, item count, and a position-ordered list of member [material:...] item handles; it does not expose collection refs, material refs, or positions.",
   callPrompt: "what's in my Favorites collection?",
   avoidPrompt: "browse the songs in this collection",
   avoidNote: "use library.catalog.browse with the collection scope to browse catalog rows",
@@ -386,7 +392,7 @@ async function handleGet(
   ports: CreateLibraryCollectionRegistrationInput,
 ): Promise<Result<LibraryCollectionStateOutput>> {
   const input = payload as LibraryCollectionGetInput;
-  const resolved = await resolveCollectionRef(ctx, ports.scopeAvailability, input.collection.id);
+  const resolved = await resolveCollectionRef(ctx, ports.scopeAvailability, parseMusicScopeHandle(input.collection).id);
   if (!resolved.ok) {
     return resolved;
   }
@@ -420,7 +426,7 @@ async function handleRename(
   ports: CreateLibraryCollectionRegistrationInput,
 ): Promise<Result<LibraryCollectionStateOutput>> {
   const input = payload as LibraryCollectionRenameInput;
-  const resolved = await resolveCollectionRef(ctx, ports.scopeAvailability, input.collection.id);
+  const resolved = await resolveCollectionRef(ctx, ports.scopeAvailability, parseMusicScopeHandle(input.collection).id);
   if (!resolved.ok) {
     return resolved;
   }
@@ -469,7 +475,7 @@ async function handleDelete(
   ports: CreateLibraryCollectionRegistrationInput,
 ): Promise<Result<LibraryCollectionStateOutput>> {
   const input = payload as LibraryCollectionDeleteInput;
-  const resolved = await resolveCollectionRef(ctx, ports.scopeAvailability, input.collection.id);
+  const resolved = await resolveCollectionRef(ctx, ports.scopeAvailability, parseMusicScopeHandle(input.collection).id);
   if (!resolved.ok) {
     return resolved;
   }
@@ -485,11 +491,12 @@ async function handleItemEdit(
   apply: (collectionRef: Ref, materialRef: Ref, now: string) => Promise<LibraryCollectionServiceState>,
 ): Promise<Result<LibraryCollectionStateOutput>> {
   const input = payload as LibraryCollectionItemInput;
-  const resolvedCollection = await resolveCollectionRef(ctx, ports.scopeAvailability, input.collection.id);
+  const resolvedCollection = await resolveCollectionRef(ctx, ports.scopeAvailability, parseMusicScopeHandle(input.collection).id);
   if (!resolvedCollection.ok) {
     return resolvedCollection;
   }
-  const materialRefResult = await resolveMaterialItemRef(ctx, input.item.id, "Retry with a catalog-visible collection scope handle from library.catalog.list_scopes and a durable material item handle.");
+  const item = parseMusicItemHandle(input.item);
+  const materialRefResult = await resolveMaterialItemRef(ctx, item.id, "Retry with a catalog-visible collection scope handle from library.catalog.list_scopes and a full [material:...] item handle.");
   if (!materialRefResult.ok) {
     return materialRefResult;
   }
@@ -533,14 +540,14 @@ async function veilCollectionState(
   ctx: StageToolContext,
   state: LibraryCollectionServiceState,
 ): Promise<Result<LibraryCollectionStateOutput>> {
-  const items: { item: Extract<MusicItemHandle, { kind: "material" }> }[] = await Promise.all(
+  const items: { item: MaterialMusicItemHandle }[] = await Promise.all(
     state.items.map(async (item) => {
       const publicId = await ctx.handleMinting.mint({
         ownerScope: ctx.ownerScope,
         handleKind: "material",
         internalAnchor: { materialRef: refKey(item.materialRef) },
       });
-      return { item: { kind: "material", id: publicId } };
+      return { item: formatMusicItemHandle({ kind: "material", id: publicId }) };
     }),
   );
 
@@ -549,7 +556,7 @@ async function veilCollectionState(
   // one — the id is deterministic from the collectionRefKey.
   const collection: LibraryCollectionState = {
     collection: {
-      scope: { kind: "collection", id: collectionScopeId(state.collection.collectionRefKey) },
+      scope: formatMusicScopeHandle({ kind: "collection", id: collectionScopeId(state.collection.collectionRefKey) }),
       name: state.collection.name,
       collectionKind: libraryCollectionKind(state.collection.collectionKind),
       itemCount: state.items.length,
@@ -588,7 +595,7 @@ function publicCollectionError(error: unknown): Result<never> {
         code: "item_not_found",
         message: "Library collection item was not found.",
         retryable: true,
-        suggestedFix: "Retry with a current library item handle, or look up and present the item again.",
+    suggestedFix: "Retry with a current [material:...] item handle, or look up and present the item again.",
       });
     case "music_data.material_not_writable":
       return stageEditFail({

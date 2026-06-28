@@ -105,13 +105,8 @@ const lookupResult = await stageInterface.dispatch(testStageToolContext({
     payload: {
         lookupText: "whoo",
         scopes: [
-            { kind: "library" },
-            {
-                kind: "provider",
-                providerId: "netease",
-                description: { label: "stale label ignored" },
-                targetKinds: ["recording"],
-            },
+            "[library]",
+            "[provider:netease]",
         ],
         limit: 2,
     },
@@ -138,10 +133,7 @@ if (lookupResult.ok) {
     const output = lookupResult.value.result as MusicDiscoveryLookupOutput;
     assert.equal(output.items.length, 2);
     assert.deepEqual(output.items[0], {
-        handle: {
-            kind: "material",
-            id: "public_material_1",
-        },
+        handle: "[material:public_material_1]",
         description: {
             label: "whoo - Nemophila",
             title: "whoo",
@@ -151,10 +143,7 @@ if (lookupResult.ok) {
         },
     });
     assert.deepEqual(output.items[1], {
-        handle: {
-            kind: "candidate",
-            id: "public_candidate_2",
-        },
+        handle: "[candidate:public_candidate_2]",
         description: {
             label: "Provider whoo - Provider Artist",
             title: "Provider whoo",
@@ -226,7 +215,7 @@ const expiringFirstPage = await expiringInterface.dispatch(testStageToolContext(
     toolName: "music.discovery.lookup",
     payload: {
         lookupText: "whoo",
-        scopes: [{ kind: "library" }],
+        scopes: ["[library]"],
     },
 });
 assert.equal(expiringFirstPage.ok, true);
@@ -271,9 +260,9 @@ const failingProviderResult = await failingProviderInterface.dispatch(testStageT
     payload: {
         lookupText: "whoo",
         scopes: [
-            { kind: "library" },
-            { kind: "provider", providerId: "netease" },
-            { kind: "provider", providerId: "spotify" },
+            "[library]",
+            "[provider:netease]",
+            "[provider:spotify]",
         ],
     },
 });
@@ -289,7 +278,7 @@ const plainRetrievalThrowResult = await lookupInterfaceForThrownRetrievalError(n
     toolName: "music.discovery.lookup",
     payload: {
         lookupText: "whoo",
-        scopes: [{ kind: "library" }],
+        scopes: ["[library]"],
     },
 });
 assert.equal(plainRetrievalThrowResult.ok, false);
@@ -305,7 +294,7 @@ const retrievalResultInvalidResult = await lookupInterfaceForThrownRetrievalErro
     toolName: "music.discovery.lookup",
     payload: {
         lookupText: "whoo",
-        scopes: [{ kind: "library" }],
+        scopes: ["[library]"],
     },
 });
 assert.equal(retrievalResultInvalidResult.ok, false);
@@ -321,7 +310,7 @@ const providerSearchPoolInvalidResult = await lookupInterfaceForThrownRetrievalE
     toolName: "music.discovery.lookup",
     payload: {
         lookupText: "whoo",
-        scopes: [{ kind: "provider", providerId: "netease" }],
+        scopes: ["[provider:netease]"],
     },
 });
 assert.equal(providerSearchPoolInvalidResult.ok, false);
@@ -337,7 +326,7 @@ const cursorMismatchResult = await lookupInterfaceForThrownRetrievalError(new Mu
     toolName: "music.discovery.lookup",
     payload: {
         lookupText: "whoo",
-        scopes: [{ kind: "library" }],
+        scopes: ["[library]"],
     },
 });
 assert.equal(cursorMismatchResult.ok, false);
@@ -376,7 +365,7 @@ const budgetResult = await budgetInterface.dispatch(testStageToolContext({
     toolName: "music.discovery.lookup",
     payload: {
         lookupText: "whoo",
-        scopes: [{ kind: "all" }],
+        scopes: ["[all]"],
     },
 });
 assert.equal(budgetResult.ok, false);
@@ -412,7 +401,7 @@ const scopeAvailabilityFailedResult = await scopeAvailabilityFailedInterface.dis
     toolName: "music.discovery.lookup",
     payload: {
         lookupText: "whoo",
-        scopes: [{ kind: "library" }],
+        scopes: ["[library]"],
     },
 });
 assert.equal(scopeAvailabilityFailedResult.ok, false);
@@ -427,7 +416,7 @@ const sourceLibraryTargetMismatch = await stageInterface.dispatch(testStageToolC
     payload: {
         lookupText: "whoo",
         targetKind: "album",
-        scopes: [{ kind: "source_library", id: "scope_saved_recording" }],
+        scopes: ["[source_library:scope_saved_recording]"],
     },
 });
 assert.equal(sourceLibraryTargetMismatch.ok, false);
@@ -442,7 +431,7 @@ const relationTargetMismatch = await stageInterface.dispatch(testStageToolContex
     payload: {
         lookupText: "whoo",
         targetKind: "album",
-        scopes: [{ kind: "relation", id: "scope_favorite_recording" }],
+        scopes: ["[relation:scope_favorite_recording]"],
     },
 });
 assert.equal(relationTargetMismatch.ok, false);
@@ -456,7 +445,7 @@ const providerTargetMismatch = await stageInterface.dispatch(testStageToolContex
     payload: {
         lookupText: "whoo",
         targetKind: "album",
-        scopes: [{ kind: "provider", providerId: "spotify" }],
+        scopes: ["[provider:spotify]"],
     },
 });
 assert.equal(providerTargetMismatch.ok, false);
@@ -477,7 +466,7 @@ const nonComparableClockResult = await stageInterface.dispatch(testStageToolCont
     toolName: "music.discovery.lookup",
     payload: {
         lookupText: "whoo",
-        scopes: [{ kind: "library" }],
+        scopes: ["[library]"],
     },
 });
 assert.equal(nonComparableClockResult.ok, false);
@@ -493,7 +482,7 @@ const matchingSourceLibraryScope = await stageInterface.dispatch(testStageToolCo
     payload: {
         lookupText: "whoo",
         targetKind: "recording",
-        scopes: [{ kind: "source_library", id: "scope_saved_recording" }],
+        scopes: ["[source_library:scope_saved_recording]"],
     },
 });
 assert.equal(matchingSourceLibraryScope.ok, true);
@@ -504,7 +493,7 @@ const matchingRelationScope = await stageInterface.dispatch(testStageToolContext
     payload: {
         lookupText: "whoo",
         targetKind: "recording",
-        scopes: [{ kind: "relation", id: "scope_favorite_recording" }],
+        scopes: ["[relation:scope_favorite_recording]"],
     },
 });
 assert.equal(matchingRelationScope.ok, true);
@@ -516,18 +505,17 @@ assert.equal(lookupInputSchemaJson.includes('"type":"integer"'), true);
 assert.equal(lookupInputSchemaJson.includes('"minimum":1'), true);
 assert.equal(lookupInputSchemaJson.includes('"maximum":100'), true);
 assert.equal(lookupInputSchemaJson.includes('"limit":{"type":"number"'), false);
-// Empty-string scope identifiers are rejected at the structural (AJV) layer, not
-// in the handler: the generator overlay tightens scope-handle id/providerId to
-// minLength:1, so an empty id never reaches resolution as a bogus empty-key scope.
-assert.equal(lookupInputSchemaJson.includes('"id":{"type":"string","minLength":1}'), true);
-assert.equal(lookupInputSchemaJson.includes('"providerId":{"type":"string","minLength":1}'), true);
+// Empty-string scope identifiers are rejected at the structural (AJV) layer by
+// bracket-handle patterns, so a bogus empty-key scope never reaches resolution.
+assert.equal(lookupInputSchemaJson.includes('"pattern":"^\\\\[(source_library|relation|collection):[^\\\\]\\\\r\\\\n]+\\\\]$"'), true);
+assert.equal(lookupInputSchemaJson.includes('"pattern":"^\\\\[provider:[^\\\\]\\\\r\\\\n]+\\\\]$"'), true);
 const cursorPageWithFirstPageScope = await stageInterface.dispatch(testStageToolContext({
     mintedAnchors: [],
 }), {
     toolName: "music.discovery.lookup",
     payload: {
         cursor: "mlc1.forged.cursor.token",
-        scopes: [{ kind: "library" }],
+        scopes: ["[library]"],
     },
 });
 assert.equal(cursorPageWithFirstPageScope.ok, false);

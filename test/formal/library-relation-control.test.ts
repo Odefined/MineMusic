@@ -64,10 +64,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
     }).dispatch(testStageToolContext({ materialRef }), {
         toolName: "library.relation.get",
         payload: {
-            item: {
-                kind: "material",
-                id: libraryHandleId,
-            },
+            item: `[material:${libraryHandleId}]`,
         },
     });
     assert.equal(result.ok, true);
@@ -112,10 +109,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
     }).dispatch(testStageToolContext({ materialRef }), {
         toolName: "library.relation.get",
         payload: {
-            item: {
-                kind: "material",
-                id: libraryHandleId,
-            },
+            item: `[material:${libraryHandleId}]`,
         },
     });
     assert.equal(result.ok, true);
@@ -152,10 +146,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
     }).dispatch(testStageToolContext({ materialRef }), {
         toolName: "library.relation.save",
         payload: {
-            item: {
-                kind: "material",
-                id: libraryHandleId,
-            },
+            item: `[material:${libraryHandleId}]`,
         },
     });
     assert.equal(result.ok, true);
@@ -182,10 +173,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
     }).dispatch(testStageToolContext({ materialRef }), {
         toolName: "library.relation.save",
         payload: {
-            item: {
-                kind: "candidate",
-                id: "cand_relation_control",
-            },
+            item: "[candidate:cand_relation_control]",
         },
     });
     assert.equal(result.ok, false);
@@ -198,10 +186,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
     const result = await interfaceFor(unexpectedControl()).dispatch(testStageToolContext({}), {
         toolName: "library.relation.get",
         payload: {
-            item: {
-                kind: "material",
-                id: libraryHandleId,
-            },
+            item: `[material:${libraryHandleId}]`,
         },
     });
     assertDeclaredError(result, "item_not_found");
@@ -214,10 +199,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
     }), {
         toolName: "library.relation.get",
         payload: {
-            item: {
-                kind: "material",
-                id: libraryHandleId,
-            },
+            item: `[material:${libraryHandleId}]`,
         },
     });
     assertDeclaredError(result, "invalid_input");
@@ -236,10 +218,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
     }).dispatch(testStageToolContext({ materialRef }), {
         toolName: "library.relation.get",
         payload: {
-            item: {
-                kind: "material",
-                id: libraryHandleId,
-            },
+            item: `[material:${libraryHandleId}]`,
         },
     });
     assert.equal(result.ok, false);
@@ -261,10 +240,7 @@ for (const descriptor of relationDescriptors.slice(1)) {
     }).dispatch(testStageToolContext({ materialRef }), {
         toolName: "library.relation.save",
         payload: {
-            item: {
-                kind: "material",
-                id: libraryHandleId,
-            },
+            item: `[material:${libraryHandleId}]`,
         },
     });
     assertDeclaredError(result, "item_not_writable");

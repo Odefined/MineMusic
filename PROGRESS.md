@@ -1121,7 +1121,7 @@ Phase 19 exposes existing owner-relation facts through explicit
 `library.relation.*` tools:
 
 - `library.relation.get` reads current saved/favorite/blocked state for one
-  durable library item handle without writing.
+  durable `[material:...]` item handle without writing.
 - `library.relation.save`, `.unsave`, `.favorite`, `.unfavorite`, `.block`, and
   `.unblock` edit local MineMusic owner relations through the Music Data
   Platform source-of-truth command boundary and return the current relation
@@ -1603,6 +1603,30 @@ runtime module:
 - Active-tree guards now cover server runtime-module schema imports, server
   concrete Postgres adapter imports, and the MDP database-broker interface
   regression.
+
+## 2026-06-28: Agent Context Engineering Spec
+
+`docs/formal-rebuild/agent-context-engineering-spec.md` establishes the current
+Agent Runtime context-engineering authority for embedded MineMusic agents:
+
+- context is split into six rails: Actor Instruction, Capability Context,
+  Workspace Context, Invocation Context, Continuity Context, and
+  Knowledge / Memory Context;
+- Workspace Context is the current workspace fact projection over the shared
+  in-process read model and area-owned public projections, emitted as JSON
+  organized by workspace-visible sections;
+- Main and Radio may receive different selected Workspace Context sections, but
+  the shared assembly model owns section selection, section shape, and
+  compression rather than letting actors maintain separate hand-written
+  workspace-state renderers or compression paths;
+- Radio queue identity, now-playing, radio truth, and current revisions belong
+  to Workspace Context, while `runId`, wake reason, suggested append count, and
+  basis revisions belong to Invocation Context;
+- Phase B Knowledge / Memory Context starts with `userTasteHint` generated from
+  existing `library.catalog.summary` public output; it is a library-shaped taste
+  hint, not durable Memory or an explicit user preference rule;
+- `Session Context` is retained only as a legacy umbrella term; new design and
+  code should use the six rails explicitly.
 
 ## Next Formal Milestones
 

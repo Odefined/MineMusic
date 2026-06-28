@@ -25,7 +25,7 @@ export async function resolveMaterialItemRef(
       code: "item_not_found",
       message: "Material item handle is unknown or no longer available.",
       retryable: true,
-      suggestedFix: "Retry with a current material handle, or look up and present the item again.",
+      suggestedFix: "Retry with a current [material:...] handle, or look up and present the item again.",
     });
   }
 

@@ -14,6 +14,7 @@ import type {
   MusicExperienceQueueAppendOutput,
   ToolCallOutput,
 } from "../../src/contracts/stage_interface.js";
+import { parseMusicItemHandle } from "../../src/contracts/stage_interface.js";
 import {
   createMaterialProjection,
   musicDataPlatformIdentitySchema,
@@ -279,10 +280,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     toolName: "music.experience.queue.append",
     payload: {
       items: [
-        {
-          kind: "material",
-          id: materialHandleId,
-        },
+        `[material:${materialHandleId}]`,
       ],
     },
   });
@@ -336,10 +334,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     toolName: "music.experience.queue.append",
     payload: {
       items: [
-        {
-          kind: "material",
-          id: materialHandleId,
-        },
+        `[material:${materialHandleId}]`,
       ],
     },
   });
@@ -349,10 +344,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(appendOutput.queueRevision, 1);
   assert.deepEqual(appendOutput.items, [
     {
-      item: {
-        kind: "material",
-        id: materialHandleId,
-      },
+      item: `[material:${materialHandleId}]`,
       position: 1,
     },
   ]);
@@ -361,20 +353,14 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   const playResult = await stageInterface.dispatch(ctx, {
     toolName: "music.experience.playback.play",
     payload: {
-      item: {
-        kind: "material",
-        id: materialHandleId,
-      },
+      item: `[material:${materialHandleId}]`,
     },
   });
   assert.equal(playResult.ok, true);
   const playOutput = output<MusicExperiencePlaybackPlayOutput>(playResult);
   assert.equal(playOutput.playbackRevision, 1);
   assert.equal(playOutput.status, "playing");
-  assert.deepEqual(playOutput.item, {
-    kind: "material",
-    id: materialHandleId,
-  });
+  assert.deepEqual(playOutput.item, `[material:${materialHandleId}]`);
   assertPublicToolOutput(playOutput);
 
   const readModel = createMusicExperienceReadModel({
@@ -398,19 +384,13 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     queue: [
       {
         position: 1,
-        item: {
-          kind: "material",
-          id: materialHandleId,
-        },
+        item: `[material:${materialHandleId}]`,
         label: "A3 Dispatch Song",
         artistsText: "Dispatch Artist",
       },
     ],
     nowPlaying: {
-      item: {
-        kind: "material",
-        id: materialHandleId,
-      },
+      item: `[material:${materialHandleId}]`,
       label: "A3 Dispatch Song",
       artistsText: "Dispatch Artist",
     },
@@ -486,10 +466,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     toolName: "music.experience.queue.append",
     payload: {
       items: [
-        {
-          kind: "candidate",
-          id: candidateHandleId,
-        },
+        `[candidate:${candidateHandleId}]`,
       ],
     },
   });
@@ -503,7 +480,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   const resolvedOutput = await handleMinting.resolve({
     ownerScope,
     handleKind: "material",
-    publicId: appendOutput.items[0]!.item.id,
+    publicId: parseMusicItemHandle(appendOutput.items[0]!.item).id,
   }) as { materialRef: string };
   assert.equal(resolvedOutput.materialRef, refKey(candidateMaterialRef));
 
@@ -594,14 +571,8 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     toolName: "music.experience.queue.append",
     payload: {
       items: [
-        {
-          kind: "material",
-          id: materialHandleId,
-        },
-        {
-          kind: "candidate",
-          id: candidateHandleId,
-        },
+        `[material:${materialHandleId}]`,
+        `[candidate:${candidateHandleId}]`,
       ],
     },
   });
@@ -683,10 +654,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     toolName: "music.experience.queue.append",
     payload: {
       items: [
-        {
-          kind: "material",
-          id: materialHandleId,
-        },
+        `[material:${materialHandleId}]`,
       ],
     },
   });
@@ -707,10 +675,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     toolName: "music.experience.queue.append",
     payload: {
       items: [
-        {
-          kind: "material",
-          id: materialHandleId,
-        },
+        `[material:${materialHandleId}]`,
       ],
     },
   });
@@ -797,10 +762,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 
   const payload = {
     items: [
-      {
-        kind: "candidate",
-        id: candidateHandleId,
-      },
+      `[candidate:${candidateHandleId}]`,
     ],
   };
   const staleAppend = await stageInterface.dispatch(createStageToolContext({
@@ -933,10 +895,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     toolName: "music.experience.queue.append",
     payload: {
       items: [
-        {
-          kind: "candidate",
-          id: candidateHandleId,
-        },
+        `[candidate:${candidateHandleId}]`,
       ],
     },
   });
@@ -945,17 +904,14 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   const appendHandleAnchor = await handleMinting.resolve({
     ownerScope,
     handleKind: "material",
-    publicId: appendOutput.items[0]!.item.id,
+    publicId: parseMusicItemHandle(appendOutput.items[0]!.item).id,
   }) as { materialRef: string };
   assert.equal(appendHandleAnchor.materialRef, refKey(winnerRef));
 
   const playResult = await stageInterface.dispatch(ctx, {
     toolName: "music.experience.playback.play",
     payload: {
-      item: {
-        kind: "candidate",
-        id: candidateHandleId,
-      },
+      item: `[candidate:${candidateHandleId}]`,
     },
   });
   assert.equal(playResult.ok, true);
@@ -963,7 +919,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   const playHandleAnchor = await handleMinting.resolve({
     ownerScope,
     handleKind: "material",
-    publicId: playOutput.item.id,
+    publicId: parseMusicItemHandle(playOutput.item).id,
   }) as { materialRef: string };
   assert.equal(playHandleAnchor.materialRef, refKey(winnerRef));
   assert.equal(commitCount, 2);
@@ -1070,14 +1026,8 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     toolName: "music.experience.queue.append",
     payload: {
       items: [
-        {
-          kind: "material",
-          id: firstHandleId,
-        },
-        {
-          kind: "material",
-          id: secondHandleId,
-        },
+        `[material:${firstHandleId}]`,
+        `[material:${secondHandleId}]`,
       ],
     },
   });
@@ -1138,10 +1088,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     toolName: "music.experience.queue.append",
     payload: {
       items: [
-        {
-          kind: "material",
-          id: materialHandleId,
-        },
+        `[material:${materialHandleId}]`,
       ],
     },
   });
@@ -1206,10 +1153,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   }), {
     toolName: "music.experience.playback.play",
     payload: {
-      item: {
-        kind: "material",
-        id: materialHandleId,
-      },
+      item: `[material:${materialHandleId}]`,
     },
   });
 
@@ -1281,10 +1225,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     toolName: "music.experience.queue.append",
     payload: {
       items: [
-        {
-          kind: "material",
-          id: loserHandleId,
-        },
+        `[material:${loserHandleId}]`,
       ],
     },
   });
@@ -1294,7 +1235,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   const resolvedOutput = await handleMinting.resolve({
     ownerScope,
     handleKind: "material",
-    publicId: appendOutput.items[0]!.item.id,
+    publicId: parseMusicItemHandle(appendOutput.items[0]!.item).id,
   }) as { materialRef: string };
   assert.equal(resolvedOutput.materialRef, refKey(winnerRef));
 
@@ -1469,7 +1410,6 @@ function deferred<T>(): Deferred<T> {
 
 function assertPublicToolOutput(value: unknown): void {
   const serialized = JSON.stringify(value);
-  assert.equal(serialized.includes("material:"), false);
   assert.equal(serialized.includes("materialRef"), false);
   assert.equal(serialized.includes("owner_scope"), false);
   assert.equal(serialized.includes("workspace_id"), false);

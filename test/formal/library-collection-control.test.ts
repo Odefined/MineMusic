@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import type { LibraryCollectionStateOutput } from "../../src/contracts/stage_interface.js";
+import { parseMusicScopeHandle } from "../../src/contracts/stage_interface.js";
 import {
   createCollectionRecords,
   createMusicDataPlatformSourceOfTruthWriteCommands,
@@ -191,79 +192,79 @@ if (initializedServerModule.ok) {
   assert.equal(created.items.length, 0);
   assert.equal(created.collection.name, "Control Collection");
   assert.equal(created.collection.collectionKind, "recording");
-  const collectionScopeId = created.collection.scope.id;
+  const collectionScopeId = parseMusicScopeHandle(created.collection.scope).id;
   assert.equal(typeof collectionScopeId, "string");
   // D9 veil (exact key set) is asserted by assertVeiledShape inside dispatch.
 
   // add A then B; position order is [A, B].
   const afterAddA = await dispatch("library.collection.add", {
-    collection: { kind: "collection", id: collectionScopeId },
-    item: { kind: "material", id: itemHandleA },
+    collection: created.collection.scope,
+    item: `[material:${itemHandleA}]`,
   });
   assert.equal(afterAddA.collection.itemCount, 1);
-  assert.equal(afterAddA.items[0]!.item.id, itemHandleA);
+  assert.equal(afterAddA.items[0]!.item, `[material:${itemHandleA}]`);
 
   const afterAddB = await dispatch("library.collection.add", {
-    collection: { kind: "collection", id: collectionScopeId },
-    item: { kind: "material", id: itemHandleB },
+    collection: created.collection.scope,
+    item: `[material:${itemHandleB}]`,
   });
   assert.equal(afterAddB.collection.itemCount, 2);
   assert.deepEqual(
-    afterAddB.items.map((i) => i.item.id),
-    [itemHandleA, itemHandleB],
+    afterAddB.items.map((i) => i.item),
+    [`[material:${itemHandleA}]`, `[material:${itemHandleB}]`],
   );
 
   // Re-adding an already-active member is a no-op (D5 idempotent membership):
   // the member stays in place — it is NOT relocated to the end and leaves no
   // position gap. (ON CONFLICT ... WHERE status='removed' guards this.)
   const reAddActive = await dispatch("library.collection.add", {
-    collection: { kind: "collection", id: collectionScopeId },
-    item: { kind: "material", id: itemHandleA },
+    collection: created.collection.scope,
+    item: `[material:${itemHandleA}]`,
   });
   assert.equal(reAddActive.collection.itemCount, 2);
   assert.deepEqual(
-    reAddActive.items.map((i) => i.item.id),
-    [itemHandleA, itemHandleB],
+    reAddActive.items.map((i) => i.item),
+    [`[material:${itemHandleA}]`, `[material:${itemHandleB}]`],
   );
 
   // get reads the fact table (Invariant 3): returns current members in position order.
   const got = await dispatch("library.collection.get", {
-    collection: { kind: "collection", id: collectionScopeId },
+    collection: created.collection.scope,
   });
   assert.deepEqual(
-    got.items.map((i) => i.item.id),
-    [itemHandleA, itemHandleB],
+    got.items.map((i) => i.item),
+    [`[material:${itemHandleA}]`, `[material:${itemHandleB}]`],
   );
 
   // move B to position 1; order becomes [B, A].
   const afterMove = await dispatch("library.collection.move", {
-    collection: { kind: "collection", id: collectionScopeId },
-    item: { kind: "material", id: itemHandleB },
+    collection: created.collection.scope,
+    item: `[material:${itemHandleB}]`,
     toPosition: 1,
   });
   assert.deepEqual(
-    afterMove.items.map((i) => i.item.id),
-    [itemHandleB, itemHandleA],
+    afterMove.items.map((i) => i.item),
+    [`[material:${itemHandleB}]`, `[material:${itemHandleA}]`],
   );
 
   // rename.
   const afterRename = await dispatch("library.collection.rename", {
-    collection: { kind: "collection", id: collectionScopeId },
+    collection: created.collection.scope,
     name: "Renamed Collection",
   });
   assert.equal(afterRename.collection.name, "Renamed Collection");
 
   // remove A (idempotent — second remove is a no-op success).
   const afterRemove = await dispatch("library.collection.remove", {
-    collection: { kind: "collection", id: collectionScopeId },
-    item: { kind: "material", id: itemHandleA },
+    collection: created.collection.scope,
+    item: `[material:${itemHandleA}]`,
   });
   assert.equal(afterRemove.collection.itemCount, 1);
-  assert.equal(afterRemove.items[0]!.item.id, itemHandleB);
+  assert.equal(afterRemove.items[0]!.item, `[material:${itemHandleB}]`);
 
   const idempotentRemove = await dispatch("library.collection.remove", {
-    collection: { kind: "collection", id: collectionScopeId },
-    item: { kind: "material", id: itemHandleA },
+    collection: created.collection.scope,
+    item: `[material:${itemHandleA}]`,
   });
   assert.equal(idempotentRemove.collection.itemCount, 1);
 
@@ -273,8 +274,8 @@ if (initializedServerModule.ok) {
   const neverMemberRemove = await stageInterface.dispatch(createContext(), {
     toolName: "library.collection.remove",
     payload: {
-      collection: { kind: "collection", id: collectionScopeId },
-      item: { kind: "material", id: itemHandleC },
+      collection: created.collection.scope,
+      item: `[material:${itemHandleC}]`,
     },
   });
   assert.equal(neverMemberRemove.ok, false);
@@ -291,8 +292,8 @@ if (initializedServerModule.ok) {
   const kindMismatch = await stageInterface.dispatch(createContext(), {
     toolName: "library.collection.add",
     payload: {
-      collection: { kind: "collection", id: albumCreated.collection.scope.id },
-      item: { kind: "material", id: itemHandleA },
+      collection: albumCreated.collection.scope,
+      item: `[material:${itemHandleA}]`,
     },
   });
   assert.equal(kindMismatch.ok, false);
@@ -302,7 +303,7 @@ if (initializedServerModule.ok) {
 
   // delete (soft-remove); get still returns the (now-empty/member-1) state via fact table.
   const afterDelete = await dispatch("library.collection.delete", {
-    collection: { kind: "collection", id: collectionScopeId },
+    collection: created.collection.scope,
   });
   assert.equal(afterDelete.collection.itemCount, 1);
 
@@ -315,20 +316,20 @@ if (initializedServerModule.ok) {
     collectionKind: "recording",
     name: "Recycle Name",
   });
-  const recycleScopeId = recycleCreated.collection.scope.id;
+  const recycleScopeId = parseMusicScopeHandle(recycleCreated.collection.scope).id;
   await dispatch("library.collection.delete", {
-    collection: { kind: "collection", id: recycleScopeId },
+    collection: recycleCreated.collection.scope,
   });
   const recreated = await dispatch("library.collection.create", {
     collectionKind: "recording",
     name: "Recycle Name",
   });
-  assert.notEqual(recreated.collection.scope.id, recycleScopeId);
+  assert.notEqual(parseMusicScopeHandle(recreated.collection.scope).id, recycleScopeId);
 
   // Error path: an unknown collection scope id yields collection_not_found.
   const notFound = await stageInterface.dispatch(createContext(), {
     toolName: "library.collection.get",
-    payload: { collection: { kind: "collection", id: "collection_unknown" } },
+    payload: { collection: "[collection:collection_unknown]" },
   });
   assert.equal(notFound.ok, false);
   if (!notFound.ok) {
@@ -375,12 +376,10 @@ if (initializedServerModule.ok) {
     const state = output.collection;
     assert.deepEqual(Object.keys(state).sort(), ["collection", "items"]);
     assert.deepEqual(Object.keys(state.collection).sort(), ["collectionKind", "itemCount", "name", "scope"]);
-    assert.deepEqual(Object.keys(state.collection.scope).sort(), ["id", "kind"]);
-    assert.equal(state.collection.scope.kind, "collection");
+    assert.match(state.collection.scope, /^\[collection:[^\]\r\n]+\]$/u);
     for (const entry of state.items) {
       assert.deepEqual(Object.keys(entry).sort(), ["item"]);
-      assert.deepEqual(Object.keys(entry.item).sort(), ["id", "kind"]);
-      assert.equal(entry.item.kind, "material");
+      assert.match(entry.item, /^\[material:[^\]\r\n]+\]$/u);
     }
   }
 }

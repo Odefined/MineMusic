@@ -63,7 +63,7 @@ function formatQueueEntry(entry: WorkbenchQueueEntry): string {
 
 function formatMusicItem(item: WorkbenchMusicItemSummary): string {
   const artists = item.artistsText === undefined ? "" : ` - ${formatPromptAtom(item.artistsText)}`;
-  return `${formatPromptAtom(item.label)}${artists} (${item.item.kind} ${item.item.id})`;
+  return `${formatPromptAtom(item.label)}${artists} ${item.item}`;
 }
 
 function formatPromptAtom(value: string): string {

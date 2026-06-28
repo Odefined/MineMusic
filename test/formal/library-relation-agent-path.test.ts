@@ -177,10 +177,7 @@ if (initializedServerModule.ok) {
         const result = await stageInterface.dispatch(createContext("local"), {
             toolName,
             payload: {
-                item: {
-                    kind: "material",
-                    id: publicId,
-                },
+                item: `[material:${publicId}]`,
             },
         });
         assert.equal(result.ok, true);
@@ -202,10 +199,7 @@ if (initializedServerModule.ok) {
         const result = await stageInterface.dispatch(createContext(input.ownerScope ?? "local"), {
             toolName: input.toolName,
             payload: {
-                item: {
-                    kind: "material",
-                    id: input.publicId,
-                },
+                item: `[material:${input.publicId}]`,
             },
         });
         assert.equal(result.ok, false);

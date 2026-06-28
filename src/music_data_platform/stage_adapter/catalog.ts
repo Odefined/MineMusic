@@ -44,6 +44,7 @@ import type {
   StageToolRegistration,
   ToolDeclaration,
 } from "../../contracts/stage_interface.js";
+import { formatMusicItemHandle, formatMusicScopeHandle, parseMusicScopeHandle } from "../../contracts/stage_interface.js";
 import type {
   LibraryCatalogMaterialKind,
   LibraryCatalogReadPort,
@@ -185,7 +186,7 @@ export const libraryCatalogBrowseDescriptor: ToolDeclaration = {
   usage: {
     useWhen: "Use when the agent needs ordered concrete examples from the MineMusic library baseline, a source-library scope, or a relation scope.",
     doNotUseWhen: "Do not use for provider search, semantic recommendation, raw rows, or editing saved/favorite state.",
-    outputSemantics: "Returns compact library item handles and public descriptions plus an opaque cursor; no internal refs, entry rows, provider payloads, or relation facts are exposed.",
+    outputSemantics: "Returns compact [material:...] item handles and public descriptions plus an opaque cursor; no internal refs, entry rows, provider payloads, or relation facts are exposed.",
   },
   examples: [
     {
@@ -230,7 +231,7 @@ export const libraryCatalogSampleDescriptor: ToolDeclaration = {
   usage: {
     useWhen: "Use when the agent needs a reproducible random-looking sample from one catalog scope and can provide an explicit seed.",
     doNotUseWhen: "Do not use for summary timeline evidence, provider search, or sampling without a caller-provided seed.",
-    outputSemantics: "Same owner library state, scope, count, and seed return the same library item handles and descriptions.",
+    outputSemantics: "Same owner library state, scope, count, and seed return the same [material:...] item handles and descriptions.",
   },
   examples: [
     {
@@ -475,7 +476,7 @@ async function handleLibraryCatalogSummary(
   const output: LibraryCatalogSummaryOutput = {
     sampleBands,
     concentrationSignals: await concentrationSignals(ctx, projectedRecords),
-    ...(resolved.value.listed.kind === "library"
+    ...(resolved.value.listed.scope === "[library]"
       ? {
           membershipSignals: await membershipSignals(ctx, ports, resolved.value.availability),
         }
@@ -505,7 +506,7 @@ async function resolveFreshScope(
     return scopeAvailabilityFailed();
   }
 
-  const scope = scopeInput ?? { kind: "library" as const };
+  const scope = scopeInput ?? formatMusicScopeHandle({ kind: "library" });
   const resolved = resolveListedScope(scope, availability.value);
 
   if (!resolved.ok) {
@@ -569,7 +570,8 @@ function resolveListedScope(
   scope: LibraryCatalogReadScope;
   listed: ListedLibraryCatalogScope;
 }> {
-  switch (input.kind) {
+  const parsed = parseMusicScopeHandle(input);
+  switch (parsed.kind) {
     case "library":
       return {
         ok: true,
@@ -579,7 +581,7 @@ function resolveListedScope(
         },
       };
     case "source_library": {
-      const sourceLibrary = availability.sourceLibraries.find((scope) => scope.id === input.id);
+      const sourceLibrary = availability.sourceLibraries.find((scope) => scope.id === parsed.id);
       if (sourceLibrary === undefined) {
         return scopeNotFound("Source-library catalog scope id was not found.");
       }
@@ -596,7 +598,7 @@ function resolveListedScope(
       };
     }
     case "relation": {
-      const relation = availability.relations.find((scope) => scope.id === input.id);
+      const relation = availability.relations.find((scope) => scope.id === parsed.id);
       if (relation === undefined) {
         return scopeNotFound("Relation catalog scope id was not found.");
       }
@@ -613,7 +615,7 @@ function resolveListedScope(
       };
     }
     case "collection": {
-      const collection = availability.collections.find((scope) => scope.id === input.id);
+      const collection = availability.collections.find((scope) => scope.id === parsed.id);
       if (collection === undefined) {
         return scopeNotFound("Collection catalog scope id was not found.");
       }
@@ -629,12 +631,15 @@ function resolveListedScope(
         },
       };
     }
+    case "all":
+    case "provider":
+      return scopeNotFound("Catalog scope id was not found.");
   }
 }
 
 function listLibraryScope(): ListedLibraryCatalogScope {
   return {
-    kind: "library",
+    scope: formatMusicScopeHandle({ kind: "library" }),
     description: libraryMusicScopeDescription(),
   };
 }
@@ -643,8 +648,7 @@ function listSourceLibraryScope(
   scope: LibraryCatalogSourceLibraryScopeAvailability,
 ): ListedLibraryCatalogScope {
   return {
-    kind: "source_library",
-    id: scope.id,
+    scope: formatMusicScopeHandle({ kind: "source_library", id: scope.id }),
     description: sourceLibraryMusicScopeDescription({
       ...(scope.providerName === undefined ? {} : { providerName: scope.providerName }),
       relationName: scope.relationName,
@@ -658,8 +662,7 @@ function listRelationScope(
   scope: LibraryCatalogRelationScopeAvailability,
 ): ListedLibraryCatalogScope {
   return {
-    kind: "relation",
-    id: scope.id,
+    scope: formatMusicScopeHandle({ kind: "relation", id: scope.id }),
     description: relationMusicScopeDescription({
       relationName: scope.relationName,
       targetKind: scope.targetKind,
@@ -672,8 +675,7 @@ function listCollectionScope(
   scope: LibraryCatalogCollectionScopeAvailability,
 ): ListedLibraryCatalogScope {
   return {
-    kind: "collection",
-    id: scope.id,
+    scope: formatMusicScopeHandle({ kind: "collection", id: scope.id }),
     description: collectionMusicScopeDescription({
       collectionName: scope.collectionName,
       ...(scope.targetKind === undefined ? {} : { targetKind: scope.targetKind }),
@@ -1102,11 +1104,11 @@ async function membershipSignals(
 ): Promise<readonly LibraryCatalogMembershipSignal[]> {
   const signals: LibraryCatalogMembershipSignal[] = [];
   const scopes: readonly {
-    listed: Exclude<ListedLibraryCatalogScope, { kind: "library" }>;
+    listed: Exclude<ListedLibraryCatalogScope, { scope: "[library]" }>;
     readScope: LibraryCatalogReadScope;
   }[] = [
     ...availability.sourceLibraries.map((scope) => ({
-      listed: listSourceLibraryScope(scope) as Exclude<ListedLibraryCatalogScope, { kind: "library" }>,
+      listed: listSourceLibraryScope(scope) as Exclude<ListedLibraryCatalogScope, { scope: "[library]" }>,
       readScope: {
         kind: "source_library" as const,
         ref: scope.ref,
@@ -1114,7 +1116,7 @@ async function membershipSignals(
       },
     })),
     ...availability.relations.map((scope) => ({
-      listed: listRelationScope(scope) as Exclude<ListedLibraryCatalogScope, { kind: "library" }>,
+      listed: listRelationScope(scope) as Exclude<ListedLibraryCatalogScope, { scope: "[library]" }>,
       readScope: {
         kind: "relation" as const,
         ref: scope.ref,
@@ -1122,7 +1124,7 @@ async function membershipSignals(
       },
     })),
     ...availability.collections.map((scope) => ({
-      listed: listCollectionScope(scope) as Exclude<ListedLibraryCatalogScope, { kind: "library" }>,
+      listed: listCollectionScope(scope) as Exclude<ListedLibraryCatalogScope, { scope: "[library]" }>,
       readScope: {
         kind: "collection" as const,
         ref: scope.ref,
@@ -1157,7 +1159,7 @@ async function publicItems(
 
   for (const record of records) {
     items.push({
-      item: {
+      item: formatMusicItemHandle({
         kind: "material",
         id: await ctx.handleMinting.mint({
           ownerScope: ctx.ownerScope,
@@ -1166,7 +1168,7 @@ async function publicItems(
             materialRef: refKey(record.material.materialRef),
           },
         }),
-      },
+      }),
       description: record.description,
     });
   }

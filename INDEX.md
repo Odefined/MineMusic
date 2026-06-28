@@ -204,6 +204,12 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   turn-start Session Context refresh and harness-visible pi final assistant
   message/status/error/text. Radio, Memory, skill runtime, and Web remain out of
   scope.
+- `docs/formal-rebuild/agent-context-engineering-spec.md`: current Agent
+  Runtime context-engineering authority. It decomposes embedded-agent context
+  into Actor Instruction, Capability Context, Workspace Context, Invocation
+  Context, Continuity Context, and Knowledge / Memory Context, and requires Main
+  and Radio to share the same Workspace Context assembly model instead of
+  maintaining separate workspace-state renderers.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

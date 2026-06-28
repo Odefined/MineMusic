@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { parseRefKey, refKey } from "../contracts/kernel.js";
 import type {
   HandleMintingPort,
-  MusicItemHandle,
+  MusicItemHandleKind,
 } from "../contracts/stage_interface.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 import {
@@ -256,7 +256,7 @@ function candidateAnchorFromInternalAnchor(anchor: unknown): {
   };
 }
 
-function assertHandleKind(handleKind: MusicItemHandle["kind"]): asserts handleKind is "material" {
+function assertHandleKind(handleKind: MusicItemHandleKind): asserts handleKind is "material" {
   if (handleKind !== "material") {
     throw new Error("Only material handles are persisted by the Stage Interface handle registry.");
   }

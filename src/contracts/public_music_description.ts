@@ -7,11 +7,13 @@ import type {
   MusicCard,
   MusicDiscoveryLookupItemDescription,
   MusicItemHandle,
+  MusicItemHandleKind,
   PublicDisplayLink,
   MusicScopeDescription,
   MusicTargetKind,
   PublicHandleDescription,
 } from "./stage_interface.js";
+import { parseMusicItemHandle } from "./stage_interface.js";
 
 export type {
   MusicCard,
@@ -32,8 +34,9 @@ export function labelForMusicTargetKind(kind: MusicTargetKind): string {
   }
 }
 
-export function fallbackMusicItemLabel(handle: Pick<MusicItemHandle, "kind">): string {
-  switch (handle.kind) {
+export function fallbackMusicItemLabel(handle: MusicItemHandle | { kind: MusicItemHandleKind }): string {
+  const kind = typeof handle === "string" ? parseMusicItemHandle(handle).kind : handle.kind;
+  switch (kind) {
     case "material":
       return "Untitled material";
     case "candidate":
@@ -141,7 +144,7 @@ export function libraryImportLibraryKindDescription(kind: PlatformLibraryKind): 
 }
 
 export function musicLookupItemLabel(input: {
-  handle: Pick<MusicItemHandle, "kind">;
+  handle: MusicItemHandle | { kind: MusicItemHandleKind };
   title?: string;
   artistsText?: string;
   album?: string;

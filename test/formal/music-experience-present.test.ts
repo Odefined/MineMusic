@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { refKey, type Ref, type Result } from "../../src/contracts/kernel.js";
 import type { ProviderMaterialCandidate, SourceTrack, } from "../../src/contracts/music_data_platform.js";
 import type { MusicExperienceQueuePlaybackCommand } from "../../src/contracts/music_experience.js";
-import type { MusicExperiencePresentOutput, ToolCallOutput, } from "../../src/contracts/stage_interface.js";
+import type { MusicExperiencePresentOutput, MusicItemHandle, ToolCallOutput, } from "../../src/contracts/stage_interface.js";
+import { parseMusicItemHandle } from "../../src/contracts/stage_interface.js";
 import { createMemoryStageToolAuditPort, createConservativeStageToolExecutionGate, } from "../../src/effect_boundary/index.js";
 import { createCandidateCommitCommand, createMaterialProjection, createMaterialRefFactory, createProviderMaterialCandidateRef, musicDataPlatformIdentitySchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformRetrievalResultSetSchema, type CandidateCommitCommand, type MaterialProjection, } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
@@ -83,18 +84,12 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     }), {
         toolName: musicExperiencePresentDescriptor.name,
         payload: {
-            item: {
-                kind: "candidate",
-                id: "cand_present_candidate",
-            },
+            item: "[candidate:cand_present_candidate]",
         },
     });
     const firstOutput = expectPresentOutput(first);
     assert.deepEqual(firstOutput, {
-        item: {
-            kind: "material",
-            id: "mh_present_candidate_library",
-        },
+        item: "[material:mh_present_candidate_library]",
         card: {
             kind: "recording",
             label: "Present Candidate Song",
@@ -112,7 +107,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     // ADR-0040 guard #2: present output carries the "material" item-handle kind
     // (never the retired "library") and leaks no raw materialRef — the minted
     // handle is the only item reference in the output.
-    assert.equal(firstOutput.item.kind, "material");
+    assert.match(firstOutput.item, /^\[material:[^\]\r\n]+\]$/u);
     assert.equal("materialRef" in firstOutput, false);
     assertSampleOutputHasNoInternalAnchors({
         label: "music.experience.present candidate output",
@@ -125,14 +120,11 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     }), {
         toolName: musicExperiencePresentDescriptor.name,
         payload: {
-            item: {
-                kind: "candidate",
-                id: "cand_present_candidate",
-            },
+            item: "[candidate:cand_present_candidate]",
         },
     });
     const secondOutput = expectPresentOutput(second);
-    assert.equal(secondOutput.item.id, firstOutput.item.id);
+    assert.equal(secondOutput.item, firstOutput.item);
     assert.equal(generatedMaterialRefCount, 1);
     assert.equal(await tableCount(database.context(), "material_records"), 1);
     assert.equal(audit.records.some((record) => record.toolName === "music.experience.present" &&
@@ -190,15 +182,12 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     }), {
         toolName: musicExperiencePresentDescriptor.name,
         payload: {
-            item: {
-                kind: "material",
-                id: publicMaterialId,
-            },
+            item: `[material:${publicMaterialId}]`,
         },
     });
     const output = expectPresentOutput(result);
     assert.equal(commitCalled, false);
-    assert.equal(output.item.id, publicMaterialId);
+    assert.equal(output.item, `[material:${publicMaterialId}]`);
     assert.deepEqual(output.card, {
         kind: "recording",
         label: "Library Present Song",
@@ -293,10 +282,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     }), {
         toolName: musicExperiencePresentDescriptor.name,
         payload: {
-            item: {
-                kind: "material",
-                id: loserHandle,
-            },
+            item: `[material:${loserHandle}]`,
         },
     });
     const output = expectPresentOutput(result);
@@ -305,7 +291,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     const resolved = await handleMinting.resolve({
         ownerScope: "owner-a",
         handleKind: "material",
-        publicId: output.item.id,
+        publicId: parseMusicItemHandle(output.item).id,
     }) as {
         materialRef: string;
     };
@@ -317,10 +303,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
 }
 {
     const result = await dispatchWithPorts({
-        item: {
-            kind: "candidate",
-            id: "missing_candidate",
-        },
+        item: "[candidate:missing_candidate]",
         candidateHandles: candidateHandlesForMissing(),
     });
     expectToolError(result, "candidate_not_found");
@@ -339,10 +322,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
         }));
     });
     const result = await dispatchWithPorts({
-        item: {
-            kind: "candidate",
-            id: "expired_candidate",
-        },
+        item: "[candidate:expired_candidate]",
         candidateHandles: candidateHandlesFor({
             publicId: "expired_candidate",
             materialCandidateRef: candidateRef,
@@ -378,10 +358,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
         },
     });
     const result = await dispatchWithPorts({
-        item: {
-            kind: "material",
-            id: publicMaterialId,
-        },
+        item: `[material:${publicMaterialId}]`,
         handleMinting,
         db: database.context(),
     });
@@ -390,10 +367,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
 }
 {
     const result = await dispatchWithPorts({
-        item: {
-            kind: "candidate",
-            id: "malformed_candidate",
-        },
+        item: "[candidate:malformed_candidate]",
         candidateHandles: {
             async mint() {
                 return "malformed_candidate";
@@ -452,10 +426,7 @@ function createPresentContext(input: {
     });
 }
 async function dispatchWithPorts(input: {
-    item: {
-        kind: "candidate" | "material";
-        id: string;
-    };
+    item: MusicItemHandle;
     candidateHandles?: Parameters<typeof createStageInterfaceHandleMintingPort>[0]["candidateHandles"];
     candidateCommit?: CandidateCommitCommand;
     materialProjection?: MaterialProjection;

@@ -434,10 +434,7 @@ const ownerScope = "local";
     direction: {
       motif: {
         kind: "material",
-        item: {
-          kind: "material",
-          id: "mh_radio_truth_motif",
-        },
+        item: "[material:mh_radio_truth_motif]",
         label: "Read Model Motif",
         artistsText: "Read Artist",
       },
@@ -534,7 +531,7 @@ const ownerScope = "local";
     refKey(queuedRef),
     refKey(postureRef),
   ]]);
-  assert.equal(slice.queue[0]?.item.id, `mh_${queuedRef.id}`);
+  assert.equal(slice.queue[0]?.item, `[material:mh_${queuedRef.id}]`);
   assert.equal(slice.radio.direction.motif?.kind, "material");
   assert.equal(slice.radio.posture.lean[0]?.kind, "material");
 
@@ -614,17 +611,14 @@ const ownerScope = "local";
     refKey(queuedRef),
     refKey(postureRef),
   ]);
-  assert.equal(slice.queue[0]?.item.id, `mh_${queuedRef.id}`);
+  assert.equal(slice.queue[0]?.item, `[material:mh_${queuedRef.id}]`);
   assert.deepEqual(slice.radio.direction, {
     activeVariations: [],
   });
   assert.deepEqual(slice.radio.posture.lean, [
     {
       kind: "material",
-      item: {
-        kind: "material",
-        id: `mh_${queuedRef.id}`,
-      },
+      item: `[material:mh_${queuedRef.id}]`,
       label: "Batch Drop Queue",
       artistsText: "Batch Artist",
     },

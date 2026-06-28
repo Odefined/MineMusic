@@ -34,17 +34,18 @@ const validateRuntimeStatusInput = compiled(stageRuntimeStatusInputSchema);
 assert.equal(validateRuntimeStatusInput({}), true);
 assert.equal(validateRuntimeStatusInput({ unexpected: true }), false);
 const validateScope = compiled(musicScopeSchema);
-assert.equal(validateScope({ kind: "library" }), true);
-assert.equal(validateScope({ kind: "all" }), true);
-assert.equal(validateScope({ kind: "source_library", id: "scope_1" }), true);
-assert.equal(validateScope({ kind: "relation", id: "relation_1" }), true);
-assert.equal(validateScope({ kind: "provider", providerId: "netease" }), true);
-assert.equal(validateScope({ kind: "source_library" }), false);
+assert.equal(validateScope("[library]"), true);
+assert.equal(validateScope("[all]"), true);
+assert.equal(validateScope("[source_library:scope_1]"), true);
+assert.equal(validateScope("[relation:relation_1]"), true);
+assert.equal(validateScope("[collection:collection_1]"), true);
+assert.equal(validateScope("[provider:netease]"), true);
+assert.equal(validateScope("[source_library:]"), false);
 assert.equal(validateScope({ kind: "provider", id: "netease" }), false);
 const validateItemHandle = compiled(musicItemHandleSchema);
-assert.equal(validateItemHandle({ kind: "material", id: "mat_1" }), true);
-assert.equal(validateItemHandle({ kind: "candidate", id: "cand_1" }), true);
-assert.equal(validateItemHandle({ kind: "candidate", id: "" }), false);
+assert.equal(validateItemHandle("[material:mat_1]"), true);
+assert.equal(validateItemHandle("[candidate:cand_1]"), true);
+assert.equal(validateItemHandle("[candidate:]"), false);
 // ADR-0040: the "library" item-handle kind is retired; only "material" and
 // "candidate" are valid MusicItemHandle kinds now.
 assert.equal(validateItemHandle({ kind: "library", id: "pub_1" }), false);
@@ -79,29 +80,17 @@ assert.equal(validateMusicCard({
 }), false);
 const validatePresentInput = compiled(musicExperiencePresentInputSchema);
 assert.equal(validatePresentInput({
-    item: {
-        kind: "candidate",
-        id: "cand_1",
-    },
+    item: "[candidate:cand_1]",
 }), true);
 assert.equal(validatePresentInput({
-    item: {
-        kind: "material",
-        id: "mh_1",
-    },
+    item: "[material:mh_1]",
 }), true);
 assert.equal(validatePresentInput({
-    item: {
-        kind: "candidate",
-        id: "",
-    },
+    item: "[candidate:]",
 }), false);
 const validatePresentOutput = compiled(musicExperiencePresentOutputSchema);
 assert.equal(validatePresentOutput({
-    item: {
-        kind: "material",
-        id: "mh_1",
-    },
+    item: "[material:mh_1]",
     card: {
         kind: "artist",
         label: "Artist",
@@ -112,10 +101,7 @@ assert.equal(validatePresentOutput({
 // P2 #2: empty output library id must be rejected — the present output item is a
 // library MusicItemHandle and must keep non-empty parity with the input handle.
 assert.equal(validatePresentOutput({
-    item: {
-        kind: "material",
-        id: "",
-    },
+    item: "[material:]",
     card: {
         kind: "artist",
         label: "Artist",
@@ -124,10 +110,7 @@ assert.equal(validatePresentOutput({
     },
 }), false);
 assert.equal(validatePresentOutput({
-    item: {
-        kind: "candidate",
-        id: "cand_1",
-    },
+    item: "[candidate:cand_1]",
     card: {
         kind: "artist",
         label: "Artist",
@@ -141,8 +124,8 @@ assert.equal(validateLookupInput({
     lookupText: "whoo",
     targetKind: "recording",
     scopes: [
-        { kind: "library" },
-        { kind: "provider", providerId: "netease" },
+        "[library]",
+        "[provider:netease]",
     ],
     limit: 5,
 }), true);
@@ -166,10 +149,7 @@ assert.throws(() => assertSampleOutputHasNoInternalAnchors({
 assert.throws(() => assertSampleOutputHasNoInternalAnchors({
     label: "candidate-ref-value",
     output: {
-        handle: {
-            kind: "candidate",
-            id: "material_candidate:provider_candidate:c_internal",
-        },
+        handle: "[candidate:material_candidate:provider_candidate:c_internal]",
     },
 }));
 assert.throws(() => assertSampleOutputHasNoInternalAnchors({
@@ -229,10 +209,7 @@ assert.doesNotThrow(() => assertSampleOutputHasNoInternalAnchors({
 assert.doesNotThrow(() => assertSampleOutputHasNoInternalAnchors({
     label: "music-card",
     output: {
-        item: {
-            kind: "material",
-            id: "mh_public",
-        },
+        item: "[material:mh_public]",
         card: {
             kind: "recording",
             label: "whoo",

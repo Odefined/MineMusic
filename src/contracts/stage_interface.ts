@@ -116,12 +116,12 @@ export type StageToolContext = {
 export type HandleMintingPort = {
   mint(input: {
     ownerScope: string;
-    handleKind: MusicItemHandle["kind"];
+    handleKind: MusicItemHandleKind;
     internalAnchor: unknown;
   }): Promise<string>;
   resolve(input: {
     ownerScope: string;
-    handleKind: MusicItemHandle["kind"];
+    handleKind: MusicItemHandleKind;
     publicId: string;
   }): Promise<unknown | undefined>;
 };
@@ -248,47 +248,87 @@ export type NonEmptyMusicTargetKinds = readonly [
   ...MusicTargetKind[],
 ];
 
-export type MusicAbstractScopeHandle =
-  | {
-    /** "all": the whole currently available surface (library plus connected providers, where supported). */
-    kind: "all";
-  }
-  | {
-    /** "library": the owner-visible MineMusic library baseline. */
-    kind: "library";
-  };
-
+export type MusicAbstractScopeHandle = "[all]" | "[library]";
 export type MusicLibraryScopeHandle =
-  | {
-    /** "source_library": a durable imported source-library subscope (opaque id from list_scopes). */
-    kind: "source_library";
-    /** Opaque scope id from list_scopes; pass it back unchanged. */
-    id: string;
-  }
-  | {
-    /** "relation": a durable positive owner-relation set such as saved or favorite. */
-    kind: "relation";
-    /** Opaque scope id from list_scopes; pass it back unchanged. */
-    id: string;
-  }
-  | {
-    /** "collection": a durable user-named Collection scope (opaque id from list_scopes). */
-    kind: "collection";
-    /** Opaque scope id from list_scopes; pass it back unchanged. */
-    id: string;
-  };
-
-export type MusicProviderScopeHandle = {
-  /** "provider": a connected searchable provider used as a scope. */
-  kind: "provider";
-  /** Public provider id from list_scopes (do not invent one from natural language). */
-  providerId: string;
-};
-
+  | `[source_library:${string}]`
+  | `[relation:${string}]`
+  | `[collection:${string}]`;
+export type MusicProviderScopeHandle = `[provider:${string}]`;
 export type MusicScope =
   | MusicAbstractScopeHandle
   | MusicLibraryScopeHandle
   | MusicProviderScopeHandle;
+
+export type ParsedMusicScope =
+  | { kind: "all" }
+  | { kind: "library" }
+  | { kind: "source_library"; id: string }
+  | { kind: "relation"; id: string }
+  | { kind: "collection"; id: string }
+  | { kind: "provider"; providerId: string };
+
+const MUSIC_SCOPE_HANDLE_PATTERN = /^\[(all|library|source_library|relation|collection|provider)(?::([^\]\r\n]+))?\]$/u;
+
+export function formatMusicScopeHandle(input: { kind: "all" }): "[all]";
+export function formatMusicScopeHandle(input: { kind: "library" }): "[library]";
+export function formatMusicScopeHandle(input: { kind: "source_library"; id: string }): `[source_library:${string}]`;
+export function formatMusicScopeHandle(input: { kind: "relation"; id: string }): `[relation:${string}]`;
+export function formatMusicScopeHandle(input: { kind: "collection"; id: string }): `[collection:${string}]`;
+export function formatMusicScopeHandle(input: { kind: "provider"; providerId: string }): `[provider:${string}]`;
+export function formatMusicScopeHandle(input: ParsedMusicScope): MusicScope;
+export function formatMusicScopeHandle(input: ParsedMusicScope): MusicScope {
+  switch (input.kind) {
+    case "all":
+    case "library":
+      return `[${input.kind}]` as MusicScope;
+    case "provider":
+      assertBracketHandleId("MusicScope providerId", input.providerId);
+      return `[provider:${input.providerId}]`;
+    case "source_library":
+    case "relation":
+    case "collection":
+      assertBracketHandleId("MusicScope id", input.id);
+      return `[${input.kind}:${input.id}]` as MusicScope;
+  }
+}
+
+export function parseMusicScopeHandle(handle: "[all]"): { kind: "all" };
+export function parseMusicScopeHandle(handle: "[library]"): { kind: "library" };
+export function parseMusicScopeHandle(handle: `[source_library:${string}]`): { kind: "source_library"; id: string };
+export function parseMusicScopeHandle(handle: `[relation:${string}]`): { kind: "relation"; id: string };
+export function parseMusicScopeHandle(handle: `[collection:${string}]`): { kind: "collection"; id: string };
+export function parseMusicScopeHandle(handle: `[provider:${string}]`): { kind: "provider"; providerId: string };
+export function parseMusicScopeHandle(handle: MusicScope): ParsedMusicScope;
+export function parseMusicScopeHandle(handle: MusicScope): ParsedMusicScope {
+  const parsed = tryParseMusicScopeHandle(handle);
+  if (parsed === undefined) {
+    throw new Error(`Invalid MusicScope handle: ${handle}`);
+  }
+  return parsed;
+}
+
+export function tryParseMusicScopeHandle(value: unknown): ParsedMusicScope | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const match = MUSIC_SCOPE_HANDLE_PATTERN.exec(value);
+  if (match === null) {
+    return undefined;
+  }
+  const kind = match[1] as ParsedMusicScope["kind"];
+  const id = match[2];
+  switch (kind) {
+    case "all":
+    case "library":
+      return id === undefined ? { kind } : undefined;
+    case "provider":
+      return id === undefined ? undefined : { kind, providerId: id };
+    case "source_library":
+    case "relation":
+    case "collection":
+      return id === undefined ? undefined : { kind, id };
+  }
+}
 
 export type MusicScopeDescription = PublicHandleDescription & {
   targetKind?: MusicTargetKind;
@@ -302,9 +342,9 @@ export type ListedMusicScopeKind =
   | "provider";
 
 export type ListedMusicScope =
-  | ({ kind: "library"; description: MusicScopeDescription })
-  | (MusicLibraryScopeHandle & { description: MusicScopeDescription })
-  | (MusicProviderScopeHandle & {
+  | ({ scope: "[library]"; description: MusicScopeDescription })
+  | ({ scope: MusicLibraryScopeHandle; description: MusicScopeDescription })
+  | ({ scope: MusicProviderScopeHandle } & {
     description: MusicScopeDescription;
     targetKinds: NonEmptyMusicTargetKinds;
   });
@@ -325,16 +365,16 @@ export type LibraryCatalogScopeKind =
   | "collection";
 
 export type LibraryCatalogScope =
-  | { kind: "library" }
-  | Extract<MusicLibraryScopeHandle, { kind: "source_library" }>
-  | Extract<MusicLibraryScopeHandle, { kind: "relation" }>
-  | Extract<MusicLibraryScopeHandle, { kind: "collection" }>;
+  | "[library]"
+  | `[source_library:${string}]`
+  | `[relation:${string}]`
+  | `[collection:${string}]`;
 
 export type ListedLibraryCatalogScope =
-  | ({ kind: "library"; description: MusicScopeDescription })
-  | (Extract<MusicLibraryScopeHandle, { kind: "source_library" }> & { description: MusicScopeDescription })
-  | (Extract<MusicLibraryScopeHandle, { kind: "relation" }> & { description: MusicScopeDescription })
-  | (Extract<MusicLibraryScopeHandle, { kind: "collection" }> & { description: MusicScopeDescription });
+  | ({ scope: "[library]"; description: MusicScopeDescription })
+  | ({ scope: `[source_library:${string}]`; description: MusicScopeDescription })
+  | ({ scope: `[relation:${string}]`; description: MusicScopeDescription })
+  | ({ scope: `[collection:${string}]`; description: MusicScopeDescription });
 
 export type LibraryCatalogListScopesInput = {
   /** Optional filter: return only catalog-usable scopes of this kind. Omit for all catalog scopes. */
@@ -345,10 +385,10 @@ export type LibraryCatalogListScopesOutput = {
   scopes: readonly ListedLibraryCatalogScope[];
 };
 
-export type LibraryCatalogScopeInput = LibraryCatalogScope | ListedLibraryCatalogScope;
+export type LibraryCatalogScopeInput = LibraryCatalogScope;
 
 export type LibraryCatalogItem = {
-  item: Extract<MusicItemHandle, { kind: "material" }>;
+  item: MaterialMusicItemHandle;
   description: PublicHandleDescription;
 };
 
@@ -418,7 +458,7 @@ export type LibraryCatalogConcentrationSignal = {
 };
 
 export type LibraryCatalogMembershipSignal = {
-  scope: Exclude<ListedLibraryCatalogScope, { kind: "library" }>;
+  scope: Exclude<ListedLibraryCatalogScope, { scope: "[library]" }>;
   count: number;
   examples: readonly LibraryCatalogItem[];
 };
@@ -512,8 +552,8 @@ export type LibraryImportStatusOutput = {
 };
 
 export type LibraryRelationItemInput = {
-  /** The durable material item whose relation state to read or edit. Candidate handles are rejected. */
-  item: Extract<MusicItemHandle, { kind: "material" }>;
+  /** The durable material item whose relation state to read or edit, as a bracket handle like "[material:mh_...]". Candidate handles are rejected. */
+  item: MaterialMusicItemHandle;
 };
 
 export type LibraryRelationState = {
@@ -528,11 +568,11 @@ export type LibraryRelationStateOutput = {
 };
 
 // library.collection.* — a Collection is addressed by its catalog scope handle
-// ({ kind:"collection", id } from library.catalog.list_scopes). Item-targeting
-// tools (add/remove/move) take a library item handle. State output veils
+// ([collection:...] from library.catalog.list_scopes). Item-targeting tools
+// (add/remove/move) take [material:...] item handles. State output veils
 // collectionRef/materialRef/position (D9): the scope handle is opaque, items
-// carry minted library handles, and order is conveyed by list position.
-export type LibraryCollectionScopeHandle = Extract<MusicLibraryScopeHandle, { kind: "collection" }>;
+// carry minted [material:...] handles, and order is conveyed by list position.
+export type LibraryCollectionScopeHandle = `[collection:${string}]`;
 
 export type LibraryCollectionCreateInput = {
   collectionKind: LibraryCollectionKind;
@@ -550,12 +590,12 @@ export type LibraryCollectionRenameInput = {
 
 export type LibraryCollectionItemInput = {
   collection: LibraryCollectionScopeHandle;
-  item: Extract<MusicItemHandle, { kind: "material" }>;
+  item: MaterialMusicItemHandle;
 };
 
 export type LibraryCollectionMoveInput = {
   collection: LibraryCollectionScopeHandle;
-  item: Extract<MusicItemHandle, { kind: "material" }>;
+  item: MaterialMusicItemHandle;
   /** 1-based target position; the writer rebalances to consecutive integers (D4). */
   toPosition: number;
 };
@@ -565,7 +605,7 @@ export type LibraryCollectionDeleteInput = {
 };
 
 export type LibraryCollectionStateItem = {
-  item: Extract<MusicItemHandle, { kind: "material" }>;
+  item: MaterialMusicItemHandle;
 };
 
 export type LibraryCollectionState = {
@@ -600,19 +640,62 @@ export type MusicDiscoveryLookupInput =
     limit?: number;
   };
 
-export type MusicItemHandle =
-  | {
-    /** "material": a durable MineMusic material reference. Stable indefinitely. */
-    kind: "material";
-    /** Opaque handle id returned by a prior tool; pass it back unchanged. */
-    id: string;
+export type MusicItemHandleKind = "material" | "candidate";
+
+/** Bracket handle passed by agents unchanged, e.g. "[material:mh_...]" or "[candidate:...]" */
+export type MaterialMusicItemHandle = `[material:${string}]`;
+export type CandidateMusicItemHandle = `[candidate:${string}]`;
+export type MusicItemHandle = MaterialMusicItemHandle | CandidateMusicItemHandle;
+
+export type ParsedMusicItemHandle = {
+  kind: MusicItemHandleKind;
+  id: string;
+};
+
+const MUSIC_ITEM_HANDLE_PATTERN = /^\[(material|candidate):([^\]\r\n]+)\]$/u;
+
+export function formatMusicItemHandle(input: { kind: "material"; id: string }): MaterialMusicItemHandle;
+export function formatMusicItemHandle(input: { kind: "candidate"; id: string }): CandidateMusicItemHandle;
+export function formatMusicItemHandle(input: ParsedMusicItemHandle): MusicItemHandle;
+export function formatMusicItemHandle(input: ParsedMusicItemHandle): MusicItemHandle {
+  assertMusicItemHandleId(input.id);
+  return `[${input.kind}:${input.id}]` as MusicItemHandle;
+}
+
+export function parseMusicItemHandle(handle: MaterialMusicItemHandle): { kind: "material"; id: string };
+export function parseMusicItemHandle(handle: CandidateMusicItemHandle): { kind: "candidate"; id: string };
+export function parseMusicItemHandle(handle: MusicItemHandle): ParsedMusicItemHandle;
+export function parseMusicItemHandle(handle: MusicItemHandle): ParsedMusicItemHandle {
+  const parsed = tryParseMusicItemHandle(handle);
+  if (parsed === undefined) {
+    throw new Error(`Invalid MusicItemHandle: ${handle}`);
   }
-  | {
-    /** "candidate": an unconfirmed provider item not yet committed to a durable material. */
-    kind: "candidate";
-    /** Opaque handle id returned by a prior tool; pass it back unchanged. */
-    id: string;
+  return parsed;
+}
+
+export function tryParseMusicItemHandle(value: unknown): ParsedMusicItemHandle | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const match = MUSIC_ITEM_HANDLE_PATTERN.exec(value);
+  if (match === null) {
+    return undefined;
+  }
+  return {
+    kind: match[1] as MusicItemHandleKind,
+    id: match[2]!,
   };
+}
+
+function assertMusicItemHandleId(id: string): void {
+  assertBracketHandleId("MusicItemHandle id", id);
+}
+
+function assertBracketHandleId(label: string, id: string): void {
+  if (id.length === 0 || id.includes("]") || id.includes("\r") || id.includes("\n")) {
+    throw new Error(`${label} must be non-empty and must not contain ']', CR, or LF.`);
+  }
+}
 
 export type MusicExperiencePresentInput = {
   /** The music item to present. A "candidate" handle is committed to a durable material first. */
@@ -620,7 +703,7 @@ export type MusicExperiencePresentInput = {
 };
 
 export type MusicExperiencePresentOutput = {
-  item: Extract<MusicItemHandle, { kind: "material" }>;
+  item: MaterialMusicItemHandle;
   card: MusicCard;
 };
 
@@ -630,7 +713,7 @@ export type MusicExperienceQueueAppendInput = {
 };
 
 export type MusicExperienceQueueAppendOutputItem = {
-  item: Extract<MusicItemHandle, { kind: "material" }>;
+  item: MaterialMusicItemHandle;
   position: number;
 };
 
@@ -648,7 +731,7 @@ export type MusicExperiencePlaybackPlayInput = {
 };
 
 export type MusicExperiencePlaybackPlayOutput = {
-  item: Extract<MusicItemHandle, { kind: "material" }>;
+  item: MaterialMusicItemHandle;
   status: Extract<MusicExperiencePlaybackStatus, "playing">;
   playbackRevision: ConcernRevision;
 };

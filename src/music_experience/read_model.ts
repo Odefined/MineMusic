@@ -1,5 +1,6 @@
 import { refKey, type Ref } from "../contracts/kernel.js";
 import type {
+  WorkbenchMaterialMusicItemHandle,
   WorkbenchRadioDirection,
   WorkbenchRadioDirectionValue,
   WorkbenchRadioPosture,
@@ -60,10 +61,7 @@ export function createMusicExperienceReadModel(
         });
         const summary = musicItemSummaryFromMaterial(material);
         summaries.set(refKey(materialRef), {
-          item: {
-            kind: "material",
-            id: publicId,
-          },
+          item: formatWorkbenchMaterialHandle(publicId),
           label: summary.label,
           ...(summary.artistsText === undefined ? {} : { artistsText: summary.artistsText }),
         });
@@ -89,6 +87,13 @@ export function createMusicExperienceReadModel(
       };
     },
   };
+}
+
+function formatWorkbenchMaterialHandle(publicId: string): WorkbenchMaterialMusicItemHandle {
+  if (publicId.length === 0 || publicId.includes("]") || publicId.includes("\r") || publicId.includes("\n")) {
+    throw new Error("Workbench material handle public id must be non-empty and must not contain ']', CR, or LF.");
+  }
+  return `[material:${publicId}]`;
 }
 
 async function projectMaterialsForRead(

@@ -371,9 +371,9 @@ subset.
 
 The veil is split by concern, not held in one place:
 
-- The **cross-cutting identity veil** — minting a public `MusicItemHandle.id`
-  from an internal anchor (materialRef / materialCandidateRef) and resolving it
-  back — is owned and implemented by **Stage Interface** through a stateful
+- The **cross-cutting identity veil** — minting a public bracket
+  `MusicItemHandle` from an internal anchor (materialRef / materialCandidateRef)
+  and resolving it back — is owned and implemented by **Stage Interface** through a stateful
   `HandleMintingPort` (declared at the contract layer, implemented by Stage
   Interface, consumed by contributing tool handlers, wired by the composition
   root). Stage Interface is therefore the genuine owner of the private
@@ -392,11 +392,11 @@ minting with label synthesis: that would couple every caller through both and
 conflate cross-cutting identity with per-tool display formatting. See ADR-0019
 for the rejected `PresentationPort` alternative and the rationale.
 
-Handle id scheme (ADR-0019): `library` handle ids are **registry-minted short
-opaque ids** backed by a durable, **owner-bound** store
+Handle id scheme (ADR-0019): `[material:...]` handle ids are **registry-minted
+short opaque ids** backed by a durable, **owner-bound** store
 (`opaque_id -> { ownerScope, internalAnchor, ... }`; a handle minted for owner A
 cannot resolve for owner B) so that future
-detail / save / commit tools can resolve a stable library handle back to its
+detail / save / commit tools can resolve a stable material handle back to its
 material. `candidate` handle ids continue to resolve through the existing runtime
 candidate cache. **Authenticated encoding of the ref into the id is rejected**:
 the agent treats every id as opaque and passes it back undecoded, so encoding the
@@ -682,7 +682,7 @@ Music Discovery proves the skeleton carries a concrete tool cleanly (ADR-0012):
   reaches Extension through `ProviderAvailabilityPort`.
 - `music.discovery.lookup`, `ownerArea: "music_intelligence"`:
   - `description`: find or identify music candidates from music lookup text without writing user state.
-  - `usage`: use for active lookup-text-driven library/source-library/relation/provider retrieval from title, artist, album, or known-alias text chosen by the agent while doing music tasks; do not ask the user to choose internal search pools; do not use for mood/semantic recommendation prompts, browsing/listing a scope without lookup text, save/play/favorite/import/final recommendation; outputs public handles whose `library` items are durable and whose `candidate` items are unconfirmed, read-only, and TTL-bound.
+  - `usage`: use for active lookup-text-driven library/source-library/relation/provider retrieval from title, artist, album, or known-alias text chosen by the agent while doing music tasks; do not ask the user to choose internal search pools; do not use for mood/semantic recommendation prompts, browsing/listing a scope without lookup text, save/play/favorite/import/final recommendation; outputs public handles whose `[material:...]` items are durable and whose `[candidate:...]` items are unconfirmed, read-only, and TTL-bound.
   - `examples` (structured `{ prompt, expects, note? }`, min 1 `call` + 1 `avoid`):
     - `{ expects: "call", prompt: "find recordings named whoo in my library" }`
     - `{ expects: "call", prompt: "look up provider candidates for this track title" }`
@@ -691,7 +691,7 @@ Music Discovery proves the skeleton carries a concrete tool cleanly (ADR-0012):
     - `{ expects: "avoid", prompt: "play this now", note: "playback tool not yet shipped" }`
     - `{ expects: "avoid", prompt: "import my provider library", note: "library import tool not yet shipped" }`
   - `inputSchema`: `MusicDiscoveryLookupInput` (`{ lookupText, targetKind?, scopes?, limit? } | { cursor, limit? }`).
-  - `outputSchema`: `MusicDiscoveryLookupOutput` (`{ items: MusicDiscoveryLookupItem[], nextCursor? }`) (veiled). Handle-kind discrimination (`library` | `candidate`) subsumes the research-doc `resultSemantics` dimension for discovery outputs: `candidate` carries "not yet saved", `library` carries "durable". Discovery never returns a "saved"/"playable" semantic, because it does not save or play, so a separate `resultSemantics` field is intentionally folded into handle kinds rather than dropped.
+  - `outputSchema`: `MusicDiscoveryLookupOutput` (`{ items: MusicDiscoveryLookupItem[], nextCursor? }`) (veiled). Handle-kind discrimination (`material` | `candidate`) subsumes the research-doc `resultSemantics` dimension for discovery outputs: `candidate` carries "not yet saved", `material` carries "durable". Discovery never returns a "saved"/"playable" semantic, because it does not save or play, so a separate `resultSemantics` field is intentionally folded into handle kinds rather than dropped.
   - `sideEffect`: `{ durableUserStateWrite: false, runtimeStateWrite: true, externalCall: true }`. `externalCall` is a static registration-time CAPABILITY: the tool CAN make external provider calls when a provider scope is requested. Whether a given invocation actually calls a provider depends on the input scope set, but the declared axis reflects capability (conservative gating + consent), not a per-call actual.
   - `invocationPolicy`: `{ defaultDecision: "auto", dataEgress: "provider_account", readOnlyHint: true, destructiveHint: false }`. The tool can be auto-invoked because it does not write durable user state; the provider-account egress signal remains visible to Effect Boundary and agent guidance.
   - `errors` (declared public vocabulary; all recoverable unless noted):
@@ -751,17 +751,15 @@ type MusicScope =
   | MusicProviderScopeHandle;
 
 type MusicAbstractScopeHandle =
-  | { kind: "all" }
-  | { kind: "library" };
+  | "[all]"
+  | "[library]";
 
 type MusicLibraryScopeHandle =
-  | { kind: "source_library"; id: string }
-  | { kind: "relation"; id: string };
+  | `[source_library:${string}]`
+  | `[relation:${string}]`
+  | `[collection:${string}]`;
 
-type MusicProviderScopeHandle = {
-  kind: "provider";
-  providerId: string;
-};
+type MusicProviderScopeHandle = `[provider:${string}]`;
 
 type MusicTargetKind = "recording" | "album" | "artist";
 
@@ -780,12 +778,14 @@ type ListedMusicScopeKind =
   | "library"
   | "source_library"
   | "relation"
+  | "collection"
   | "provider";
 
 type ListedMusicScope =
-  | ({ kind: "library"; description: MusicScopeDescription })
-  | (MusicLibraryScopeHandle & { description: MusicScopeDescription })
-  | (MusicProviderScopeHandle & {
+  | ({ scope: "[library]"; description: MusicScopeDescription })
+  | ({ scope: MusicLibraryScopeHandle; description: MusicScopeDescription })
+  | ({
+      scope: MusicProviderScopeHandle;
       description: MusicScopeDescription;
       targetKinds: NonEmptyMusicTargetKinds;
     });
@@ -812,8 +812,8 @@ type MusicDiscoveryLookupOutput = {
 };
 
 type MusicItemHandle =
-  | { kind: "library"; id: string }
-  | { kind: "candidate"; id: string };
+  | `[material:${string}]`
+  | `[candidate:${string}]`;
 
 type MusicDiscoveryLookupItemDescription = {
   label: string;
@@ -829,12 +829,13 @@ type MusicDiscoveryLookupItem = {
 };
 ```
 
-`ListedMusicScope` is the listed output shape for a `MusicScope`: it pairs the
-scope handle with a required tool-specific public `description` payload, and
+`ListedMusicScope` is the listed output shape for a `MusicScope`: it pairs
+`scope: "[...]"` with a required tool-specific public `description` payload, and
 provider listed scopes also include a top-level `targetKinds` (plural, because a
-provider is multi-kind). The reusable identity value is still `MusicScope`, but
-scoped tools may accept a `ListedMusicScope` object returned by
-`music.discovery.list_scopes` and normalize it by ignoring description metadata.
+provider is multi-kind). The reusable identity value is the bracket `scope`
+string. Scoped tools may accept a `ListedMusicScope` object returned by
+`music.discovery.list_scopes` by reading its `scope` value and ignoring
+description metadata.
 For listed scopes, `description.label` is a **composite** naming the scope's
 source + relation-name + target-kind so the agent can identify and distinguish
 scopes without parsing the opaque id; `description.targetKind` (singular) is the
@@ -896,16 +897,16 @@ Lookup scope semantics:
 - expired, forged, or unknown cursors are recoverable query errors; the agent
   must start a fresh first-page lookup instead of treating them as empty pages
   or relying on automatic replay;
-- missing `scopes` defaults to `[{ kind: "library" }]`;
+- missing `scopes` defaults to `["[library]"]`;
 - missing `targetKind` defaults to `recording`;
 - explicit `scopes: []` is invalid and is not treated as the default;
-- `{ kind: "library" }` searches the owner-visible MineMusic library baseline;
+- `[library]` searches the owner-visible MineMusic library baseline;
 - `source_library` and `relation` handles search durable library subscopes;
 - unknown, forged, or currently unavailable `source_library` / `relation`
   handles in lookup scopes are recoverable query errors; the agent should call
   `music.discovery.list_scopes` to obtain current public library scope handles
   before retrying;
-- `{ kind: "provider" }` searches that connected provider and may return
+- `[provider:<provider-id>]` searches that connected provider and may return
   unconfirmed candidate handles backed by runtime cache;
 - unknown or currently unavailable public `providerId` values in lookup scopes are
   recoverable query errors; the agent should call
@@ -916,7 +917,7 @@ Lookup scope semantics:
   downgrades;
 - top-level `limit` is the returned page size; public provider scopes do not
   expose per-provider recall budgets;
-- `{ kind: "all" }` is accepted by `music.discovery.lookup` and expands to the
+- `[all]` is accepted by `music.discovery.lookup` and expands to the
   MineMusic library baseline plus all connected searchable providers at call
   start (source-library / relation subscopes are inside the library baseline and
   are not listed separately as `all` constituents);
@@ -939,8 +940,8 @@ Lookup scope semantics:
   (`library`, `source_library`, `relation`, and currently connected searchable
   `provider` scopes), but not unavailable providers or the aggregate `all`
   shortcut;
-- `{ kind: "library" }` is an explicit selectable Music Scope returned by
-  `music.discovery.list_scopes`; `{ kind: "all" }` is not listed because it is an
+- `[library]` is an explicit selectable Music Scope returned by
+  `music.discovery.list_scopes`; `[all]` is not listed because it is an
   aggregate shortcut, not a selectable scope descriptor;
 - `music.discovery.list_scopes` returns all explicit selectable scopes in one
   response in v1; it has no `limit` or cursor;
@@ -948,8 +949,8 @@ Lookup scope semantics:
   listed scope kind (`library`, `source_library`, `relation`, or `provider`);
   omitted `kind` returns all explicit selectable scopes, and `all` is not a
   valid list kind because it is only a lookup shortcut. The field is named
-  `kind` because it filters `ListedMusicScope.kind`; it is not a separate
-  `family` concept;
+  `kind` because it filters the bracket handle kind inside each listed
+  `scope`; it is not a separate `family` concept;
 - if a valid `kind` filter has no currently selectable scopes, including
   `kind: "provider"` with no connected searchable providers, `list_scopes`
   returns `{ scopes: [] }` without a warning or error;
@@ -989,19 +990,19 @@ Lookup scope semantics:
   description does not appear in public schema and is not passed back by the
   agent. Lookup item descriptions do not include `detailText`; they expose
   structured music fields instead of a second natural-language summary;
-  `MusicItemHandle.id` is an opaque public id scoped by handle `kind`;
-  `library` ids are not `materialRef` values, and `candidate` ids are not
+  `MusicItemHandle` is a bracket string whose id segment is opaque and scoped by
+  handle kind; `material` ids are not `materialRef` values, and `candidate` ids are not
   `materialCandidateRef`, provider entity ids, provider item ids, or raw
   database keys;
   provider-sourced rows that currently resolve to a durable MineMusic material
-  are returned as `library` handles; `candidate` is reserved for unresolved
+  are returned as `material` handles; `candidate` is reserved for unresolved
   provider candidates backed by runtime cache;
   `description.label` is synthesized by the contributing tool handler (using pure label-synthesis helpers in `contracts/public_music_description.ts`) under the Stage Interface veil contract, from
   available public display fields, preferring `title` with `artistsText`, then
   `title`, then a readable combination of `artistsText`, `album`, and
   `versionText`. If all public display fields are empty, lookup still returns
   the item with a kind-aware, non-identifying generic label: "Untitled library
-  item" for `library` handles and "Untitled candidate" for `candidate` handles.
+  item" for `material` handles and "Untitled candidate" for `candidate` handles.
   It must not use handle ids, internal refs, provider raw ids, or database keys
   as fallback label text;
   `description.title`, `description.artistsText`, `description.album`, and
@@ -1011,7 +1012,7 @@ Lookup scope semantics:
   kept in lookup output to support agent replies and disambiguation, such as
   same-title recordings with different albums or versions; they remain
   description metadata, not identity;
-  items do not duplicate `handle.kind` as `resultKind` and do not expose matched
+  items do not duplicate the bracket handle kind as `resultKind` and do not expose matched
   text, rank scores, internal pool refs, provider raw ids, or result-set ids;
 - `MusicDiscoveryLookupItem` is a lookup output DTO, not the reusable music item
   model. Future list/detail tools may define their own output DTOs, but they
@@ -1103,11 +1104,11 @@ the stored query replay payload.
 - Retrieval display fields routing through Material Projection: `CONTEXT.md` makes Material Projection the canonical `MaterialRecord` -> display mapping (and lists Stage Interface as a consumer), but it is not yet implemented and retrieval currently reads projection-table columns directly. The handle description is decoupled from this (it consumes `RetrievalQueryHit.display`), but retrieval's display-field population should eventually route through Material Projection to honor the canonical mapping.
 - source_library scope label collision: `SourceLibraryRecord` has no stored display name, so `source_library` scope labels are synthesized from provider name + library kind. Two source libraries of the same provider and same kind (for example multiple accounts) collide on label; the opaque handle `id` still disambiguates. Acceptable in v1 (one owner / one provider / one kind); revisit when provider account instances land (add a public name to `SourceLibraryRecord` if needed).
 - Candidate Commit input shape: the future Music Data Platform command consumes
-  a MusicItemHandle (kind `candidate`); the veil resolves it back to the
+  a `[candidate:...]` MusicItemHandle; the veil resolves it back to the
   internal `materialCandidateRef`/runtime cache (Phase 15) at commit time, inside
   MineMusic, never exposing the ref to the agent (ADR-0011).
   On success, the future commit/import-style agent-facing tool returns a
-  `MusicItemHandle` of kind `library`; the original candidate handle remains a
+  `[material:...]` MusicItemHandle; the original candidate handle remains a
   candidate reference and is not upgraded into a library alias.
 
 ## References
