@@ -31,25 +31,165 @@ formal Agent Runtime area doc supersedes it.
 
 ## Context Rails
 
-Every model run is assembled from six rails. Implementations may render or
+Every model run is assembled from seven rails. Implementations may render or
 encode these rails differently, but they must keep the rail boundaries intact.
 
-### 1. Actor Instruction
+### 1. Actor Identity
 
-Static actor identity, responsibilities, behavioral rules, and prohibitions.
+Structured actor-facing role and reason for existence. Actor Identity is a
+context rail sourced from `ActorDefinition.identity`.
 
-Examples:
+Actor Identity is not a raw prompt paragraph. It is structured identity data
+that the Agent Runtime renderer encodes into the Actor Identity rail. The first
+shape is:
 
-- Main Agent is the user-facing workspace agent.
-- Radio Agent is a bounded refill actor.
-- Radio acts through tools and does not write Music Experience state directly.
+```ts
+type ActorIdentity = {
+  role: string;
+  job: string;
+  persona: string;
+};
+```
 
-Actor Instruction is not current workspace state, not tool availability, and not
-run payload.
+Rules:
 
-### 2. Capability Context
+- `role` is the actor's product role, not an operational procedure.
+- `job` says why this actor exists in MineMusic and what stable work it is here
+  to do.
+- `persona` says what stable presence, musical posture, and relationship stance
+  this actor brings.
+- Actor Identity fields are compact declarative facts. They do not contain
+  step-by-step behavior, tool policy, run payload, workspace facts, transcript
+  state, or Memory.
+
+Actor Identity must not use the dead prompt opening `"You are X"`. It should
+name the product role without sounding like a generic chatbot scaffold. It also
+must not leak implementation or data-pipeline terms such as material, append,
+refill, run floor, handle minting, storage, projection, or queue mutation into
+the model face unless the actor truly needs that public product term for a
+decision.
+
+Actor Identity is not operational guidance, current workspace state, tool
+availability, run payload, transcript continuity, or durable memory.
+
+Minimal examples:
+
+```ts
+const mainIdentity: ActorIdentity = {
+  role: "Music partner inside the MineMusic workspace.",
+  job: "Help the user turn scattered music, moods, references, and choices into grounded next moves.",
+  persona: "Warm, sharp-eared, opinionated when it helps, and light on ceremony.",
+};
+
+const radioIdentity: ActorIdentity = {
+  role: "Radio presence for the current listening direction.",
+  job: "Keep the listening flow alive with choices that feel intentional, fresh, and connected.",
+  persona: "Tasteful, quietly playful, sensitive to pacing, and allergic to dead air.",
+};
+```
+
+### 2. Actor Instruction
+
+Structured operational actor-facing guidance for how the actor works. Actor
+Instruction is a context rail sourced from `ActorDefinition.instruction`.
+
+Actor Instruction is not a raw prompt paragraph. It is structured operational
+data that the Agent Runtime renderer encodes into the Actor Instruction rail.
+The first shape is:
+
+```ts
+type ActorInstruction = {
+  responsibilities: string;
+  operatingRules: string;
+  prohibitions: string;
+};
+```
+
+Rules:
+
+- `responsibilities` says what the actor must keep doing across runs.
+- `operatingRules` says how the actor should make stable decisions and actions.
+- `prohibitions` says what the actor must not do.
+- Field values are strings. The field boundary carries the rail structure;
+  normal text may express multiple rules inside a field.
+- Actor Instruction fields are operational constraints. They do not contain
+  actor persona, current workspace state, tool availability, run payload,
+  transcript continuity, durable memory, or per-run basis.
+- `operatingRules` and `prohibitions` may name concrete tools when the actor
+  needs tool-use guidance. A tool name in Actor Instruction must be the
+  model-visible tool name the agent can actually call, such as
+  `music_discovery_lookup`, not the internal Stage descriptor name such as
+  `music.discovery.lookup`.
+- Tool names in Actor Instruction must be backticked exact names. Validation
+  extracts only backticked tool-name tokens.
+- Every tool name referenced by Actor Instruction must correspond to one of the
+  tools selected by `ActorDefinition.toolPack.stageToolNames` after the selected
+  Stage tool declarations are mapped to model-visible tool names. A mismatch is
+  an invalid `ActorDefinition` and should fail fast.
+- Actor Instruction may describe actor-specific tool-use order, preference,
+  escalation, and scenario limits. It must not redefine tool schemas, parameter
+  shapes, side effects, permissions, or public tool contracts.
+- `prohibitions` may use tool names only for scenario limits. A tool that is
+  forbidden in every scenario must be removed from
+  `ActorDefinition.toolPack.stageToolNames`, not globally banned in
+  `prohibitions`.
+
+`ActorDefinition` is the Agent Runtime definition object for one embedded actor.
+
+Shape:
+
+```ts
+type ActorDefinition = {
+  name: "main" | "radio";
+  identity: ActorIdentity;
+  instruction: ActorInstruction;
+  declaredWorkspaceSections: readonly WorkspaceContextSectionName[];
+  toolPack: {
+    stageToolNames: readonly StageToolName[];
+  };
+};
+```
+
+One actor has one `ActorDefinition`. Main and Radio must not keep actor identity,
+instruction text, workspace-section declarations, and tool-pack selection in
+separate server-module strings or per-run glue.
+
+`name` identifies the actor for runtime selection and diagnostics. It is not
+part of Actor Identity and is not rendered into the LLM context by default.
+
+`identity` and `instruction` are separate:
+
+- `identity` is structured declarative `role` / `job` / `persona` data;
+- `instruction` is structured operational `responsibilities` /
+  `operatingRules` / `prohibitions` data.
+
+`identity.role`, `identity.job`, and `identity.persona` render into the Actor
+Identity rail. `ActorDefinition.name` does not. `instruction` renders into the
+Actor Instruction rail. `toolPack.stageToolNames` selects the Stage Interface
+tools that become pi-carried Capability Context, and
+`declaredWorkspaceSections` lists only section names that drive Workspace
+Context selection through the shared assembler.
+
+`toolPack.stageToolNames` stores internal Stage tool names because it selects
+Stage declarations. Actor Instruction text, once rendered into LLM context, uses
+model-visible tool names because those are the names the agent can call. The
+model-visible names are derived from the selected Stage declarations at
+render/validation time.
+
+`declaredWorkspaceSections` must not contain section shape, compression policy,
+encoding policy, field selection, or per-actor formatting. Those belong to the
+shared Workspace Context assembler and section contracts.
+
+### 3. Capability Context
 
 The current actor's callable capability set and call environment.
+
+Capability Context is pi-carried, not MineMusic prompt-assembled. MineMusic does
+not build a second capability-context blob.
+`ActorDefinition.toolPack.stageToolNames` declares the actor's allowed callable
+surface; Stage Interface owns the selected tool contracts; Agent Runtime
+materializes those selected declarations into pi `tools` and constrains bridge
+dispatch for the actor.
 
 Includes:
 
@@ -63,7 +203,7 @@ Includes:
 Capability Context is not the place for queue contents, radio direction, user
 music taste, or transcript history.
 
-### 3. Workspace Context
+### 4. Workspace Context
 
 The agent-readable current-state projection of the shared workspace. Agent
 Runtime owns one Workspace Context assembler for embedded agents. The assembler
@@ -71,10 +211,10 @@ receives `{ actor, ownerScope }`, reads the area facts needed by that actor's
 declared sections, selects those actor-declared workspace-visible sections,
 applies shared compression rules, and emits the encoded Workspace Context.
 
-The caller does not pass an ad hoc section list. Section selection belongs to the
-actor declaration consumed by the shared assembler. Main and Radio may receive
-different selected sections, but both use the same assembler, section
-vocabulary, compression rules, and encoding rules.
+The caller does not pass an ad hoc section list. Section selection comes from
+`ActorDefinition.declaredWorkspaceSections`, which contains section names only.
+Main and Radio may receive different selected sections, but both use the same
+assembler, section vocabulary, compression rules, and encoding rules.
 
 Workspace Context is organized by workspace-visible sections, not by internal
 architecture area names. The section vocabulary is shared across actors. An
@@ -174,7 +314,7 @@ and separate renderers such as `renderAgentSessionContextForSystemPrompt` and
 The root cause is that the old seam read one area, emitted a `musicExperience`
 blob, then let each agent re-render that blob independently.
 
-### 4. Invocation Context
+### 5. Invocation Context
 
 The envelope for this specific run or turn.
 
@@ -219,9 +359,15 @@ Rules:
   current facts.
 - `kind` identifies the invocation type without relying on prose.
 
-### 5. Continuity Context
+### 6. Continuity Context
 
 Conversation and execution continuity.
+
+Continuity Context is pi-carried, not MineMusic prompt-assembled. Pi `messages`
+hold transcript continuity, prior tool-result messages, compaction summaries,
+and restored session messages. MineMusic may persist, restore, cap, or compact
+that transcript through Agent Runtime-owned storage/facades, but it must not
+reconstruct current workspace truth or a separate continuity prompt from it.
 
 Includes:
 
@@ -235,7 +381,7 @@ truth. If a tool result changed durable or runtime state, the next current fact
 must enter Workspace Context through owning facts/projections, not by scraping
 transcript messages.
 
-### 6. Knowledge / Memory Context
+### 7. Knowledge / Memory Context
 
 Retrieved knowledge, user taste memory, and other reference material used for
 reasoning.
@@ -271,12 +417,11 @@ Rules:
 - `userTasteHint.summary` reuses the existing `library.catalog.summary` public
   output shape; Agent Runtime must not invent a parallel catalog-summary schema
   for context.
-- Agent Runtime obtains `userTasteHint` through a narrow internal context
-  provider/read port composed by Server Host. It must not call the
-  `library.catalog.summary` Stage tool as if it were a model.
-- The context provider may reuse the same underlying catalog-summary read
-  capability that powers `library.catalog.summary`, but Stage Interface remains
-  the owner of the public tool boundary.
+- `userTasteHint` is just an input inside Knowledge / Memory Context for Phase B,
+  not a new rail, actor definition field, or separately named provider concept.
+- The hint may reuse the same underlying catalog-summary read capability that
+  powers `library.catalog.summary`, but Agent Runtime must not call the public
+  Stage tool as if it were a model and must not fork the summary schema.
 - `userTasteHint` helps Main or Radio choose music closer to the user's library
   tendencies.
 - `userTasteHint` is a hint, not a hard rule.
@@ -291,22 +436,23 @@ Rules:
 1. Agent Runtime owns context assembly for embedded agents.
 2. Workbench Interface owns the shared workspace interaction state/read model.
 3. Area-owned projections own the facts they expose into Workspace Context.
-4. Stage Interface owns callable tool declarations and tool-call routing; Agent
-   Runtime may select an actor-specific tool pack for Capability Context.
+4. Stage Interface owns callable tool declarations and tool-call routing. Agent
+   Runtime selects the actor-specific Stage tool names from
+   `ActorDefinition.toolPack.stageToolNames` for pi-carried Capability Context.
 5. Pi owns the provider-facing loop mechanics: `systemPrompt`, `messages`,
    `tools`, lifecycle events, tool execution, and compaction hooks. MineMusic
    owns the content placed into those rails.
-6. Each actor declares which workspace-visible sections it needs. The shared
-   assembly mechanism chooses those sections from `{ actor, ownerScope }`,
-   applies shared compression rules, and emits the encoded Workspace Context.
-   Separate actor-owned selection, compression, or hand-written re-expression of
-   the same workspace state is not allowed.
+6. Each `ActorDefinition` declares which workspace-visible sections its actor
+   needs. The shared assembly mechanism chooses those sections from `{ actor,
+   ownerScope }`, applies shared compression rules, and emits the encoded
+   Workspace Context. Separate actor-owned selection, compression, or
+   hand-written re-expression of the same workspace state is not allowed.
 7. A rail may be empty for an actor or run. Empty rails are explicit absence,
    not a fallback for failed reads.
 
 ## Pi Provider Context Mapping
 
-MineMusic must map the six context rails onto pi's real provider context shape.
+MineMusic must map the seven context rails onto pi's real provider context shape.
 Pi does not expose a generic fourth "context" channel. The low-level `Agent`
 snapshots only:
 
@@ -336,18 +482,20 @@ The MineMusic mapping is:
 
 | Context rail | Pi/provider surface | Rule |
 | --- | --- | --- |
-| Actor Instruction | `systemPrompt` | Stable actor instructions are part of the prompt state refreshed by Agent Runtime. |
-| Capability Context | `tools` plus Stage Interface tool metadata | Tool declarations and actor tool packs enter through pi tools. Tool usage policy may also be summarized in Actor Instruction, but tool availability is not Workspace Context. |
+| Actor Identity | `systemPrompt` | Stable structured actor identity is rendered from `ActorDefinition.identity` and refreshed by Agent Runtime. |
+| Actor Instruction | `systemPrompt` | Stable actor instructions are rendered from `ActorDefinition.instruction` and refreshed by Agent Runtime. |
+| Capability Context | `tools` | Pi carries callable capability context as provider tools. MineMusic only selects the actor's allowed Stage Interface declarations from `ActorDefinition.toolPack.stageToolNames`, materializes them into pi tools, and constrains dispatch; it does not assemble a separate capability prompt blob. |
 | Workspace Context | `systemPrompt` as compact encoded context | Shared Workspace Context assembly emits the encoded Workspace Context and Agent Runtime places it into the prompt state before the pi context snapshot. |
 | Invocation Context | new `messages` passed to `agent.prompt(...)` | A user turn or Radio run payload is the run's prompt/envelope. It is not mixed into Workspace Context. |
-| Continuity Context | `messages` | Pi transcript, compaction summaries, prior user/assistant/tool-result messages, and restored transcript live in messages. |
+| Continuity Context | `messages` | Pi carries continuity in messages. MineMusic may persist/restore/cap/compact the transcript, but does not assemble a separate continuity prompt blob. |
 | Knowledge / Memory Context | `systemPrompt` or explicit retrieved messages, depending on retrieval owner | When loaded before the model call, retrieved memory/knowledge is encoded as its own structured rail, not merged into Workspace Context. |
 
 This mapping is load-bearing. Agent Runtime may refresh `state.systemPrompt`
 before a run-start snapshot, may set `state.tools`, and may call
 `agent.prompt(...)` with the Invocation Context. It must not invent a parallel
-provider-context carrier or treat transcript messages as current workspace
-truth.
+provider-context carrier, a separate Capability Context blob, or a separate
+Continuity Context blob, and it must not treat transcript messages as current
+workspace truth.
 
 ## Main And Radio Application
 
@@ -357,18 +505,26 @@ Main-specific or Radio-specific Workspace Context shape.
 
 Radio's queue dedupe context belongs to Workspace Context. Radio's
 `runId`, wake reason, suggested append count, and basis revisions belong to
-Invocation Context. Radio's transcript belongs to Continuity Context. Radio's
-tool pack and injected command basis belong to Capability Context.
+Invocation Context. Radio's transcript belongs to Continuity Context.
+Actor-selected tools come from `ActorDefinition.toolPack.stageToolNames`;
+injected command basis belongs to Capability Context.
 
 The old pattern of a Radio-only `Radio Run Floor` carrying hand-written
-workspace facts is forbidden. A Radio-specific run floor may exist only for
-Invocation Context or Radio actor instructions; it must not be the source of
-queue, now-playing, radio truth, or revision facts.
+workspace facts is forbidden. Radio-specific run text may exist only as
+Invocation Context or `ActorDefinition.instruction`; it must not be the source
+of queue, now-playing, radio truth, or revision facts.
 
 ## Forbidden Patterns
 
 - Main and Radio each maintain their own workspace-state renderer.
 - Main and Radio each maintain their own workspace-state compression logic.
+- Actor identity, instruction text, declared workspace sections, or tool packs
+  are scattered across server modules and run glue instead of one
+  `ActorDefinition` per actor.
+- Actor identity is stored as a raw prompt string instead of structured
+  `ActorIdentity`.
+- Actor identity uses `"You are X"` or leaks internal data-pipeline language into
+  the model face.
 - Workspace Context is organized by internal architecture area names such as
   `musicExperience` instead of workspace-visible section names.
 - Radio receives only `queueLength` when it needs queue item identity to avoid
@@ -388,16 +544,20 @@ queue, now-playing, radio truth, or revision facts.
 
 The active implementation should move toward these shapes:
 
-- a shared Agent Runtime context assembly boundary that accepts structured rail
-  inputs;
+- a shared Agent Runtime context placement/rendering boundary for MineMusic-owned
+  prompt rails and Workspace Context;
+- an `ActorDefinition` module shared by Main and Radio, with one object per
+  actor containing `{ identity, instruction, declaredWorkspaceSections,
+  toolPack: { stageToolNames } }`;
 - a Workspace Context assembler that reads area facts directly, chooses the
-  actor's declared workspace-visible sections, applies shared compression rules,
+  actor's declared workspace-visible section names, applies shared compression rules,
   and emits compact encoded context with shared section names and shapes;
-- a Capability Context builder over Stage Interface tool declarations and
-  actor-specific tool packs;
+- pi `tools` populated from Stage Interface declarations selected by
+  `ActorDefinition.toolPack.stageToolNames`, with actor-constrained bridge
+  dispatch and no separate MineMusic Capability Context builder;
 - an Invocation Context builder for Main turns and Radio runs;
-- Continuity Context supplied by pi agent messages, transcript storage, and
-  compaction;
+- Continuity Context left in pi `messages`, with MineMusic-owned
+  persist/restore/cap/compact facades only where needed;
 - Knowledge / Memory Context supplied only by Memory, Knowledge, Handbook, or
   retrieval boundaries when those are in scope.
 
@@ -409,6 +569,13 @@ the workspace-visible sections selected for a Radio run.
 
 - There is exactly one Agent Runtime-owned path for turning workspace current
   state into agent-readable encoded Workspace Context.
+- Main and Radio identity, instructions, workspace-section declarations, and
+  tool-pack selection come from shared `ActorDefinition` objects, not server
+  module inline prompt strings.
+- Actor identity and instruction are separate; identity is structured
+  `role` / `job` / `persona` data and instruction is operational guidance.
+- Actor identity does not start with `"You are"` and does not expose internal
+  data-pipeline terms on the model face.
 - Main and Radio use that shared path.
 - Radio receives current queue item identity, not only queue length, through
   Workspace Context.
