@@ -13,12 +13,38 @@ import { createMusicDataPlatformScopeAvailabilityRowProvider } from "../../src/m
 import { createMusicDiscoveryRuntimeModule, createMusicScopeAvailabilityPort, type MusicScopeAvailabilityPort } from "../../src/music_intelligence/stage_adapter/index.js";
 import { isMusicIntelligenceError, type MusicIntelligenceErrorCode, } from "../../src/music_intelligence/index.js";
 import { createMusicExperienceQueuePlaybackCommand, musicExperienceSchemas } from "../../src/music_experience/index.js";
-import { RADIO_STAGE_TOOL_NAMES, selectRadioStageToolDeclarations, } from "../../src/server/agent_runtime_radio_module.js";
+import { RADIO_STAGE_TOOL_NAMES, radioResultFromMessages, selectRadioStageToolDeclarations, } from "../../src/server/agent_runtime_radio_module.js";
 import { createExtensionRuntimeRetrievalProviderSearchPort, createMusicDataPlatformRuntimeModule, createMusicExperienceServerRuntimeModule, createMineMusicExtensionRuntime, createServerHost, createStageToolContextAssembly, } from "../../src/server/index.js";
 import { createExtensionRuntimeModule, createStageRuntime, } from "../../src/stage_core/index.js";
 import { createStageInterfaceRuntimePorts, stageInterfaceSchemas, type StageInterfaceRuntimePorts } from "../../src/stage_interface/index.js";
 import { createPostgresTestSchema, openPostgresTestMusicDatabase, postgresTestDatabaseUrl } from "../support/postgres.js";
+import { assistantTextMessage, fakeAssistantMessageEventStream } from "./helpers/pi-agent-message-fixtures.js";
 const serverHostDatabaseUrl = postgresTestDatabaseUrl();
+const noRadioServerHostSchema = `minemusic_server_host_no_radio_${process.pid}`;
+await createPostgresTestSchema({
+    connectionString: serverHostDatabaseUrl,
+    schema: noRadioServerHostSchema,
+});
+const noRadioBackgroundWork = createFakeBackgroundWorkBackend();
+const noRadioHost = createServerHost({
+    backgroundWork: noRadioBackgroundWork,
+    config: {
+        database: {
+            url: serverHostDatabaseUrl,
+            schema: noRadioServerHostSchema,
+        },
+        localSources: {
+            rootDir: "/tmp/minemusic-server-host-local-sources",
+        },
+    },
+});
+assert.equal(noRadioHost.snapshot().modules.some((module) => module.id === "agent-runtime-radio"), false);
+const noRadioStarted = await noRadioHost.start();
+assert.equal(noRadioStarted.ok, true);
+assert.equal(noRadioBackgroundWork.log.includes("register:agent_runtime.radio_refill_run"), false);
+assert.equal(noRadioBackgroundWork.log.includes("submit:agent_runtime.radio_refill_run"), false);
+const noRadioStopped = await noRadioHost.stop();
+assert.equal(noRadioStopped.ok, true);
 const serverHostSchema = `minemusic_server_host_${process.pid}`;
 await createPostgresTestSchema({
     connectionString: serverHostDatabaseUrl,
@@ -34,6 +60,15 @@ const host = createServerHost({
         },
         localSources: {
             rootDir: "/tmp/minemusic-server-host-local-sources",
+        },
+    },
+    radioAgentOptions: {
+        streamFn() {
+            return fakeAssistantMessageEventStream({
+                type: "done",
+                reason: "stop",
+                message: assistantTextMessage("radio idle"),
+            });
         },
     },
 });
@@ -181,6 +216,64 @@ assert.equal(listedImportSources.ok, true);
 if (listedImportSources.ok) {
     assert.equal(listedImportSources.value.toolName, "library.import.list_sources");
 }
+assert.deepEqual(radioResultFromMessages({
+    runId: "radio-result-test",
+    payload: {
+        workspaceId: "default",
+        ownerScope: "local",
+        radioSessionRevision: 3,
+        radioDirectionRevision: 5,
+        wakeReason: "low_watermark",
+        refillGeneration: 1,
+        suggestedAppendCount: 2,
+    },
+    newMessages: [{
+        role: "toolResult",
+        toolCallId: "queue-append-call",
+        toolName: "music_experience_queue_append",
+        content: [{ type: "text", text: "ok" }],
+        details: {
+            toolName: "music.experience.queue.append",
+            result: {
+                items: [
+                    { item: { kind: "material", id: "material:one" }, position: 0 },
+                    { item: { kind: "material", id: "material:two" }, position: 1 },
+                ],
+                queueLength: 2,
+                queueRevision: 9,
+            },
+        },
+        isError: false,
+        timestamp: 0,
+    }],
+}), {
+    runId: "radio-result-test",
+    radioDirectionRevision: 5,
+    radioSessionRevision: 3,
+    outcome: "appended",
+    appendedCount: 2,
+});
+assert.throws(() => radioResultFromMessages({
+    runId: "radio-result-error-test",
+    payload: {
+        workspaceId: "default",
+        ownerScope: "local",
+        radioSessionRevision: 3,
+        radioDirectionRevision: 5,
+        wakeReason: "low_watermark",
+        refillGeneration: 1,
+        suggestedAppendCount: 2,
+    },
+    newMessages: [{
+        role: "toolResult",
+        toolCallId: "queue-append-call",
+        toolName: "music_experience_queue_append",
+        content: [{ type: "text", text: "voided stale" }],
+        details: {},
+        isError: true,
+        timestamp: 0,
+    }],
+}), /failed during music\.experience\.queue\.append/);
 const stopped = await host.stop();
 assert.equal(stopped.ok, true);
 assert.equal(host.snapshot().status, "stopped");

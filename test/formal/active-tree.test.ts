@@ -244,6 +244,12 @@ const agentRuntimeAllowedStageInterfacePureHelpers = new Set([
     "src/stage_interface/tool_failure_surface.ts",
     "src/stage_interface/tool_public_text.ts",
 ]);
+const agentRuntimeForbiddenRootPiImports = new Set([
+    "AgentHarness",
+    "AgentHarnessError",
+    "JsonlSessionRepository",
+    "MemorySessionRepository",
+]);
 const contractsDagFailures: string[] = [];
 for (const [contractFile, allowed] of Object.entries(contractsDagAllowlist)) {
     for (const edge of architectureGraph.edges.filter((candidate) => candidate.fromFile === contractFile && candidate.specifier.startsWith("."))) {
@@ -343,8 +349,14 @@ function externalPackageBoundaryFailure(edge: ArchitectureImportEdge): string | 
     if (edge.specifier.startsWith("@earendil-works/pi-agent-core/dist/harness/") && !isPiHarnessImportAllowed(edge.fromFile)) {
         return `Raw pi harness helper imports are limited to Agent Runtime transcript facades and adapter tests: ${formatEdge(edge)}`;
     }
-    if (edge.specifier === "@earendil-works/pi-agent-core" && !isUnderPath(edge.fromFile, "src/agent_runtime")) {
-        return `Only Agent Runtime may import pi-agent-core directly: ${formatEdge(edge)}`;
+    if (edge.specifier === "@earendil-works/pi-agent-core") {
+        if (!isUnderPath(edge.fromFile, "src/agent_runtime")) {
+            return `Only Agent Runtime may import pi-agent-core directly: ${formatEdge(edge)}`;
+        }
+        const forbiddenRootImports = edge.importedNames.filter((name) => agentRuntimeForbiddenRootPiImports.has(name));
+        if (forbiddenRootImports.length > 0) {
+            return `Agent Runtime must use low-level pi Agent APIs, not root-exported harness/session helpers: ${formatEdge(edge)} symbols=[${forbiddenRootImports.join(", ")}]`;
+        }
     }
     return undefined;
 }
@@ -386,7 +398,13 @@ function musicDataPlatformBoundaryFailure(edge: ArchitectureImportEdge): string 
 }
 function agentRuntimeBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
     if (edge.fromFile === "src/agent_runtime/radio_supervisor.ts" && edge.toFile === "src/background_work/index.ts") {
-        const allowedNames = new Set(["BackgroundWorkBackend", "BackgroundWorkTerminalState"]);
+        const allowedNames = new Set([
+            "BackgroundWorkAwaitTerminalInput",
+            "BackgroundWorkSubmitInput",
+            "BackgroundWorkSubmitResult",
+            "BackgroundWorkTerminalState",
+            "RegisterBackgroundWorkHandlerInput",
+        ]);
         const forbiddenNames = edge.importedNames.filter((name) => !allowedNames.has(name));
         return forbiddenNames.length === 0 && edge.importedNames.length > 0
             ? undefined

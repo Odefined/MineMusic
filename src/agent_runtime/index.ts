@@ -72,6 +72,7 @@ export {
 } from "./radio_supervisor.js";
 export type {
   CreateRadioSupervisorInput,
+  RadioBackgroundWorkPort,
   RadioPacingReadPort,
   RadioPacingSnapshot,
   RadioRefillRunPort,

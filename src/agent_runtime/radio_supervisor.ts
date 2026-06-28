@@ -1,11 +1,19 @@
-import type { BackgroundWorkBackend, BackgroundWorkTerminalState } from "../background_work/index.js";
+import { randomUUID } from "node:crypto";
+
+import type {
+  BackgroundWorkAwaitTerminalInput,
+  BackgroundWorkSubmitInput,
+  BackgroundWorkSubmitResult,
+  BackgroundWorkTerminalState,
+  RegisterBackgroundWorkHandlerInput,
+} from "../background_work/index.js";
 import type {
   RadioLifecycleState,
   RadioRefillRunJobPayload,
   RadioRunResult,
   RadioWakeReason,
 } from "../contracts/agent_runtime.js";
-import type { ConcernRevision } from "../contracts/kernel.js";
+import type { ConcernRevision, StageError } from "../contracts/kernel.js";
 import type { MainRadioNotifyChannel } from "./main_radio_channel.js";
 
 export const RADIO_REFILL_JOB_TYPE = "agent_runtime.radio_refill_run";
@@ -28,6 +36,16 @@ export type RadioRefillRunPort = {
   }): Promise<RadioRunResult>;
 };
 
+export type RadioBackgroundWorkPort = {
+  submit<Payload extends object>(
+    input: BackgroundWorkSubmitInput<Payload>,
+  ): Promise<BackgroundWorkSubmitResult>;
+  registerHandler<Payload extends object>(
+    input: RegisterBackgroundWorkHandlerInput<Payload>,
+  ): void;
+  awaitTerminal(input: BackgroundWorkAwaitTerminalInput): Promise<BackgroundWorkTerminalState>;
+};
+
 export type RadioSupervisorClock = {
   now(): Date;
 };
@@ -35,11 +53,12 @@ export type RadioSupervisorClock = {
 export type CreateRadioSupervisorInput = {
   ownerScope: string;
   workspaceId: string;
-  backgroundWork: BackgroundWorkBackend;
+  backgroundWork: RadioBackgroundWorkPort;
   pacingRead: RadioPacingReadPort;
   runPort: RadioRefillRunPort;
   notifyChannel: MainRadioNotifyChannel;
   clock?: RadioSupervisorClock;
+  runEpoch?: string;
   lowWatermark?: number;
   fillTarget?: number;
   failedTerminalCooldownMs?: number;
@@ -50,9 +69,11 @@ export type RadioWakeDecision =
   | { kind: "submitted"; jobId: string; payload: RadioRefillRunJobPayload; runAfter?: Date }
   | { kind: "not_running"; lifecycle: RadioLifecycleState }
   | { kind: "already_refilling" }
-  | { kind: "terminal_observation_failed"; error: unknown }
+  | { kind: "terminal_observation_failed"; error: RadioSupervisorErrorSummary }
   | { kind: "queue_not_low"; queueDepth: number; lowWatermark: number }
   | { kind: "direction_exhausted"; radioDirectionRevision: ConcernRevision };
+
+export type RadioSupervisorErrorSummary = Pick<StageError, "code" | "message" | "area" | "retryable">;
 
 export type RadioSupervisorSnapshot = {
   lifecycle: RadioLifecycleState;
@@ -62,7 +83,7 @@ export type RadioSupervisorSnapshot = {
   fillTarget: number;
   exhaustedRadioDirectionRevision?: ConcernRevision;
   cooldownUntil?: Date;
-  terminalObservationError?: unknown;
+  terminalObservationError?: RadioSupervisorErrorSummary;
 };
 
 export type RadioSupervisor = {
@@ -98,6 +119,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   const observedRunResultsByJobId = new Map<string, RadioRunResult>();
 
   const clock = input.clock ?? defaultClock;
+  const runEpoch = input.runEpoch ?? randomUUID();
   const lowWatermark = input.lowWatermark ?? 5;
   const fillTarget = input.fillTarget ?? 10;
   const failedTerminalCooldownMs = input.failedTerminalCooldownMs ?? 30_000;
@@ -132,7 +154,9 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
         fillTarget,
         ...(exhaustedRadioDirectionRevision === undefined ? {} : { exhaustedRadioDirectionRevision }),
         ...(cooldownUntil === undefined ? {} : { cooldownUntil }),
-        ...(terminalObservationError === undefined ? {} : { terminalObservationError }),
+        ...(terminalObservationError === undefined ? {} : {
+          terminalObservationError: summarizeSupervisorError(terminalObservationError),
+        }),
       };
     },
     waitForTerminalObservation() {
@@ -157,7 +181,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     }
     if (terminalObservationError !== undefined) {
       retryTerminalObservation();
-      return { kind: "terminal_observation_failed", error: terminalObservationError };
+      return { kind: "terminal_observation_failed", error: summarizeSupervisorError(terminalObservationError) };
     }
     if (refilling) {
       return { kind: "already_refilling" };
@@ -225,7 +249,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     const submitted = await input.backgroundWork.submit({
       jobType: RADIO_REFILL_JOB_TYPE,
       payload: submission.payload,
-      idempotencyKey: idempotencyKey(submission.payload),
+      idempotencyKey: idempotencyKey(submission.payload, runEpoch),
       ...(submission.runAfter === undefined ? {} : { runAfter: submission.runAfter }),
     });
     pendingSubmission = undefined;
@@ -312,15 +336,15 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   }
 
   async function handleRunResult(result: RadioRunResult): Promise<void> {
-    if (result.outcome === "candidate_exhaustion_by_direction") {
-      exhaustedRadioDirectionRevision = result.radioDirectionRevision;
-    }
-
     if (result.notify !== undefined && result.notify.runId !== result.runId) {
       throw new Error(`Radio notify run '${result.notify.runId}' did not match run result '${result.runId}'.`);
     }
     if (result.notify !== undefined) {
       await input.notifyChannel.notify(result.notify);
+    }
+
+    if (result.outcome === "candidate_exhaustion_by_direction") {
+      exhaustedRadioDirectionRevision = result.radioDirectionRevision;
     }
   }
 
@@ -344,8 +368,9 @@ function pendingSubmissionMatchesPacing(
     submission.payload.radioSessionRevision === pacing.radioSessionRevision;
 }
 
-function idempotencyKey(payload: RadioRefillRunJobPayload): string {
+function idempotencyKey(payload: RadioRefillRunJobPayload, runEpoch: string): string {
   return [
+    runEpoch,
     payload.workspaceId,
     payload.ownerScope,
     payload.radioSessionRevision,
@@ -353,4 +378,13 @@ function idempotencyKey(payload: RadioRefillRunJobPayload): string {
     payload.wakeReason,
     payload.refillGeneration,
   ].join("|");
+}
+
+function summarizeSupervisorError(error: unknown): RadioSupervisorErrorSummary {
+  return {
+    code: "agent_runtime.radio_terminal_observation_failed",
+    message: error instanceof Error ? error.message : "Radio terminal observation failed.",
+    area: "agent_runtime",
+    retryable: true,
+  };
 }

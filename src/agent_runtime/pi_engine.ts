@@ -2,6 +2,7 @@ import {
   Agent,
   type AgentMessage,
   type AgentOptions,
+  type StreamFn,
 } from "@earendil-works/pi-agent-core";
 
 import type { ToolDeclaration } from "../contracts/stage_interface.js";
@@ -17,8 +18,10 @@ import {
 
 export type MineMusicPiAgentAdapterOptions = Omit<
   AgentOptions,
-  "initialState" | "sessionId"
->;
+  "initialState" | "sessionId" | "streamFn"
+> & {
+  streamFn: StreamFn;
+};
 
 export type CreateMineMusicPiAgentAdapterInput = {
   systemPrompt: string;

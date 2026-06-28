@@ -38,6 +38,7 @@ import {
   agentRuntimeSchemas,
   createInMemoryMainRadioNotifyChannel,
   type MainRadioNotifyChannel,
+  type MineMusicPiAgentAdapterOptions,
 } from "../agent_runtime/index.js";
 import {
   createLibraryImportServerRuntimeModule,
@@ -107,6 +108,7 @@ export type CreateServerHostInput = {
   config?: MineMusicRuntimeConfig;
   backgroundWork?: BackgroundWorkBackend;
   mainRadioNotifyChannel?: MainRadioNotifyChannel;
+  radioAgentOptions?: MineMusicPiAgentAdapterOptions;
 };
 
 export function createServerHost(input: CreateServerHostInput = {}): ServerHost {
@@ -219,13 +221,14 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     ? undefined
     : createBackgroundWorkRuntimeModule({ backgroundWork });
   const agentRuntimeRadioModule: AgentRuntimeRadioModule | undefined =
-    musicDataPlatformModule === undefined || backgroundWork === undefined
+    musicDataPlatformModule === undefined || backgroundWork === undefined || input.radioAgentOptions === undefined
       ? undefined
       : createAgentRuntimeRadioModule({
           database: () => defaultMusicDatabase?.context(),
           backgroundWork: () => backgroundWork,
           musicExperienceRead: () => readDefaultMusicExperienceReadPort(),
           notifyChannel: () => mainRadioNotifyChannel,
+          agentOptions: () => input.radioAgentOptions,
           tools: (): readonly ToolDeclaration[] => runtime.interface.tools,
           dispatch: () => ({
             dispatch(dispatchInput) {
@@ -283,7 +286,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       return initialized;
     },
     async stop() {
-      const radioStopped = await agentRuntimeRadioModule?.stop?.();
+      const radioStopped = await stopDefaultRadio();
       const stopped = await runtime.stop();
       stageInterfaceRuntimePorts = undefined;
       musicScopeAvailabilityPort = undefined;
@@ -503,6 +506,27 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
         error: {
           code: "server_host.radio_initial_wake_failed",
           message: "Server Host failed to wake Radio after runtime initialization.",
+          area: "server_host",
+          retryable: false,
+          cause,
+        },
+      };
+    }
+  }
+
+  async function stopDefaultRadio(): Promise<Result<void> | undefined> {
+    if (agentRuntimeRadioModule?.stop === undefined) {
+      return undefined;
+    }
+
+    try {
+      return await agentRuntimeRadioModule.stop();
+    } catch (cause) {
+      return {
+        ok: false,
+        error: {
+          code: "server_host.radio_stop_failed",
+          message: "Server Host failed to stop Radio before runtime shutdown.",
           area: "server_host",
           retryable: false,
           cause,

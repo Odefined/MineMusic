@@ -14,6 +14,7 @@ import {
   assistantTextMessage,
   fakeAssistantMessageEventStream,
 } from "./helpers/pi-agent-message-fixtures.js";
+import type { RadioRefillRunJobPayload } from "../../src/contracts/agent_runtime.js";
 
 const key = {
   ownerScope: "owner_radio_run",
@@ -29,6 +30,7 @@ const key = {
     agent: firstAgent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromMessages: defaultRadioResult,
     onRunStart(payload) {
       runStarts.push(`${payload.wakeReason}:${payload.refillGeneration}`);
     },
@@ -72,6 +74,7 @@ const key = {
     agent: restartedAgent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:02.000Z",
+    resultFromMessages: defaultRadioResult,
   });
   await restartedRunPort.runRadioRefill({
     runId: "radio-job-3",
@@ -104,6 +107,7 @@ const key = {
     agent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromMessages: defaultRadioResult,
     baseSystemPrompt: "Base radio prompt.",
     runStartRead: {
       async readWorkspace() {
@@ -145,6 +149,7 @@ const key = {
     agent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromMessages: defaultRadioResult,
   });
 
   await assert.rejects(
@@ -171,6 +176,7 @@ const key = {
     agent: createTestRadioAgent("save-failed"),
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromMessages: defaultRadioResult,
   });
 
   await assert.rejects(
@@ -214,6 +220,7 @@ const key = {
     agent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromMessages: defaultRadioResult,
   });
   const running = runPort.runRadioRefill({
     runId: "radio-job-abort",
@@ -240,6 +247,7 @@ const key = {
     agent: createTestRadioAgent("pre-abort"),
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromMessages: defaultRadioResult,
   });
 
   assert.deepEqual(await runPort.runRadioRefill({
@@ -265,6 +273,7 @@ const key = {
     agent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromMessages: defaultRadioResult,
     runStartRead: {
       readWorkspace() {
         return new Promise((resolve) => {
@@ -294,6 +303,25 @@ const key = {
 
 {
   const transcriptStore = createInMemoryRadioTranscriptStore();
+  const runPort = createPiRadioRefillRunPort({
+    ...key,
+    agent: createTestRadioAgent("missing-result-extractor"),
+    transcriptStore,
+    clock: () => "2026-06-28T00:00:00.000Z",
+  });
+
+  await assert.rejects(
+    () => runPort.runRadioRefill({
+      runId: "radio-job-missing-result-extractor",
+      payload: payload(11),
+      signal: new AbortController().signal,
+    }),
+    /has no result extractor/,
+  );
+}
+
+{
+  const transcriptStore = createInMemoryRadioTranscriptStore();
   await transcriptStore.save({
     ...key,
     messages: [{ role: "assistant" } as never],
@@ -319,6 +347,19 @@ function payload(refillGeneration: number) {
     wakeReason: "low_watermark" as const,
     refillGeneration,
     suggestedAppendCount: 5,
+  };
+}
+
+function defaultRadioResult(input: {
+  runId: string;
+  payload: RadioRefillRunJobPayload;
+}) {
+  return {
+    runId: input.runId,
+    radioDirectionRevision: input.payload.radioDirectionRevision,
+    radioSessionRevision: input.payload.radioSessionRevision,
+    outcome: "no_action" as const,
+    appendedCount: 0,
   };
 }
 

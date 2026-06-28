@@ -346,6 +346,33 @@ async function runRadioSupervisorTests(): Promise<void> {
 }
 
 {
+  const harness = createHarness({ queueDepth: 4 });
+  harness.runPort.nextResult = (input) => ({
+    runId: input.runId,
+    radioDirectionRevision: input.payload.radioDirectionRevision,
+    radioSessionRevision: input.payload.radioSessionRevision,
+    outcome: "candidate_exhaustion_by_direction",
+    appendedCount: 0,
+    notify: candidateExhaustionNotify({
+      runId: input.runId,
+      radioDirectionRevision: input.payload.radioDirectionRevision,
+      summary: "Notify channel should fail before exhaustion state mutates.",
+    }),
+  });
+  harness.notifyChannel.notify = async () => {
+    throw new Error("notify failed");
+  };
+
+  await harness.supervisor.wake("low_watermark");
+  await assert.rejects(
+    () => harness.backgroundWork.runJob(harness.backgroundWork.submissions[0]!.jobId),
+    /notify failed/,
+  );
+
+  assert.equal(harness.supervisor.snapshot().exhaustedRadioDirectionRevision, undefined);
+}
+
+{
   const clock = createFakeClock("2026-06-28T00:00:00.000Z");
   const harness = createHarness({ queueDepth: 4, clock, failedTerminalCooldownMs: 10_000 });
 
@@ -393,8 +420,23 @@ async function runRadioSupervisorTests(): Promise<void> {
   const firstKey = harness.backgroundWork.submissions[0]!.input.idempotencyKey;
   const secondKey = harness.backgroundWork.submissions[1]!.input.idempotencyKey;
   assert.notEqual(firstKey, secondKey);
+  assert.match(firstKey ?? "", /^radio-supervisor-test-epoch\|/);
+  assert.match(secondKey ?? "", /^radio-supervisor-test-epoch\|/);
   assert.match(firstKey ?? "", /\|low_watermark\|1$/);
   assert.match(secondKey ?? "", /\|low_watermark\|2$/);
+}
+
+{
+  const first = createHarness({ queueDepth: 4, runEpoch: "first-process" });
+  const second = createHarness({ queueDepth: 4, runEpoch: "second-process" });
+
+  await first.supervisor.wake("low_watermark");
+  await second.supervisor.wake("low_watermark");
+
+  assert.notEqual(
+    first.backgroundWork.submissions[0]!.input.idempotencyKey,
+    second.backgroundWork.submissions[0]!.input.idempotencyKey,
+  );
 }
 }
 
@@ -402,6 +444,7 @@ function createHarness(input: {
   queueDepth: number;
   lifecycle?: "Running" | "Paused" | "Shutdown";
   clock?: RadioSupervisorClock;
+  runEpoch?: string;
   failedTerminalCooldownMs?: number;
   lowWatermark?: number;
   fillTarget?: number;
@@ -430,6 +473,7 @@ function createHarness(input: {
       },
     },
     ...(input.clock === undefined ? {} : { clock: input.clock }),
+    runEpoch: input.runEpoch ?? "radio-supervisor-test-epoch",
     ...(input.failedTerminalCooldownMs === undefined ? {} : {
       failedTerminalCooldownMs: input.failedTerminalCooldownMs,
     }),

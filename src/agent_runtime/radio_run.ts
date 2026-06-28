@@ -20,6 +20,7 @@ export type CreatePiRadioRefillRunPortInput = RadioTranscriptKey & {
   transcriptStore: RadioTranscriptStore;
   clock: () => string;
   baseSystemPrompt?: string;
+  maxTranscriptMessages?: number;
   runStartRead?: WorkspaceReadModelReader;
   promptForPayload?: (input: {
     runId: string;
@@ -58,6 +59,10 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
   let activeRunId: string | undefined;
   let activePayload: RadioRefillRunJobPayload | undefined;
   let activeRunStartContext: WorkspaceReadModel | undefined;
+  const maxTranscriptMessages = input.maxTranscriptMessages ?? 200;
+  if (!Number.isSafeInteger(maxTranscriptMessages) || maxTranscriptMessages <= 0) {
+    throw new Error("Radio transcript message cap must be a positive safe integer.");
+  }
 
   // pi @0.80.2 fidelity: agent.js:130-139 says listener promises are awaited
   // before idle; agent.js:261-276 snapshots state before runAgentLoop, and
@@ -69,14 +74,14 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
       await input.onRunStart?.(activePayload, activeRunStartContext, signal);
     }
 
-    if (event.type === "agent_end") {
-      await input.transcriptStore.save({
-        ownerScope: input.ownerScope,
-        workspaceId: input.workspaceId,
-        messages: input.agent.state.messages,
-        now: input.clock(),
-      });
-    }
+      if (event.type === "agent_end") {
+        await input.transcriptStore.save({
+          ownerScope: input.ownerScope,
+          workspaceId: input.workspaceId,
+          messages: cappedTranscript(input.agent.state.messages, maxTranscriptMessages),
+          now: input.clock(),
+        });
+      }
   });
 
   return {
@@ -136,17 +141,15 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
       }
       throwIfFinalAssistantFailed(runInput.runId, newMessages);
 
-      const result = await input.resultFromMessages?.({
+      if (input.resultFromMessages === undefined) {
+        throw new Error(`Radio refill run '${runInput.runId}' has no result extractor.`);
+      }
+
+      const result = await input.resultFromMessages({
         runId: runInput.runId,
         payload: runInput.payload,
         newMessages,
-      }) ?? {
-        runId: runInput.runId,
-        radioDirectionRevision: runInput.payload.radioDirectionRevision,
-        radioSessionRevision: runInput.payload.radioSessionRevision,
-        outcome: "no_action",
-        appendedCount: 0,
-      };
+      });
 
       if (result.runId !== runInput.runId) {
         throw new Error(`Radio refill run result '${result.runId}' did not match Background Work job '${runInput.runId}'.`);
@@ -155,6 +158,13 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
       return result;
     },
   };
+}
+
+function cappedTranscript(
+  messages: readonly AgentMessage[],
+  maxMessages: number,
+): readonly AgentMessage[] {
+  return messages.slice(Math.max(0, messages.length - maxMessages));
 }
 
 async function promptForPayload(
