@@ -71,6 +71,12 @@ export type RadioSupervisor = {
   setLifecycle(state: RadioLifecycleState): void;
   snapshot(): RadioSupervisorSnapshot;
   waitForTerminalObservation(): Promise<void>;
+  stop(): Promise<void>;
+};
+
+type PendingRefillSubmission = {
+  payload: RadioRefillRunJobPayload;
+  runAfter?: Date;
 };
 
 const defaultClock: RadioSupervisorClock = {
@@ -87,6 +93,8 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   let cooldownUntil: Date | undefined;
   let terminalObservationError: unknown;
   let terminalObservation: Promise<void> = Promise.resolve();
+  let terminalObservationAbortController: AbortController | undefined;
+  let pendingSubmission: PendingRefillSubmission | undefined;
 
   const clock = input.clock ?? defaultClock;
   const lowWatermark = input.lowWatermark ?? 5;
@@ -128,6 +136,16 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     waitForTerminalObservation() {
       return terminalObservation;
     },
+    async stop() {
+      lifecycle = "Shutdown";
+      const activeObservation = terminalObservationAbortController === undefined
+        ? undefined
+        : terminalObservation;
+      terminalObservationAbortController?.abort();
+      await activeObservation;
+      terminalObservationAbortController = undefined;
+      refilling = false;
+    },
   };
 
   async function wake(reason: RadioWakeReason): Promise<RadioWakeDecision> {
@@ -141,25 +159,40 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       return { kind: "already_refilling" };
     }
 
-    const pacing = await input.pacingRead.readRadioPacing({ ownerScope: input.ownerScope });
-    if (pacing.queueDepth >= lowWatermark) {
-      return { kind: "queue_not_low", queueDepth: pacing.queueDepth, lowWatermark };
-    }
-    if (exhaustedRadioDirectionRevision === pacing.radioDirectionRevision) {
-      return {
-        kind: "direction_exhausted",
-        radioDirectionRevision: pacing.radioDirectionRevision,
-      };
-    }
+    refilling = true;
+    try {
+      if (pendingSubmission !== undefined) {
+        return await submitPendingRefill(pendingSubmission);
+      }
 
-    return submitRefill({ reason, pacing });
+      const pacing = await input.pacingRead.readRadioPacing({ ownerScope: input.ownerScope });
+      if (lifecycle !== "Running") {
+        refilling = false;
+        return { kind: "not_running", lifecycle };
+      }
+      if (pacing.queueDepth >= lowWatermark) {
+        refilling = false;
+        return { kind: "queue_not_low", queueDepth: pacing.queueDepth, lowWatermark };
+      }
+      if (exhaustedRadioDirectionRevision === pacing.radioDirectionRevision) {
+        refilling = false;
+        return {
+          kind: "direction_exhausted",
+          radioDirectionRevision: pacing.radioDirectionRevision,
+        };
+      }
+
+      return await submitRefill({ reason, pacing });
+    } catch (error) {
+      refilling = false;
+      throw error;
+    }
   }
 
   async function submitRefill(inputSubmit: {
     reason: RadioWakeReason;
     pacing: RadioPacingSnapshot;
   }): Promise<Extract<RadioWakeDecision, { kind: "submitted" }>> {
-    refilling = true;
     refillGeneration += 1;
     const payload: RadioRefillRunJobPayload = {
       workspaceId: input.workspaceId,
@@ -171,39 +204,66 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       suggestedAppendCount: suggestedAppendCount(inputSubmit.pacing),
     };
     const runAfter = cooldownRunAfter();
+    const submission: PendingRefillSubmission = {
+      payload,
+      ...(runAfter === undefined ? {} : { runAfter }),
+    };
+    pendingSubmission = submission;
 
-    try {
-      const submitted = await input.backgroundWork.submit({
-        jobType: RADIO_REFILL_JOB_TYPE,
-        payload,
-        idempotencyKey: idempotencyKey(payload),
-        ...(runAfter === undefined ? {} : { runAfter }),
-      });
-      terminalObservation = observeTerminal(submitted.jobId);
-      void terminalObservation.catch(() => {});
-      return {
-        kind: "submitted",
-        jobId: submitted.jobId,
-        payload,
-        ...(runAfter === undefined ? {} : { runAfter }),
-      };
-    } catch (error) {
-      refilling = false;
-      throw error;
-    }
+    return submitPendingRefill(submission);
   }
 
-  async function observeTerminal(jobId: string): Promise<void> {
+  async function submitPendingRefill(
+    submission: PendingRefillSubmission,
+  ): Promise<Extract<RadioWakeDecision, { kind: "submitted" }>> {
+    const submitted = await input.backgroundWork.submit({
+      jobType: RADIO_REFILL_JOB_TYPE,
+      payload: submission.payload,
+      idempotencyKey: idempotencyKey(submission.payload),
+      ...(submission.runAfter === undefined ? {} : { runAfter: submission.runAfter }),
+    });
+    pendingSubmission = undefined;
+    const observationAbortController = new AbortController();
+    terminalObservationAbortController = observationAbortController;
+    terminalObservation = observeTerminal(submitted.jobId, observationAbortController);
+    void terminalObservation.catch(() => {});
+    return {
+      kind: "submitted",
+      jobId: submitted.jobId,
+      payload: submission.payload,
+      ...(submission.runAfter === undefined ? {} : { runAfter: submission.runAfter }),
+    };
+  }
+
+  async function observeTerminal(jobId: string, abortController: AbortController): Promise<void> {
+    let terminal: BackgroundWorkTerminalState;
     try {
-      const terminal = await input.backgroundWork.awaitTerminal(jobId);
-      handleTerminalState(terminal);
-      refilling = false;
-      if (lifecycle === "Running") {
-        await wake("low_watermark");
-      }
+      terminal = await input.backgroundWork.awaitTerminal({
+        jobType: RADIO_REFILL_JOB_TYPE,
+        jobId,
+        signal: abortController.signal,
+      });
     } catch (error) {
+      if (abortController.signal.aborted) {
+        return;
+      }
+      if (terminalObservationAbortController === abortController) {
+        terminalObservationAbortController = undefined;
+      }
       terminalObservationError = error;
       throw error;
+    }
+
+    if (abortController.signal.aborted) {
+      return;
+    }
+    if (terminalObservationAbortController === abortController) {
+      terminalObservationAbortController = undefined;
+    }
+    handleTerminalState(terminal);
+    refilling = false;
+    if (lifecycle === "Running") {
+      await wake("low_watermark");
     }
   }
 

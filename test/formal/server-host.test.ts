@@ -13,6 +13,7 @@ import { createMusicDataPlatformScopeAvailabilityRowProvider } from "../../src/m
 import { createMusicDiscoveryRuntimeModule, createMusicScopeAvailabilityPort, type MusicScopeAvailabilityPort } from "../../src/music_intelligence/stage_adapter/index.js";
 import { isMusicIntelligenceError, type MusicIntelligenceErrorCode, } from "../../src/music_intelligence/index.js";
 import { createMusicExperienceQueuePlaybackCommand, musicExperienceSchemas } from "../../src/music_experience/index.js";
+import { RADIO_STAGE_TOOL_NAMES, selectRadioStageToolDeclarations, } from "../../src/server/agent_runtime_radio_module.js";
 import { createExtensionRuntimeRetrievalProviderSearchPort, createMusicDataPlatformRuntimeModule, createMusicExperienceServerRuntimeModule, createMineMusicExtensionRuntime, createServerHost, createStageToolContextAssembly, } from "../../src/server/index.js";
 import { createExtensionRuntimeModule, createStageRuntime, } from "../../src/stage_core/index.js";
 import { createStageInterfaceRuntimePorts, stageInterfaceSchemas, type StageInterfaceRuntimePorts } from "../../src/stage_interface/index.js";
@@ -56,6 +57,20 @@ assert.equal(host.retrievalQuery(), undefined);
 const started = await host.start();
 assert.equal(started.ok, true);
 assert.equal(host.snapshot().status, "ready");
+assert.deepEqual(
+    selectRadioStageToolDeclarations(host.snapshot().interfaceContract.tools).map((tool) => tool.name),
+    RADIO_STAGE_TOOL_NAMES,
+);
+assert.equal(
+    selectRadioStageToolDeclarations(host.snapshot().interfaceContract.tools).some((tool) =>
+        tool.name.startsWith("library.import.") ||
+        tool.name.startsWith("library.relation.") ||
+        tool.name.startsWith("library.collection.") ||
+        tool.name === "stage.runtime.status" ||
+        tool.name === "music.experience.playback.play"
+    ),
+    false,
+);
 assert.equal(host.sourceLibraryImport() === undefined, false);
 assert.equal(host.retrievalQuery() === undefined, false);
 assert.equal(host.localizeProviderSource() === undefined, false);
@@ -179,6 +194,7 @@ assert.deepEqual(serverHostBackgroundWork.log, [
     "register:agent_runtime.radio_refill_run",
     "start",
     "submit:agent_runtime.radio_refill_run",
+    "await-terminal-aborted",
     "stop",
 ]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
@@ -588,8 +604,13 @@ function createFakeBackgroundWorkBackend(): BackgroundWorkBackend & {
             void input.handler;
             log.push(`register:${input.jobType}`);
         },
-        async awaitTerminal(jobId) {
-            throw new Error(`Fake server-host Background Work does not model terminal observation for '${jobId}'.`);
+        async awaitTerminal(input) {
+            return await new Promise((_resolve, reject) => {
+                input.signal?.addEventListener("abort", () => {
+                    log.push("await-terminal-aborted");
+                    reject(input.signal?.reason);
+                }, { once: true });
+            });
         },
         async start() {
             log.push("start");

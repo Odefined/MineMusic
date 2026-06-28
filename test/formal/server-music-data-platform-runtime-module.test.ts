@@ -218,8 +218,8 @@ function createFakeBackgroundWorkBackend(): BackgroundWorkBackend & {
         }) {
             backend.registrations.push(input);
         },
-        async awaitTerminal(jobId: string) {
-            throw new Error(`Fake Music Data Platform Background Work does not model terminal observation for '${jobId}'.`);
+        async awaitTerminal(input: { jobId: string }) {
+            throw new Error(`Fake Music Data Platform Background Work does not model terminal observation for '${input.jobId}'.`);
         },
         async start() {
             backend.startCount += 1;

@@ -277,11 +277,65 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
 
   client.setJobState(submitted.jobId, "completed", { status: "ok" });
 
-  assert.deepEqual(await backend.awaitTerminal(submitted.jobId), {
+  assert.deepEqual(await backend.awaitTerminal({
+    jobType: localizeJobType,
+    jobId: submitted.jobId,
+  }), {
     jobId: submitted.jobId,
     state: "succeeded",
     output: { status: "ok" },
   });
+}
+
+{
+  const client = new FakePgBossClient();
+  const submittingBackend = createPgBossBackgroundWorkBackend({ client });
+  const submitted = await submittingBackend.submit({
+    jobType: localizeJobType,
+    payload: { sourceRefKey: "source_netease:track:1005" },
+    idempotencyKey: "terminal-source_netease:track:1005",
+  });
+  client.setJobState(submitted.jobId, "completed");
+
+  const observingBackend = createPgBossBackgroundWorkBackend({ client });
+  assert.equal((await observingBackend.awaitTerminal({
+    jobType: localizeJobType,
+    jobId: submitted.jobId,
+  })).state, "succeeded");
+}
+
+{
+  const client = new FakePgBossClient();
+  const backend = createPgBossBackgroundWorkBackend({ client, terminalPollIntervalMs: 60_000 });
+  const submitted = await backend.submit({
+    jobType: localizeJobType,
+    payload: { sourceRefKey: "source_netease:track:1006" },
+  });
+  const controller = new AbortController();
+  const observation = backend.awaitTerminal({
+    jobType: localizeJobType,
+    jobId: submitted.jobId,
+    signal: controller.signal,
+  });
+
+  controller.abort();
+  await assert.rejects(() => observation, { name: "AbortError" });
+}
+
+{
+  const client = new FakePgBossClient();
+  const backend = createPgBossBackgroundWorkBackend({ client, terminalPollIntervalMs: 60_000 });
+  const submitted = await backend.submit({
+    jobType: localizeJobType,
+    payload: { sourceRefKey: "source_netease:track:1007" },
+  });
+  const observation = backend.awaitTerminal({
+    jobType: localizeJobType,
+    jobId: submitted.jobId,
+  });
+
+  await backend.stop();
+  await assert.rejects(() => observation, /stopped during terminal observation/);
 }
 
 function fakeJob<Payload extends object>(input: {

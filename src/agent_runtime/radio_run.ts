@@ -54,6 +54,7 @@ export async function restoreRadioAgentTranscript(input: RadioTranscriptKey & {
 }
 
 export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInput): RadioRefillRunPort {
+  let activeRunId: string | undefined;
   let activePayload: RadioRefillRunJobPayload | undefined;
   let activeRunStartContext: WorkspaceReadModel | undefined;
 
@@ -74,10 +75,16 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
 
   return {
     async runRadioRefill(runInput) {
+      if (activeRunId !== undefined) {
+        throw new Error(
+          `Radio refill run '${runInput.runId}' cannot start while '${activeRunId}' is active.`,
+        );
+      }
       if (runInput.signal.aborted) {
         throw new Error(`Radio refill run '${runInput.runId}' was aborted before start.`);
       }
 
+      activeRunId = runInput.runId;
       activePayload = runInput.payload;
       const abortAgent = () => {
         input.agent.abort();
@@ -109,6 +116,7 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
         await input.agent.waitForIdle();
       } finally {
         runInput.signal.removeEventListener("abort", abortAgent);
+        activeRunId = undefined;
         activePayload = undefined;
         activeRunStartContext = undefined;
       }

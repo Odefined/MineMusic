@@ -203,6 +203,42 @@ const key = {
 
 {
   const transcriptStore = createInMemoryRadioTranscriptStore();
+  const agent = createTestRadioAgent("concurrent");
+  let resolveRead: ((value: ReturnType<typeof workspaceReadModelFixture>) => void) | undefined;
+  const runPort = createPiRadioRefillRunPort({
+    ...key,
+    agent,
+    transcriptStore,
+    clock: () => "2026-06-28T00:00:00.000Z",
+    runStartRead: {
+      readWorkspace() {
+        return new Promise((resolve) => {
+          resolveRead = resolve;
+        });
+      },
+    },
+  });
+  const firstRun = runPort.runRadioRefill({
+    runId: "radio-job-concurrent-1",
+    payload: payload(7),
+    signal: new AbortController().signal,
+  });
+
+  await assert.rejects(
+    () => runPort.runRadioRefill({
+      runId: "radio-job-concurrent-2",
+      payload: payload(8),
+      signal: new AbortController().signal,
+    }),
+    /cannot start while 'radio-job-concurrent-1' is active/,
+  );
+  assert.ok(resolveRead !== undefined);
+  resolveRead(workspaceReadModelFixture());
+  await firstRun;
+}
+
+{
+  const transcriptStore = createInMemoryRadioTranscriptStore();
   await transcriptStore.save({
     ...key,
     messages: [{ role: "assistant" } as never],

@@ -1544,9 +1544,12 @@ catalog integration. Design authority:
   posture, value-shape validation, cap enforcement, and current-queue dedup
   reads.
 - Phase B PR3 has started the Radio actor runtime substrate. Background Work now
-  has a terminal-observation port (`awaitTerminal`) over pg-boss job state, so a
-  Radio supervisor can hold a single-flight refill from submit through terminal
-  retry completion. Agent Runtime now owns the `agent_runtime.radio_refill_run`
+  has a cancellable terminal-observation port keyed by `{ jobType, jobId }` over
+  pg-boss job state, so a Radio supervisor can hold a single-flight refill from
+  submit through terminal retry completion without a process-local reverse map.
+  Server Host cancels that observation before backend shutdown, and Radio sees
+  only its explicit discovery/catalog/queue-append Stage tool pack. Agent Runtime
+  now owns the `agent_runtime.radio_refill_run`
   job payload/result contracts, `Running` / `Paused` / `Shutdown` lifecycle
   enum, minimal `Silent` / `Notify` speech level, Radio→Main notify channel,
   low-watermark single-flight supervisor, exhaustion suppression by

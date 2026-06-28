@@ -7,6 +7,7 @@ export type {
 } from "./pg_boss_backend.js";
 export type {
   BackgroundWorkBackend,
+  BackgroundWorkAwaitTerminalInput,
   BackgroundWorkHandler,
   BackgroundWorkJob,
   BackgroundWorkSubmission,

@@ -1,10 +1,10 @@
 import type { BackgroundWorkBackend } from "../background_work/index.js";
 import type {
   AgentRuntimeStageToolContextFactoryPort,
+  MainRadioNotifyChannel,
   StageToolDispatchPort,
 } from "../agent_runtime/index.js";
 import {
-  createInMemoryMainRadioNotifyChannel,
   createMineMusicPiAgentAdapter,
   createPiRadioRefillRunPort,
   createPostgresRadioTranscriptStore,
@@ -31,6 +31,7 @@ export type CreateAgentRuntimeRadioModuleInput = {
   database(): MusicDatabaseContext | undefined;
   backgroundWork(): BackgroundWorkBackend | undefined;
   musicExperienceRead(): WorkbenchMusicExperienceReadPort | undefined;
+  notifyChannel(): MainRadioNotifyChannel | undefined;
   tools(): readonly ToolDeclaration[];
   dispatch(): StageToolDispatchPort | undefined;
   contextFactory(): AgentRuntimeStageToolContextFactoryPort | undefined;
@@ -45,6 +46,29 @@ const radioBaseSystemPrompt = [
   "Run one bounded refill turn when woken.",
   "Use the Radio Run Floor as durable direction truth and avoid material already in the queue.",
 ].join("\n");
+
+export const RADIO_STAGE_TOOL_NAMES = [
+  "music.discovery.list_scopes",
+  "music.discovery.lookup",
+  "library.catalog.list_scopes",
+  "library.catalog.browse",
+  "library.catalog.sample",
+  "library.catalog.summary",
+  "music.experience.queue.append",
+] as const;
+
+export function selectRadioStageToolDeclarations(
+  tools: readonly ToolDeclaration[],
+): readonly ToolDeclaration[] {
+  const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
+  return RADIO_STAGE_TOOL_NAMES.map((name) => {
+    const tool = toolsByName.get(name);
+    if (tool === undefined) {
+      throw new Error(`Radio Agent requires Stage tool '${name}'.`);
+    }
+    return tool;
+  });
+}
 
 export function createAgentRuntimeRadioModule(
   input: CreateAgentRuntimeRadioModuleInput,
@@ -67,6 +91,7 @@ export function createAgentRuntimeRadioModule(
       const db = requirePort(input.database(), "music database");
       const backgroundWork = requirePort(input.backgroundWork(), "Background Work");
       const musicExperienceRead = requirePort(input.musicExperienceRead(), "Music Experience read model");
+      const notifyChannel = requirePort(input.notifyChannel(), "Main Radio notify channel");
       const transcriptStore = createPostgresRadioTranscriptStore({ db });
       const agent = createMineMusicPiAgentAdapter({
         systemPrompt: radioBaseSystemPrompt,
@@ -109,7 +134,7 @@ export function createAgentRuntimeRadioModule(
         workspaceId,
         backgroundWork,
         runPort,
-        notifyChannel: createInMemoryMainRadioNotifyChannel(),
+        notifyChannel,
         pacingRead: {
           async readRadioPacing(readInput) {
             const snapshot = await createMusicExperienceQueuePlaybackRecords({
@@ -132,7 +157,7 @@ export function createAgentRuntimeRadioModule(
       return radioSupervisor.wake(reason);
     },
     async stop() {
-      supervisor?.setLifecycle("Shutdown");
+      await supervisor?.stop();
       supervisor = undefined;
       currentRadioBasis = undefined;
       return { ok: true, value: undefined };
@@ -160,7 +185,7 @@ export function createAgentRuntimeRadioModule(
       throw new Error("Radio Agent tools used before Stage Runtime is ready.");
     }
     return createStageToolBridge({
-      tools,
+      tools: selectRadioStageToolDeclarations(tools),
       dispatch: lazyDispatch(input),
       contextFactory: radioContextFactory(),
       stageSessionId: "radio",

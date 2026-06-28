@@ -36,6 +36,8 @@ import {
 } from "../music_experience/index.js";
 import {
   agentRuntimeSchemas,
+  createInMemoryMainRadioNotifyChannel,
+  type MainRadioNotifyChannel,
 } from "../agent_runtime/index.js";
 import {
   createLibraryImportServerRuntimeModule,
@@ -104,6 +106,7 @@ export type CreateServerHostInput = {
   modules?: readonly RuntimeModule[];
   config?: MineMusicRuntimeConfig;
   backgroundWork?: BackgroundWorkBackend;
+  mainRadioNotifyChannel?: MainRadioNotifyChannel;
 };
 
 export function createServerHost(input: CreateServerHostInput = {}): ServerHost {
@@ -118,6 +121,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
   const backgroundWork: BackgroundWorkBackend | undefined = usesDefaultRuntime
     ? input.backgroundWork ?? createDefaultBackgroundWorkBackend(input.config)
     : undefined;
+  const mainRadioNotifyChannel = input.mainRadioNotifyChannel ?? createInMemoryMainRadioNotifyChannel();
   const musicDataPlatformModule: MusicDataPlatformRuntimeModule | undefined =
     usesDefaultRuntime
       ? createMusicDataPlatformRuntimeModule({
@@ -221,6 +225,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
           database: () => defaultMusicDatabase?.context(),
           backgroundWork: () => backgroundWork,
           musicExperienceRead: () => readDefaultMusicExperienceReadPort(),
+          notifyChannel: () => mainRadioNotifyChannel,
           tools: (): readonly ToolDeclaration[] => runtime.interface.tools,
           dispatch: () => ({
             dispatch(dispatchInput) {
@@ -276,6 +281,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       return initialized;
     },
     async stop() {
+      const radioStopped = await agentRuntimeRadioModule?.stop?.();
       const stopped = await runtime.stop();
       stageInterfaceRuntimePorts = undefined;
       musicScopeAvailabilityPort = undefined;
@@ -285,6 +291,13 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
         return {
           ok: false,
           error: databaseClosed.error,
+        };
+      }
+
+      if (radioStopped !== undefined && !radioStopped.ok) {
+        return {
+          ok: false,
+          error: radioStopped.error,
         };
       }
 

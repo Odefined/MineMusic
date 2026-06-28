@@ -13,6 +13,7 @@ import {
 
 import type {
   BackgroundWorkBackend,
+  BackgroundWorkAwaitTerminalInput,
   BackgroundWorkHandler,
   BackgroundWorkSubmitInput,
   BackgroundWorkSubmitResult,
@@ -63,9 +64,9 @@ export function createPgBossBackgroundWorkBackend(
   const client = input.client ?? createPgBossClient(input);
   const handlers = new Map<string, HandlerRegistration>();
   const createdQueues = new Set<string>();
-  const jobTypesByJobId = new Map<string, string>();
   let clientStarted = false;
   let workersStarted = false;
+  let lifecycleAbortController = new AbortController();
 
   return {
     async submit<Payload extends object>(
@@ -89,7 +90,6 @@ export function createPgBossBackgroundWorkBackend(
 
       const createdJobId = await client.send(jobType, submitInput.payload, options);
       if (createdJobId !== null) {
-        jobTypesByJobId.set(createdJobId, jobType);
         return {
           jobId: createdJobId,
           submission: "created",
@@ -105,7 +105,6 @@ export function createPgBossBackgroundWorkBackend(
         throw new Error(`Background Work backend deduplicated job '${jobType}' but no existing job was found.`);
       }
 
-      jobTypesByJobId.set(existingJobId, jobType);
       return {
         jobId: existingJobId,
         submission: "deduplicated",
@@ -130,18 +129,18 @@ export function createPgBossBackgroundWorkBackend(
       });
     },
 
-    async awaitTerminal(jobId: string): Promise<BackgroundWorkTerminalState> {
-      const jobType = jobTypesByJobId.get(jobId);
-      if (jobType === undefined) {
-        throw new Error(`Background Work job '${jobId}' is not known to this backend.`);
-      }
-
+    async awaitTerminal(awaitInput: BackgroundWorkAwaitTerminalInput): Promise<BackgroundWorkTerminalState> {
+      const jobType = assertJobType(awaitInput.jobType);
       await ensureClientStarted();
+      const signal = awaitInput.signal === undefined
+        ? lifecycleAbortController.signal
+        : AbortSignal.any([awaitInput.signal, lifecycleAbortController.signal]);
 
       while (true) {
-        const job = await client.getJobById<object>(jobType, jobId);
+        signal.throwIfAborted();
+        const job = await client.getJobById<object>(jobType, awaitInput.jobId);
         if (job === null) {
-          throw new Error(`Background Work job '${jobId}' was not found.`);
+          throw new Error(`Background Work job '${awaitInput.jobId}' was not found.`);
         }
 
         const terminal = terminalState(job);
@@ -149,7 +148,7 @@ export function createPgBossBackgroundWorkBackend(
           return terminal;
         }
 
-        await sleep(input.terminalPollIntervalMs ?? 1000);
+        await sleep(input.terminalPollIntervalMs ?? 1000, signal);
       }
     },
 
@@ -194,11 +193,11 @@ export function createPgBossBackgroundWorkBackend(
         return;
       }
 
+      lifecycleAbortController.abort(new Error("Background Work backend stopped during terminal observation."));
       await client.stop(input.stopOptions ?? { graceful: true, close: true });
       clientStarted = false;
       workersStarted = false;
       createdQueues.clear();
-      jobTypesByJobId.clear();
     },
   };
 
@@ -207,6 +206,9 @@ export function createPgBossBackgroundWorkBackend(
       return;
     }
 
+    if (lifecycleAbortController.signal.aborted) {
+      lifecycleAbortController = new AbortController();
+    }
     await client.start();
     clientStarted = true;
   }
@@ -241,9 +243,23 @@ function terminalState(job: JobWithMetadata<object>): BackgroundWorkTerminalStat
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", onAbort);
+      try {
+        signal?.throwIfAborted();
+      } catch (error) {
+        reject(error);
+      }
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
 

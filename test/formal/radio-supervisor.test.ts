@@ -50,6 +50,7 @@ async function runRadioSupervisorTests(): Promise<void> {
     queueDepth: 5,
     lowWatermark: 5,
   });
+  assert.equal(exactlyLow.supervisor.snapshot().refilling, false);
 
   const customTarget = createHarness({ queueDepth: 4, lowWatermark: 5, fillTarget: 12 });
   const customTargetDecision = await customTarget.supervisor.wake("low_watermark");
@@ -64,6 +65,108 @@ async function runRadioSupervisorTests(): Promise<void> {
   if (emptyQueueDecision.kind === "submitted") {
     assert.equal(emptyQueueDecision.payload.suggestedAppendCount, 10);
   }
+
+{
+  const harness = createHarness({ queueDepth: 4 });
+  const decisions = await Promise.all([
+    harness.supervisor.wake("low_watermark"),
+    harness.supervisor.wake("low_watermark"),
+  ]);
+
+  assert.equal(decisions.filter((decision) => decision.kind === "submitted").length, 1);
+  assert.equal(decisions.filter((decision) => decision.kind === "already_refilling").length, 1);
+  assert.equal(harness.backgroundWork.submissions.length, 1);
+  assert.equal(harness.supervisor.snapshot().refillGeneration, 1);
+}
+
+{
+  const harness = createHarness({ queueDepth: 4 });
+  await harness.supervisor.wake("low_watermark");
+
+  await harness.supervisor.stop();
+
+  assert.equal(harness.supervisor.snapshot().lifecycle, "Shutdown");
+  assert.equal(harness.supervisor.snapshot().refilling, false);
+  assert.equal(harness.supervisor.snapshot().terminalObservationError, undefined);
+}
+
+{
+  let pacingReadCount = 0;
+  const harness = createHarness({
+    queueDepth: 4,
+    async readRadioPacing() {
+      pacingReadCount += 1;
+      if (pacingReadCount === 1) {
+        throw new Error("pacing read failed");
+      }
+      return {
+        queueDepth: 4,
+        radioDirectionRevision: 0,
+        radioSessionRevision: 0,
+      };
+    },
+  });
+
+  await assert.rejects(() => harness.supervisor.wake("low_watermark"), /pacing read failed/);
+  assert.equal(harness.supervisor.snapshot().refilling, false);
+  assert.equal((await harness.supervisor.wake("low_watermark")).kind, "submitted");
+  assert.equal(harness.backgroundWork.submissions.length, 1);
+}
+
+{
+  let resolvePacing: ((pacing: RadioPacingSnapshot) => void) | undefined;
+  const harness = createHarness({
+    queueDepth: 4,
+    readRadioPacing() {
+      return new Promise((resolve) => {
+        resolvePacing = resolve;
+      });
+    },
+  });
+
+  const wake = harness.supervisor.wake("low_watermark");
+  assert.equal(harness.supervisor.snapshot().refilling, true);
+  harness.supervisor.setLifecycle("Paused");
+  assert.ok(resolvePacing !== undefined);
+  resolvePacing({
+    queueDepth: 4,
+    radioDirectionRevision: 0,
+    radioSessionRevision: 0,
+  });
+
+  assert.deepEqual(await wake, { kind: "not_running", lifecycle: "Paused" });
+  assert.equal(harness.supervisor.snapshot().refilling, false);
+  assert.equal(harness.backgroundWork.submissions.length, 0);
+}
+
+{
+  const harness = createHarness({ queueDepth: 4 });
+  harness.backgroundWork.nextSubmitError = new Error("submit failed");
+
+  await assert.rejects(() => harness.supervisor.wake("low_watermark"), /submit failed/);
+  assert.equal(harness.supervisor.snapshot().refilling, false);
+  assert.equal((await harness.supervisor.wake("low_watermark")).kind, "submitted");
+  assert.equal(harness.backgroundWork.submissions.length, 1);
+  assert.equal(harness.backgroundWork.submissions[0]!.input.payload.refillGeneration, 1);
+}
+
+{
+  const harness = createHarness({ queueDepth: 4 });
+  harness.backgroundWork.nextSubmitErrorAfterCreate = new Error("submit response lost");
+
+  await assert.rejects(() => harness.supervisor.wake("low_watermark"), /submit response lost/);
+  assert.equal(harness.supervisor.snapshot().refilling, false);
+  assert.equal(harness.backgroundWork.submissions.length, 1);
+
+  const retry = await harness.supervisor.wake("low_watermark");
+  assert.equal(retry.kind, "submitted");
+  if (retry.kind === "submitted") {
+    assert.equal(retry.jobId, harness.backgroundWork.submissions[0]!.jobId);
+    assert.equal(retry.payload.refillGeneration, 1);
+  }
+  assert.equal(harness.backgroundWork.submissions.length, 1);
+  assert.equal(harness.supervisor.snapshot().refillGeneration, 1);
+}
 
 {
   const harness = createHarness({ queueDepth: 4 });
@@ -110,6 +213,7 @@ async function runRadioSupervisorTests(): Promise<void> {
     kind: "direction_exhausted",
     radioDirectionRevision: 0,
   });
+  assert.equal(harness.supervisor.snapshot().refilling, false);
 
   harness.supervisor.setLifecycle("Paused");
   harness.supervisor.setLifecycle("Running");
@@ -179,6 +283,36 @@ async function runRadioSupervisorTests(): Promise<void> {
 }
 
 {
+  let pacingReadCount = 0;
+  const harness = createHarness({
+    queueDepth: 4,
+    async readRadioPacing() {
+      pacingReadCount += 1;
+      if (pacingReadCount === 2) {
+        throw new Error("automatic pacing read failed");
+      }
+      return {
+        queueDepth: 4,
+        radioDirectionRevision: 0,
+        radioSessionRevision: 0,
+      };
+    },
+  });
+
+  await harness.supervisor.wake("low_watermark");
+  harness.backgroundWork.resolveTerminal(harness.backgroundWork.submissions[0]!.jobId, "succeeded");
+  await assert.rejects(
+    () => harness.supervisor.waitForTerminalObservation(),
+    /automatic pacing read failed/,
+  );
+
+  assert.equal(harness.supervisor.snapshot().terminalObservationError, undefined);
+  assert.equal(harness.supervisor.snapshot().refilling, false);
+  assert.equal((await harness.supervisor.wake("low_watermark")).kind, "submitted");
+  assert.equal(harness.backgroundWork.submissions.length, 2);
+}
+
+{
   const clock = createFakeClock("2026-06-28T00:00:00.000Z");
   const harness = createHarness({ queueDepth: 4, clock, failedTerminalCooldownMs: 10_000 });
 
@@ -214,6 +348,7 @@ function createHarness(input: {
   failedTerminalCooldownMs?: number;
   lowWatermark?: number;
   fillTarget?: number;
+  readRadioPacing?: () => Promise<RadioPacingSnapshot>;
 }) {
   const pacing: RadioPacingSnapshot = {
     queueDepth: input.queueDepth,
@@ -231,6 +366,9 @@ function createHarness(input: {
     runPort,
     pacingRead: {
       async readRadioPacing() {
+        if (input.readRadioPacing !== undefined) {
+          return input.readRadioPacing();
+        }
         return { ...pacing };
       },
     },
@@ -279,6 +417,8 @@ class FakeBackgroundWorkBackend implements BackgroundWorkBackend {
     jobId: string;
     input: BackgroundWorkSubmitInput<RadioRefillRunJobPayload>;
   }[] = [];
+  nextSubmitError?: unknown;
+  nextSubmitErrorAfterCreate?: unknown;
   private handler?: BackgroundWorkHandler<RadioRefillRunJobPayload>;
   private jobCounter = 0;
   private readonly terminalResolvers = new Map<string, (terminal: BackgroundWorkTerminalState) => void>();
@@ -288,6 +428,11 @@ class FakeBackgroundWorkBackend implements BackgroundWorkBackend {
     input: BackgroundWorkSubmitInput<Payload>,
   ): Promise<BackgroundWorkSubmitResult> {
     assert.equal(input.jobType, RADIO_REFILL_JOB_TYPE);
+    if (this.nextSubmitError !== undefined) {
+      const error = this.nextSubmitError;
+      this.nextSubmitError = undefined;
+      throw error;
+    }
     const existing = this.submissions.find((submission) =>
       submission.input.idempotencyKey !== undefined &&
       submission.input.idempotencyKey === input.idempotencyKey
@@ -301,6 +446,11 @@ class FakeBackgroundWorkBackend implements BackgroundWorkBackend {
       jobId,
       input: input as BackgroundWorkSubmitInput<RadioRefillRunJobPayload>,
     });
+    if (this.nextSubmitErrorAfterCreate !== undefined) {
+      const error = this.nextSubmitErrorAfterCreate;
+      this.nextSubmitErrorAfterCreate = undefined;
+      throw error;
+    }
     return { jobId, submission: "created" };
   }
 
@@ -309,10 +459,20 @@ class FakeBackgroundWorkBackend implements BackgroundWorkBackend {
     this.handler = input.handler as BackgroundWorkHandler<RadioRefillRunJobPayload>;
   }
 
-  async awaitTerminal(jobId: string): Promise<BackgroundWorkTerminalState> {
+  async awaitTerminal(input: {
+    jobType: string;
+    jobId: string;
+    signal?: AbortSignal;
+  }): Promise<BackgroundWorkTerminalState> {
+    assert.equal(input.jobType, RADIO_REFILL_JOB_TYPE);
     return new Promise((resolve, reject) => {
-      this.terminalResolvers.set(jobId, resolve);
-      this.terminalRejecters.set(jobId, reject);
+      this.terminalResolvers.set(input.jobId, resolve);
+      this.terminalRejecters.set(input.jobId, reject);
+      input.signal?.addEventListener("abort", () => {
+        this.terminalResolvers.delete(input.jobId);
+        this.terminalRejecters.delete(input.jobId);
+        reject(input.signal?.reason);
+      }, { once: true });
     });
   }
 
