@@ -1,7 +1,7 @@
 import {
   parseRefKey,
   refKey,
-  type CommandPreconditionSet,
+  type ConcernRevisionSet,
   type ConcernRevision,
   type Ref,
 } from "../contracts/kernel.js";
@@ -37,7 +37,7 @@ export type MusicExperienceQueuePlaybackRecords = {
     ownerScope: string;
     materialRefs: readonly Ref[];
     provenance: MusicExperienceQueueItemProvenance;
-    basis?: CommandPreconditionSet;
+    basis?: ConcernRevisionSet;
     now: string;
   }): Promise<{
     appended: readonly MusicExperienceQueueItemSnapshot[];
@@ -59,9 +59,14 @@ export type MusicExperienceRadioTruthRecords = {
   read(input: {
     ownerScope: string;
   }): Promise<MusicExperienceRadioTruthSnapshot>;
+  readForPostureWrite(input: {
+    ownerScope: string;
+    now: string;
+  }): Promise<MusicExperienceRadioTruthSnapshot>;
   setDirection(input: {
     ownerScope: string;
     direction: RadioDirectionSnapshot;
+    basis?: ConcernRevisionSet;
     now: string;
   }): Promise<{
     radioDirectionRevision: ConcernRevision;
@@ -73,6 +78,7 @@ export type MusicExperienceRadioTruthRecords = {
     commandedRevisionStamp: ConcernRevision;
     now: string;
   }): Promise<{
+    radioDirectionRevision: ConcernRevision;
     posture: EvolvedPostureSnapshot;
   }>;
   readQueuedMaterialRefs(input: {
@@ -257,10 +263,25 @@ export function createMusicExperienceRadioTruthRecords(
         radioDirectionRevision: state.radio_direction_revision,
       });
     },
+    async readForPostureWrite(readInput) {
+      const key = workspaceKey(readInput.ownerScope, workspaceId);
+      await ensureState({ db, key, now: readInput.now });
+      const state = await lockStateForUpdate({ db, key });
+      return readRadioTruth({
+        db,
+        key,
+        radioDirectionRevision: state.radio_direction_revision,
+      });
+    },
     async setDirection(setInput) {
       const key = workspaceKey(setInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: setInput.now });
-      const state = await updateRadioDirectionRevision({ db, key, now: setInput.now });
+      const state = await updateRadioDirectionRevision({
+        db,
+        key,
+        now: setInput.now,
+        ...(setInput.basis === undefined ? {} : { basis: setInput.basis }),
+      });
       await writeRadioDirection({
         db,
         key,
@@ -282,10 +303,7 @@ export function createMusicExperienceRadioTruthRecords(
 
       const key = workspaceKey(writeInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: writeInput.now });
-      const state = await readState({ db, key });
-      if (state === undefined) {
-        throw new Error("Music Experience state row was not available after ensureState.");
-      }
+      const state = await lockStateForUpdate({ db, key });
 
       await writeRadioPosture({
         db,
@@ -296,6 +314,7 @@ export function createMusicExperienceRadioTruthRecords(
       });
 
       return {
+        radioDirectionRevision: state.radio_direction_revision,
         posture: postureSnapshot({
           lean: writeInput.lean,
           commandedRevisionStamp: writeInput.commandedRevisionStamp,
@@ -414,6 +433,28 @@ async function readState(input: {
   );
 }
 
+async function lockStateForUpdate(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+}): Promise<StateRow> {
+  const row = await input.db.get<StateRow>(
+    `
+      SELECT ${STATE_ROW_COLUMNS}
+      FROM music_experience_state
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+      FOR UPDATE
+    `,
+    [input.key.ownerScope, input.key.workspaceId],
+  );
+
+  if (row === undefined) {
+    throw new Error("Music Experience state row was not available for update after ensureState.");
+  }
+
+  return row;
+}
+
 async function countQueueRows(input: {
   db: MusicDatabaseContext;
   key: MusicExperienceWorkspaceKey;
@@ -430,11 +471,16 @@ async function countQueueRows(input: {
   return row?.queue_length ?? 0;
 }
 
-async function updateQueueRevision(input: {
+// Bumps a single revision column with optimistic-concurrency gating on the
+// supplied basis. A missing RETURNING row means the basis did not match the
+// current state, which is a stale precondition. Shared by queue and radio
+// direction revision advances so the CAS plumbing cannot drift between them.
+async function advanceRevision(input: {
   db: MusicDatabaseContext;
   key: MusicExperienceWorkspaceKey;
-  basis?: CommandPreconditionSet;
+  basis?: ConcernRevisionSet;
   now: string;
+  setClause: string;
 }): Promise<StateRow> {
   const conditions: string[] = [];
   const params: (string | number)[] = [input.now, input.key.ownerScope, input.key.workspaceId];
@@ -454,7 +500,7 @@ async function updateQueueRevision(input: {
   const row = await input.db.get<StateRow>(
     `
       UPDATE music_experience_state
-      SET queue_revision = queue_revision + 1,
+      SET ${input.setClause},
         updated_at = ?
       WHERE owner_scope = ?
         AND workspace_id = ?
@@ -469,6 +515,15 @@ async function updateQueueRevision(input: {
   }
 
   return row;
+}
+
+async function updateQueueRevision(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  basis?: ConcernRevisionSet;
+  now: string;
+}): Promise<StateRow> {
+  return advanceRevision({ ...input, setClause: "queue_revision = queue_revision + 1" });
 }
 
 async function updatePlayback(input: {
@@ -508,25 +563,10 @@ async function updatePlayback(input: {
 async function updateRadioDirectionRevision(input: {
   db: MusicDatabaseContext;
   key: MusicExperienceWorkspaceKey;
+  basis?: ConcernRevisionSet;
   now: string;
 }): Promise<StateRow> {
-  const row = await input.db.get<StateRow>(
-    `
-      UPDATE music_experience_state
-      SET radio_direction_revision = radio_direction_revision + 1,
-        updated_at = ?
-      WHERE owner_scope = ?
-        AND workspace_id = ?
-      RETURNING ${STATE_ROW_COLUMNS}
-    `,
-    [input.now, input.key.ownerScope, input.key.workspaceId],
-  );
-
-  if (row === undefined) {
-    throw new Error("Music Experience radio direction update did not return a state row.");
-  }
-
-  return row;
+  return advanceRevision({ ...input, setClause: "radio_direction_revision = radio_direction_revision + 1" });
 }
 
 async function readRadioTruth(input: {

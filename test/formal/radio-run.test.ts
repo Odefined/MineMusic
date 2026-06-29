@@ -2,19 +2,27 @@ import assert from "node:assert/strict";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 
 import {
+  createStageToolBridge,
   createInMemoryRadioTranscriptStore,
   createMineMusicPiAgentAdapter,
   createPiRadioRefillRunPort,
   createRadioRunResultRecorder,
   createWorkspaceContextAssembler,
   restoreRadioAgentTranscript,
-  type EncodedWorkspaceContext,
+  toPiToolName,
   type RadioTranscriptStore,
+  type WorkspaceContextAssembly,
 } from "../../src/agent_runtime/index.js";
 import type { StageToolContext } from "../../src/contracts/stage_interface.js";
 import type { MusicExperienceWorkspaceProjection } from "../../src/contracts/music_experience.js";
+import type { AgentActorKind, ConcernRevisionSet } from "../../src/contracts/kernel.js";
+import {
+  musicExperienceQueueAppendDescriptor,
+  radioLeanAddDescriptor,
+} from "../../src/music_experience/stage_adapter/index.js";
 import {
   assistantErrorMessage,
+  assistantMessageWithToolCall,
   assistantTextMessage,
   fakeAssistantMessageEventStream,
 } from "./helpers/pi-agent-message-fixtures.js";
@@ -122,7 +130,7 @@ const key = {
       },
     }),
     prepareRun() {
-      agent.state.tools = [fakeRadioTool() as never];
+      return [fakeRadioTool() as never];
     },
   });
 
@@ -136,12 +144,225 @@ const key = {
   assert.match(observedSystemPrompt, /Actor Identity:/);
   assert.match(observedSystemPrompt, /Workspace Context:/);
   assert.match(observedSystemPrompt, /radio:\ndirectionRevision: 7/);
-  assert.match(observedSystemPrompt, /0\. "Already Queued" \[material:material:already-queued\]/);
+  assert.match(observedSystemPrompt, /0\. recording "Already Queued" \[material:material:already-queued\]/);
   assert.equal(observedSystemPrompt.includes("Radio Run Floor:"), false);
   assert.match(observedMessagesJson, /radio_refill/);
   assert.match(observedMessagesJson, /suggestedAppendCount/);
-  assert.match(observedMessagesJson, /radioDirectionRevision/);
+  assert.equal(observedMessagesJson.includes("radioDirectionRevision"), false);
   assert.equal(observedToolCount, 1);
+}
+
+{
+  const transcriptStore = createInMemoryRadioTranscriptStore();
+  let observedSystemPrompt = "";
+  let projection = workspaceProjectionFixture({
+    posture: {
+      lean: [{ kind: "text", text: "old stale lean" }],
+      commandedRevisionStamp: 6,
+      stale: true,
+    },
+  });
+  const agent = createTestRadioAgent("stale-posture", {
+    streamFn(_model, context) {
+      observedSystemPrompt = context.systemPrompt ?? "";
+      return fakeAssistantMessageEventStream({
+        type: "done",
+        reason: "stop",
+        message: assistantTextMessage("stale cleared"),
+      });
+    },
+  });
+  let clearCalls = 0;
+  const runPort = createPiRadioRefillRunPort({
+    ...key,
+    agent,
+    transcriptStore,
+    clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromRun: defaultRadioResult,
+    async beforeWorkspaceContextAssemble(payload) {
+      assert.equal(payload.radioDirectionRevision, 7);
+      if (projection.radio.posture.stale) {
+        clearCalls += 1;
+        projection = workspaceProjectionFixture({
+          posture: {
+            lean: [],
+            commandedRevisionStamp: payload.radioDirectionRevision,
+            stale: false,
+          },
+        });
+      }
+    },
+    workspaceContext: createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return projection;
+        },
+      },
+    }),
+  });
+
+  await runPort.runRadioRefill({
+    runId: "radio-job-stale-posture",
+    payload: payloadWithRevisions({ refillGeneration: 17, radioSessionRevision: 0, radioDirectionRevision: 7 }),
+    signal: new AbortController().signal,
+  });
+
+  assert.equal(clearCalls, 1);
+  assert.equal(observedSystemPrompt.includes("old stale lean"), false);
+  assert.match(observedSystemPrompt, /posture:\nlean:\nempty\nstale: false\ncommandedRevisionStamp: 7/u);
+}
+
+{
+  const transcriptStore = createInMemoryRadioTranscriptStore();
+  const observedContexts: {
+    toolName: string;
+    preconditionBasis: unknown;
+    actor: unknown;
+  }[] = [];
+  let streamCallCount = 0;
+  const agent = createTestRadioAgent("basis-tracker", {
+    streamFn() {
+      streamCallCount += 1;
+      if (streamCallCount === 1) {
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "toolUse",
+          message: assistantMessageWithToolCall(
+            "radio-basis-queue",
+            toPiToolName(musicExperienceQueueAppendDescriptor.name),
+            { items: ["[material:basis_queue]"] },
+          ),
+        });
+      }
+      if (streamCallCount === 2) {
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "toolUse",
+          message: assistantMessageWithToolCall(
+            "radio-basis-lean-1",
+            toPiToolName(radioLeanAddDescriptor.name),
+            { value: { kind: "text", text: "drier drums" } },
+          ),
+        });
+      }
+      if (streamCallCount === 3) {
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "toolUse",
+          message: assistantMessageWithToolCall(
+            "radio-basis-lean-2",
+            toPiToolName(radioLeanAddDescriptor.name),
+            { value: { kind: "text", text: "less gloss" } },
+          ),
+        });
+      }
+      return fakeAssistantMessageEventStream({
+        type: "done",
+        reason: "stop",
+        message: assistantTextMessage("basis checked"),
+      });
+    },
+  });
+  const runPort = createPiRadioRefillRunPort({
+    ...key,
+    agent,
+    transcriptStore,
+    clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromRun: defaultRadioResult,
+    workspaceContext: createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return workspaceProjectionFixture({
+            concernRevisions: {
+              queueRevision: 11,
+              radioDirectionRevision: 7,
+              radioSessionRevision: 3,
+              playbackRevision: 0,
+            },
+          });
+        },
+      },
+    }),
+    prepareRun(_payload, _workspaceContext, _signal, harness) {
+      return createStageToolBridge({
+        tools: [musicExperienceQueueAppendDescriptor, radioLeanAddDescriptor],
+        dispatch: harness.wrapDispatch({
+          async dispatch(input) {
+            observedContexts.push({
+              toolName: input.toolName,
+              preconditionBasis: input.ctx.preconditionBasis,
+              actor: input.ctx.actor,
+            });
+            if (input.toolName === musicExperienceQueueAppendDescriptor.name) {
+              return {
+                ok: true,
+                value: {
+                  toolName: input.toolName,
+                  result: {
+                    items: [],
+                    queueLength: 0,
+                    queueRevision: 12,
+                    changedBasis: { queueRevision: 12 },
+                  },
+                },
+              };
+            }
+            return {
+              ok: true,
+              value: {
+                toolName: input.toolName,
+                result: {
+                  radioDirectionRevision: 8,
+                  changedBasis: { radioDirectionRevision: 8 },
+                  posture: {
+                    lean: [],
+                    commandedRevisionStamp: 7,
+                    stale: false,
+                  },
+                },
+              },
+            };
+          },
+        }),
+        contextFactory: harness.createToolContextFactory({
+          createToolContext(input) {
+            return createMinimalContext(
+              input.sessionId,
+              input.requestId,
+              input.abortSignal,
+              input.preconditionBasis,
+              input.actor,
+            );
+          },
+        }),
+        stageSessionId: "radio-basis",
+      });
+    },
+  });
+
+  await runPort.runRadioRefill({
+    runId: "radio-job-basis",
+    payload: payloadWithRevisions({ refillGeneration: 18, radioSessionRevision: 99, radioDirectionRevision: 99 }),
+    signal: new AbortController().signal,
+  });
+
+  assert.deepEqual(observedContexts, [
+    {
+      toolName: "music.experience.queue.append",
+      preconditionBasis: { radioDirectionRevision: 7, radioSessionRevision: 3 },
+      actor: "radio_agent",
+    },
+    {
+      toolName: "radio.lean.add",
+      preconditionBasis: { radioDirectionRevision: 7 },
+      actor: "radio_agent",
+    },
+    {
+      toolName: "radio.lean.add",
+      preconditionBasis: { radioDirectionRevision: 8 },
+      actor: "radio_agent",
+    },
+  ]);
 }
 
 {
@@ -214,6 +435,86 @@ const key = {
     radioSessionRevision: 3,
     outcome: "voided_stale",
     appendedCount: 0,
+  });
+
+  const appendedThenStaleRecorder = createRadioRunResultRecorder();
+  appendedThenStaleRecorder.observeToolResult({
+    toolName: "music.experience.queue.append",
+    result: {
+      ok: true,
+      value: {
+        toolName: "music.experience.queue.append",
+        result: {
+          items: [
+            { item: "[material:material:one]", position: 0 },
+          ],
+          queueLength: 1,
+          queueRevision: 9,
+        },
+      },
+    },
+  });
+  appendedThenStaleRecorder.observeToolResult({
+    toolName: "music.experience.queue.append",
+    result: {
+      ok: false,
+      error: {
+        code: "voided_stale",
+        message: "Music Experience command basis was stale at commit time.",
+        area: "music_experience",
+        retryable: true,
+      },
+    },
+  });
+  assert.deepEqual(appendedThenStaleRecorder.result({
+    runId: "radio-result-appended-then-stale-test",
+    payload: payloadWithRevisions({ refillGeneration: 15, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+  }), {
+    runId: "radio-result-appended-then-stale-test",
+    radioDirectionRevision: 5,
+    radioSessionRevision: 3,
+    outcome: "appended",
+    appendedCount: 1,
+  });
+
+  const appendedThenAbortRecorder = createRadioRunResultRecorder();
+  appendedThenAbortRecorder.observeToolResult({
+    toolName: "music.experience.queue.append",
+    result: {
+      ok: true,
+      value: {
+        toolName: "music.experience.queue.append",
+        result: {
+          items: [
+            { item: "[material:material:one]", position: 0 },
+          ],
+          queueLength: 1,
+          queueRevision: 9,
+        },
+      },
+    },
+  });
+  appendedThenAbortRecorder.observeToolResult({
+    toolName: "music.experience.queue.append",
+    result: {
+      ok: false,
+      error: {
+        code: "operation_aborted",
+        message: "Radio run was aborted.",
+        area: "music_experience",
+        retryable: true,
+      },
+    },
+  });
+  assert.deepEqual(appendedThenAbortRecorder.result({
+    runId: "radio-result-appended-then-abort-test",
+    payload: payloadWithRevisions({ refillGeneration: 16, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+  }), {
+    runId: "radio-result-appended-then-abort-test",
+    radioDirectionRevision: 5,
+    radioSessionRevision: 3,
+    outcome: "appended",
+    appendedCount: 1,
   });
 
   const idleRecorder = createRadioRunResultRecorder();
@@ -367,7 +668,7 @@ const key = {
 {
   const transcriptStore = createInMemoryRadioTranscriptStore();
   const agent = createTestRadioAgent("concurrent");
-  let resolveRead: ((value: EncodedWorkspaceContext | Promise<EncodedWorkspaceContext>) => void) | undefined;
+  let resolveRead: ((value: WorkspaceContextAssembly | Promise<WorkspaceContextAssembly>) => void) | undefined;
   const runPort = createPiRadioRefillRunPort({
     ...key,
     agent,
@@ -574,6 +875,8 @@ function createMinimalContext(
   sessionId: string,
   requestId: string,
   abortSignal?: AbortSignal,
+  preconditionBasis?: ConcernRevisionSet,
+  actor?: AgentActorKind,
 ): StageToolContext {
   return {
     ownerScope: key.ownerScope,
@@ -581,6 +884,8 @@ function createMinimalContext(
     requestId,
     clock: () => "2026-06-28T00:00:00.000Z",
     ...(abortSignal === undefined ? {} : { abortSignal }),
+    ...(preconditionBasis === undefined ? {} : { preconditionBasis }),
+    ...(actor === undefined ? {} : { actor }),
     handleMinting: {
       async mint() {
         throw new Error("Handle minting is unavailable in this test.");
@@ -660,12 +965,20 @@ function emptyWorkspaceContext() {
 
 function workspaceProjectionFixture(input: {
   posture?: MusicExperienceWorkspaceProjection["radio"]["posture"];
+  concernRevisions?: MusicExperienceWorkspaceProjection["concernRevisions"];
 } = {}): MusicExperienceWorkspaceProjection {
   return {
+    concernRevisions: input.concernRevisions ?? {
+      queueRevision: 11,
+      radioDirectionRevision: 7,
+      radioSessionRevision: 0,
+      playbackRevision: 0,
+    },
     revision: 11,
     queue: [{
       position: 0,
       item: "[material:material:already-queued]" as const,
+      materialKind: "recording",
       label: "Already Queued",
     }],
     radio: {

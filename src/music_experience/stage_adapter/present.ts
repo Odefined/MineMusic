@@ -20,6 +20,7 @@ import type {
   MaterialProjection,
 } from "../../music_data_platform/index.js";
 import {
+  failIfAborted,
   mintMaterialItemHandle,
   resolveDurableMusicMaterial,
 } from "./durable_item_resolution.js";
@@ -34,6 +35,22 @@ export const musicExperienceInstrument: InstrumentDescriptor = {
   label: "Music Experience",
   ownerArea: "music_experience",
 };
+
+// Shared ToolDeclaration metadata for runtime-state-write Music Experience stage
+// tools (queue/playback and radio truth). The present tool declares its own
+// durable-user-state-write metadata inline because it admits via presentation.
+export const runtimeWriteSideEffect = {
+  durableUserStateWrite: false,
+  runtimeStateWrite: true,
+  externalCall: false,
+} as const;
+
+export const runtimeWriteInvocationPolicy = {
+  defaultDecision: "auto",
+  dataEgress: "none",
+  readOnlyHint: false,
+  destructiveHint: false,
+} as const;
 
 export const musicExperiencePresentDescriptor: ToolDeclaration = {
   name: "music.experience.present",
@@ -101,6 +118,11 @@ export const musicExperiencePresentDescriptor: ToolDeclaration = {
       retryable: false,
       suggestedFixTemplate: "Call music.experience.present with item as a full [material:...] or [candidate:...] handle.",
     },
+    {
+      code: "operation_aborted",
+      retryable: true,
+      suggestedFixTemplate: "Retry the action if it is still desired.",
+    },
   ],
   resultSummary(result) {
     const output = result as MusicExperiencePresentOutput;
@@ -122,11 +144,21 @@ async function handleMusicExperiencePresent(
   payload: unknown,
   ports: CreateMusicExperiencePresentRegistrationInput,
 ): Promise<Result<MusicExperiencePresentOutput>> {
+  const abortedAtEntry = failIfAborted(ctx.abortSignal);
+  if (abortedAtEntry !== undefined) {
+    return abortedAtEntry;
+  }
+
   const input = payload as MusicExperiencePresentInput;
   const material = await resolveDurableMusicMaterial(ctx, input.item, ports);
 
   if (!material.ok) {
     return material;
+  }
+
+  const abortedAfterResolve = failIfAborted(ctx.abortSignal);
+  if (abortedAfterResolve !== undefined) {
+    return abortedAfterResolve;
   }
 
   return presentMaterial(ctx, material.value);

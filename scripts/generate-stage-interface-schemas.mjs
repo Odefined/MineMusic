@@ -9,6 +9,18 @@ const outputPath = resolve(
   "src/contracts/generated/stage_interface_schemas.ts",
 );
 const checkMode = process.argv.includes("--check");
+const musicExperienceContractSource = await readFile(
+  resolve(repositoryRoot, "src/contracts/music_experience.ts"),
+  "utf8",
+);
+
+function readNumericExport(name) {
+  const match = new RegExp(`export const ${name} = (\\d+);`).exec(musicExperienceContractSource);
+  if (match === null) {
+    throw new Error(`Could not read numeric export ${name} from src/contracts/music_experience.ts.`);
+  }
+  return Number.parseInt(match[1], 10);
+}
 
 const schemaTargets = [
   {
@@ -54,6 +66,76 @@ const schemaTargets = [
   {
     exportName: "musicExperienceQueueAppendOutputSchema",
     typeName: "MusicExperienceQueueAppendOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioMotifSetInputSchema",
+    typeName: "RadioMotifSetInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioMotifClearInputSchema",
+    typeName: "RadioMotifClearInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioVariationsAddInputSchema",
+    typeName: "RadioVariationsAddInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioVariationsRemoveInputSchema",
+    typeName: "RadioVariationsRemoveInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioVariationsReplaceInputSchema",
+    typeName: "RadioVariationsReplaceInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioVariationsMoveInputSchema",
+    typeName: "RadioVariationsMoveInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioVariationsClearInputSchema",
+    typeName: "RadioVariationsClearInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioLeanAddInputSchema",
+    typeName: "RadioLeanAddInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioLeanRemoveInputSchema",
+    typeName: "RadioLeanRemoveInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioLeanReplaceInputSchema",
+    typeName: "RadioLeanReplaceInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioLeanMoveInputSchema",
+    typeName: "RadioLeanMoveInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioLeanClearInputSchema",
+    typeName: "RadioLeanClearInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioDirectionToolOutputSchema",
+    typeName: "RadioDirectionToolOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioLeanToolOutputSchema",
+    typeName: "RadioLeanToolOutput",
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
@@ -225,6 +307,9 @@ function generatorFor(sourcePath) {
 
 const TOOL_LIMIT_CONSTRAINT = { type: "integer", minimum: 1, maximum: 100 };
 const NON_EMPTY_STRING_CONSTRAINT = { type: "string", minLength: 1 };
+const RADIO_ACTIVE_VARIATION_ITEMS_MAX = readNumericExport("MAX_RADIO_ACTIVE_VARIATION_ITEMS");
+const RADIO_POSTURE_LEAN_ITEMS_MAX = readNumericExport("MAX_RADIO_POSTURE_LEAN_ITEMS");
+const RADIO_DIRECTION_TEXT_MAX_LENGTH = readNumericExport("MAX_RADIO_DIRECTION_TEXT_LENGTH");
 const MATERIAL_MUSIC_ITEM_HANDLE_CONSTRAINT = {
   type: "string",
   pattern: "^\\[material:[^\\]\\r\\n]+\\]$",
@@ -260,51 +345,84 @@ function applyToolLimitOverlay(schema) {
   applyNumericPropertyOverlay(schema, "limit");
 }
 
-function applyNumericPropertyOverlay(schema, propertyName) {
+// Recurses every node in the schema and, where `properties[propertyName]`
+// matches, replaces it with `mutate(current)`. Shared by the numeric/integer/
+// non-empty-string overlays so the traversal cannot drift between them.
+function overlayProperty(schema, propertyName, matches, mutate) {
   if (schema === null || typeof schema !== "object") {
     return;
   }
   if (Array.isArray(schema)) {
     for (const node of schema) {
-      applyNumericPropertyOverlay(node, propertyName);
+      overlayProperty(node, propertyName, matches, mutate);
     }
     return;
   }
-  if (
-    schema.properties !== undefined &&
-    typeof schema.properties[propertyName] === "object" &&
-    schema.properties[propertyName] !== null &&
-    schema.properties[propertyName].type === "number"
-  ) {
-    schema.properties[propertyName] = { ...TOOL_LIMIT_CONSTRAINT };
+  const current = schema.properties === undefined ? undefined : schema.properties[propertyName];
+  if (current !== undefined && typeof current === "object" && current !== null && matches(current)) {
+    schema.properties[propertyName] = mutate(current);
   }
   for (const child of Object.values(schema)) {
-    applyNumericPropertyOverlay(child, propertyName);
+    overlayProperty(child, propertyName, matches, mutate);
   }
 }
 
+function applyNumericPropertyOverlay(schema, propertyName) {
+  overlayProperty(
+    schema,
+    propertyName,
+    (node) => node.type === "number",
+    () => ({ ...TOOL_LIMIT_CONSTRAINT }),
+  );
+}
+
+function applyIntegerPropertyOverlay(schema, propertyName) {
+  overlayProperty(
+    schema,
+    propertyName,
+    (node) => node.type === "number",
+    (node) => ({ ...node, type: "integer" }),
+  );
+}
+
+function applyRadioIndexIntegerOverlays(schema) {
+  applyIntegerPropertyOverlay(schema, "at");
+  applyIntegerPropertyOverlay(schema, "index");
+  applyIntegerPropertyOverlay(schema, "from");
+  applyIntegerPropertyOverlay(schema, "to");
+}
+
 function applyNonEmptyStringPropertyOverlay(schema, propertyName) {
-  if (schema === null || typeof schema !== "object") {
-    return;
-  }
-  if (Array.isArray(schema)) {
-    for (const node of schema) {
-      applyNonEmptyStringPropertyOverlay(node, propertyName);
-    }
-    return;
-  }
-  if (
-    schema.properties !== undefined &&
-    typeof schema.properties[propertyName] === "object" &&
-    schema.properties[propertyName] !== null &&
-    schema.properties[propertyName].type === "string" &&
-    schema.properties[propertyName].minLength === undefined
-  ) {
-    schema.properties[propertyName] = { ...NON_EMPTY_STRING_CONSTRAINT };
-  }
-  for (const child of Object.values(schema)) {
-    applyNonEmptyStringPropertyOverlay(child, propertyName);
-  }
+  overlayProperty(
+    schema,
+    propertyName,
+    (node) => node.type === "string" && node.minLength === undefined,
+    () => ({ ...NON_EMPTY_STRING_CONSTRAINT }),
+  );
+}
+
+function applyMaxLengthStringPropertyOverlay(schema, propertyName, maxLength) {
+  overlayProperty(
+    schema,
+    propertyName,
+    (node) => node.type === "string",
+    (node) => ({ ...node, maxLength }),
+  );
+}
+
+function applyMaxItemsPropertyOverlay(schema, propertyName, maxItems) {
+  overlayProperty(
+    schema,
+    propertyName,
+    (node) => node.type === "array",
+    (node) => ({ ...node, maxItems }),
+  );
+}
+
+function applyRadioDirectionBoundOverlays(schema) {
+  applyMaxLengthStringPropertyOverlay(schema, "text", RADIO_DIRECTION_TEXT_MAX_LENGTH);
+  applyMaxItemsPropertyOverlay(schema, "activeVariations", RADIO_ACTIVE_VARIATION_ITEMS_MAX);
+  applyMaxItemsPropertyOverlay(schema, "lean", RADIO_POSTURE_LEAN_ITEMS_MAX);
 }
 
 const NON_EMPTY_LIBRARY_IMPORT_BATCH_ID_DEFINITIONS = new Set([
@@ -547,6 +665,21 @@ const generatedSchemas = schemaTargets.map((target) => {
     target.exportName === "libraryImportStatusInputSchema"
   ) {
     applyLibraryImportBatchIdNonEmptyOverlay(schema);
+  }
+  if (
+    target.exportName.startsWith("radioVariations") ||
+    target.exportName.startsWith("radioLean")
+  ) {
+    applyRadioIndexIntegerOverlays(schema);
+  }
+  if (
+    target.exportName.startsWith("radioMotif") ||
+    target.exportName.startsWith("radioVariations") ||
+    target.exportName.startsWith("radioLean") ||
+    target.exportName === "radioDirectionToolOutputSchema" ||
+    target.exportName === "radioLeanToolOutputSchema"
+  ) {
+    applyRadioDirectionBoundOverlays(schema);
   }
   applyMusicItemHandlePatternOverlay(schema);
   applyMusicScopeHandlePatternOverlay(schema);

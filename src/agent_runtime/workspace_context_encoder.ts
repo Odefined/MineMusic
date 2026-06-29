@@ -3,6 +3,7 @@ import type {
   MusicExperienceWorkspaceProjection,
   MusicExperienceWorkspaceRadioDirectionValue,
 } from "../contracts/music_experience.js";
+import { formatMusicScopeHandle } from "../contracts/stage_interface.js";
 import type { ActorDefinition, WorkspaceContextSectionName } from "./actor_definition.js";
 import { validateActorDefinition } from "./actor_definition.js";
 
@@ -111,10 +112,12 @@ function encodeRadioSection(
     directionRevision: musicExperience.radio.directionRevision,
     ...compactString("direction", [
       valueLine("motif", musicExperience.radio.direction.motif),
-      ...musicExperience.radio.direction.activeVariations.map((value) => valueLine("activeVariation", value)),
+      valueList("activeVariations", musicExperience.radio.direction.activeVariations),
     ]),
     ...compactString("posture", [
-      ...musicExperience.radio.posture.lean.map((value) => valueLine("lean", value)),
+      ...(musicExperience.radio.posture.stale
+        ? []
+        : [valueList("lean", musicExperience.radio.posture.lean)]),
       `stale: ${musicExperience.radio.posture.stale}`,
       ...(musicExperience.radio.posture.commandedRevisionStamp === undefined
         ? []
@@ -141,6 +144,18 @@ function valueLine(
   return `${label}: ${formatRadioValue(value)}`;
 }
 
+function valueList(
+  label: string,
+  values: readonly MusicExperienceWorkspaceRadioDirectionValue[],
+): string {
+  return [
+    `${label}:`,
+    values.length === 0
+      ? "empty"
+      : values.map((value, index) => `${index}. ${formatRadioValue(value)}`).join("\n"),
+  ].join("\n");
+}
+
 function formatRadioValue(value: MusicExperienceWorkspaceRadioDirectionValue): string {
   switch (value.kind) {
     case "text":
@@ -148,13 +163,13 @@ function formatRadioValue(value: MusicExperienceWorkspaceRadioDirectionValue): s
     case "material":
       return formatMusicItem(value);
     case "scope":
-      return JSON.stringify(value.scope);
+      return formatMusicScopeHandle(value.scope);
   }
 }
 
 function formatMusicItem(item: MusicExperienceWorkspaceItemSummary): string {
   const artists = item.artistsText === undefined ? "" : ` - ${quoteText(item.artistsText)}`;
-  return `${quoteText(item.label)}${artists} ${item.item}`;
+  return `${item.materialKind} ${quoteText(item.label)}${artists} ${item.item}`;
 }
 
 function quoteText(text: string): string {

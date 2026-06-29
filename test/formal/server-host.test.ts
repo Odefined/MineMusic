@@ -12,7 +12,11 @@ import { createCollectionRecords, createOwnerMaterialRelationRecords, createSour
 import { createMusicDataPlatformScopeAvailabilityRowProvider } from "../../src/music_data_platform/stage_adapter/index.js";
 import { createMusicDiscoveryRuntimeModule, createMusicScopeAvailabilityPort, type MusicScopeAvailabilityPort } from "../../src/music_intelligence/stage_adapter/index.js";
 import { isMusicIntelligenceError, type MusicIntelligenceErrorCode, } from "../../src/music_intelligence/index.js";
-import { createMusicExperienceQueuePlaybackCommand, musicExperienceSchemas } from "../../src/music_experience/index.js";
+import {
+    createMusicExperienceQueuePlaybackCommand,
+    createMusicExperienceRadioTruthCommand,
+    musicExperienceSchemas,
+} from "../../src/music_experience/index.js";
 import { RADIO_STAGE_TOOL_NAMES, selectRadioStageToolDeclarations, } from "../../src/agent_runtime/index.js";
 import { createExtensionRuntimeRetrievalProviderSearchPort, createMusicDataPlatformRuntimeModule, createMusicExperienceServerRuntimeModule, createMineMusicExtensionRuntime, createServerHost, createStageToolContextAssembly, } from "../../src/server/index.js";
 import { createExtensionRuntimeModule, createStageRuntime, } from "../../src/stage_core/index.js";
@@ -205,6 +209,18 @@ assert.deepEqual(host.snapshot().interfaceContract.tools.map((tool) => tool.name
     "music.experience.present",
     "music.experience.queue.append",
     "music.experience.playback.play",
+    "radio.motif.set",
+    "radio.motif.clear",
+    "radio.variations.add",
+    "radio.variations.remove",
+    "radio.variations.replace",
+    "radio.variations.move",
+    "radio.variations.clear",
+    "radio.lean.add",
+    "radio.lean.remove",
+    "radio.lean.replace",
+    "radio.lean.move",
+    "radio.lean.clear",
     "stage.runtime.status",
 ]);
 const listedImportSources = await host.dispatch(testStageToolContext(), {
@@ -340,6 +356,9 @@ const fixtureRuntime = createStageRuntime({
                 materialProjection: () => fixtureMusicDataPlatformModule.materialProjection(),
                 queuePlayback: () => {
                     return createMusicExperienceQueuePlaybackCommand({ database: fixtureDatabase });
+                },
+                radioTruth: () => {
+                    return createMusicExperienceRadioTruthCommand({ database: fixtureDatabase });
                 },
             },
         }),

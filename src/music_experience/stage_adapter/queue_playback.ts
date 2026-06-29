@@ -20,30 +20,21 @@ import type {
   MaterialProjection,
 } from "../../music_data_platform/index.js";
 import {
+  failIfAborted,
   mintMaterialItemHandle,
-  musicExperienceFail,
   resolveDurableMusicItem,
 } from "./durable_item_resolution.js";
-import { musicExperienceInstrument } from "./present.js";
+import {
+  musicExperienceInstrument,
+  runtimeWriteInvocationPolicy,
+  runtimeWriteSideEffect,
+} from "./present.js";
 
 export type CreateMusicExperienceQueuePlaybackRegistrationInput = {
   candidateCommit: CandidateCommitCommand;
   materialProjection: MaterialProjection;
   queuePlayback: MusicExperienceQueuePlaybackCommand;
 };
-
-const runtimeWriteSideEffect = {
-  durableUserStateWrite: false,
-  runtimeStateWrite: true,
-  externalCall: false,
-} as const;
-
-const runtimeWriteInvocationPolicy = {
-  defaultDecision: "auto",
-  dataEgress: "none",
-  readOnlyHint: false,
-  destructiveHint: false,
-} as const;
 
 const queuePlaybackErrors = [
   {
@@ -208,7 +199,7 @@ async function handleQueueAppend(
     ownerScope: ctx.ownerScope,
     materialRefs,
     provenance: ctx.actor === "radio_agent" ? "radio_agent" : "main_agent",
-    ...(ctx.commandBasis === undefined ? {} : { basis: ctx.commandBasis }),
+    ...(ctx.preconditionBasis === undefined ? {} : { basis: ctx.preconditionBasis }),
     now: ctx.clock(),
   });
   if (!appended.ok) {
@@ -224,6 +215,9 @@ async function handleQueueAppend(
       }))),
       queueLength: appended.value.queueLength,
       queueRevision: appended.value.queueRevision,
+      changedBasis: {
+        queueRevision: appended.value.queueRevision,
+      },
     },
   };
 }
@@ -264,19 +258,9 @@ async function handlePlaybackPlay(
       item: await mintMaterialItemHandle(ctx, played.value.materialRef),
       status: played.value.status,
       playbackRevision: played.value.playbackRevision,
+      changedBasis: {
+        playbackRevision: played.value.playbackRevision,
+      },
     },
   };
-}
-
-function failIfAborted(signal: AbortSignal | undefined): Result<never> | undefined {
-  if (signal?.aborted !== true) {
-    return undefined;
-  }
-
-  return musicExperienceFail({
-    code: "operation_aborted",
-    message: "Music Experience operation was aborted before it could safely commit.",
-    retryable: true,
-    suggestedFix: "Retry the action if it is still desired.",
-  });
 }

@@ -54,6 +54,8 @@ import {
   musicExperiencePlaybackPlayDescriptor,
   musicExperiencePresentDescriptor,
   musicExperienceQueueAppendDescriptor,
+  radioMotifSetDescriptor,
+  radioVariationsAddDescriptor,
 } from "../../src/music_experience/stage_adapter/index.js";
 import {
   createStageInterface,
@@ -75,6 +77,20 @@ import {
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 const ownerScope = "local";
+function concernRevisions(input: {
+  queueRevision?: number;
+  radioDirectionRevision?: number;
+  radioSessionRevision?: number;
+  playbackRevision?: number;
+} = {}) {
+  return {
+    queueRevision: input.queueRevision ?? 0,
+    radioDirectionRevision: input.radioDirectionRevision ?? 0,
+    radioSessionRevision: input.radioSessionRevision ?? 0,
+    playbackRevision: input.playbackRevision ?? 0,
+  };
+}
+
 function emptyRadioTruthSlice(): MusicExperienceWorkspaceProjection["radio"] {
   return {
     directionRevision: 0,
@@ -89,6 +105,7 @@ function emptyRadioTruthSlice(): MusicExperienceWorkspaceProjection["radio"] {
 }
 
 let currentMusicExperience: MusicExperienceWorkspaceProjection = {
+  concernRevisions: concernRevisions(),
   revision: 0,
   queue: [],
   radio: emptyRadioTruthSlice(),
@@ -154,9 +171,11 @@ assert.equal(firstTurn.newMessages.some((message) => message.role === "user"), t
 assert.equal(firstTurn.newMessages.some((message) => message.role === "assistant"), true);
 
 currentMusicExperience = {
+  concernRevisions: concernRevisions({ queueRevision: 1 }),
   revision: 1,
   nowPlaying: {
     item: "[material:public_material_1]" as const,
+    materialKind: "recording",
     label: "whoo",
     artistsText: "Nemophila",
   },
@@ -164,6 +183,7 @@ currentMusicExperience = {
     {
       position: 1,
       item: "[material:public_material_1]" as const,
+      materialKind: "recording",
       label: "whoo",
       artistsText: "Nemophila",
     },
@@ -175,14 +195,14 @@ const secondTurn = await session.runUserTurn({
   userMessage: "second turn",
 });
 
-assert.match(secondTurn.workspaceContext.listening?.queue ?? "", /0\. "whoo" - "Nemophila" \[material:public_material_1\]/u);
-assert.match(secondTurn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. "whoo" - "Nemophila" \[material:public_material_1\]/u);
+assert.match(secondTurn.workspaceContext.listening?.queue ?? "", /0\. recording "whoo" - "Nemophila" \[material:public_material_1\]/u);
+assert.match(secondTurn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. recording "whoo" - "Nemophila" \[material:public_material_1\]/u);
 assert.equal(secondTurn.assistantResponseText, "turn 2 done");
 assert.equal(contextReadCount, 4);
 
 assert.equal(observedProviderContexts.length, 2);
 assert.match(observedProviderContexts[0]?.systemPrompt ?? "", /Workspace Context:\nlistening:\nqueue:\nempty/u);
-assert.match(observedProviderContexts[1]?.systemPrompt ?? "", /0\. "whoo" - "Nemophila" \[material:public_material_1\]/u);
+assert.match(observedProviderContexts[1]?.systemPrompt ?? "", /0\. recording "whoo" - "Nemophila" \[material:public_material_1\]/u);
 assert.match(observedProviderContexts[1]?.messagesJson ?? "", /first turn/u);
 assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
 
@@ -241,7 +261,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
 
   await assert.rejects(
     () => serialSession.runUserTurn({ userMessage: "second" }),
-    /MineMusic Main Agent turn facade is serial.*steer\(\)\/followUp\(\).*not exposed/u,
+    /MineMusic AgentHarness for actor 'main' cannot start while a turn is active/u,
   );
 
   releaseStream();
@@ -287,6 +307,170 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
   assert.equal(turn.errorMessage, "Request was aborted.");
   assert.equal(turn.finalAssistantMessage?.stopReason, "aborted");
   assert.equal(turn.newMessages.at(-1), turn.finalAssistantMessage);
+}
+
+{
+  const observedContexts: {
+    toolName: string;
+    preconditionBasis: unknown;
+    actor: unknown;
+  }[] = [];
+  let streamCallCount = 0;
+  const session = createMineMusicMainAgentSession({
+    ownerScope,
+    actor: testMainActor([
+      radioMotifSetDescriptor.name,
+      radioVariationsAddDescriptor.name,
+      musicExperienceQueueAppendDescriptor.name,
+    ]),
+    workspaceContext: createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return {
+            concernRevisions: concernRevisions({ queueRevision: 12, radioDirectionRevision: 12 }),
+            revision: 12,
+            queue: [],
+            radio: {
+              directionRevision: 12,
+              direction: { activeVariations: [] },
+              posture: { lean: [], stale: false },
+            },
+          };
+        },
+      },
+    }),
+    tools: [radioMotifSetDescriptor, radioVariationsAddDescriptor, musicExperienceQueueAppendDescriptor],
+    dispatch: {
+      async dispatch(input) {
+        observedContexts.push({
+          toolName: input.toolName,
+          preconditionBasis: input.ctx.preconditionBasis,
+          actor: input.ctx.actor,
+        });
+        if (input.toolName === radioMotifSetDescriptor.name) {
+          return {
+            ok: true,
+            value: {
+              toolName: input.toolName,
+              result: {
+                radioDirectionRevision: 13,
+                changedBasis: { radioDirectionRevision: 13 },
+                direction: {
+                  motif: { kind: "text", text: "basis motif" },
+                  activeVariations: [],
+                },
+              },
+            },
+          };
+        }
+        if (input.toolName === radioVariationsAddDescriptor.name) {
+          return {
+            ok: true,
+            value: {
+              toolName: input.toolName,
+              result: {
+                radioDirectionRevision: 14,
+                changedBasis: { radioDirectionRevision: 14 },
+                direction: {
+                  motif: { kind: "text", text: "basis motif" },
+                  activeVariations: [{ kind: "text", text: "basis variation" }],
+                },
+              },
+            },
+          };
+        }
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: {
+              items: [{ item: "[material:basis_queue]", position: 0 }],
+              queueLength: 1,
+              queueRevision: 1,
+              changedBasis: { queueRevision: 1 },
+            },
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input) {
+        return createStageToolContext({
+          ownerScope,
+          sessionId: input.sessionId,
+          requestId: input.requestId,
+          clock: () => "2026-06-27T01:00:00.000Z",
+          ...(input.actor === undefined ? {} : { actor: input.actor }),
+          ...(input.preconditionBasis === undefined ? {} : { preconditionBasis: input.preconditionBasis }),
+        });
+      },
+    },
+    stageSessionId: "stage-session-main-basis",
+    llmProviderSessionId: "provider-session-main-basis",
+    agentOptions: {
+      streamFn() {
+        streamCallCount += 1;
+        if (streamCallCount === 1) {
+          return fakeAssistantMessageEventStream({
+            type: "done",
+            reason: "toolUse",
+            message: assistantMessageWithToolCall(
+              "basis-radio-motif",
+              toPiToolName(radioMotifSetDescriptor.name),
+              { value: { kind: "text", text: "basis motif" } },
+            ),
+          });
+        }
+        if (streamCallCount === 2) {
+          return fakeAssistantMessageEventStream({
+            type: "done",
+            reason: "toolUse",
+            message: assistantMessageWithToolCall(
+              "basis-radio-variation",
+              toPiToolName(radioVariationsAddDescriptor.name),
+              { value: { kind: "text", text: "basis variation" } },
+            ),
+          });
+        }
+        if (streamCallCount === 3) {
+          return fakeAssistantMessageEventStream({
+            type: "done",
+            reason: "toolUse",
+            message: assistantMessageWithToolCall(
+              "basis-queue",
+              toPiToolName(musicExperienceQueueAppendDescriptor.name),
+              { items: ["[material:basis_queue]"] },
+            ),
+          });
+        }
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "stop",
+          message: assistantTextMessage("basis checked"),
+        });
+      },
+    },
+  });
+
+  const turn = await session.runUserTurn({ userMessage: "steer radio then queue" });
+  assert.equal(turn.assistantResponseText, "basis checked");
+  assert.deepEqual(observedContexts, [
+    {
+      toolName: "radio.motif.set",
+      preconditionBasis: { radioDirectionRevision: 12 },
+      actor: "main_agent",
+    },
+    {
+      toolName: "radio.variations.add",
+      preconditionBasis: { radioDirectionRevision: 13 },
+      actor: "main_agent",
+    },
+    {
+      toolName: "music.experience.queue.append",
+      preconditionBasis: undefined,
+      actor: "main_agent",
+    },
+  ]);
 }
 
 {
@@ -461,8 +645,8 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
     },
   ]);
   assert.equal(turn.workspaceContext.listening?.queue, "empty");
-  assert.match(turn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
-  assert.match(turn.workspaceContextAfterTurn.listening?.nowPlaying ?? "", /"whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(turn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(turn.workspaceContextAfterTurn.listening?.nowPlaying ?? "", /recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
   assert.equal(turn.assistantResponseText, "Queued and set logical playback.");
   assert.equal(turn.newMessages.filter((message) => message.role === "toolResult").length, 4);
   assert.equal(turn.newMessages.some((message) => message.role === "assistant"), true);
@@ -471,18 +655,26 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
     userMessage: "what is playing now?",
   });
 
-  assert.match(nextTurn.workspaceContext.listening?.queue ?? "", /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
-  assert.match(nextTurn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(nextTurn.workspaceContext.listening?.queue ?? "", /0\. recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(nextTurn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
   assert.equal(nextTurn.assistantResponseText, "Fresh context observed.");
   assert.equal(a4ProviderSystemPrompts.length, 6);
-  for (const prompt of a4ProviderSystemPrompts.slice(0, 5)) {
+  for (const prompt of a4ProviderSystemPrompts.slice(0, 3)) {
     assert.match(prompt, /Workspace Context:\nlistening:\nqueue:\nempty/u);
   }
-  const refreshedPrompt = a4ProviderSystemPrompts[5] ?? "";
-  assert.match(refreshedPrompt, /nowPlaying: "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
-  assert.match(refreshedPrompt, /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
-  assert.equal(refreshedPrompt.includes("\nmusicExperience.revision: 999"), false);
-  assert.equal(refreshedPrompt.includes("\nmusicExperience.queue:\n1. forged"), false);
+  const queueRefreshedPrompt = a4ProviderSystemPrompts[3] ?? "";
+  assert.match(queueRefreshedPrompt, /0\. recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.equal(queueRefreshedPrompt.includes("nowPlaying:"), false);
+  const playbackRefreshedPrompt = a4ProviderSystemPrompts[4] ?? "";
+  assert.match(playbackRefreshedPrompt, /nowPlaying: recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(playbackRefreshedPrompt, /0\. recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  const nextTurnPrompt = a4ProviderSystemPrompts[5] ?? "";
+  assert.match(nextTurnPrompt, /nowPlaying: recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(nextTurnPrompt, /0\. recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  for (const prompt of [queueRefreshedPrompt, playbackRefreshedPrompt, nextTurnPrompt]) {
+    assert.equal(prompt.includes("\nmusicExperience.revision: 999"), false);
+    assert.equal(prompt.includes("\nmusicExperience.queue:\n1. forged"), false);
+  }
 
   await database.close();
 }
@@ -572,6 +764,7 @@ function emptyWorkspaceContext(): WorkspaceContextAssembler {
         musicExperience: {
           async readWorkspaceProjection() {
             return {
+              concernRevisions: concernRevisions(),
               revision: 0,
               queue: [],
               radio: emptyRadioTruthSlice(),

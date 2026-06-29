@@ -31,6 +31,7 @@ import {
 } from "./agent_runtime_radio_module.js";
 import {
   createMusicExperienceQueuePlaybackCommand,
+  createMusicExperienceRadioTruthCommand,
   createMusicExperienceReadModel,
   musicExperienceSchemas,
 } from "../music_experience/index.js";
@@ -58,8 +59,11 @@ import {
   type StageInterfaceRuntimePorts,
   type StageToolContextFactory,
 } from "../stage_interface/index.js";
-import type { MusicExperienceWorkspaceProjectionPort } from "../contracts/music_experience.js";
-import type { MusicExperienceQueuePlaybackCommand } from "../contracts/music_experience.js";
+import type {
+  MusicExperienceQueuePlaybackCommand,
+  MusicExperienceRadioTruthCommand,
+  MusicExperienceWorkspaceProjectionPort,
+} from "../contracts/music_experience.js";
 import {
   createCollectionRecords,
   createOwnerMaterialRelationRecords,
@@ -116,6 +120,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
   const usesDefaultRuntime = input.runtime === undefined && input.modules === undefined;
   let defaultMusicDatabase: MusicDatabase | undefined;
   let queuePlaybackCommand: MusicExperienceQueuePlaybackCommand | undefined;
+  let radioTruthCommand: MusicExperienceRadioTruthCommand | undefined;
   let stageInterfaceRuntimePorts: StageInterfaceRuntimePorts | undefined;
   let musicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
   let runtime: StageRuntime;
@@ -178,6 +183,9 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
             queuePlayback: () => {
               return readDefaultQueuePlaybackCommand();
             },
+            radioTruth: () => {
+              return readDefaultRadioTruthCommand();
+            },
           },
         });
   const libraryImportModule: RuntimeModule | undefined =
@@ -227,6 +235,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
           database: () => defaultMusicDatabase?.context(),
           backgroundWork: () => backgroundWork,
           musicExperienceRead: () => readDefaultMusicExperienceReadPort(),
+          radioTruth: () => readDefaultRadioTruthCommand(),
           notifyChannel: () => mainRadioNotifyChannel,
           agentOptions: () => input.radioAgentOptions,
           tools: (): readonly ToolDeclaration[] => runtime.interface.tools,
@@ -368,6 +377,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       await defaultMusicDatabase.close();
       defaultMusicDatabase = undefined;
       queuePlaybackCommand = undefined;
+      radioTruthCommand = undefined;
       return { ok: true, value: undefined };
     } catch (cause) {
       return {
@@ -390,6 +400,15 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
 
     queuePlaybackCommand ??= createMusicExperienceQueuePlaybackCommand({ database: defaultMusicDatabase });
     return queuePlaybackCommand;
+  }
+
+  function readDefaultRadioTruthCommand(): MusicExperienceRadioTruthCommand | undefined {
+    if (defaultMusicDatabase === undefined) {
+      return undefined;
+    }
+
+    radioTruthCommand ??= createMusicExperienceRadioTruthCommand({ database: defaultMusicDatabase });
+    return radioTruthCommand;
   }
 
   function readDefaultMusicExperienceReadPort(): MusicExperienceWorkspaceProjectionPort | undefined {

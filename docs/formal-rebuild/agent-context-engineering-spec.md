@@ -346,7 +346,7 @@ Current section vocabulary starts with:
 {
   "listening": {
     "nowPlaying": null,
-    "queue": "0. <label> - <artistsText> [material:mh_...]\n1. <label> [material:mh_...]"
+    "queue": "0. <materialKind> <label> - <artistsText> [material:mh_...]\n1. <materialKind> <label> [material:mh_...]"
   }
 }
 ```
@@ -365,6 +365,9 @@ Rules:
   `[material:mh_<opaque>]` value is a pass-back handle, not an id, ref, or
   stable material identity claim.
 - `label` is required in each queue line.
+- `materialKind` is required in each material line and is one of `recording`,
+  `album`, or `artist`, so agents can tell whether a material handle refers to a
+  track-like recording, an album, or an artist without dereferencing it.
 - `artistsText` is optional and is omitted from the line when absent.
 - `queueLength` may exist only as an auxiliary compressed summary. It must never
   replace the queue lines when the actor needs current-queue identity.
@@ -387,7 +390,9 @@ Rules:
 - `posture` is the current evolved radio posture as projected for the workspace.
 - `directionRevision` is the current workspace direction revision. Scalar values
   remain scalar; do not wrap them in redundant metadata objects.
-- Basis revisions for a run are Invocation Context, not Workspace Context.
+- Runtime command basis is not an agent-facing Workspace Context field.
+  AgentHarness reads harness-only `commandBasis` from the same workspace
+  assembly and projects it into tool-call `preconditionBasis`.
 - `runId`, `wakeReason`, and `suggestedAppendCount` are Invocation Context, not
   Workspace Context.
 - Empty fields are omitted. Owner scope, capture timestamp, source area name,
@@ -427,13 +432,16 @@ Examples:
 - Radio `runId`;
 - Radio `wakeReason`;
 - Radio `suggestedAppendCount`;
-- Radio basis revisions such as `radioDirectionRevision` and
-  `radioSessionRevision`.
+- Radio task parameters such as `runId`, wake reason, and suggested append
+  count.
 
 Invocation Context may repeat identifiers that also appear in Workspace
 Context, but only with explicit semantics. For example, current
-`radio.directionRevision` is a Workspace Context fact; basis
-`radioDirectionRevision` is the revision this run will check at commit time.
+`radio.directionRevision` is a Workspace Context fact. Runtime command basis is
+not Invocation Context; the AgentHarness adapter reads harness-only
+`commandBasis` from the same workspace assembly, injects `preconditionBasis`
+before Stage tool calls, and absorbs internal `changedBasis` after successful
+tool results.
 
 Radio refill invocation shape:
 
@@ -443,11 +451,7 @@ Radio refill invocation shape:
     "kind": "radio_refill",
     "runId": "radio-job-...",
     "wakeReason": "low_watermark",
-    "suggestedAppendCount": 5,
-    "basis": {
-      "radioDirectionRevision": 7,
-      "radioSessionRevision": 1
-    }
+    "suggestedAppendCount": 5
   }
 }
 ```
@@ -458,8 +462,8 @@ Rules:
   `agent.prompt(...)`.
 - Radio refill invocation is JSON, not prose such as
   `"Radio refill run: low_watermark; target about 5 tracks"`.
-- `basis` revisions are run preconditions; they are not Workspace Context
-  current facts.
+- Command basis is runtime-only AgentHarness state; it is not shown in the
+  invocation JSON and is not an agent-facing instruction.
 - `kind` identifies the invocation type without relying on prose.
 
 ### 6. Continuity Context
@@ -607,10 +611,11 @@ They may receive different selected sections for a run, but there is no
 Main-specific or Radio-specific Workspace Context shape.
 
 Radio's queue dedupe context belongs to Workspace Context. Radio's
-`runId`, wake reason, suggested append count, and basis revisions belong to
-Invocation Context. Radio's transcript belongs to Continuity Context.
-Actor-selected tools come from `ActorDefinition.toolPack.stageToolNames`;
-injected command basis belongs to Capability Context.
+`runId`, wake reason, and suggested append count belong to Invocation Context.
+Radio's transcript belongs to Continuity Context. Actor-selected tools come from
+`ActorDefinition.toolPack.stageToolNames`. Runtime command basis is harness
+state: it is derived from workspace assembly, projected into Stage tool
+`preconditionBasis`, and never shown as prompt content.
 
 The old pattern of a Radio-only `Radio Run Floor` carrying hand-written
 workspace facts is forbidden. Radio-specific run text may exist only as
@@ -709,8 +714,8 @@ The following are not yet grilled and must not be filled as settled:
   Workspace Context.
 - Main and Radio do not have separate Workspace Context compression or rendering
   paths.
-- Radio Invocation Context separately exposes run id, wake reason, suggested
-  append count, and basis revisions.
+- Radio Invocation Context separately exposes run id, wake reason, and suggested
+  append count.
 - The implementation maps rails only onto pi's `systemPrompt`, `messages`, and
   `tools`; it does not invent a parallel provider-context channel.
 - Tests prove Radio context cannot regress to a Radio-only hand-written

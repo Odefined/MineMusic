@@ -145,7 +145,9 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/agent_runtime
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
     "src/agent_runtime/actor_definition.ts",
+    "src/agent_runtime/agent_harness.ts",
     "src/agent_runtime/agent_message_helpers.ts",
+    "src/agent_runtime/command_basis_tracker.ts",
     "src/agent_runtime/index.ts",
     "src/agent_runtime/main_agent_session.ts",
     "src/agent_runtime/main_radio_channel.ts",
@@ -178,7 +180,8 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_experie
     "src/music_experience/stage_adapter/index.ts",
     "src/music_experience/stage_adapter/present.ts",
     "src/music_experience/stage_adapter/queue_playback.ts",
-], "formal Music Experience root must stay inside the Phase A3 queue/playback truth, command, read projection, and Stage adapter boundary");
+    "src/music_experience/stage_adapter/radio_truth.ts",
+], "formal Music Experience root must stay inside the owned command/read projection and Stage adapter boundary");
 assert.deepEqual(await sourceFilesContaining(
     await sourceFilesUnder(join(repositoryRoot, "src")),
     /\b(?:INSERT INTO|UPDATE|DELETE FROM)\s+music_experience_/u,

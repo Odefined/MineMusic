@@ -339,6 +339,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   const appendOutput = output<MusicExperienceQueueAppendOutput>(appendResult);
   assert.equal(appendOutput.queueLength, 1);
   assert.equal(appendOutput.queueRevision, 1);
+  assert.deepEqual(appendOutput.changedBasis, { queueRevision: 1 });
   assert.deepEqual(appendOutput.items, [
     {
       item: `[material:${materialHandleId}]`,
@@ -356,6 +357,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(playResult.ok, true);
   const playOutput = output<MusicExperiencePlaybackPlayOutput>(playResult);
   assert.equal(playOutput.playbackRevision, 1);
+  assert.deepEqual(playOutput.changedBasis, { playbackRevision: 1 });
   assert.equal(playOutput.status, "playing");
   assert.deepEqual(playOutput.item, `[material:${materialHandleId}]`);
   assertPublicToolOutput(playOutput);
@@ -377,17 +379,25 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   });
   const workbenchSlice = await readModel.readWorkspaceProjection({ ownerScope });
   assert.deepEqual(workbenchSlice, {
+    concernRevisions: {
+      queueRevision: 1,
+      radioDirectionRevision: 0,
+      radioSessionRevision: 0,
+      playbackRevision: 1,
+    },
     revision: 1,
     queue: [
       {
         position: 1,
         item: `[material:${materialHandleId}]`,
+        materialKind: "recording",
         label: "A3 Dispatch Song",
         artistsText: "Dispatch Artist",
       },
     ],
     nowPlaying: {
       item: `[material:${materialHandleId}]`,
+      materialKind: "recording",
       label: "A3 Dispatch Song",
       artistsText: "Dispatch Artist",
     },
@@ -641,7 +651,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     sessionId: "a3-radio-context-stale-session",
     requestId: "a3-radio-context-stale-request",
     actor: "radio_agent",
-    commandBasis: {
+    preconditionBasis: {
       radioDirectionRevision: 0,
       radioSessionRevision: 0,
     },
@@ -662,7 +672,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     sessionId: "a3-radio-context-fresh-session",
     requestId: "a3-radio-context-fresh-request",
     actor: "radio_agent",
-    commandBasis: {
+    preconditionBasis: {
       radioDirectionRevision: 0,
       radioSessionRevision: 1,
     },
@@ -767,7 +777,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     sessionId: "a3-radio-retry-stale-session",
     requestId: "a3-radio-retry-stale-request",
     actor: "radio_agent",
-    commandBasis: {
+    preconditionBasis: {
       radioDirectionRevision: 0,
       radioSessionRevision: 0,
     },
@@ -788,7 +798,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     sessionId: "a3-radio-retry-fresh-session",
     requestId: "a3-radio-retry-fresh-request",
     actor: "radio_agent",
-    commandBasis: {
+    preconditionBasis: {
       radioDirectionRevision: 0,
       radioSessionRevision: 1,
     },

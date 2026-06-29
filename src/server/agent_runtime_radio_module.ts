@@ -3,6 +3,7 @@ import type {
   AgentRuntimeStageToolContextFactoryPort,
   MainRadioNotifyChannel,
   RadioRunResultRecorder,
+  RadioPrepareRunHarness,
   RadioToolBridgeCache,
   StageToolDispatchPort,
 } from "../agent_runtime/index.js";
@@ -25,9 +26,13 @@ import type { RadioWakeReason } from "../contracts/agent_runtime.js";
 import type {
   ToolDeclaration,
 } from "../contracts/stage_interface.js";
-import type { MusicExperienceWorkspaceProjectionPort } from "../contracts/music_experience.js";
+import type {
+  MusicExperienceRadioTruthCommand,
+  MusicExperienceWorkspaceProjectionPort,
+} from "../contracts/music_experience.js";
 import {
   createMusicExperienceQueuePlaybackRecords,
+  createMusicExperienceRadioTruthRecords,
   DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID,
 } from "../music_experience/index.js";
 import type { RuntimeModule } from "../stage_core/index.js";
@@ -39,6 +44,7 @@ export type CreateAgentRuntimeRadioModuleInput = {
   database(): MusicDatabaseContext | undefined;
   backgroundWork(): BackgroundWorkBackend | undefined;
   musicExperienceRead(): MusicExperienceWorkspaceProjectionPort | undefined;
+  radioTruth(): MusicExperienceRadioTruthCommand | undefined;
   notifyChannel(): MainRadioNotifyChannel | undefined;
   agentOptions(): MineMusicPiAgentAdapterOptions | undefined;
   tools(): readonly ToolDeclaration[];
@@ -56,10 +62,6 @@ export function createAgentRuntimeRadioModule(
   const ownerScope = input.ownerScope ?? "local";
   const workspaceId = input.workspaceId ?? DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID;
   let supervisor: RadioSupervisor | undefined;
-  let currentRadioBasis: {
-    radioDirectionRevision: number;
-    radioSessionRevision: number;
-  } | undefined;
   let currentRunResultRecorder: RadioRunResultRecorder | undefined;
   let radioToolBridgeCache: RadioToolBridgeCache | undefined;
 
@@ -77,9 +79,11 @@ export function createAgentRuntimeRadioModule(
       const notifyChannel = requirePort(input.notifyChannel(), "Main Radio notify channel");
       const agentOptions = requirePort(input.agentOptions(), "Radio Agent stream options");
       const transcriptStore = createPostgresRadioTranscriptStore({ db });
-      // The records object closes over only {db, workspaceId} (no per-read
-      // mutable state), so it is built once and shared by the pacing read.
+      // The records objects close over only {db, workspaceId} (no per-read
+      // mutable state), so they are built once and shared by the pacing read
+      // and the run-start stale-posture check.
       const queuePlaybackRecords = createMusicExperienceQueuePlaybackRecords({ db, workspaceId });
+      const radioTruthRecords = createMusicExperienceRadioTruthRecords({ db, workspaceId });
       const agent = createMineMusicPiAgentAdapter({
         systemPrompt: renderAgentRuntimeSystemPrompt({
           actor: radioDefinition,
@@ -109,13 +113,31 @@ export function createAgentRuntimeRadioModule(
         actor: radioDefinition,
         workspaceContext,
         clock: () => new Date().toISOString(),
-        prepareRun(payload, _workspaceContext) {
+        async beforeWorkspaceContextAssemble(_payload) {
+          // Lean read: only the posture.stale flag is needed here, so read the
+          // radio truth snapshot directly instead of the full workspace
+          // projection (which projects every queued/playing material and mints
+          // a handle per item). The assembled context re-reads the projection
+          // next; this gate just decides whether to clear stale posture first.
+          const radioTruthSnapshot = await radioTruthRecords.read({ ownerScope });
+          if (!radioTruthSnapshot.posture.stale) {
+            return;
+          }
+          const radioTruth = requirePort(input.radioTruth(), "Music Experience Radio Truth command");
+          const cleared = await radioTruth.clearRadioLean({
+            ownerScope,
+            commandedRevisionStamp: radioTruthSnapshot.radioDirectionRevision,
+            now: new Date().toISOString(),
+          });
+          if (!cleared.ok) {
+            throw new Error(`Radio run-start failed to clear stale posture: ${cleared.error.code}`, {
+              cause: cleared.error,
+            });
+          }
+        },
+        prepareRun(_payload, _workspaceContext, _signal, harness) {
           currentRunResultRecorder = createRadioRunResultRecorder();
-          currentRadioBasis = {
-            radioDirectionRevision: payload.radioDirectionRevision,
-            radioSessionRevision: payload.radioSessionRevision,
-          };
-          agent.state.tools = radioTools();
+          return radioTools(harness);
         },
         resultFromRun(resultInput) {
           const recorder = requirePort(currentRunResultRecorder, "Radio run result recorder");
@@ -154,7 +176,6 @@ export function createAgentRuntimeRadioModule(
     async stop() {
       await supervisor?.stop();
       supervisor = undefined;
-      currentRadioBasis = undefined;
       currentRunResultRecorder = undefined;
       radioToolBridgeCache = undefined;
       return { ok: true, value: undefined };
@@ -169,19 +190,17 @@ export function createAgentRuntimeRadioModule(
         }
         return factory.createToolContext({
           ...perCall,
-          actor: "radio_agent",
-          ...(currentRadioBasis === undefined ? {} : { commandBasis: currentRadioBasis }),
         });
       },
     };
   }
 
-  function radioTools(): RadioToolBridgeCache["bridge"] {
+  function radioTools(harness: RadioPrepareRunHarness): RadioToolBridgeCache["bridge"] {
     radioToolBridgeCache = createRadioToolBridge({
       sourceTools: input.tools(),
       ...(radioToolBridgeCache === undefined ? {} : { cache: radioToolBridgeCache }),
-      dispatch: lazyDispatch(input),
-      contextFactory: radioContextFactory(),
+      dispatch: harness.wrapDispatch(lazyDispatch(input)),
+      contextFactory: harness.createToolContextFactory(radioContextFactory()),
       stageSessionId: "radio",
       observeToolResult(result) {
         currentRunResultRecorder?.observeToolResult(result);

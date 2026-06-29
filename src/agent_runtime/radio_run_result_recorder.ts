@@ -44,24 +44,31 @@ export function createRadioRunResultRecorder(): RadioRunResultRecorder {
       appendedCount += output.items.length;
     },
     result(input) {
+      if (appendedCount > 0) {
+        return radioAppendedResult(input, appendedCount);
+      }
       if (appendFailure !== undefined) {
         throw appendFailure;
       }
       if (voidedStale) {
         return radioVoidedStaleResult(input);
       }
-      if (appendedCount === 0) {
-        return radioNoActionResult(input);
-      }
 
-      return {
-        runId: input.runId,
-        radioDirectionRevision: input.payload.radioDirectionRevision,
-        radioSessionRevision: input.payload.radioSessionRevision,
-        outcome: "appended",
-        appendedCount,
-      };
+      return radioNoActionResult(input);
     },
+  };
+}
+
+function radioAppendedResult(input: {
+  runId: string;
+  payload: RadioRefillRunJobPayload;
+}, appendedCount: number): RadioRunResult {
+  return {
+    runId: input.runId,
+    radioDirectionRevision: input.payload.radioDirectionRevision,
+    radioSessionRevision: input.payload.radioSessionRevision,
+    outcome: "appended",
+    appendedCount,
   };
 }
 

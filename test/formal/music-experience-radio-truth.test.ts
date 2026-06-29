@@ -8,11 +8,16 @@ import type {
   MusicExperienceSetRadioDirectionCommandOutput,
   MusicExperienceWriteRadioPostureCommandOutput,
 } from "../../src/contracts/music_experience.js";
-import { MAX_RADIO_POSTURE_LEAN_ITEMS } from "../../src/contracts/music_experience.js";
+import {
+  MAX_RADIO_ACTIVE_VARIATION_ITEMS,
+  MAX_RADIO_DIRECTION_TEXT_LENGTH,
+  MAX_RADIO_POSTURE_LEAN_ITEMS,
+} from "../../src/contracts/music_experience.js";
 import {
   createMaterialProjection,
   musicDataPlatformIdentitySchema,
   MusicDataPlatformError,
+  type CandidateCommitCommand,
   type MaterialProjection,
 } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
@@ -25,7 +30,21 @@ import {
   musicExperienceRadioTruthSchema,
 } from "../../src/music_experience/index.js";
 import {
+  createMusicExperienceRadioTruthRegistrations,
+  musicExperienceInstrument,
+  radioLeanAddDescriptor,
+  radioLeanMoveDescriptor,
+  radioLeanRemoveDescriptor,
+  radioLeanReplaceDescriptor,
+  radioVariationsAddDescriptor,
+  radioVariationsMoveDescriptor,
+  radioVariationsRemoveDescriptor,
+  radioVariationsReplaceDescriptor,
+} from "../../src/music_experience/stage_adapter/index.js";
+import {
+  createStageInterface,
   createStageInterfaceHandleMintingPort,
+  createStageToolContext,
   stageInterfaceHandleRegistrySchema,
 } from "../../src/stage_interface/index.js";
 import type { MusicDatabase } from "../../src/storage/index.js";
@@ -34,6 +53,37 @@ import { createRecordingProjectionInvalidationCommands } from "./helpers/project
 
 const now = "2026-06-28T00:00:00.000Z";
 const ownerScope = "local";
+
+for (const [descriptor, propertyName] of [
+  [radioVariationsAddDescriptor, "at"],
+  [radioVariationsRemoveDescriptor, "index"],
+  [radioVariationsReplaceDescriptor, "index"],
+  [radioVariationsMoveDescriptor, "from"],
+  [radioVariationsMoveDescriptor, "to"],
+  [radioLeanAddDescriptor, "at"],
+  [radioLeanRemoveDescriptor, "index"],
+  [radioLeanReplaceDescriptor, "index"],
+  [radioLeanMoveDescriptor, "from"],
+  [radioLeanMoveDescriptor, "to"],
+] as const) {
+  assert.equal(inputPropertySchemaType(descriptor.inputSchema, propertyName), "integer");
+}
+assert.equal(
+  definitionTextSchemaMaxLength(radioVariationsAddDescriptor.inputSchema, "RadioTruthToolValue"),
+  MAX_RADIO_DIRECTION_TEXT_LENGTH,
+);
+assert.equal(
+  definitionTextSchemaMaxLength(radioVariationsAddDescriptor.outputSchema, "RadioTruthToolValueOutput"),
+  MAX_RADIO_DIRECTION_TEXT_LENGTH,
+);
+assert.equal(
+  nestedSchemaNumber(radioVariationsAddDescriptor.outputSchema, ["properties", "direction", "properties", "activeVariations", "maxItems"]),
+  MAX_RADIO_ACTIVE_VARIATION_ITEMS,
+);
+assert.equal(
+  nestedSchemaNumber(radioLeanAddDescriptor.outputSchema, ["properties", "posture", "properties", "lean", "maxItems"]),
+  MAX_RADIO_POSTURE_LEAN_ITEMS,
+);
 
 {
   const database = await initializedMusicExperienceDatabase();
@@ -81,6 +131,327 @@ const ownerScope = "local";
   });
 
   await database.close();
+}
+
+{
+  const [primary, secondary] = await initializedSharedMusicExperienceDatabases("direction_cas");
+  const primaryCommand = createMusicExperienceRadioTruthCommand({ database: primary });
+  const secondaryCommand = createMusicExperienceRadioTruthCommand({ database: secondary });
+
+  const [firstWrite, secondWrite] = await Promise.all([
+    primaryCommand.setRadioMotif({
+      ownerScope,
+      value: { kind: "text", text: "first concurrent motif" },
+      basis: { radioDirectionRevision: 0 },
+      now,
+    }),
+    secondaryCommand.setRadioMotif({
+      ownerScope,
+      value: { kind: "text", text: "second concurrent motif" },
+      basis: { radioDirectionRevision: 0 },
+      now,
+    }),
+  ]);
+
+  const results = [firstWrite, secondWrite];
+  assert.equal(results.filter((result) => result.ok).length, 1);
+  assert.equal(results.filter((result) => !result.ok && result.error.code === "voided_stale").length, 1);
+  const truth = await createMusicExperienceRadioTruthRecords({ db: primary.context() }).read({ ownerScope });
+  assert.equal(truth.radioDirectionRevision, 1);
+  assert.equal(truth.direction.activeVariations.length, 0);
+  assert.equal(truth.direction.motif?.kind, "text");
+
+  await secondary.close();
+  await primary.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const command = createMusicExperienceRadioTruthCommand({ database });
+  const material = materialRef("phase_b_radio_truth_action_material");
+  await seedRecording(database, material, "Action Material", ["Action Artist"]);
+
+  const motif = expectDirectionOutput(await command.setRadioMotif({
+    ownerScope,
+    value: { kind: "text", text: "night drive" },
+    basis: { radioDirectionRevision: 0 },
+    now,
+  }));
+  assert.equal(motif.radioDirectionRevision, 1);
+  assert.deepEqual(motif.direction, {
+    motif: { kind: "text", text: "night drive" },
+    activeVariations: [],
+  });
+
+  const firstVariation = expectDirectionOutput(await command.addRadioVariation({
+    ownerScope,
+    value: { kind: "text", text: "warmer" },
+    basis: { radioDirectionRevision: 1 },
+    now,
+  }));
+  assert.equal(firstVariation.radioDirectionRevision, 2);
+
+  const insertedVariation = expectDirectionOutput(await command.addRadioVariation({
+    ownerScope,
+    value: { kind: "scope", scope: { kind: "library" } },
+    at: 0,
+    basis: { radioDirectionRevision: 2 },
+    now,
+  }));
+  assert.deepEqual(insertedVariation.direction.activeVariations.map((value) => value.kind), ["scope", "text"]);
+
+  const movedVariation = expectDirectionOutput(await command.moveRadioVariation({
+    ownerScope,
+    from: 0,
+    to: 1,
+    basis: { radioDirectionRevision: 3 },
+    now,
+  }));
+  assert.deepEqual(movedVariation.direction.activeVariations.map((value) => value.kind), ["text", "scope"]);
+
+  const replacedVariation = expectDirectionOutput(await command.replaceRadioVariation({
+    ownerScope,
+    index: 1,
+    value: { kind: "material", materialRef: material },
+    basis: { radioDirectionRevision: 4 },
+    now,
+  }));
+  assert.deepEqual(replacedVariation.direction.activeVariations.map((value) => value.kind), ["text", "material"]);
+
+  const removedVariation = expectDirectionOutput(await command.removeRadioVariation({
+    ownerScope,
+    index: 0,
+    basis: { radioDirectionRevision: 5 },
+    now,
+  }));
+  assert.deepEqual(removedVariation.direction.activeVariations.map((value) => value.kind), ["material"]);
+
+  const clearedMotif = expectDirectionOutput(await command.clearRadioMotif({
+    ownerScope,
+    basis: { radioDirectionRevision: 6 },
+    now,
+  }));
+  assert.equal(clearedMotif.direction.motif, undefined);
+
+  const clearedVariations = expectDirectionOutput(await command.clearRadioVariations({
+    ownerScope,
+    basis: { radioDirectionRevision: 7 },
+    now,
+  }));
+  assert.deepEqual(clearedVariations.direction.activeVariations, []);
+
+  const stale = await command.setRadioMotif({
+    ownerScope,
+    value: { kind: "text", text: "stale write" },
+    basis: { radioDirectionRevision: 0 },
+    now,
+  });
+  assert.equal(stale.ok, false);
+  if (!stale.ok) {
+    assert.equal(stale.error.code, "voided_stale");
+  }
+
+  const invalidIndex = await command.removeRadioVariation({
+    ownerScope,
+    index: 0,
+    basis: { radioDirectionRevision: 8 },
+    now,
+  });
+  assert.equal(invalidIndex.ok, false);
+  if (!invalidIndex.ok) {
+    assert.equal(invalidIndex.error.code, "index_out_of_range");
+  }
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: createMusicExperienceRadioTruthRegistrations({
+      candidateCommit: unusedCandidateCommit(),
+      materialProjection: unusedMaterialProjection(),
+      radioTruth: createMusicExperienceRadioTruthCommand({ database }),
+    }),
+  });
+  const ctx = createStageToolContext({
+    ownerScope,
+    sessionId: "radio-truth-stage-session",
+    requestId: "radio-truth-stage-request",
+    actor: "main_agent",
+    preconditionBasis: { radioDirectionRevision: 0 },
+    clock: () => now,
+  });
+
+  const motifSet = await stageInterface.dispatch(ctx, {
+    toolName: "radio.motif.set",
+    payload: {
+      value: { kind: "text", text: "stage motif" },
+    },
+  });
+  assert.equal(motifSet.ok, true);
+  if (motifSet.ok) {
+    assert.deepEqual(motifSet.value.result, {
+      radioDirectionRevision: 1,
+      changedBasis: { radioDirectionRevision: 1 },
+      direction: {
+        motif: { kind: "text", text: "stage motif" },
+        activeVariations: [],
+      },
+    });
+  }
+
+  const variationAdd = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "radio-truth-stage-session",
+    requestId: "radio-truth-stage-request-2",
+    actor: "main_agent",
+    preconditionBasis: { radioDirectionRevision: 1 },
+    clock: () => now,
+  }), {
+    toolName: "radio.variations.add",
+    payload: {
+      value: { kind: "scope", scope: "[library]" },
+    },
+  });
+  assert.equal(variationAdd.ok, true);
+  if (variationAdd.ok) {
+    assert.deepEqual(variationAdd.value.result, {
+      radioDirectionRevision: 2,
+      changedBasis: { radioDirectionRevision: 2 },
+      direction: {
+        motif: { kind: "text", text: "stage motif" },
+        activeVariations: [{ kind: "scope", scope: "[library]" }],
+      },
+    });
+  }
+
+  const leanAdd = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "radio-truth-stage-session",
+    requestId: "radio-truth-stage-request-3",
+    actor: "radio_agent",
+    preconditionBasis: { radioDirectionRevision: 2 },
+    clock: () => now,
+  }), {
+    toolName: "radio.lean.add",
+    payload: {
+      value: { kind: "text", text: "stage lean" },
+    },
+  });
+  assert.equal(leanAdd.ok, true);
+  if (leanAdd.ok) {
+    assert.deepEqual(leanAdd.value.result, {
+      radioDirectionRevision: 2,
+      posture: {
+        lean: [{ kind: "text", text: "stage lean" }],
+        commandedRevisionStamp: 2,
+        stale: false,
+      },
+    });
+  }
+
+  for (const [toolName, payload] of [
+    ["radio.motif.set", { value: { kind: "text", text: "aborted motif" } }],
+    ["radio.motif.clear", {}],
+    ["radio.variations.add", { value: { kind: "text", text: "aborted variation" } }],
+    ["radio.variations.remove", { index: 0 }],
+    ["radio.variations.replace", { index: 0, value: { kind: "text", text: "aborted replace" } }],
+    ["radio.variations.move", { from: 0, to: 0 }],
+    ["radio.variations.clear", {}],
+    ["radio.lean.add", { value: { kind: "text", text: "aborted lean" } }],
+    ["radio.lean.remove", { index: 0 }],
+    ["radio.lean.replace", { index: 0, value: { kind: "text", text: "aborted lean replace" } }],
+    ["radio.lean.move", { from: 0, to: 0 }],
+    ["radio.lean.clear", {}],
+  ] as const) {
+    const abortedController = new AbortController();
+    abortedController.abort();
+    const abortedResult = await stageInterface.dispatch(createStageToolContext({
+      ownerScope,
+      sessionId: "radio-truth-stage-session",
+      requestId: `radio-truth-stage-request-aborted-${toolName}`,
+      actor: toolName.startsWith("radio.lean.") ? "radio_agent" : "main_agent",
+      preconditionBasis: { radioDirectionRevision: 2 },
+      abortSignal: abortedController.signal,
+      clock: () => now,
+    }), {
+      toolName,
+      payload,
+    });
+    assert.equal(abortedResult.ok, false);
+    if (!abortedResult.ok) {
+      assert.equal(abortedResult.error.code, "operation_aborted");
+    }
+  }
+
+  const missingBasis = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "radio-truth-stage-session",
+    requestId: "radio-truth-stage-request-missing-basis",
+    actor: "main_agent",
+    clock: () => now,
+  }), {
+    toolName: "radio.motif.set",
+    payload: {
+      value: { kind: "text", text: "missing basis motif" },
+    },
+  });
+  assert.equal(missingBasis.ok, false);
+  if (!missingBasis.ok) {
+    assert.equal(missingBasis.error.code, "stage_interface.tool_handler_failed");
+  }
+
+  await database.close();
+}
+
+{
+  const [primary, secondary] = await initializedSharedMusicExperienceDatabases("posture_lock");
+  const primaryCommand = createMusicExperienceRadioTruthCommand({ database: primary });
+  const secondaryCommand = createMusicExperienceRadioTruthCommand({ database: secondary });
+  const direction = expectDirectionOutput(await primaryCommand.setRadioDirection({
+    ownerScope,
+    motif: { kind: "text", text: "locked lean baseline" },
+    activeVariations: [],
+    now,
+  }));
+
+  let secondaryWrite: Promise<Awaited<ReturnType<MusicExperienceRadioTruthCommand["addRadioLean"]>>> | undefined;
+  await primary.transaction(async (db) => {
+    const records = createMusicExperienceRadioTruthRecords({ db });
+    const lockedTruth = await records.readForPostureWrite({ ownerScope, now });
+    assert.deepEqual(lockedTruth.posture.lean, []);
+
+    secondaryWrite = secondaryCommand.addRadioLean({
+      ownerScope,
+      value: { kind: "text", text: "second locked lean" },
+      commandedRevisionStamp: direction.radioDirectionRevision,
+      now,
+    });
+    await sleep(25);
+
+    await records.writePosture({
+      ownerScope,
+      lean: [{ kind: "text", text: "first locked lean" }],
+      commandedRevisionStamp: direction.radioDirectionRevision,
+      now,
+    });
+  });
+
+  assert.ok(secondaryWrite !== undefined);
+  const secondaryOutput = expectPostureOutput(await secondaryWrite);
+  assert.deepEqual(secondaryOutput.posture.lean, [
+    { kind: "text", text: "first locked lean" },
+    { kind: "text", text: "second locked lean" },
+  ]);
+
+  const truth = await createMusicExperienceRadioTruthRecords({ db: primary.context() }).read({ ownerScope });
+  assert.deepEqual(truth.posture.lean, secondaryOutput.posture.lean);
+  assert.equal(truth.posture.stale, false);
+
+  await secondary.close();
+  await primary.close();
 }
 
 {
@@ -134,6 +505,78 @@ const ownerScope = "local";
   assert.equal(truth.radioDirectionRevision, 2);
   assert.equal(truth.posture.commandedRevisionStamp, 1);
   assert.equal(truth.posture.stale, true);
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const command = createMusicExperienceRadioTruthCommand({ database });
+  const direction = expectDirectionOutput(await command.setRadioDirection({
+    ownerScope,
+    motif: { kind: "text", text: "lean command baseline" },
+    activeVariations: [],
+    now,
+  }));
+
+  const added = expectPostureOutput(await command.addRadioLean({
+    ownerScope,
+    value: { kind: "text", text: "dry drums" },
+    commandedRevisionStamp: direction.radioDirectionRevision,
+    now,
+  }));
+  assert.equal(added.radioDirectionRevision, 1);
+  assert.deepEqual(added.posture.lean, [{ kind: "text", text: "dry drums" }]);
+
+  const inserted = expectPostureOutput(await command.addRadioLean({
+    ownerScope,
+    value: { kind: "scope", scope: { kind: "library" } },
+    at: 0,
+    commandedRevisionStamp: direction.radioDirectionRevision,
+    now,
+  }));
+  assert.deepEqual(inserted.posture.lean.map((value) => value.kind), ["scope", "text"]);
+
+  const moved = expectPostureOutput(await command.moveRadioLean({
+    ownerScope,
+    from: 0,
+    to: 1,
+    commandedRevisionStamp: direction.radioDirectionRevision,
+    now,
+  }));
+  assert.deepEqual(moved.posture.lean.map((value) => value.kind), ["text", "scope"]);
+
+  const replaced = expectPostureOutput(await command.replaceRadioLean({
+    ownerScope,
+    index: 1,
+    value: { kind: "text", text: "less glossy" },
+    commandedRevisionStamp: direction.radioDirectionRevision,
+    now,
+  }));
+  assert.deepEqual(replaced.posture.lean, [
+    { kind: "text", text: "dry drums" },
+    { kind: "text", text: "less glossy" },
+  ]);
+
+  const removed = expectPostureOutput(await command.removeRadioLean({
+    ownerScope,
+    index: 0,
+    commandedRevisionStamp: direction.radioDirectionRevision,
+    now,
+  }));
+  assert.deepEqual(removed.posture.lean, [{ kind: "text", text: "less glossy" }]);
+
+  const cleared = expectPostureOutput(await command.clearRadioLean({
+    ownerScope,
+    commandedRevisionStamp: direction.radioDirectionRevision,
+    now,
+  }));
+  assert.deepEqual(cleared.posture, {
+    lean: [],
+    commandedRevisionStamp: 1,
+    stale: false,
+  });
+  assert.equal((await readStateRevisions(database)).radio_direction_revision, 1);
 
   await database.close();
 }
@@ -219,36 +662,34 @@ const ownerScope = "local";
 {
   const database = await initializedMusicExperienceDatabase();
   const command = createMusicExperienceRadioTruthCommand({ database });
-  const unknownValueKind = await command.setRadioDirection({
-    ownerScope,
-    activeVariations: [
-      {
-        kind: "bogus",
-      } as never,
-    ],
-    now,
-  });
-  assert.equal(unknownValueKind.ok, false);
-  if (!unknownValueKind.ok) {
-    assert.equal(unknownValueKind.error.code, "radio_truth_invalid");
-  }
-
-  const unknownScopeKind = await command.setRadioDirection({
-    ownerScope,
-    activeVariations: [
-      {
-        kind: "scope",
-        scope: {
+  await assert.rejects(
+    async () => await command.setRadioDirection({
+      ownerScope,
+      activeVariations: [
+        {
           kind: "bogus",
         } as never,
-      },
-    ],
-    now,
-  });
-  assert.equal(unknownScopeKind.ok, false);
-  if (!unknownScopeKind.ok) {
-    assert.equal(unknownScopeKind.error.code, "radio_truth_invalid");
-  }
+      ],
+      now,
+    }),
+    /Unexpected Radio truth variant/,
+  );
+
+  await assert.rejects(
+    async () => await command.setRadioDirection({
+      ownerScope,
+      activeVariations: [
+        {
+          kind: "scope",
+          scope: {
+            kind: "bogus",
+          } as never,
+        },
+      ],
+      now,
+    }),
+    /Unexpected Radio truth variant/,
+  );
 
   const malformedMaterialRef = await command.setRadioDirection({
     ownerScope,
@@ -267,6 +708,48 @@ const ownerScope = "local";
   assert.equal(malformedMaterialRef.ok, false);
   if (!malformedMaterialRef.ok) {
     assert.equal(malformedMaterialRef.error.code, "radio_truth_invalid");
+  }
+
+  const truth = await createMusicExperienceRadioTruthRecords({ db: database.context() }).read({ ownerScope });
+  assert.deepEqual(truth.direction, {
+    activeVariations: [],
+  });
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const command = createMusicExperienceRadioTruthCommand({ database });
+  const overCapDirection = await command.setRadioDirection({
+    ownerScope,
+    activeVariations: Array.from({ length: MAX_RADIO_ACTIVE_VARIATION_ITEMS + 1 }, (_, index) => ({
+      kind: "text",
+      text: `variation-${index}`,
+    })),
+    now,
+  });
+
+  assert.equal(overCapDirection.ok, false);
+  if (!overCapDirection.ok) {
+    assert.equal(overCapDirection.error.code, "radio_truth_invalid");
+    assert.equal(overCapDirection.error.area, "music_experience");
+  }
+
+  const overlongMotif = await command.setRadioMotif({
+    ownerScope,
+    value: {
+      kind: "text",
+      text: "x".repeat(MAX_RADIO_DIRECTION_TEXT_LENGTH + 1),
+    },
+    basis: { radioDirectionRevision: 0 },
+    now,
+  });
+
+  assert.equal(overlongMotif.ok, false);
+  if (!overlongMotif.ok) {
+    assert.equal(overlongMotif.error.code, "radio_truth_invalid");
+    assert.equal(overlongMotif.error.area, "music_experience");
   }
 
   const truth = await createMusicExperienceRadioTruthRecords({ db: database.context() }).read({ ownerScope });
@@ -433,6 +916,7 @@ const ownerScope = "local";
       motif: {
         kind: "material",
         item: "[material:mh_radio_truth_motif]",
+        materialKind: "recording",
         label: "Read Model Motif",
         artistsText: "Read Artist",
       },
@@ -530,8 +1014,11 @@ const ownerScope = "local";
     refKey(postureRef),
   ]]);
   assert.equal(slice.queue[0]?.item, `[material:mh_${queuedRef.id}]`);
+  assert.equal(slice.queue[0]?.materialKind, "recording");
   assert.equal(slice.radio.direction.motif?.kind, "material");
+  assert.equal(slice.radio.direction.motif?.kind === "material" ? slice.radio.direction.motif.materialKind : undefined, "recording");
   assert.equal(slice.radio.posture.lean[0]?.kind, "material");
+  assert.equal(slice.radio.posture.lean[0]?.kind === "material" ? slice.radio.posture.lean[0].materialKind : undefined, "recording");
 
   await database.close();
 }
@@ -662,6 +1149,66 @@ async function initializedMusicExperienceDatabase(): Promise<MusicDatabase> {
   return database;
 }
 
+async function initializedSharedMusicExperienceDatabases(label: string): Promise<readonly [MusicDatabase, MusicDatabase]> {
+  const schema = `minemusic_test_${process.pid}_62001_${label}`;
+  const primary = await openUninitializedPostgresTestMusicDatabase({ schema });
+  await primary.initialize({
+    schemas: [
+      musicDataPlatformIdentitySchema,
+      stageInterfaceHandleRegistrySchema,
+      musicExperienceQueuePlaybackSchema,
+      musicExperienceRadioTruthSchema,
+    ],
+  });
+  const secondary = await openUninitializedPostgresTestMusicDatabase({ schema, reset: false });
+  await secondary.initialize({
+    schemas: [
+      musicDataPlatformIdentitySchema,
+      stageInterfaceHandleRegistrySchema,
+      musicExperienceQueuePlaybackSchema,
+      musicExperienceRadioTruthSchema,
+    ],
+  });
+  return [primary, secondary];
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function inputPropertySchemaType(schema: object, propertyName: string): unknown {
+  const property = (schema as { properties?: Record<string, { type?: unknown }> }).properties?.[propertyName];
+  return property?.type;
+}
+
+function definitionTextSchemaMaxLength(schema: object, definitionName: string): unknown {
+  const definition = (schema as {
+    definitions?: Record<string, {
+      anyOf?: readonly {
+        properties?: {
+          kind?: { const?: unknown };
+          text?: { maxLength?: unknown };
+        };
+      }[];
+    }>;
+  }).definitions?.[definitionName];
+  const textVariant = definition?.anyOf?.find((variant) => variant.properties?.kind?.const === "text");
+  return textVariant?.properties?.text?.maxLength;
+}
+
+function nestedSchemaNumber(schema: object, path: readonly string[]): unknown {
+  let current: unknown = schema;
+  for (const key of path) {
+    if (current === null || typeof current !== "object") {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
 async function seedRecording(
   database: MusicDatabase,
   ref: Ref,
@@ -724,6 +1271,25 @@ function expectPostureOutput(
     throw new Error(`expected radio posture command to succeed, got ${result.error.code}`);
   }
   return result.value;
+}
+
+function unusedCandidateCommit(): CandidateCommitCommand {
+  return {
+    commitCandidate() {
+      throw new Error("Radio truth stage adapter text/scope test must not commit candidates.");
+    },
+  };
+}
+
+function unusedMaterialProjection(): MaterialProjection {
+  return {
+    projectMusicMaterial() {
+      throw new Error("Radio truth stage adapter text/scope test must not project material.");
+    },
+    async projectMusicMaterials() {
+      return new Map();
+    },
+  };
 }
 
 function materialRef(id: string): Ref {

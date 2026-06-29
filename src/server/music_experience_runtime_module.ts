@@ -4,6 +4,7 @@ import type {
 } from "../music_data_platform/index.js";
 import type {
   MusicExperienceQueuePlaybackCommand,
+  MusicExperienceRadioTruthCommand,
 } from "../contracts/music_experience.js";
 import {
   createMusicExperienceRuntimeModule,
@@ -14,6 +15,7 @@ export type MusicExperienceServerPorts = {
   candidateCommit(): CandidateCommitCommand | undefined;
   materialProjection(): MaterialProjection | undefined;
   queuePlayback(): MusicExperienceQueuePlaybackCommand | undefined;
+  radioTruth(): MusicExperienceRadioTruthCommand | undefined;
 };
 
 export type CreateMusicExperienceServerRuntimeModuleInput = {
@@ -27,6 +29,7 @@ export function createMusicExperienceServerRuntimeModule(
     candidateCommit: lazyCandidateCommitCommand(input.ports),
     materialProjection: lazyMaterialProjection(input.ports),
     queuePlayback: lazyQueuePlaybackCommand(input.ports),
+    radioTruth: lazyRadioTruthCommand(input.ports),
   });
 }
 
@@ -92,6 +95,111 @@ function lazyQueuePlaybackCommand(
       }
 
       return port.playNow(commandInput);
+    },
+  };
+}
+
+function lazyRadioTruthCommand(
+  ports: Pick<MusicExperienceServerPorts, "radioTruth">,
+): MusicExperienceRadioTruthCommand {
+  return {
+    setRadioDirection(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.setRadioDirection(commandInput);
+    },
+    setRadioMotif(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.setRadioMotif(commandInput);
+    },
+    clearRadioMotif(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.clearRadioMotif(commandInput);
+    },
+    addRadioVariation(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.addRadioVariation(commandInput);
+    },
+    removeRadioVariation(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.removeRadioVariation(commandInput);
+    },
+    replaceRadioVariation(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.replaceRadioVariation(commandInput);
+    },
+    moveRadioVariation(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.moveRadioVariation(commandInput);
+    },
+    clearRadioVariations(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.clearRadioVariations(commandInput);
+    },
+    writeRadioPosture(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.writeRadioPosture(commandInput);
+    },
+    addRadioLean(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.addRadioLean(commandInput);
+    },
+    removeRadioLean(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.removeRadioLean(commandInput);
+    },
+    replaceRadioLean(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.replaceRadioLean(commandInput);
+    },
+    moveRadioLean(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.moveRadioLean(commandInput);
+    },
+    clearRadioLean(commandInput) {
+      const port = ports.radioTruth();
+      if (port === undefined) {
+        throw new Error("Music Experience Radio Truth command is not initialized.");
+      }
+      return port.clearRadioLean(commandInput);
     },
   };
 }

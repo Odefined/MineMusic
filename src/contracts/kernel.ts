@@ -22,14 +22,14 @@ export type StageWarning = {
   area: FormalArea;
 };
 
-// Monotonic per-area/per-concern revision captured as Agent Work Basis and,
-// from Phase B onward, compared by owning commands at commit time.
+// Monotonic per-area/per-concern revision used by runtime command-basis
+// tracking and compared by owning commands at commit time.
 export type ConcernRevision = number;
 
-// Set of independent CAS preconditions checked by an owning command at commit
-// time. A failed equality check is reported by the command boundary as
-// `voided_stale`.
-export type CommandPreconditionSet = {
+// Shared set of concern revisions. Field names at each boundary carry the
+// direction of use: `preconditionBasis` is checked before a write, while
+// `changedBasis` is absorbed after a successful write.
+export type ConcernRevisionSet = {
   radioDirectionRevision?: ConcernRevision;
   queueRevision?: ConcernRevision;
   radioSessionRevision?: ConcernRevision;

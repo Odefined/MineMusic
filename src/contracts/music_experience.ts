@@ -2,10 +2,12 @@
 // owning command/read projection shapes. Music facts remain in Music Data
 // Platform; agent-facing tool schemas live in Stage Interface.
 
-import type { CommandPreconditionSet, ConcernRevision, Ref, Result } from "./kernel.js";
+import type { ConcernRevisionSet, ConcernRevision, Ref, Result } from "./kernel.js";
 
 export const MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH = 100;
+export const MAX_RADIO_ACTIVE_VARIATION_ITEMS = 10;
 export const MAX_RADIO_POSTURE_LEAN_ITEMS = 5;
+export const MAX_RADIO_DIRECTION_TEXT_LENGTH = 100;
 
 export type MusicExperienceWorkspaceKey = {
   ownerScope: string;
@@ -76,7 +78,7 @@ export type MusicExperienceQueueAppendCommandInput = {
   ownerScope: string;
   materialRefs: readonly Ref[];
   provenance: MusicExperienceQueueItemProvenance;
-  basis?: CommandPreconditionSet;
+  basis?: ConcernRevisionSet;
   now: string;
 };
 
@@ -107,6 +109,7 @@ export type MusicExperienceSetRadioDirectionCommandInput = {
   ownerScope: string;
   motif?: RadioDirectionValue;
   activeVariations: readonly VariationItem[];
+  basis?: ConcernRevisionSet;
   now: string;
 };
 
@@ -123,22 +126,143 @@ export type MusicExperienceWriteRadioPostureCommandInput = {
 };
 
 export type MusicExperienceWriteRadioPostureCommandOutput = {
+  radioDirectionRevision: ConcernRevision;
   posture: EvolvedPostureSnapshot;
+};
+
+export type MusicExperienceRadioValueCommandInput = {
+  ownerScope: string;
+  value: RadioDirectionValue;
+  basis?: ConcernRevisionSet;
+  now: string;
+};
+
+export type MusicExperienceRadioIndexedValueCommandInput = {
+  ownerScope: string;
+  index: number;
+  value: RadioDirectionValue;
+  basis?: ConcernRevisionSet;
+  now: string;
+};
+
+export type MusicExperienceRadioInsertValueCommandInput = {
+  ownerScope: string;
+  value: RadioDirectionValue;
+  at?: number;
+  basis?: ConcernRevisionSet;
+  now: string;
+};
+
+export type MusicExperienceRadioIndexCommandInput = {
+  ownerScope: string;
+  index: number;
+  basis?: ConcernRevisionSet;
+  now: string;
+};
+
+export type MusicExperienceRadioMoveCommandInput = {
+  ownerScope: string;
+  from: number;
+  to: number;
+  basis?: ConcernRevisionSet;
+  now: string;
+};
+
+export type MusicExperienceRadioClearCommandInput = {
+  ownerScope: string;
+  basis?: ConcernRevisionSet;
+  now: string;
+};
+
+export type MusicExperienceRadioPostureInsertValueCommandInput = {
+  ownerScope: string;
+  value: RadioDirectionValue;
+  commandedRevisionStamp: ConcernRevision;
+  now: string;
+  at?: number;
+};
+
+export type MusicExperienceRadioPostureIndexedValueCommandInput = {
+  ownerScope: string;
+  index: number;
+  value: RadioDirectionValue;
+  commandedRevisionStamp: ConcernRevision;
+  now: string;
+};
+
+export type MusicExperienceRadioPostureIndexCommandInput = {
+  ownerScope: string;
+  index: number;
+  commandedRevisionStamp: ConcernRevision;
+  now: string;
+};
+
+export type MusicExperienceRadioPostureMoveCommandInput = {
+  ownerScope: string;
+  from: number;
+  to: number;
+  commandedRevisionStamp: ConcernRevision;
+  now: string;
+};
+
+export type MusicExperienceRadioPostureClearCommandInput = {
+  ownerScope: string;
+  commandedRevisionStamp: ConcernRevision;
+  now: string;
 };
 
 export type MusicExperienceRadioTruthCommand = {
   setRadioDirection(
     input: MusicExperienceSetRadioDirectionCommandInput,
   ): Promise<Result<MusicExperienceSetRadioDirectionCommandOutput>>;
+  setRadioMotif(
+    input: MusicExperienceRadioValueCommandInput,
+  ): Promise<Result<MusicExperienceSetRadioDirectionCommandOutput>>;
+  clearRadioMotif(
+    input: MusicExperienceRadioClearCommandInput,
+  ): Promise<Result<MusicExperienceSetRadioDirectionCommandOutput>>;
+  addRadioVariation(
+    input: MusicExperienceRadioInsertValueCommandInput,
+  ): Promise<Result<MusicExperienceSetRadioDirectionCommandOutput>>;
+  removeRadioVariation(
+    input: MusicExperienceRadioIndexCommandInput,
+  ): Promise<Result<MusicExperienceSetRadioDirectionCommandOutput>>;
+  replaceRadioVariation(
+    input: MusicExperienceRadioIndexedValueCommandInput,
+  ): Promise<Result<MusicExperienceSetRadioDirectionCommandOutput>>;
+  moveRadioVariation(
+    input: MusicExperienceRadioMoveCommandInput,
+  ): Promise<Result<MusicExperienceSetRadioDirectionCommandOutput>>;
+  clearRadioVariations(
+    input: MusicExperienceRadioClearCommandInput,
+  ): Promise<Result<MusicExperienceSetRadioDirectionCommandOutput>>;
   writeRadioPosture(
     input: MusicExperienceWriteRadioPostureCommandInput,
+  ): Promise<Result<MusicExperienceWriteRadioPostureCommandOutput>>;
+  addRadioLean(
+    input: MusicExperienceRadioPostureInsertValueCommandInput,
+  ): Promise<Result<MusicExperienceWriteRadioPostureCommandOutput>>;
+  removeRadioLean(
+    input: MusicExperienceRadioPostureIndexCommandInput,
+  ): Promise<Result<MusicExperienceWriteRadioPostureCommandOutput>>;
+  replaceRadioLean(
+    input: MusicExperienceRadioPostureIndexedValueCommandInput,
+  ): Promise<Result<MusicExperienceWriteRadioPostureCommandOutput>>;
+  moveRadioLean(
+    input: MusicExperienceRadioPostureMoveCommandInput,
+  ): Promise<Result<MusicExperienceWriteRadioPostureCommandOutput>>;
+  clearRadioLean(
+    input: MusicExperienceRadioPostureClearCommandInput,
   ): Promise<Result<MusicExperienceWriteRadioPostureCommandOutput>>;
 };
 
 export type MusicExperienceWorkspaceMaterialHandle = `[material:${string}]`;
 
+export type MusicExperienceWorkspaceMaterialKind = "recording" | "album" | "artist";
+
 export type MusicExperienceWorkspaceItemSummary = {
   item: MusicExperienceWorkspaceMaterialHandle;
+  materialKind: MusicExperienceWorkspaceMaterialKind;
   label: string;
   artistsText?: string;
 };
@@ -180,6 +304,7 @@ export type MusicExperienceWorkspaceRadioTruth = {
 };
 
 export type MusicExperienceWorkspaceProjection = {
+  concernRevisions: ConcernRevisionSet;
   revision: ConcernRevision;
   queue: readonly MusicExperienceWorkspaceQueueEntry[];
   nowPlaying?: MusicExperienceWorkspaceNowPlaying;

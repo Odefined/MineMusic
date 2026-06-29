@@ -36,7 +36,7 @@ This document is the complete, executable output of the refactor-impact audit. F
 - One Agent-Runtime-owned **Workspace Context assembler**, fed by **complementary** sources: area-owned projections (domain facts) **AND** Workbench Interface (interaction-state facts). Neither displaces the other. **Workbench is NOT removed from the agent path** — only its re-bundling of another area's domain facts into a blob is retired.
 - One **section-agnostic projection port per area**; the area does not know about sections; the assembler owns the section vocabulary (`listening`, `radio`).
 - One **`ActorDefinition`** per actor: `identity{role,job,persona}` / `instruction{responsibilities,operatingRules,prohibitions}` / `declaredWorkspaceSections` / `toolPack{stageToolNames}`. Identity is not scattered across server modules.
-- Radio gets **queue item identity** (handles/labels), not only `queueLength`. Radio **Invocation = JSON** (`runId`/`wakeReason`/`suggestedAppendCount`/basis revisions). `userTasteHint` reuses `library.catalog.summary`.
+- Radio gets **queue item identity** (handles/labels), not only `queueLength`. Radio **Invocation = JSON** (`runId`/`wakeReason`/`suggestedAppendCount` only; command basis is runtime-only AgentHarness state). `userTasteHint` reuses `library.catalog.summary`.
 
 **Preserved (do not break these):** pi fidelity (one long-lived Agent, transcript in `messages`, run-start refresh before snapshot, no invented pi methods); Workbench owns interaction state; Music Experience owns queue/now-playing/radio truth; Stage Interface sole callable boundary; ADR-0030 top-level-area ownership; ADR-0031 Web/AG-UI serialization + never-wire-format; ADR-0037 durable radio-truth floor.
 
@@ -62,9 +62,9 @@ This document is the complete, executable output of the refactor-impact audit. F
 
 #### `docs/formal-rebuild/phase-B-radio-concurrency-spec.md` — re-author PB5 + PB3 carrier
 - **Stale (PB5 lines ~390-391):** supervisor "refreshes the system prompt / prompt content with the read-model slice" (the forbidden Radio hand-re-render seam).
-- **Change:** Radio's motif/variations/direction/`directionRevision` enter context via the **shared Agent-Runtime Workspace Context assembler (radio section)**, NOT supervisor hand-rendering a read-model slice into Radio's system prompt. **Keep** the `subscribe(agent_start)` run-start refresh **timing** (before the pi snapshot); route its output into the shared assembler's radio section → `systemPrompt`. Move basis revisions (`radioDirectionRevision`/`radioSessionRevision`) to **Invocation Context.basis**.
+- **Change:** Radio's motif/variations/direction/`directionRevision` enter context via the **shared Agent-Runtime Workspace Context assembler (radio section)**, NOT supervisor hand-rendering a read-model slice into Radio's system prompt. Install the shared AgentHarness turn state before `Agent.prompt(...)`, because pi snapshots provider context before `agent_start`. Runtime command basis comes from the same workspace assembly as harness-only `commandBasis`; it is injected as Stage `preconditionBasis`, not moved into Invocation Context.
 - **Stale (PB3 line ~357):** "Agent Work Basis … carried in Session Context."
-- **Change:** carrier → "Invocation Context (basis)" (basis revisions are rail 5, not Session Context). **Stale (line ~11 Depends-on):** drop "Session Context"; replace with the pi-carried rails assembled by the Agent-Runtime assembler. Add a cross-reference to `agent-context-engineering-spec.md`.
+- **Change:** carrier → runtime-only AgentHarness command basis (`commandBasis` from workspace assembly, projected into Stage `preconditionBasis`, advanced from `changedBasis`); do not move it into Invocation Context. **Stale (line ~11 Depends-on):** drop "Session Context"; replace with the pi-carried rails assembled by the Agent-Runtime assembler. Add a cross-reference to `agent-context-engineering-spec.md`.
 
 #### `docs/formal-rebuild/phase-B-radio-concurrency-implementation-plan.md` — repoint PR2/PR3 + INSERT refactor (see §6)
 - **Stale (PR2 line ~94):** "extend `readMusicExperience` to return radio direction + posture + stamp" (the retired blob as Radio's run-start read).
@@ -79,7 +79,7 @@ This document is the complete, executable output of the refactor-impact audit. F
 
 #### `CURRENT_STATE.md` / `PROGRESS.md` — rewrite A4 bullet + rail enum
 - **Stale (lines 800-804, the A4 bullet):** "each user turn captures Session Context through the Workbench read-model seam."
-- **Change:** Describe the active Main-Agent context path in seven-rail vocabulary; **mark A4 as pre-refactor landed state to migrate** (or add a forward migration note — spec Acceptance Criteria require Main on the shared path). **Keep** the pi-fidelity facts (long-lived agent, `prompt()`/`waitForIdle()`, run-start `systemPrompt` refresh, turn messages + status return).
+- **Change:** Describe the active Main-Agent context path in seven-rail vocabulary; **mark A4 as pre-refactor landed state to migrate** (or add a forward migration note — spec Acceptance Criteria require Main on the shared path). **Keep** the pi-fidelity facts (long-lived agent, `prompt()`-driven runs, Pi idle/abort coordination, run-start `systemPrompt` refresh, turn messages + status return).
 - **Stale (lines 781-786):** rail enumeration omits Actor Identity; "shared in-process read model" echoes the retired blob.
 - **Change:** add Actor Identity as the first rail; reword to the multi-source assembler.
 - **Also stale (line 814):** "Phase B PR3 Radio runtime substrate is **in progress**" — PR3 has landed. Update to landed.
@@ -89,7 +89,7 @@ This document is the complete, executable output of the refactor-impact audit. F
 - **Stale (header line ~9):** misattributes ADR-0030 as *establishing* Session Context as a top-level area (ADR-0030 actually REJECTS it — Decision lines 56-62, 82-84, 108-109).
 - **Stale (ownership block ~373-374; responsibilities table ~679):** asserts "Session Context owns live queue/candidate/pacing context" — inverts ADR-0030's "Music Experience owns live queue … Session Context does not own it."
 - **Stale (AgentContextAssembler DTO list ~865-878):** single context DTO.
-- **Change:** Add a supersession header (Session Context area model retired; `agent-context-engineering-spec.md` is authority). Correct the ADR-0030 misattribution. Rewrite the ownership block + responsibilities table to seven rails (Workspace Context listening/radio sections; Invocation Context for intent epoch/basis). Split the DTO list into seven rails. Research-only — does not block code.
+- **Change:** Add a supersession header (Session Context area model retired; `agent-context-engineering-spec.md` is authority). Correct the ADR-0030 misattribution. Rewrite the ownership block + responsibilities table to seven rails (Workspace Context listening/radio sections; Invocation Context for run envelope; runtime command basis is harness-only). Split the DTO list into seven rails. Research-only — does not block code.
 
 ### MEDIUM severity
 
@@ -149,7 +149,7 @@ Content (spec-driven, traces to `agent-context-engineering-spec.md`, not to PBs)
 - Guards: assembler emits listening (identity) + radio; `declaredWorkspaceSections` selects sections; `ActorDefinition` tool-name validation (backticked instruction tokens resolve to `toolPack.stageToolNames` after dotted→model-visible mapping, fail fast on mismatch); identity guard is structural (one definition, separated rails, field shape), not a forbidden-string or keyword-list check; exactly one assembler path.
 
 **PR3.2 — Radio consumes the shared assembler (retire the Run Floor)**
-- Delete `renderRadioRunSystemPrompt` (the "Radio Run Floor"). Radio's `subscribe(agent_start)` run-start refresh drives the shared assembler (`radio` + `listening` — **Radio now sees queue item identity for dedupe**) into `state.systemPrompt` before the pi snapshot. Replace the prose Invocation (`Radio refill run: …`) with JSON `{run:{kind:"radio_refill",runId,wakeReason,suggestedAppendCount,basis:{radioDirectionRevision,radioSessionRevision}}}` via `agent.prompt(...)`. Wire `radioDefinition`. **Keep** run-start timing + PB8 posture-stamp carry/clear (ADR-0037 durable floor). Replaces the **landed** PR3 Run Floor.
+- Delete `renderRadioRunSystemPrompt` (the "Radio Run Floor"). Radio uses the same shared AgentHarness adapter as Main: assemble `radio` + `listening` Workspace Context and harness-only `commandBasis`, install `state.systemPrompt` / `state.tools` before `Agent.prompt(...)`, and refresh same-run provider context through pi `prepareNextTurn` after tool results with `changedBasis`. Replace the prose Invocation (`Radio refill run: …`) with JSON `{run:{kind:"radio_refill",runId,wakeReason,suggestedAppendCount}}` via `agent.prompt(...)`. Wire `radioDefinition`. **Keep** PB8 posture-stamp carry/clear (ADR-0037 durable floor) as a pre-assembly domain hook. Replaces the **landed** PR3 Run Floor.
 - Files: `src/agent_runtime/radio_run.ts`; `src/server/agent_runtime_radio_module.ts` (drop `radioBaseSystemPrompt` const); `src/contracts/agent_runtime.ts` (JSON invocation shape).
 - Dependencies: PR3.1, PR2.
 - Guards (anti-regression, spec Acceptance Criteria): Radio run-start systemPrompt == shared assembler output (no Radio-only renderer); Radio sees queue handles/labels; Invocation is JSON; timing preserved.
