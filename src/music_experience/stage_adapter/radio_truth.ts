@@ -333,6 +333,7 @@ async function handleMotifSet(
   }
   const output = await ports.radioTruth.setRadioMotif({
     ownerScope: ctx.ownerScope,
+    actor: revisionChangeActorForContext(ctx),
     value: value.value,
     basis: requireRadioDirectionBasis(ctx),
     now: ctx.clock(),
@@ -350,6 +351,7 @@ async function handleMotifClear(
   }
   const output = await ports.radioTruth.clearRadioMotif({
     ownerScope: ctx.ownerScope,
+    actor: revisionChangeActorForContext(ctx),
     basis: requireRadioDirectionBasis(ctx),
     now: ctx.clock(),
   });
@@ -372,6 +374,7 @@ async function handleVariationAdd(
   }
   const output = await ports.radioTruth.addRadioVariation({
     ownerScope: ctx.ownerScope,
+    actor: revisionChangeActorForContext(ctx),
     value: value.value,
     ...(input.at === undefined ? {} : { at: input.at }),
     basis: requireRadioDirectionBasis(ctx),
@@ -392,6 +395,7 @@ async function handleVariationRemove(
   const input = payload as RadioVariationsRemoveInput;
   const output = await ports.radioTruth.removeRadioVariation({
     ownerScope: ctx.ownerScope,
+    actor: revisionChangeActorForContext(ctx),
     index: input.index,
     basis: requireRadioDirectionBasis(ctx),
     now: ctx.clock(),
@@ -415,6 +419,7 @@ async function handleVariationReplace(
   }
   const output = await ports.radioTruth.replaceRadioVariation({
     ownerScope: ctx.ownerScope,
+    actor: revisionChangeActorForContext(ctx),
     index: input.index,
     value: value.value,
     basis: requireRadioDirectionBasis(ctx),
@@ -435,6 +440,7 @@ async function handleVariationMove(
   const input = payload as RadioVariationsMoveInput;
   const output = await ports.radioTruth.moveRadioVariation({
     ownerScope: ctx.ownerScope,
+    actor: revisionChangeActorForContext(ctx),
     from: input.from,
     to: input.to,
     basis: requireRadioDirectionBasis(ctx),
@@ -453,6 +459,7 @@ async function handleVariationClear(
   }
   const output = await ports.radioTruth.clearRadioVariations({
     ownerScope: ctx.ownerScope,
+    actor: revisionChangeActorForContext(ctx),
     basis: requireRadioDirectionBasis(ctx),
     now: ctx.clock(),
   });
@@ -689,4 +696,10 @@ function requireRadioDirectionBasis(ctx: StageToolContext): { radioDirectionRevi
   return {
     radioDirectionRevision,
   };
+}
+
+function revisionChangeActorForContext(
+  ctx: StageToolContext,
+): "user" | "main_agent" | "radio_agent" {
+  return ctx.actor ?? "user";
 }

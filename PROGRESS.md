@@ -1645,6 +1645,24 @@ Agent Runtime context-engineering authority for embedded MineMusic agents:
   queue handle visibility, Main system prompt refresh, and active-tree deletion
   of the retired seam.
 
+## 2026-06-30: Phase B PR3.6 Direction-Change Correction
+
+- Commanded-direction commands now emit one internal post-commit
+  `ConcernRevisionChange` after a successful transaction; stale, invalid,
+  aborted, or rolled-back operations emit none. Runtime derives the writer
+  actor, and revision metadata remains outside Stage public outputs and model
+  context.
+- Server Host routes `radio-direction` changes into the Radio supervisor. A
+  `direction_changed` run bypasses queue depth and old-direction exhaustion but
+  retains lifecycle, single-flight, and Background Work cooldown behavior.
+- Rapid direction revisions coalesce to the latest pending revision. Pending
+  direction correction takes priority over ordinary low-watermark wake,
+  including a direction change that lands while the pacing read is in flight.
+- Radio receives only the wake reason and non-negative suggested append count;
+  a full queue suggests zero additions. Existing provenance-aware
+  `playback.queue.*` tools remain the only correction path, so selection and
+  queue judgement stay agentic.
+
 ## Next Formal Milestones
 
 The Agent-Native Workbench PRD sequencing (Phase A in-process loop → Phase B

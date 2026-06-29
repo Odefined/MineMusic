@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-import { refKey, type Ref } from "../../src/contracts/kernel.js";
+import {
+  refKey,
+  type ConcernRevisionChange,
+  type Ref,
+} from "../../src/contracts/kernel.js";
 import type { MusicMaterial, SourceTrack } from "../../src/contracts/music_data_platform.js";
 import type {
   MusicExperienceRadioTruthCommand,
@@ -61,6 +65,65 @@ import { createRecordingProjectionInvalidationCommands } from "./helpers/project
 
 const now = "2026-06-28T00:00:00.000Z";
 const ownerScope = "local";
+const ignoredRevisionObserver = { observe() {} };
+
+function createRadioTruthCommand(
+  database: MusicDatabase,
+  observedChanges?: ConcernRevisionChange[],
+): MusicExperienceRadioTruthCommand {
+  return createMusicExperienceRadioTruthCommand({
+    database,
+    revisionObserver: observedChanges === undefined
+      ? ignoredRevisionObserver
+      : {
+          observe(change) {
+            observedChanges.push(change);
+          },
+        },
+  });
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const observedChanges: ConcernRevisionChange[] = [];
+  const command = createMusicExperienceRadioTruthCommand({
+    database,
+    revisionObserver: {
+      observe(change) {
+        observedChanges.push(change);
+      },
+    },
+  });
+
+  const changed = await command.setRadioDirection({
+    ownerScope,
+    actor: "main_agent",
+    motif: { kind: "text", text: "warmer" },
+    activeVariations: [],
+    basis: { radioDirectionRevision: 0 },
+    now,
+  });
+  assert.equal(changed.ok, true);
+  assert.deepEqual(observedChanges, [{
+    ownerScope,
+    concern: "radio-direction",
+    newRevision: 1,
+    actor: "main_agent",
+  }]);
+
+  const stale = await command.setRadioMotif({
+    ownerScope,
+    actor: "main_agent",
+    value: { kind: "text", text: "cooler" },
+    basis: { radioDirectionRevision: 0 },
+    now,
+  });
+  assert.equal(stale.ok, false);
+  assert.equal(stale.ok ? undefined : stale.error.code, "voided_stale");
+  assert.equal(observedChanges.length, 1);
+
+  await database.close();
+}
 
 for (const [descriptor, propertyName] of [
   [radioVariationsAddDescriptor, "at"],
@@ -106,9 +169,10 @@ assert.equal(
   const motifRef = materialRef("phase_b_radio_truth_motif");
   await seedRecording(database, motifRef, "Radio Motif", ["Truth Artist"]);
 
-  const command = createMusicExperienceRadioTruthCommand({ database });
+  const command = createRadioTruthCommand(database);
   const direction = expectDirectionOutput(await command.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     motif: {
       kind: "material",
       materialRef: motifRef,
@@ -151,18 +215,20 @@ assert.equal(
 
 {
   const [primary, secondary] = await initializedSharedMusicExperienceDatabases("direction_cas");
-  const primaryCommand = createMusicExperienceRadioTruthCommand({ database: primary });
-  const secondaryCommand = createMusicExperienceRadioTruthCommand({ database: secondary });
+  const primaryCommand = createRadioTruthCommand(primary);
+  const secondaryCommand = createRadioTruthCommand(secondary);
 
   const [firstWrite, secondWrite] = await Promise.all([
     primaryCommand.setRadioMotif({
       ownerScope,
+      actor: "main_agent",
       value: { kind: "text", text: "first concurrent motif" },
       basis: { radioDirectionRevision: 0 },
       now,
     }),
     secondaryCommand.setRadioMotif({
       ownerScope,
+      actor: "main_agent",
       value: { kind: "text", text: "second concurrent motif" },
       basis: { radioDirectionRevision: 0 },
       now,
@@ -183,12 +249,14 @@ assert.equal(
 
 {
   const database = await initializedMusicExperienceDatabase();
-  const command = createMusicExperienceRadioTruthCommand({ database });
+  const observedChanges: ConcernRevisionChange[] = [];
+  const command = createRadioTruthCommand(database, observedChanges);
   const material = materialRef("phase_b_radio_truth_action_material");
   await seedRecording(database, material, "Action Material", ["Action Artist"]);
 
   const motif = expectDirectionOutput(await command.setRadioMotif({
     ownerScope,
+    actor: "main_agent",
     value: { kind: "text", text: "night drive" },
     basis: { radioDirectionRevision: 0 },
     now,
@@ -201,6 +269,7 @@ assert.equal(
 
   const firstVariation = expectDirectionOutput(await command.addRadioVariation({
     ownerScope,
+    actor: "main_agent",
     value: { kind: "text", text: "warmer" },
     basis: { radioDirectionRevision: 1 },
     now,
@@ -209,6 +278,7 @@ assert.equal(
 
   const insertedVariation = expectDirectionOutput(await command.addRadioVariation({
     ownerScope,
+    actor: "main_agent",
     value: { kind: "scope", scope: { kind: "library" } },
     at: 0,
     basis: { radioDirectionRevision: 2 },
@@ -218,6 +288,7 @@ assert.equal(
 
   const movedVariation = expectDirectionOutput(await command.moveRadioVariation({
     ownerScope,
+    actor: "main_agent",
     from: 0,
     to: 1,
     basis: { radioDirectionRevision: 3 },
@@ -227,6 +298,7 @@ assert.equal(
 
   const replacedVariation = expectDirectionOutput(await command.replaceRadioVariation({
     ownerScope,
+    actor: "main_agent",
     index: 1,
     value: { kind: "material", materialRef: material },
     basis: { radioDirectionRevision: 4 },
@@ -236,6 +308,7 @@ assert.equal(
 
   const removedVariation = expectDirectionOutput(await command.removeRadioVariation({
     ownerScope,
+    actor: "main_agent",
     index: 0,
     basis: { radioDirectionRevision: 5 },
     now,
@@ -244,6 +317,7 @@ assert.equal(
 
   const clearedMotif = expectDirectionOutput(await command.clearRadioMotif({
     ownerScope,
+    actor: "main_agent",
     basis: { radioDirectionRevision: 6 },
     now,
   }));
@@ -251,6 +325,7 @@ assert.equal(
 
   const clearedVariations = expectDirectionOutput(await command.clearRadioVariations({
     ownerScope,
+    actor: "main_agent",
     basis: { radioDirectionRevision: 7 },
     now,
   }));
@@ -258,6 +333,7 @@ assert.equal(
 
   const stale = await command.setRadioMotif({
     ownerScope,
+    actor: "main_agent",
     value: { kind: "text", text: "stale write" },
     basis: { radioDirectionRevision: 0 },
     now,
@@ -269,6 +345,7 @@ assert.equal(
 
   const invalidIndex = await command.removeRadioVariation({
     ownerScope,
+    actor: "main_agent",
     index: 0,
     basis: { radioDirectionRevision: 8 },
     now,
@@ -277,18 +354,28 @@ assert.equal(
   if (!invalidIndex.ok) {
     assert.equal(invalidIndex.error.code, "index_out_of_range");
   }
+  assert.deepEqual(
+    observedChanges,
+    Array.from({ length: 8 }, (_, index) => ({
+      ownerScope,
+      concern: "radio-direction" as const,
+      newRevision: index + 1,
+      actor: "main_agent" as const,
+    })),
+  );
 
   await database.close();
 }
 
 {
   const database = await initializedMusicExperienceDatabase();
+  const observedStageChanges: ConcernRevisionChange[] = [];
   const stageInterface = createStageInterface({
     instruments: [musicExperienceInstrument],
     registrations: createMusicExperienceRadioTruthRegistrations({
       candidateCommit: unusedCandidateCommit(),
       materialProjection: unusedMaterialProjection(),
-      radioTruth: createMusicExperienceRadioTruthCommand({ database }),
+      radioTruth: createRadioTruthCommand(database, observedStageChanges),
     }),
   });
   const ctx = createStageToolContext({
@@ -414,16 +501,31 @@ assert.equal(
   if (!missingBasis.ok) {
     assert.equal(missingBasis.error.code, "stage_interface.tool_handler_failed");
   }
+  assert.deepEqual(observedStageChanges, [
+    {
+      ownerScope,
+      concern: "radio-direction",
+      newRevision: 1,
+      actor: "main_agent",
+    },
+    {
+      ownerScope,
+      concern: "radio-direction",
+      newRevision: 2,
+      actor: "main_agent",
+    },
+  ]);
 
   await database.close();
 }
 
 {
   const [primary, secondary] = await initializedSharedMusicExperienceDatabases("posture_lock");
-  const primaryCommand = createMusicExperienceRadioTruthCommand({ database: primary });
-  const secondaryCommand = createMusicExperienceRadioTruthCommand({ database: secondary });
+  const primaryCommand = createRadioTruthCommand(primary);
+  const secondaryCommand = createRadioTruthCommand(secondary);
   const direction = expectDirectionOutput(await primaryCommand.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     motif: { kind: "text", text: "locked lean baseline" },
     activeVariations: [],
     now,
@@ -468,9 +570,10 @@ assert.equal(
 
 {
   const database = await initializedMusicExperienceDatabase();
-  const command = createMusicExperienceRadioTruthCommand({ database });
+  const command = createRadioTruthCommand(database);
   const firstDirection = expectDirectionOutput(await command.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     motif: {
       kind: "text",
       text: "night drive",
@@ -505,6 +608,7 @@ assert.equal(
 
   expectDirectionOutput(await command.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     motif: {
       kind: "text",
       text: "sunrise",
@@ -523,9 +627,10 @@ assert.equal(
 
 {
   const database = await initializedMusicExperienceDatabase();
-  const command = createMusicExperienceRadioTruthCommand({ database });
+  const command = createRadioTruthCommand(database);
   const direction = expectDirectionOutput(await command.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     motif: { kind: "text", text: "lean command baseline" },
     activeVariations: [],
     now,
@@ -595,9 +700,10 @@ assert.equal(
 
 {
   const database = await initializedMusicExperienceDatabase();
-  const command = createMusicExperienceRadioTruthCommand({ database });
+  const command = createRadioTruthCommand(database);
   const firstDirection = expectDirectionOutput(await command.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     motif: {
       kind: "text",
       text: "late write baseline",
@@ -607,6 +713,7 @@ assert.equal(
   }));
   expectDirectionOutput(await command.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     motif: {
       kind: "text",
       text: "new command",
@@ -642,9 +749,10 @@ assert.equal(
   const motifRef = materialRef("phase_b_radio_truth_xor_motif");
   await seedRecording(database, motifRef, "XOR Motif", ["Truth Artist"]);
 
-  const command = createMusicExperienceRadioTruthCommand({ database });
+  const command = createRadioTruthCommand(database);
   expectDirectionOutput(await command.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     motif: {
       kind: "material",
       materialRef: motifRef,
@@ -673,10 +781,11 @@ assert.equal(
 
 {
   const database = await initializedMusicExperienceDatabase();
-  const command = createMusicExperienceRadioTruthCommand({ database });
+  const command = createRadioTruthCommand(database);
   await assert.rejects(
     async () => await command.setRadioDirection({
       ownerScope,
+      actor: "main_agent",
       activeVariations: [
         {
           kind: "bogus",
@@ -690,6 +799,7 @@ assert.equal(
   await assert.rejects(
     async () => await command.setRadioDirection({
       ownerScope,
+      actor: "main_agent",
       activeVariations: [
         {
           kind: "scope",
@@ -705,6 +815,7 @@ assert.equal(
 
   const malformedMaterialRef = await command.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     activeVariations: [
       {
         kind: "material",
@@ -732,9 +843,10 @@ assert.equal(
 
 {
   const database = await initializedMusicExperienceDatabase();
-  const command = createMusicExperienceRadioTruthCommand({ database });
+  const command = createRadioTruthCommand(database);
   const overCapDirection = await command.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     activeVariations: Array.from({ length: MAX_RADIO_ACTIVE_VARIATION_ITEMS + 1 }, (_, index) => ({
       kind: "text",
       text: `variation-${index}`,
@@ -750,6 +862,7 @@ assert.equal(
 
   const overlongMotif = await command.setRadioMotif({
     ownerScope,
+    actor: "main_agent",
     value: {
       kind: "text",
       text: "x".repeat(MAX_RADIO_DIRECTION_TEXT_LENGTH + 1),
@@ -774,7 +887,7 @@ assert.equal(
 
 {
   const database = await initializedMusicExperienceDatabase();
-  const command = createMusicExperienceRadioTruthCommand({ database });
+  const command = createRadioTruthCommand(database);
   const overCap = await command.writeRadioPosture({
     ownerScope,
     lean: Array.from({ length: MAX_RADIO_POSTURE_LEAN_ITEMS + 1 }, (_, index) => ({
@@ -802,7 +915,7 @@ assert.equal(
 
 {
   const database = await initializedMusicExperienceDatabase();
-  const command = createMusicExperienceRadioTruthCommand({ database });
+  const command = createRadioTruthCommand(database);
   const emptyPosture = expectPostureOutput(await command.writeRadioPosture({
     ownerScope,
     lean: [],
@@ -817,6 +930,7 @@ assert.equal(
   });
   expectDirectionOutput(await command.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     motif: {
       kind: "text",
       text: "after empty posture",
@@ -866,9 +980,10 @@ assert.equal(
   const motifRef = materialRef("phase_b_radio_truth_read_model");
   await seedRecording(database, motifRef, "Read Model Motif", ["Read Artist"]);
 
-  const command = createMusicExperienceRadioTruthCommand({ database });
+  const command = createRadioTruthCommand(database);
   const direction = expectDirectionOutput(await command.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     motif: {
       kind: "material",
       materialRef: motifRef,
@@ -970,9 +1085,10 @@ assert.equal(
     now,
   })).ok, true);
 
-  const radioCommand = createMusicExperienceRadioTruthCommand({ database });
+  const radioCommand = createRadioTruthCommand(database);
   const direction = expectDirectionOutput(await radioCommand.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     motif: {
       kind: "material",
       materialRef: queuedRef,
@@ -1050,9 +1166,10 @@ assert.equal(
     now,
   })).ok, true);
 
-  const radioCommand = createMusicExperienceRadioTruthCommand({ database });
+  const radioCommand = createRadioTruthCommand(database);
   const direction = expectDirectionOutput(await radioCommand.setRadioDirection({
     ownerScope,
+    actor: "main_agent",
     motif: {
       kind: "material",
       materialRef: postureRef,

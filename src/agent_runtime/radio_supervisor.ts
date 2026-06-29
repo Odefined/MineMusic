@@ -13,7 +13,11 @@ import type {
   RadioWakeGateState,
   RadioWakeReason,
 } from "../contracts/agent_runtime.js";
-import type { ConcernRevision, StageError } from "../contracts/kernel.js";
+import type {
+  ConcernRevision,
+  ConcernRevisionChange,
+  StageError,
+} from "../contracts/kernel.js";
 import type { MainRadioNotifyChannel } from "./main_radio_channel.js";
 
 export const RADIO_REFILL_JOB_TYPE = "agent_runtime.radio_refill_run";
@@ -69,6 +73,7 @@ export type RadioWakeDecision =
   | { kind: "submitted"; jobId: string; payload: RadioRefillRunJobPayload; runAfter?: Date }
   | { kind: "not_running"; wakeGateState: RadioWakeGateState }
   | { kind: "already_refilling" }
+  | { kind: "direction_change_pending"; radioDirectionRevision: ConcernRevision }
   | { kind: "terminal_observation_failed"; error: RadioSupervisorErrorSummary }
   | { kind: "queue_not_low"; queueDepth: number; lowWatermark: number }
   | { kind: "direction_exhausted"; radioDirectionRevision: ConcernRevision };
@@ -82,14 +87,18 @@ export type RadioSupervisorSnapshot = {
   lowWatermark: number;
   fillTarget: number;
   exhaustedRadioDirectionRevision?: ConcernRevision;
+  pendingDirectionRevision?: ConcernRevision;
   cooldownUntil?: Date;
   terminalObservationError?: RadioSupervisorErrorSummary;
+  directionWakeError?: RadioSupervisorErrorSummary;
 };
 
 export type RadioSupervisor = {
-  wake(reason: RadioWakeReason): Promise<RadioWakeDecision>;
+  wake(reason: Extract<RadioWakeReason, "low_watermark">): Promise<RadioWakeDecision>;
+  observeRevisionChange(change: ConcernRevisionChange): void;
   setWakeGateStateForTest(state: RadioWakeGateState): void;
   snapshot(): RadioSupervisorSnapshot;
+  waitForWakeScheduling(): Promise<void>;
   waitForTerminalObservation(): Promise<void>;
   stop(): Promise<void>;
 };
@@ -110,8 +119,12 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   let refilling = false;
   let refillGeneration = 0;
   let exhaustedRadioDirectionRevision: ConcernRevision | undefined;
+  let pendingDirectionRevision: ConcernRevision | undefined;
+  let lastScheduledDirectionRevision: ConcernRevision | undefined;
   let cooldownUntil: Date | undefined;
   let terminalObservationError: unknown;
+  let directionWakeError: unknown;
+  let directionWakeScheduling: Promise<void> = Promise.resolve();
   let terminalObservation: Promise<void> = Promise.resolve();
   let terminalObservationAbortController: AbortController | undefined;
   let terminalObservationJobId: string | undefined;
@@ -142,6 +155,36 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
 
   return {
     wake,
+    observeRevisionChange(change) {
+      if (
+        change.ownerScope !== input.ownerScope ||
+        change.concern !== "radio-direction" ||
+        wakeGateState !== "Running" ||
+        change.newRevision <= (lastScheduledDirectionRevision ?? -1)
+      ) {
+        return;
+      }
+      if (change.newRevision < (pendingDirectionRevision ?? -1)) {
+        return;
+      }
+      if (
+        change.newRevision === pendingDirectionRevision &&
+        directionWakeError === undefined
+      ) {
+        return;
+      }
+      pendingDirectionRevision = Math.max(
+        change.newRevision,
+        pendingDirectionRevision ?? change.newRevision,
+      );
+      if (
+        exhaustedRadioDirectionRevision !== undefined &&
+        exhaustedRadioDirectionRevision !== change.newRevision
+      ) {
+        exhaustedRadioDirectionRevision = undefined;
+      }
+      enqueuePendingDirectionWake();
+    },
     setWakeGateStateForTest(state) {
       wakeGateState = state;
     },
@@ -153,11 +196,18 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
         lowWatermark,
         fillTarget,
         ...(exhaustedRadioDirectionRevision === undefined ? {} : { exhaustedRadioDirectionRevision }),
+        ...(pendingDirectionRevision === undefined ? {} : { pendingDirectionRevision }),
         ...(cooldownUntil === undefined ? {} : { cooldownUntil }),
         ...(terminalObservationError === undefined ? {} : {
           terminalObservationError: summarizeSupervisorError(terminalObservationError),
         }),
+        ...(directionWakeError === undefined ? {} : {
+          directionWakeError: summarizeDirectionWakeError(directionWakeError),
+        }),
       };
+    },
+    waitForWakeScheduling() {
+      return directionWakeScheduling;
     },
     waitForTerminalObservation() {
       return terminalObservation;
@@ -169,6 +219,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
         : terminalObservation;
       terminalObservationAbortController?.abort();
       await activeObservation;
+      await directionWakeScheduling;
       terminalObservationAbortController = undefined;
       terminalObservationJobId = undefined;
       refilling = false;
@@ -178,6 +229,12 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   async function wake(reason: RadioWakeReason): Promise<RadioWakeDecision> {
     if (wakeGateState !== "Running") {
       return { kind: "not_running", wakeGateState };
+    }
+    if (reason === "low_watermark" && pendingDirectionRevision !== undefined) {
+      const pendingDirectionDecision = await prioritizePendingDirectionChange(reason);
+      if (pendingDirectionDecision !== undefined) {
+        return pendingDirectionDecision;
+      }
     }
     if (terminalObservationError !== undefined) {
       retryTerminalObservation();
@@ -194,17 +251,27 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
         refilling = false;
         return { kind: "not_running", wakeGateState };
       }
+      if (reason === "low_watermark" && pendingDirectionRevision !== undefined) {
+        refilling = false;
+        const directionDecision = await prioritizePendingDirectionChange(reason);
+        if (directionDecision !== undefined) {
+          return directionDecision;
+        }
+      }
       if (pendingSubmission !== undefined) {
         if (pendingSubmissionMatchesPacing(pendingSubmission, pacing)) {
           return await submitPendingRefill(pendingSubmission);
         }
         pendingSubmission = undefined;
       }
-      if (pacing.queueDepth >= lowWatermark) {
+      if (reason === "low_watermark" && pacing.queueDepth >= lowWatermark) {
         refilling = false;
         return { kind: "queue_not_low", queueDepth: pacing.queueDepth, lowWatermark };
       }
-      if (exhaustedRadioDirectionRevision === pacing.radioDirectionRevision) {
+      if (
+        reason === "low_watermark" &&
+        exhaustedRadioDirectionRevision === pacing.radioDirectionRevision
+      ) {
         refilling = false;
         return {
           kind: "direction_exhausted",
@@ -231,7 +298,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       radioDirectionRevision: inputSubmit.pacing.radioDirectionRevision,
       wakeReason: inputSubmit.reason,
       refillGeneration,
-      suggestedAppendCount: suggestedAppendCount(inputSubmit.pacing),
+      suggestedAppendCount: suggestedAppendCount(inputSubmit.pacing, inputSubmit.reason),
     };
     const runAfter = cooldownRunAfter();
     const submission: PendingRefillSubmission = {
@@ -253,6 +320,16 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       ...(submission.runAfter === undefined ? {} : { runAfter: submission.runAfter }),
     });
     pendingSubmission = undefined;
+    if (submission.payload.wakeReason === "direction_changed") {
+      lastScheduledDirectionRevision = submission.payload.radioDirectionRevision;
+      if (
+        pendingDirectionRevision !== undefined &&
+        pendingDirectionRevision <= submission.payload.radioDirectionRevision
+      ) {
+        pendingDirectionRevision = undefined;
+      }
+      directionWakeError = undefined;
+    }
     const observationAbortController = new AbortController();
     startTerminalObservation(submitted.jobId, observationAbortController);
     return {
@@ -309,6 +386,12 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     terminalObservationError = undefined;
     const terminalHandling = handleTerminalState(terminal);
     refilling = false;
+    if (pendingDirectionRevision !== undefined && wakeGateState === "Running") {
+      await enqueuePendingDirectionWake();
+      if (refilling) {
+        return;
+      }
+    }
     if (wakeGateState === "Running" && terminalHandling.rewake) {
       await wake("low_watermark");
     }
@@ -360,8 +443,62 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     return cooldownUntil.getTime() > clock.now().getTime() ? cooldownUntil : undefined;
   }
 
-  function suggestedAppendCount(pacing: RadioPacingSnapshot): number {
-    return Math.max(1, fillTarget - pacing.queueDepth);
+  function suggestedAppendCount(
+    pacing: RadioPacingSnapshot,
+    reason: RadioWakeReason,
+  ): number {
+    return reason === "direction_changed"
+      ? Math.max(0, fillTarget - pacing.queueDepth)
+      : Math.max(1, fillTarget - pacing.queueDepth);
+  }
+
+  function enqueuePendingDirectionWake(): Promise<void> {
+    directionWakeScheduling = directionWakeScheduling.then(async () => {
+      if (
+        pendingDirectionRevision === undefined ||
+        refilling ||
+        wakeGateState !== "Running"
+      ) {
+        return;
+      }
+
+      const requestedRevision = pendingDirectionRevision;
+      try {
+        const decision = await wake("direction_changed");
+        if (decision.kind !== "submitted") {
+          return;
+        }
+      } catch (error) {
+        directionWakeError = error;
+        pendingDirectionRevision = Math.max(
+          requestedRevision,
+          pendingDirectionRevision ?? requestedRevision,
+        );
+      }
+    });
+    return directionWakeScheduling;
+  }
+
+  async function prioritizePendingDirectionChange(
+    reason: RadioWakeReason,
+  ): Promise<RadioWakeDecision | undefined> {
+    if (reason !== "low_watermark" || pendingDirectionRevision === undefined) {
+      return undefined;
+    }
+    if (!refilling || directionWakeError !== undefined) {
+      enqueuePendingDirectionWake();
+    }
+    await directionWakeScheduling;
+    if (refilling) {
+      return { kind: "already_refilling" };
+    }
+    if (pendingDirectionRevision !== undefined) {
+      return {
+        kind: "direction_change_pending",
+        radioDirectionRevision: pendingDirectionRevision,
+      };
+    }
+    return undefined;
   }
 }
 
@@ -389,6 +526,15 @@ function summarizeSupervisorError(error: unknown): RadioSupervisorErrorSummary {
   return {
     code: "agent_runtime.radio_terminal_observation_failed",
     message: error instanceof Error ? error.message : "Radio terminal observation failed.",
+    area: "agent_runtime",
+    retryable: true,
+  };
+}
+
+function summarizeDirectionWakeError(error: unknown): RadioSupervisorErrorSummary {
+  return {
+    code: "agent_runtime.radio_direction_wake_failed",
+    message: error instanceof Error ? error.message : "Radio direction wake failed.",
     area: "agent_runtime",
     retryable: true,
   };

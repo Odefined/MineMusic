@@ -536,10 +536,28 @@ before either surface exists would push judgement into scripts or silently clear
 too much queue.
 
 **Files touched:**
+- `src/contracts/kernel.ts` — introduce the internal, area-neutral
+  `ConcernRevisionChange` / `ConcernRevisionObserver` substrate with concern and
+  writer-actor enums. This is runtime/command metadata, not Stage public output
+  or model context.
+- `src/contracts/music_experience.ts` and `src/music_experience/commands.ts` —
+  direction command inputs receive runtime-derived actor identity; every
+  successful commanded-direction transaction emits one post-commit
+  `radio-direction` change, while stale/abort/rollback emits zero.
 - `src/agent_runtime/radio_supervisor.ts` — add `direction_changed` wake reason
-  and one-shot correction scheduling independent of low-watermark.
-- `src/agent_runtime/radio_run.ts` — include direction-change basis/reason in the
-  run invocation context.
+  and one-shot correction scheduling independent of low-watermark. Duplicate
+  signals for one revision are idempotent; revisions arriving during an active
+  run coalesce to the latest pending revision and are serviced before ordinary
+  terminal-time pacing rechecks.
+- `src/agent_runtime/radio_run.ts` — keep direction-change reason and suggested
+  append count in Invocation Context. Direction/session revisions remain
+  runtime-only job metadata and do not enter model context.
+- `src/agent_runtime/actor_definition.ts` — distinguish ordinary refill from a
+  direction-change correction pass: Radio reviews only its own queued future
+  items and may remove/replace/move/clear/append or leave them unchanged.
+- `src/server/host.ts` and Radio runtime composition — route the post-commit
+  direction event into the supervisor without coupling Music Experience to
+  Agent Runtime.
 - Radio capability tests — assert the correction turn uses the same agent-facing
   capability path as ordinary Radio queue correction.
 
@@ -552,9 +570,15 @@ too much queue.
    the queue.
 3. No direction change means low-watermark remains the only ordinary refill wake.
 4. Multiple rapid direction changes coalesce without creating concurrent Radio
-   runs.
+   runs; the latest pending revision runs after the current job reaches terminal.
 5. Exhaustion/backoff state tied to the old direction does not block the new
    direction's correction turn.
+6. A committed direction command emits exactly one internal revision-change
+   event; stale, aborted, invalid, and rolled-back writes emit none.
+7. Direction-change Invocation Context contains the wake reason and a
+   non-negative suggested append count, but no command basis or concern
+   revisions. A full queue therefore suggests `0` additions rather than forcing
+   queue growth.
 
 **Verification:** `npm run typecheck`; targeted Stage Core tests for supervisor
 wake policy and Radio correction.
@@ -579,10 +603,13 @@ truth and queue capability surfaces so the first observer matrix is not knowingl
 incomplete for the active Radio feature set.
 
 **Files touched:**
-- `src/contracts/kernel.ts` — revision observer event types and concern/actor
-  enums.
+- `src/contracts/kernel.ts` — consume and, only if the full writer inventory
+  requires it, extend the revision observer event types introduced by PR3.6;
+  do not create a second event shape.
 - Music Experience command modules — every PR1-PR3.6 revision-writing command
-  emits exactly one post-commit observer event and zero on rollback.
+  emits exactly one post-commit observer event and zero on rollback. The
+  radio-direction producer already landed in PR3.6; PR4 extends the matrix to
+  queue, playback, and radio-session writers.
 - `src/agent_runtime/radio_supervisor.ts` — basis table and priority-directed
   abort verdict.
 - `src/agent_runtime/radio_run.ts` and Main-run equivalent — per-run

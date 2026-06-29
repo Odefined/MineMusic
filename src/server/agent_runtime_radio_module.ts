@@ -23,6 +23,7 @@ import {
   type RadioSupervisor,
 } from "../agent_runtime/index.js";
 import type { RadioWakeReason } from "../contracts/agent_runtime.js";
+import type { ConcernRevisionChange } from "../contracts/kernel.js";
 import type {
   ToolDeclaration,
 } from "../contracts/stage_interface.js";
@@ -53,7 +54,8 @@ export type CreateAgentRuntimeRadioModuleInput = {
 };
 
 export type AgentRuntimeRadioModule = RuntimeModule & {
-  wake(reason: RadioWakeReason): Promise<RadioWakeDecision>;
+  wake(reason: Extract<RadioWakeReason, "low_watermark">): Promise<RadioWakeDecision>;
+  observeRevisionChange(change: ConcernRevisionChange): void;
 };
 
 export function createAgentRuntimeRadioModule(
@@ -172,6 +174,10 @@ export function createAgentRuntimeRadioModule(
     wake(reason) {
       const radioSupervisor = requirePort(supervisor, "Radio supervisor");
       return radioSupervisor.wake(reason);
+    },
+    observeRevisionChange(change) {
+      const radioSupervisor = requirePort(supervisor, "Radio supervisor");
+      radioSupervisor.observeRevisionChange(change);
     },
     async stop() {
       await supervisor?.stop();

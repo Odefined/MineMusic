@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type {
     BackgroundWorkBackend,
     BackgroundWorkHandler,
+    BackgroundWorkSubmitInput,
 } from "../../src/background_work/index.js";
 import type { StageError } from "../../src/contracts/kernel.js";
 import type { ProviderMaterialCandidate } from "../../src/contracts/music_data_platform.js";
@@ -235,6 +236,29 @@ assert.equal(listedImportSources.ok, true);
 if (listedImportSources.ok) {
     assert.equal(listedImportSources.value.toolName, "library.import.list_sources");
 }
+const changedDirection = await host.dispatch({
+    ...testStageToolContext(),
+    actor: "main_agent",
+    preconditionBasis: { radioDirectionRevision: 0 },
+}, {
+    toolName: "radio.motif.set",
+    payload: {
+        value: { kind: "text", text: "warmer after midnight" },
+    },
+});
+assert.equal(changedDirection.ok, true);
+const directionWakeSubmission = await serverHostBackgroundWork.waitForSubmit(
+    "agent_runtime.radio_refill_run",
+);
+assert.deepEqual(directionWakeSubmission.payload, {
+    workspaceId: "default",
+    ownerScope: "local",
+    radioSessionRevision: 0,
+    radioDirectionRevision: 1,
+    wakeReason: "direction_changed",
+    refillGeneration: 1,
+    suggestedAppendCount: 10,
+});
 const stopped = await host.stop();
 assert.equal(stopped.ok, true);
 assert.equal(host.snapshot().status, "stopped");
@@ -247,6 +271,8 @@ assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.local_source_scan_advance",
     "register:agent_runtime.radio_refill_run",
     "start",
+    "submit:agent_runtime.radio_refill_run",
+    "await-terminal-aborted",
     "stop",
 ]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
@@ -362,7 +388,10 @@ const fixtureRuntime = createStageRuntime({
                     return createMusicExperienceQueuePlaybackCommand({ database: fixtureDatabase });
                 },
                 radioTruth: () => {
-                    return createMusicExperienceRadioTruthCommand({ database: fixtureDatabase });
+                    return createMusicExperienceRadioTruthCommand({
+                        database: fixtureDatabase,
+                        revisionObserver: { observe() {} },
+                    });
                 },
             },
         }),
@@ -638,12 +667,20 @@ function fixtureSourceProviderPlugin(candidate: ProviderMaterialCandidate): Mine
 }
 function createFakeBackgroundWorkBackend(): BackgroundWorkBackend & {
     log: string[];
+    submissions: BackgroundWorkSubmitInput<object>[];
+    waitForSubmit(jobType: string): Promise<BackgroundWorkSubmitInput<object>>;
 } {
     const log: string[] = [];
+    const submissions: BackgroundWorkSubmitInput<object>[] = [];
+    const submitWaiters = new Map<string, (input: BackgroundWorkSubmitInput<object>) => void>();
     return {
         log,
+        submissions,
         async submit(input) {
             log.push(`submit:${input.jobType}`);
+            submissions.push(input);
+            submitWaiters.get(input.jobType)?.(input);
+            submitWaiters.delete(input.jobType);
             return {
                 jobId: "server-host-background-job",
                 submission: "created",
@@ -669,6 +706,15 @@ function createFakeBackgroundWorkBackend(): BackgroundWorkBackend & {
         },
         async stop() {
             log.push("stop");
+        },
+        async waitForSubmit(jobType) {
+            const submitted = submissions.find((input) => input.jobType === jobType);
+            if (submitted !== undefined) {
+                return submitted;
+            }
+            return await new Promise((resolve) => {
+                submitWaiters.set(jobType, resolve);
+            });
         },
     };
 }

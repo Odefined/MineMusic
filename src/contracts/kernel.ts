@@ -38,6 +38,25 @@ export type ConcernRevisionSet = {
 
 export type AgentActorKind = "main_agent" | "radio_agent";
 
+export type ConcernRevisionChangeActor = "user" | AgentActorKind;
+
+export type ConcernRevisionChangeConcern =
+  | "radio-direction"
+  | "queue"
+  | "radio-session"
+  | "playback";
+
+export type ConcernRevisionChange = {
+  ownerScope: string;
+  concern: ConcernRevisionChangeConcern;
+  newRevision: ConcernRevision;
+  actor: ConcernRevisionChangeActor;
+};
+
+export type ConcernRevisionObserver = {
+  observe(change: ConcernRevisionChange): void;
+};
+
 export type FormalArea =
   | "server_host"
   | "stage_interface"

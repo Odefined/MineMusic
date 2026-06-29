@@ -137,7 +137,11 @@ const key = {
 
   await runPort.runRadioRefill({
     runId: "radio-job-floor",
-    payload: payload(4),
+    payload: {
+      ...payload(4),
+      wakeReason: "direction_changed",
+      suggestedAppendCount: 0,
+    },
     signal: new AbortController().signal,
   });
 
@@ -150,8 +154,13 @@ const key = {
   assert.match(observedSystemPrompt, /0\. recording "Already Queued" \[material:material:already-queued\]/);
   assert.equal(observedSystemPrompt.includes("Radio Run Floor:"), false);
   assert.match(observedMessagesJson, /radio_refill/);
-  assert.match(observedMessagesJson, /suggestedAppendCount/);
+  assert.equal(
+    observedMessagesJson.includes("\\\"wakeReason\\\": \\\"direction_changed\\\""),
+    true,
+  );
+  assert.equal(observedMessagesJson.includes("\\\"suggestedAppendCount\\\": 0"), true);
   assert.equal(observedMessagesJson.includes("radioDirectionRevision"), false);
+  assert.equal(observedMessagesJson.includes("radioSessionRevision"), false);
   assert.equal(observedToolCount, 1);
 }
 

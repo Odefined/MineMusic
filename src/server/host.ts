@@ -1,4 +1,9 @@
-import { refKey, type Ref, type Result } from "../contracts/kernel.js";
+import {
+  refKey,
+  type ConcernRevisionChange,
+  type Ref,
+  type Result,
+} from "../contracts/kernel.js";
 import type { StageRuntimeSnapshot } from "../contracts/stage_core.js";
 import type {
   StageToolContext,
@@ -410,8 +415,17 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       return undefined;
     }
 
-    radioTruthCommand ??= createMusicExperienceRadioTruthCommand({ database: defaultMusicDatabase });
+    radioTruthCommand ??= createMusicExperienceRadioTruthCommand({
+      database: defaultMusicDatabase,
+      revisionObserver: {
+        observe: observeConcernRevisionChange,
+      },
+    });
     return radioTruthCommand;
+  }
+
+  function observeConcernRevisionChange(change: ConcernRevisionChange): void {
+    agentRuntimeRadioModule?.observeRevisionChange(change);
   }
 
   function readDefaultMusicExperienceReadPort(): MusicExperienceWorkspaceProjectionPort | undefined {

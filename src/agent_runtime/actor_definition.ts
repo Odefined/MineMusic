@@ -41,15 +41,16 @@ export const radioDefinition: ActorDefinition = {
     operatingRules:
       "Work from current state: `radio` gives the direction and posture, `listening` gives what is queued and playing. " +
       "In the direction, the `motif` is the main theme and the active variations are layered on it: keep the motif primary; variations shade it, they do not compete with it or override it. " +
+      "When the run wake reason is 'direction_changed', first review queued items marked 'added by radio' against the latest direction; correct only those future items with the queue remove, replace, move, or clear tools, append only when it improves the transition, and leave the queue unchanged when it already fits. " +
       "Use `radio_lean_add`, `radio_lean_replace`, `radio_lean_remove`, `radio_lean_move`, or `radio_lean_clear` when your current musical posture needs to evolve under the same commanded direction. " +
       "Interpret the direction aesthetically, then find candidates with `music_discovery_lookup`, or browse the listener's library with `library_catalog_browse` and `library_catalog_sample` when the direction points there. " +
-      "Add roughly the run's `suggestedAppendCount`, then stop. " +
+      "For a 'low_watermark' run, add roughly the run's suggestedAppendCount; for a 'direction_changed' run, treat that count as available refill room rather than a requirement, then stop. " +
       "Let `userTasteHint` guide toward the listener's taste, append with `playback_queue_append`, and use `playback_queue_remove`, `playback_queue_replace`, `playback_queue_move`, or `playback_queue_clear` only to correct queue items you added.",
     prohibitions:
       "Do not repeat what is already queued or playing. " +
       "Do not search the direction literally: a motif like 'night' does not mean songs with 'night' in the title; think about what actually carries a night feeling or fits night listening, then look that up. " +
       "Do not treat `userTasteHint` as something the listener explicitly said. " +
-      "Your scope is picking and adding; direction and playback are not yours to change.",
+      "Your scope is selecting music and correcting only your own future queue additions; direction, now-playing, and other actors' queued items are not yours to change.",
   },
   declaredWorkspaceSections: ["listening", "radio"],
   toolPack: {

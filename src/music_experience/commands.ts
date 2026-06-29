@@ -7,7 +7,13 @@ import type {
   RadioDirectionSnapshot,
   VariationItem,
 } from "../contracts/music_experience.js";
-import type { ConcernRevisionSet, Ref, Result } from "../contracts/kernel.js";
+import type {
+  ConcernRevisionChangeActor,
+  ConcernRevisionObserver,
+  ConcernRevisionSet,
+  Ref,
+  Result,
+} from "../contracts/kernel.js";
 import {
   MAX_RADIO_ACTIVE_VARIATION_ITEMS,
   MAX_RADIO_DIRECTION_TEXT_LENGTH,
@@ -31,6 +37,11 @@ import {
 
 export type CreateMusicExperienceQueuePlaybackCommandInput = {
   database: MusicDatabase;
+};
+
+export type CreateMusicExperienceRadioTruthCommandInput = {
+  database: MusicDatabase;
+  revisionObserver: ConcernRevisionObserver;
 };
 
 export function createMusicExperienceQueuePlaybackCommand(
@@ -149,11 +160,11 @@ async function runQueuePlayback<T>(
 }
 
 export function createMusicExperienceRadioTruthCommand(
-  input: CreateMusicExperienceQueuePlaybackCommandInput,
+  input: CreateMusicExperienceRadioTruthCommandInput,
 ): MusicExperienceRadioTruthCommand {
   return {
     async setRadioDirection(commandInput) {
-      return runRadioTruth(async () => {
+      return runRadioDirection(input, commandInput, async () => {
         validateRadioDirection(commandInput);
         return input.database.transaction(async (db) => {
           const records = createMusicExperienceRadioTruthRecords({ db });
@@ -246,15 +257,16 @@ export function createMusicExperienceRadioTruthCommand(
 }
 
 async function editRadioDirection(
-  input: CreateMusicExperienceQueuePlaybackCommandInput,
+  input: CreateMusicExperienceRadioTruthCommandInput,
   commandInput: {
     ownerScope: string;
+    actor: ConcernRevisionChangeActor;
     basis?: ConcernRevisionSet;
     now: string;
   },
   edit: (direction: RadioDirectionSnapshot) => RadioDirectionSnapshot,
 ): Promise<Result<MusicExperienceSetRadioDirectionCommandOutput>> {
-  return runRadioTruth(async () => {
+  return runRadioDirection(input, commandInput, async () => {
     return input.database.transaction(async (db) => {
       const records = createMusicExperienceRadioTruthRecords({ db });
       const current = await records.read({ ownerScope: commandInput.ownerScope });
@@ -271,6 +283,26 @@ async function editRadioDirection(
       };
     });
   });
+}
+
+async function runRadioDirection(
+  input: CreateMusicExperienceRadioTruthCommandInput,
+  commandInput: {
+    ownerScope: string;
+    actor: ConcernRevisionChangeActor;
+  },
+  operation: () => Promise<{ ok: true; value: MusicExperienceSetRadioDirectionCommandOutput }>,
+): Promise<Result<MusicExperienceSetRadioDirectionCommandOutput>> {
+  const result = await runRadioTruth(operation);
+  if (result.ok) {
+    input.revisionObserver.observe({
+      ownerScope: commandInput.ownerScope,
+      concern: "radio-direction",
+      newRevision: result.value.radioDirectionRevision,
+      actor: commandInput.actor,
+    });
+  }
+  return result;
 }
 
 async function editRadioPosture(

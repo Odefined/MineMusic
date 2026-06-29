@@ -854,6 +854,18 @@ restored as compatibility layers.
   tail of the long-lived pi `Agent.state.messages` after `agent_end`; save
   failures fail the run instead of fabricating success. It reloads only on
   explicit restart/reconstruction, not per run.
+- Phase B PR3.4-PR3.6 now closes the callable steering/correction chain. Main
+  has structural motif/active-variation tools, Radio has bounded lean tools,
+  and user/Main/Radio queue edits share provenance-aware
+  `playback.queue.*` commands. A committed commanded-direction change emits one
+  internal post-commit concern-revision event and requests a
+  `direction_changed` Radio correction turn even when the queue is full. The
+  supervisor keeps lifecycle and single-flight gates, coalesces rapid revisions
+  to the latest pending direction, prioritizes that correction over ordinary
+  low-watermark pacing, and suggests zero additions when the queue already
+  meets the fill target. Radio alone judges whether to remove, replace, move,
+  clear, append, or leave its own future queue items unchanged; revisions and
+  command basis remain outside provider context.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection

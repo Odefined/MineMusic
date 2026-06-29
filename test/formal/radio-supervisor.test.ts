@@ -26,6 +26,139 @@ const ownerScope = "owner_radio_supervisor";
 const workspaceId = "default";
 
 async function runRadioSupervisorTests(): Promise<void> {
+  const fullQueueDirectionChange = createHarness({ queueDepth: 10 });
+  fullQueueDirectionChange.pacing.radioDirectionRevision = 1;
+  fullQueueDirectionChange.supervisor.observeRevisionChange({
+    ownerScope,
+    concern: "radio-direction",
+    newRevision: 1,
+    actor: "main_agent",
+  });
+  await fullQueueDirectionChange.supervisor.waitForWakeScheduling();
+  assert.equal(fullQueueDirectionChange.backgroundWork.submissions.length, 1);
+  assert.equal(
+    fullQueueDirectionChange.backgroundWork.submissions[0]?.input.payload.wakeReason,
+    "direction_changed",
+  );
+  assert.equal(
+    fullQueueDirectionChange.backgroundWork.submissions[0]?.input.payload.suggestedAppendCount,
+    0,
+  );
+
+  const idleBurst = createHarness({ queueDepth: 10 });
+  idleBurst.pacing.radioDirectionRevision = 3;
+  for (const revision of [1, 2, 3]) {
+    idleBurst.supervisor.observeRevisionChange({
+      ownerScope,
+      concern: "radio-direction",
+      newRevision: revision,
+      actor: "main_agent",
+    });
+  }
+  await idleBurst.supervisor.waitForWakeScheduling();
+  assert.equal(idleBurst.backgroundWork.submissions.length, 1);
+  assert.equal(idleBurst.backgroundWork.submissions[0]?.input.payload.radioDirectionRevision, 3);
+
+  const directionBeatsPacing = createHarness({ queueDepth: 0 });
+  directionBeatsPacing.pacing.radioDirectionRevision = 1;
+  directionBeatsPacing.supervisor.observeRevisionChange({
+    ownerScope,
+    concern: "radio-direction",
+    newRevision: 1,
+    actor: "main_agent",
+  });
+  await directionBeatsPacing.supervisor.wake("low_watermark");
+  await directionBeatsPacing.supervisor.waitForWakeScheduling();
+  assert.equal(directionBeatsPacing.backgroundWork.submissions.length, 1);
+  assert.equal(
+    directionBeatsPacing.backgroundWork.submissions[0]?.input.payload.wakeReason,
+    "direction_changed",
+  );
+
+  const pausedDirectionChange = createHarness({ queueDepth: 10, wakeGateState: "Paused" });
+  pausedDirectionChange.pacing.radioDirectionRevision = 1;
+  pausedDirectionChange.supervisor.observeRevisionChange({
+    ownerScope,
+    concern: "radio-direction",
+    newRevision: 1,
+    actor: "main_agent",
+  });
+  await pausedDirectionChange.supervisor.waitForWakeScheduling();
+  assert.equal(pausedDirectionChange.backgroundWork.submissions.length, 0);
+  assert.equal(pausedDirectionChange.supervisor.snapshot().pendingDirectionRevision, undefined);
+
+  const coalescedDirectionChanges = createHarness({ queueDepth: 10 });
+  coalescedDirectionChanges.pacing.radioDirectionRevision = 1;
+  coalescedDirectionChanges.supervisor.observeRevisionChange({
+    ownerScope,
+    concern: "radio-direction",
+    newRevision: 1,
+    actor: "main_agent",
+  });
+  await coalescedDirectionChanges.supervisor.waitForWakeScheduling();
+
+  coalescedDirectionChanges.pacing.radioDirectionRevision = 3;
+  for (const revision of [2, 3, 3]) {
+    coalescedDirectionChanges.supervisor.observeRevisionChange({
+      ownerScope,
+      concern: "radio-direction",
+      newRevision: revision,
+      actor: "main_agent",
+    });
+  }
+  await coalescedDirectionChanges.supervisor.waitForWakeScheduling();
+  assert.equal(coalescedDirectionChanges.backgroundWork.submissions.length, 1);
+  assert.equal(coalescedDirectionChanges.supervisor.snapshot().pendingDirectionRevision, 3);
+
+  const firstDirectionJobId = coalescedDirectionChanges.backgroundWork.submissions[0]!.jobId;
+  await coalescedDirectionChanges.backgroundWork.runJob(firstDirectionJobId);
+  coalescedDirectionChanges.backgroundWork.resolveTerminal(firstDirectionJobId, "succeeded");
+  await coalescedDirectionChanges.supervisor.waitForTerminalObservation();
+
+  assert.equal(coalescedDirectionChanges.backgroundWork.submissions.length, 2);
+  assert.equal(
+    coalescedDirectionChanges.backgroundWork.submissions[1]?.input.payload.radioDirectionRevision,
+    3,
+  );
+  assert.equal(
+    coalescedDirectionChanges.backgroundWork.submissions[1]?.input.payload.wakeReason,
+    "direction_changed",
+  );
+  assert.equal(coalescedDirectionChanges.supervisor.snapshot().pendingDirectionRevision, undefined);
+
+  coalescedDirectionChanges.supervisor.observeRevisionChange({
+    ownerScope,
+    concern: "radio-direction",
+    newRevision: 3,
+    actor: "main_agent",
+  });
+  await coalescedDirectionChanges.supervisor.waitForWakeScheduling();
+  assert.equal(coalescedDirectionChanges.backgroundWork.submissions.length, 2);
+
+  const retriedDirectionChange = createHarness({ queueDepth: 10 });
+  retriedDirectionChange.pacing.radioDirectionRevision = 1;
+  retriedDirectionChange.backgroundWork.nextSubmitError = new Error("direction submit failed");
+  const retryableChange = {
+    ownerScope,
+    concern: "radio-direction" as const,
+    newRevision: 1,
+    actor: "main_agent" as const,
+  };
+  retriedDirectionChange.supervisor.observeRevisionChange(retryableChange);
+  await retriedDirectionChange.supervisor.waitForWakeScheduling();
+  assert.equal(retriedDirectionChange.backgroundWork.submissions.length, 0);
+  assert.equal(retriedDirectionChange.supervisor.snapshot().pendingDirectionRevision, 1);
+  assert.equal(
+    retriedDirectionChange.supervisor.snapshot().directionWakeError?.code,
+    "agent_runtime.radio_direction_wake_failed",
+  );
+
+  retriedDirectionChange.supervisor.observeRevisionChange(retryableChange);
+  await retriedDirectionChange.supervisor.waitForWakeScheduling();
+  assert.equal(retriedDirectionChange.backgroundWork.submissions.length, 1);
+  assert.equal(retriedDirectionChange.supervisor.snapshot().pendingDirectionRevision, undefined);
+  assert.equal(retriedDirectionChange.supervisor.snapshot().directionWakeError, undefined);
+
   const running = createHarness({ queueDepth: 4, wakeGateState: "Running" });
   assert.equal((await running.supervisor.wake("low_watermark")).kind, "submitted");
   assert.equal(running.backgroundWork.submissions.length, 1);
@@ -140,6 +273,47 @@ async function runRadioSupervisorTests(): Promise<void> {
 }
 
 {
+  let resolvePacing: ((pacing: RadioPacingSnapshot) => void) | undefined;
+  let pacingReadCount = 0;
+  const harness = createHarness({
+    queueDepth: 0,
+    readRadioPacing() {
+      pacingReadCount += 1;
+      if (pacingReadCount > 1) {
+        return Promise.resolve({
+          queueDepth: 0,
+          radioDirectionRevision: 1,
+          radioSessionRevision: 0,
+        });
+      }
+      return new Promise((resolve) => {
+        resolvePacing = resolve;
+      });
+    },
+  });
+
+  const lowWatermarkWake = harness.supervisor.wake("low_watermark");
+  assert.equal(harness.supervisor.snapshot().refilling, true);
+  harness.supervisor.observeRevisionChange({
+    ownerScope,
+    concern: "radio-direction",
+    newRevision: 1,
+    actor: "main_agent",
+  });
+  assert.ok(resolvePacing !== undefined);
+  resolvePacing({
+    queueDepth: 0,
+    radioDirectionRevision: 1,
+    radioSessionRevision: 0,
+  });
+
+  await lowWatermarkWake;
+  await harness.supervisor.waitForWakeScheduling();
+  assert.equal(harness.backgroundWork.submissions.length, 1);
+  assert.equal(harness.backgroundWork.submissions[0]?.input.payload.wakeReason, "direction_changed");
+}
+
+{
   const harness = createHarness({ queueDepth: 4 });
   harness.backgroundWork.nextSubmitError = new Error("submit failed");
 
@@ -250,7 +424,13 @@ async function runRadioSupervisorTests(): Promise<void> {
   });
 
   harness.pacing.radioDirectionRevision = 1;
-  assert.equal((await harness.supervisor.wake("direction_changed")).kind, "submitted");
+  harness.supervisor.observeRevisionChange({
+    ownerScope,
+    concern: "radio-direction",
+    newRevision: 1,
+    actor: "main_agent",
+  });
+  await harness.supervisor.waitForWakeScheduling();
   assert.equal(harness.backgroundWork.submissions.length, 2);
 }
 

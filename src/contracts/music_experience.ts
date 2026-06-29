@@ -2,7 +2,13 @@
 // owning command/read projection shapes. Music facts remain in Music Data
 // Platform; agent-facing tool schemas live in Stage Interface.
 
-import type { ConcernRevisionSet, ConcernRevision, Ref, Result } from "./kernel.js";
+import type {
+  ConcernRevisionChangeActor,
+  ConcernRevisionSet,
+  ConcernRevision,
+  Ref,
+  Result,
+} from "./kernel.js";
 
 export const MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH = 100;
 export const MAX_RADIO_ACTIVE_VARIATION_ITEMS = 10;
@@ -164,6 +170,7 @@ export type MusicExperienceQueuePlaybackCommand = {
 
 export type MusicExperienceSetRadioDirectionCommandInput = {
   ownerScope: string;
+  actor: ConcernRevisionChangeActor;
   motif?: RadioDirectionValue;
   activeVariations: readonly VariationItem[];
   basis?: ConcernRevisionSet;
@@ -189,6 +196,7 @@ export type MusicExperienceWriteRadioPostureCommandOutput = {
 
 export type MusicExperienceRadioValueCommandInput = {
   ownerScope: string;
+  actor: ConcernRevisionChangeActor;
   value: RadioDirectionValue;
   basis?: ConcernRevisionSet;
   now: string;
@@ -196,6 +204,7 @@ export type MusicExperienceRadioValueCommandInput = {
 
 export type MusicExperienceRadioIndexedValueCommandInput = {
   ownerScope: string;
+  actor: ConcernRevisionChangeActor;
   index: number;
   value: RadioDirectionValue;
   basis?: ConcernRevisionSet;
@@ -204,6 +213,7 @@ export type MusicExperienceRadioIndexedValueCommandInput = {
 
 export type MusicExperienceRadioInsertValueCommandInput = {
   ownerScope: string;
+  actor: ConcernRevisionChangeActor;
   value: RadioDirectionValue;
   at?: number;
   basis?: ConcernRevisionSet;
@@ -212,6 +222,7 @@ export type MusicExperienceRadioInsertValueCommandInput = {
 
 export type MusicExperienceRadioIndexCommandInput = {
   ownerScope: string;
+  actor: ConcernRevisionChangeActor;
   index: number;
   basis?: ConcernRevisionSet;
   now: string;
@@ -219,6 +230,7 @@ export type MusicExperienceRadioIndexCommandInput = {
 
 export type MusicExperienceRadioMoveCommandInput = {
   ownerScope: string;
+  actor: ConcernRevisionChangeActor;
   from: number;
   to: number;
   basis?: ConcernRevisionSet;
@@ -227,6 +239,7 @@ export type MusicExperienceRadioMoveCommandInput = {
 
 export type MusicExperienceRadioClearCommandInput = {
   ownerScope: string;
+  actor: ConcernRevisionChangeActor;
   basis?: ConcernRevisionSet;
   now: string;
 };

@@ -176,6 +176,16 @@ Resolution:
   separate suppression-key machinery. (This is also the gap fix the three-leg
   gate needed: depth + single-flight + lifecycle assumed refill is always
   possible; exhaustion is the case where it is not.)
+- **Direction change is a one-shot correction trigger, not a pacing poll.** A
+  committed `radio-direction` revision change while Radio is `Running` requests
+  one bounded `direction_changed` run even when queue depth is at or above
+  `low`. It bypasses only the queue-depth and old-direction-exhaustion legs; it
+  does not bypass lifecycle, single-flight, or Background Work failure cooldown.
+  Repeated signals for one revision are idempotent. While a Radio run is active,
+  later direction revisions coalesce to the latest pending revision and run
+  after the active job reaches terminal; no concurrent Radio run is created.
+  A pending direction correction is serviced before an ordinary terminal-time
+  low-watermark recheck.
 - **Batch size is a supervisor hint, agency stays with Radio.** The supervisor
   suggests **~5 tracks** per refill (5 → 10, closing the band in one run), but
   "how many" remains Radio's agentic decision (PB1): it may add fewer when the
@@ -413,6 +423,19 @@ refines ADR-0032's "typed messages": the typed Main↔Radio channel is reserved 
 what genuinely needs actor-to-actor messaging — **Radio→Main notify/speak
 requests** (Radio cannot address the user directly). ADR-0032 already anticipates
 coordination "over the shared read model."
+
+The direction wake is driven by the committed state change, not by a tool-name
+guard. Phase B uses one internal post-commit concern-revision event shape:
+`{ ownerScope, concern, newRevision, actor }`, where `actor` is derived by the
+runtime/command adapter (`user | main_agent | radio_agent`) and is never supplied
+by the model. PR3.6 introduces that common event substrate and emits only the
+`radio-direction` writer needed for correction wake. The observer callback is
+synchronous and non-agent-facing: it records the wake request in the Radio
+supervisor, while pacing reads and Background Work submission happen behind the
+supervisor lifecycle boundary. A failed/stale/aborted/rolled-back direction
+command emits no event. PR4 extends the same event to every revision writer and
+adds basis-table cancellation; it does not replace this direction wake with a
+tool-result heuristic.
 
 Phase B scope uses only the PRD-named core vocabulary: **motif** and **active
 variations**. A richer musical-operation vocabulary is a recorded future
