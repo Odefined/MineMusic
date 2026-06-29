@@ -21,6 +21,13 @@ const radioLeanTools = new Set([
   "radio.lean.clear",
 ]);
 
+const queueIndexEditTools = new Set([
+  "playback.queue.remove",
+  "playback.queue.replace",
+  "playback.queue.move",
+  "playback.queue.clear",
+]);
+
 export type CommandBasisTracker = {
   preconditionBasisForTool(toolName: string): ConcernRevisionSet | undefined;
   absorbToolResult(result: Result<ToolCallOutput>): boolean;
@@ -30,8 +37,9 @@ export type CommandBasisTrackerOwner = "main_agent" | "radio_agent";
 
 // Turn/run-local tracker for revision basis. Before a tool call it projects the
 // current revisions into that tool's `preconditionBasis`; after a successful
-// tool call it absorbs only the tool's explicit `changedBasis`. Failed calls and
-// ordinary result revision fields never advance the tracker.
+// tool call it absorbs only the tool's internal runtime `changedBasis`
+// metadata. Failed calls and ordinary public result revision fields never
+// advance the tracker.
 export function createCommandBasisTracker(input: {
   initialBasis?: ConcernRevisionSet;
   owner?: CommandBasisTrackerOwner;
@@ -54,7 +62,7 @@ export function createCommandBasisTracker(input: {
       if (!result.ok) {
         return false;
       }
-      const changedBasis = changedBasisFromToolResult(result.value.result);
+      const changedBasis = changedBasisFromRuntimeMetadata(result.value.runtime?.changedBasis);
       if (changedBasis === undefined) {
         return false;
       }
@@ -74,8 +82,14 @@ function preconditionKeysForTool(
   if (radioDirectionTools.has(toolName) || radioLeanTools.has(toolName)) {
     return ["radioDirectionRevision"];
   }
-  if (owner === "radio_agent" && toolName === "music.experience.queue.append") {
+  if (owner === "radio_agent" && toolName === "playback.queue.append") {
     return ["radioDirectionRevision", "radioSessionRevision"];
+  }
+  if (queueIndexEditTools.has(toolName)) {
+    if (owner === "radio_agent") {
+      return ["queueRevision", "radioDirectionRevision", "radioSessionRevision"];
+    }
+    return ["queueRevision"];
   }
   return [];
 }
@@ -94,11 +108,7 @@ function selectBasisKeys(
   return selected;
 }
 
-export function changedBasisFromToolResult(result: unknown): ConcernRevisionSet | undefined {
-  if (result === null || typeof result !== "object") {
-    return undefined;
-  }
-  const changedBasis = (result as { changedBasis?: unknown }).changedBasis;
+export function changedBasisFromRuntimeMetadata(changedBasis: unknown): ConcernRevisionSet | undefined {
   if (changedBasis === undefined) {
     return undefined;
   }

@@ -27,12 +27,12 @@ not provide music-domain repositories.
 
 | Capability | Method(s) | Read/Write | Allowed consumer | Notes |
 | --- | --- | --- | --- | --- |
-| Open concrete database | `PostgresMusicDatabase.open({ connectionString, schema?, maxConnections? })` | Opens storage handle | Composition roots/tests | Connection string is explicit; raw pool/client does not leave adapter. |
+| Open concrete database | `PostgresMusicDatabase.open({ connectionString, schema?, maxConnections?, transactionTimeoutMs? })` | Opens storage handle | Composition roots/tests | Connection string is explicit; transaction timeout defaults to 60 seconds; raw pool/client does not leave adapter. |
 | Initialize schema | `initialize(...)` | DDL | Composition roots/tests | Explicit call; runs ordered schema contributions. |
 | Execute statement | `MusicDatabaseContext.run` | Write/DDL | Repositories/schema modules | No rows returned; adapter translates `?` placeholders to Postgres parameters. |
 | Read rows | `MusicDatabaseContext.all` | Read | Repositories/query modules | Generic row type supplied by caller. |
 | Read optional row | `MusicDatabaseContext.get` | Read | Repositories/query modules | Returns `undefined` when no row. |
-| Root transaction | `MusicDatabase.transaction` | Write boundary | Commands/composition roots | Callback receives `MusicDatabaseTransactionContext`; nested transactions are rejected. |
+| Root transaction | `MusicDatabase.transaction` | Write boundary | Commands/composition roots | Callback receives `MusicDatabaseTransactionContext`; nested transactions are rejected; overlapping roots queue FIFO; an over-time transaction fails and releases the queue slot. |
 | Close database | `MusicDatabase.close` | Lifecycle | Composition roots/tests | Owns concrete pool lifetime. |
 
 ## Forbidden Dependencies
@@ -79,3 +79,4 @@ The composition root may know the concrete adapter. Area services should not.
 | Initialization failure makes use/retry unavailable while keeping `close()` allowed. | Storage behavior test |
 | `close()` is idempotent and closed-handle use rejects. | Storage behavior test |
 | Storage-owned boundary errors use `MusicDatabaseError`. | Storage behavior test |
+| A timed-out transaction destroys its client, rolls back, and releases the next queued transaction. | Storage behavior test |

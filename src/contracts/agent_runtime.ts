@@ -25,6 +25,7 @@ export type RadioNotifyRequest = {
 
 export type RadioRunOutcome =
   | "appended"
+  | "queue_corrected"
   | "no_action"
   | "candidate_exhaustion_by_direction"
   | "voided_stale";

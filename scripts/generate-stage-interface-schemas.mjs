@@ -59,13 +59,43 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
-    exportName: "musicExperienceQueueAppendInputSchema",
-    typeName: "MusicExperienceQueueAppendInput",
+    exportName: "playbackQueueAppendInputSchema",
+    typeName: "PlaybackQueueAppendInput",
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
-    exportName: "musicExperienceQueueAppendOutputSchema",
-    typeName: "MusicExperienceQueueAppendOutput",
+    exportName: "playbackQueueAppendOutputSchema",
+    typeName: "PlaybackQueueAppendOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "playbackQueueRemoveInputSchema",
+    typeName: "PlaybackQueueRemoveInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "playbackQueueReplaceInputSchema",
+    typeName: "PlaybackQueueReplaceInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "playbackQueueMoveInputSchema",
+    typeName: "PlaybackQueueMoveInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "playbackQueueClearInputSchema",
+    typeName: "PlaybackQueueClearInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "playbackQueueEditOutputSchema",
+    typeName: "PlaybackQueueEditOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "playbackQueueReplaceOutputSchema",
+    typeName: "PlaybackQueueReplaceOutput",
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
@@ -310,6 +340,7 @@ const NON_EMPTY_STRING_CONSTRAINT = { type: "string", minLength: 1 };
 const RADIO_ACTIVE_VARIATION_ITEMS_MAX = readNumericExport("MAX_RADIO_ACTIVE_VARIATION_ITEMS");
 const RADIO_POSTURE_LEAN_ITEMS_MAX = readNumericExport("MAX_RADIO_POSTURE_LEAN_ITEMS");
 const RADIO_DIRECTION_TEXT_MAX_LENGTH = readNumericExport("MAX_RADIO_DIRECTION_TEXT_LENGTH");
+const MUSIC_EXPERIENCE_QUEUE_LENGTH_MAX = readNumericExport("MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH");
 const MATERIAL_MUSIC_ITEM_HANDLE_CONSTRAINT = {
   type: "string",
   pattern: "^\\[material:[^\\]\\r\\n]+\\]$",
@@ -385,11 +416,31 @@ function applyIntegerPropertyOverlay(schema, propertyName) {
   );
 }
 
+function applyQueueIndexIntegerOverlay(schema, propertyName) {
+  overlayProperty(
+    schema,
+    propertyName,
+    (node) => node.type === "number",
+    (node) => ({
+      ...node,
+      type: "integer",
+      minimum: 0,
+      maximum: MUSIC_EXPERIENCE_QUEUE_LENGTH_MAX - 1,
+    }),
+  );
+}
+
 function applyRadioIndexIntegerOverlays(schema) {
   applyIntegerPropertyOverlay(schema, "at");
   applyIntegerPropertyOverlay(schema, "index");
   applyIntegerPropertyOverlay(schema, "from");
   applyIntegerPropertyOverlay(schema, "to");
+}
+
+function applyQueueIndexIntegerOverlays(schema) {
+  applyQueueIndexIntegerOverlay(schema, "index");
+  applyQueueIndexIntegerOverlay(schema, "from");
+  applyQueueIndexIntegerOverlay(schema, "to");
 }
 
 function applyNonEmptyStringPropertyOverlay(schema, propertyName) {
@@ -671,6 +722,13 @@ const generatedSchemas = schemaTargets.map((target) => {
     target.exportName.startsWith("radioLean")
   ) {
     applyRadioIndexIntegerOverlays(schema);
+  }
+  if (
+    target.exportName === "playbackQueueRemoveInputSchema" ||
+    target.exportName === "playbackQueueReplaceInputSchema" ||
+    target.exportName === "playbackQueueMoveInputSchema"
+  ) {
+    applyQueueIndexIntegerOverlays(schema);
   }
   if (
     target.exportName.startsWith("radioMotif") ||

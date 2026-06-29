@@ -3,9 +3,12 @@ import type {
   AgentContext,
   AgentMessage,
   AgentTool,
+  AfterToolCallContext,
+  AfterToolCallResult,
 } from "@earendil-works/pi-agent-core";
 
 import type { AgentActorKind } from "../contracts/kernel.js";
+import type { ToolCallOutput } from "../contracts/stage_interface.js";
 import type { ActorDefinition } from "./actor_definition.js";
 import {
   createCommandBasisTracker,
@@ -20,6 +23,7 @@ import {
   renderAgentRuntimeSystemPrompt,
   type EncodedWorkspaceContext,
 } from "./workspace_context_encoder.js";
+import { renderWorkspaceContextDiff } from "./workspace_context_diff.js";
 import type {
   WorkspaceContextAssembler,
   WorkspaceContextAssembly,
@@ -65,6 +69,7 @@ export function createMineMusicAgentHarness(input: {
   let activeTurnState: MineMusicAgentHarnessTurnState | undefined;
   let commandBasisTracker: CommandBasisTracker | undefined;
   let refreshNeeded = false;
+  let refreshedTurnStateReady = false;
 
   const prepareNextTurn: NonNullable<Agent["prepareNextTurn"]> = async (signal) => {
     // pi @0.80.2 fidelity: Agent.createLoopConfig forwards
@@ -77,7 +82,10 @@ export function createMineMusicAgentHarness(input: {
       return undefined;
     }
     refreshNeeded = false;
-    activeTurnState = await createTurnState({ tools: input.agent().state.tools });
+    if (!refreshedTurnStateReady) {
+      activeTurnState = await createTurnState({ tools: input.agent().state.tools });
+    }
+    refreshedTurnStateReady = false;
     installMineMusicAgentHarnessTurnState({ agent: input.agent(), turnState: activeTurnState });
     return {
       context: createMineMusicAgentHarnessContext({
@@ -93,6 +101,7 @@ export function createMineMusicAgentHarness(input: {
       const agent = input.agent();
       assertNoActiveHarnessTurn();
       const originalPrepareNextTurn = agent.prepareNextTurn;
+      const originalAfterToolCall = agent.afterToolCall;
       if (originalPrepareNextTurn !== undefined) {
         throw new Error(`MineMusic AgentHarness for actor '${input.actor.name}' owns pi prepareNextTurn.`);
       }
@@ -100,6 +109,14 @@ export function createMineMusicAgentHarness(input: {
         agent.abort();
       };
       agent.prepareNextTurn = prepareNextTurn;
+      agent.afterToolCall = async (context, signal) => {
+        const afterToolCallResult = await originalAfterToolCall?.(context, signal);
+        return appendWorkspaceContextDiffToToolResult({
+          context,
+          afterToolCallResult,
+          ...(signal === undefined ? {} : { signal }),
+        });
+      };
       try {
         const turnState = await startAgentHarnessTurn({
           ...(runInput.tools === undefined ? {} : { tools: runInput.tools }),
@@ -118,6 +135,11 @@ export function createMineMusicAgentHarness(input: {
           delete agent.prepareNextTurn;
         } else {
           agent.prepareNextTurn = originalPrepareNextTurn;
+        }
+        if (originalAfterToolCall === undefined) {
+          delete agent.afterToolCall;
+        } else {
+          agent.afterToolCall = originalAfterToolCall;
         }
         endAgentHarnessTurn();
       }
@@ -172,6 +194,7 @@ export function createMineMusicAgentHarness(input: {
     activeTurnState = undefined;
     commandBasisTracker = undefined;
     refreshNeeded = false;
+    refreshedTurnStateReady = false;
   }
 
   async function createTurnState(turnInput: {
@@ -199,7 +222,42 @@ export function createMineMusicAgentHarness(input: {
   function observeToolResult(observation: Parameters<StageToolResultObserver>[0]): void {
     if (commandBasisTracker?.absorbToolResult(observation.result) === true) {
       refreshNeeded = true;
+      refreshedTurnStateReady = false;
     }
+  }
+
+  async function appendWorkspaceContextDiffToToolResult(input: {
+    context: AfterToolCallContext;
+    afterToolCallResult: AfterToolCallResult | undefined;
+    signal?: AbortSignal;
+  }): Promise<AfterToolCallResult | undefined> {
+    const isError = input.afterToolCallResult?.isError ?? input.context.isError;
+    if (isError || input.signal?.aborted || activeTurnState === undefined) {
+      return input.afterToolCallResult;
+    }
+    const originalDetails = input.context.result.details;
+    if (!isToolCallOutput(originalDetails) || originalDetails.runtime?.changedBasis === undefined || !refreshNeeded) {
+      return input.afterToolCallResult;
+    }
+
+    const beforeWorkspaceContext = activeTurnState.workspaceContext;
+    activeTurnState = await createTurnState({ tools: activeTurnState.tools });
+    refreshedTurnStateReady = true;
+    const diff = renderWorkspaceContextDiff({
+      before: beforeWorkspaceContext,
+      after: activeTurnState.workspaceContext,
+    });
+    if (diff === undefined) {
+      return input.afterToolCallResult;
+    }
+
+    return {
+      ...input.afterToolCallResult,
+      content: [
+        ...(input.afterToolCallResult?.content ?? input.context.result.content),
+        { type: "text", text: diff },
+      ],
+    };
   }
 }
 
@@ -258,4 +316,11 @@ function actorKindForDefinition(actor: ActorDefinition): AgentActorKind {
     case "radio":
       return "radio_agent";
   }
+}
+
+function isToolCallOutput(value: unknown): value is ToolCallOutput {
+  return value !== null &&
+    typeof value === "object" &&
+    typeof (value as { toolName?: unknown }).toolName === "string" &&
+    "result" in value;
 }

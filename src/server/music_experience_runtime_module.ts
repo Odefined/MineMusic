@@ -77,25 +77,20 @@ function lazyMaterialProjection(
 function lazyQueuePlaybackCommand(
   ports: Pick<MusicExperienceServerPorts, "queuePlayback">,
 ): MusicExperienceQueuePlaybackCommand {
+  const resolve = (): MusicExperienceQueuePlaybackCommand => {
+    const port = ports.queuePlayback();
+    if (port === undefined) {
+      throw new Error("Music Experience Queue Playback command is not initialized.");
+    }
+    return port;
+  };
   return {
-    append(commandInput) {
-      const port = ports.queuePlayback();
-
-      if (port === undefined) {
-        throw new Error("Music Experience Queue Playback command is not initialized.");
-      }
-
-      return port.append(commandInput);
-    },
-    playNow(commandInput) {
-      const port = ports.queuePlayback();
-
-      if (port === undefined) {
-        throw new Error("Music Experience Queue Playback command is not initialized.");
-      }
-
-      return port.playNow(commandInput);
-    },
+    append: (commandInput) => resolve().append(commandInput),
+    remove: (commandInput) => resolve().remove(commandInput),
+    replace: (commandInput) => resolve().replace(commandInput),
+    move: (commandInput) => resolve().move(commandInput),
+    clear: (commandInput) => resolve().clear(commandInput),
+    playNow: (commandInput) => resolve().playNow(commandInput),
   };
 }
 

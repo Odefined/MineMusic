@@ -14,6 +14,10 @@ import {
   MAX_RADIO_POSTURE_LEAN_ITEMS,
 } from "../../src/contracts/music_experience.js";
 import {
+  radioDirectionToolOutputSchema,
+  radioLeanToolOutputSchema,
+} from "../../src/contracts/generated/stage_interface_schemas.js";
+import {
   createMaterialProjection,
   musicDataPlatformIdentitySchema,
   MusicDataPlatformError,
@@ -33,10 +37,14 @@ import {
   createMusicExperienceRadioTruthRegistrations,
   musicExperienceInstrument,
   radioLeanAddDescriptor,
+  radioLeanClearDescriptor,
   radioLeanMoveDescriptor,
   radioLeanRemoveDescriptor,
   radioLeanReplaceDescriptor,
+  radioMotifClearDescriptor,
+  radioMotifSetDescriptor,
   radioVariationsAddDescriptor,
+  radioVariationsClearDescriptor,
   radioVariationsMoveDescriptor,
   radioVariationsRemoveDescriptor,
   radioVariationsReplaceDescriptor,
@@ -68,6 +76,14 @@ for (const [descriptor, propertyName] of [
 ] as const) {
   assert.equal(inputPropertySchemaType(descriptor.inputSchema, propertyName), "integer");
 }
+assert.deepEqual(Object.keys(radioDirectionToolOutputSchema.properties ?? {}).sort(), ["direction"]);
+assert.deepEqual(Object.keys(radioLeanToolOutputSchema.properties ?? {}).sort(), ["posture"]);
+const radioLeanPostureSchema = radioLeanToolOutputSchema.properties?.posture;
+assert.equal(typeof radioLeanPostureSchema, "object");
+assert.deepEqual(
+  Object.keys((radioLeanPostureSchema as { properties?: Record<string, unknown> }).properties ?? {}).sort(),
+  ["lean", "stale"],
+);
 assert.equal(
   definitionTextSchemaMaxLength(radioVariationsAddDescriptor.inputSchema, "RadioTruthToolValue"),
   MAX_RADIO_DIRECTION_TEXT_LENGTH,
@@ -293,13 +309,12 @@ assert.equal(
   assert.equal(motifSet.ok, true);
   if (motifSet.ok) {
     assert.deepEqual(motifSet.value.result, {
-      radioDirectionRevision: 1,
-      changedBasis: { radioDirectionRevision: 1 },
       direction: {
         motif: { kind: "text", text: "stage motif" },
         activeVariations: [],
       },
     });
+    assert.deepEqual(motifSet.value.runtime?.changedBasis, { radioDirectionRevision: 1 });
   }
 
   const variationAdd = await stageInterface.dispatch(createStageToolContext({
@@ -318,13 +333,12 @@ assert.equal(
   assert.equal(variationAdd.ok, true);
   if (variationAdd.ok) {
     assert.deepEqual(variationAdd.value.result, {
-      radioDirectionRevision: 2,
-      changedBasis: { radioDirectionRevision: 2 },
       direction: {
         motif: { kind: "text", text: "stage motif" },
         activeVariations: [{ kind: "scope", scope: "[library]" }],
       },
     });
+    assert.deepEqual(variationAdd.value.runtime?.changedBasis, { radioDirectionRevision: 2 });
   }
 
   const leanAdd = await stageInterface.dispatch(createStageToolContext({
@@ -343,10 +357,8 @@ assert.equal(
   assert.equal(leanAdd.ok, true);
   if (leanAdd.ok) {
     assert.deepEqual(leanAdd.value.result, {
-      radioDirectionRevision: 2,
       posture: {
         lean: [{ kind: "text", text: "stage lean" }],
-        commandedRevisionStamp: 2,
         stale: false,
       },
     });
@@ -897,14 +909,8 @@ assert.equal(
     db: database.context(),
     materialProjection: createMaterialProjection({ db: database.context() }),
     materialHandles: {
-      mintMaterialHandle(input) {
-        return handleMinting.mint({
-          ownerScope: input.ownerScope,
-          handleKind: "material",
-          internalAnchor: {
-            materialRef: refKey(input.materialRef),
-          },
-        });
+      mintMaterialHandles(input) {
+        return mintMaterialHandlesWithPort(handleMinting, input);
       },
     },
   });
@@ -987,6 +993,7 @@ assert.equal(
   }));
 
   const projectedBatchInputs: Ref[][] = [];
+  const handleBatchInputs: Ref[][] = [];
   const readModel = createMusicExperienceReadModel({
     db: database.context(),
     materialProjection: {
@@ -1002,14 +1009,19 @@ assert.equal(
       },
     } satisfies MaterialProjection,
     materialHandles: {
-      async mintMaterialHandle(input) {
-        return `mh_${input.materialRef.id}`;
+      async mintMaterialHandles(input) {
+        handleBatchInputs.push([...input.materialRefs]);
+        return syntheticMaterialHandles(input.materialRefs);
       },
     },
   });
 
   const slice = await readModel.readWorkspaceProjection({ ownerScope });
   assert.deepEqual(projectedBatchInputs.map((refs) => refs.map(refKey)), [[
+    refKey(queuedRef),
+    refKey(postureRef),
+  ]]);
+  assert.deepEqual(handleBatchInputs.map((refs) => refs.map(refKey)), [[
     refKey(queuedRef),
     refKey(postureRef),
   ]]);
@@ -1076,8 +1088,8 @@ assert.equal(
       },
     } satisfies MaterialProjection,
     materialHandles: {
-      async mintMaterialHandle(input) {
-        return `mh_${input.materialRef.id}`;
+      async mintMaterialHandles(input) {
+        return syntheticMaterialHandles(input.materialRefs);
       },
     },
   });
@@ -1115,8 +1127,8 @@ assert.equal(
       },
     } satisfies MaterialProjection,
     materialHandles: {
-      async mintMaterialHandle(input) {
-        return `mh_${input.materialRef.id}`;
+      async mintMaterialHandles(input) {
+        return syntheticMaterialHandles(input.materialRefs);
       },
     },
   });
@@ -1290,6 +1302,32 @@ function unusedMaterialProjection(): MaterialProjection {
       return new Map();
     },
   };
+}
+
+async function mintMaterialHandlesWithPort(
+  handleMinting: ReturnType<typeof createStageInterfaceHandleMintingPort>,
+  input: {
+    ownerScope: string;
+    materialRefs: readonly Ref[];
+  },
+): Promise<ReadonlyMap<string, string>> {
+  return new Map(await Promise.all(input.materialRefs.map(async (materialRef) => [
+    refKey(materialRef),
+    await handleMinting.mint({
+      ownerScope: input.ownerScope,
+      handleKind: "material",
+      internalAnchor: {
+        materialRef: refKey(materialRef),
+      },
+    }),
+  ] as const)));
+}
+
+function syntheticMaterialHandles(materialRefs: readonly Ref[]): ReadonlyMap<string, string> {
+  return new Map(materialRefs.map((materialRef) => [
+    refKey(materialRef),
+    `mh_${materialRef.id}`,
+  ] as const));
 }
 
 function materialRef(id: string): Ref {

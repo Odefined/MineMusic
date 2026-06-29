@@ -88,6 +88,59 @@ export type MusicExperienceQueueAppendCommandOutput = {
   queueRevision: ConcernRevision;
 };
 
+export type MusicExperienceQueueEditPermission =
+  | {
+      kind: "all_queued_items";
+      replacementProvenance: Exclude<MusicExperienceQueueItemProvenance, "radio_agent">;
+    }
+  | {
+      kind: "radio_owned_queued_items";
+      replacementProvenance: Extract<MusicExperienceQueueItemProvenance, "radio_agent">;
+    };
+
+export type MusicExperienceQueueIndexCommandInput = {
+  ownerScope: string;
+  index: number;
+  permission: MusicExperienceQueueEditPermission;
+  basis?: ConcernRevisionSet;
+  now: string;
+};
+
+export type MusicExperienceQueueReplaceCommandInput = {
+  ownerScope: string;
+  index: number;
+  materialRef: Ref;
+  permission: MusicExperienceQueueEditPermission;
+  basis?: ConcernRevisionSet;
+  now: string;
+};
+
+export type MusicExperienceQueueMoveCommandInput = {
+  ownerScope: string;
+  from: number;
+  to: number;
+  permission: MusicExperienceQueueEditPermission;
+  basis?: ConcernRevisionSet;
+  now: string;
+};
+
+export type MusicExperienceQueueClearCommandInput = {
+  ownerScope: string;
+  permission: MusicExperienceQueueEditPermission;
+  basis?: ConcernRevisionSet;
+  now: string;
+};
+
+export type MusicExperienceQueueEditCommandOutput = {
+  queueLength: number;
+  queueRevision: ConcernRevision;
+};
+
+export type MusicExperienceQueueReplaceCommandOutput = MusicExperienceQueueEditCommandOutput & {
+  item: MusicExperienceQueueItemSnapshot;
+  index: number;
+};
+
 export type MusicExperiencePlaybackPlayCommandInput = {
   ownerScope: string;
   materialRef: Ref;
@@ -102,6 +155,10 @@ export type MusicExperiencePlaybackPlayCommandOutput = {
 
 export type MusicExperienceQueuePlaybackCommand = {
   append(input: MusicExperienceQueueAppendCommandInput): Promise<Result<MusicExperienceQueueAppendCommandOutput>>;
+  remove(input: MusicExperienceQueueIndexCommandInput): Promise<Result<MusicExperienceQueueEditCommandOutput>>;
+  replace(input: MusicExperienceQueueReplaceCommandInput): Promise<Result<MusicExperienceQueueReplaceCommandOutput>>;
+  move(input: MusicExperienceQueueMoveCommandInput): Promise<Result<MusicExperienceQueueEditCommandOutput>>;
+  clear(input: MusicExperienceQueueClearCommandInput): Promise<Result<MusicExperienceQueueEditCommandOutput>>;
   playNow(input: MusicExperiencePlaybackPlayCommandInput): Promise<Result<MusicExperiencePlaybackPlayCommandOutput>>;
 };
 
@@ -269,6 +326,7 @@ export type MusicExperienceWorkspaceItemSummary = {
 
 export type MusicExperienceWorkspaceQueueEntry = MusicExperienceWorkspaceItemSummary & {
   position: number;
+  provenance: MusicExperienceQueueItemProvenance;
 };
 
 export type MusicExperienceWorkspaceNowPlaying = MusicExperienceWorkspaceItemSummary;

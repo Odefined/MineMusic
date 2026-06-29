@@ -18,8 +18,8 @@ import type {
 import { renderModelVisibleToolDescription } from "../stage_interface/tool_description_rendering.js";
 import { classifyStageToolFailure } from "../stage_interface/tool_failure_surface.js";
 import {
+  renderPublicToolAgentResultText,
   renderPublicToolErrorText,
-  renderPublicToolResultSummary,
 } from "../stage_interface/tool_public_text.js";
 import {
   assertUniqueProviderSafeToolNames,
@@ -86,12 +86,16 @@ function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
   piToolName: string;
 }): AgentTool<PiJsonSchema, StageToolBridgeDetails> {
   const { descriptor } = input;
+  const executionMode = descriptor.sideEffect.runtimeStateWrite || descriptor.sideEffect.durableUserStateWrite
+    ? "sequential"
+    : undefined;
 
   return {
     name: input.piToolName,
     label: descriptor.label,
     description: renderModelVisibleToolDescription(descriptor),
     parameters: descriptor.inputSchema,
+    ...(executionMode === undefined ? {} : { executionMode }),
     async execute(toolCallId, params, signal): Promise<AgentToolResult<StageToolBridgeDetails>> {
       const ctx = input.contextFactory.createToolContext({
         sessionId: input.stageSessionId,
@@ -118,7 +122,7 @@ function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
       }
 
       return {
-        content: [{ type: "text", text: summarizeStageToolResult(descriptor, result.value.result) }],
+        content: [{ type: "text", text: agentStageToolResultText(descriptor, result.value.result) }],
         details: result.value,
       };
     },
@@ -149,14 +153,14 @@ export function toPiToolName(internalName: string): string {
   return toProviderSafeToolName(internalName);
 }
 
-function summarizeStageToolResult(descriptor: ToolDeclaration, result: unknown): string {
-  const summary = renderPublicToolResultSummary({ descriptor, result });
+function agentStageToolResultText(descriptor: ToolDeclaration, result: unknown): string {
+  const text = renderPublicToolAgentResultText({ descriptor, result });
 
-  if (summary.kind === "invariantFailure") {
-    throw new Error(summary.message);
+  if (text.kind === "invariantFailure") {
+    throw new Error(text.message);
   }
 
-  return summary.text;
+  return text.text;
 }
 
 function stageToolErrorResult(

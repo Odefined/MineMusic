@@ -9,13 +9,11 @@ import {
   type ActorDefinition,
   type WorkspaceContextAssembler,
 } from "../../src/agent_runtime/index.js";
+import { renderWorkspaceContextDiff } from "../../src/agent_runtime/workspace_context_diff.js";
 import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import type {
   SourceTrack,
 } from "../../src/contracts/music_data_platform.js";
-import type {
-  ToolCallOutput,
-} from "../../src/contracts/stage_interface.js";
 import type {
   MusicExperienceWorkspaceProjection,
 } from "../../src/contracts/music_experience.js";
@@ -49,11 +47,12 @@ import {
 import {
   createMusicExperiencePlaybackPlayRegistration,
   createMusicExperiencePresentRegistration,
-  createMusicExperienceQueueAppendRegistration,
+  createPlaybackQueueAppendRegistration,
   musicExperienceInstrument,
   musicExperiencePlaybackPlayDescriptor,
   musicExperiencePresentDescriptor,
-  musicExperienceQueueAppendDescriptor,
+  playbackQueueAppendDescriptor,
+  playbackQueueMoveDescriptor,
   radioMotifSetDescriptor,
   radioVariationsAddDescriptor,
 } from "../../src/music_experience/stage_adapter/index.js";
@@ -186,6 +185,7 @@ currentMusicExperience = {
       materialKind: "recording",
       label: "whoo",
       artistsText: "Nemophila",
+      provenance: "main_agent",
     },
   ],
   radio: emptyRadioTruthSlice(),
@@ -205,6 +205,55 @@ assert.match(observedProviderContexts[0]?.systemPrompt ?? "", /Workspace Context
 assert.match(observedProviderContexts[1]?.systemPrompt ?? "", /0\. recording "whoo" - "Nemophila" \[material:public_material_1\]/u);
 assert.match(observedProviderContexts[1]?.messagesJson ?? "", /first turn/u);
 assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
+
+{
+  const before: MusicExperienceWorkspaceProjection = {
+    concernRevisions: concernRevisions({ queueRevision: 7 }),
+    revision: 7,
+    queue: Array.from({ length: 8 }, (_unused, index) => ({
+      position: index,
+      item: `[material:before_${index}]`,
+      materialKind: "recording",
+      label: `Before ${index}`,
+      provenance: "main_agent",
+    })),
+    radio: emptyRadioTruthSlice(),
+  };
+  const after: MusicExperienceWorkspaceProjection = {
+    ...before,
+    concernRevisions: concernRevisions({ queueRevision: 8 }),
+    revision: 8,
+    queue: before.queue.map((item) => item.position === 4
+      ? {
+          ...item,
+          item: "[material:after_4]",
+          label: "After 4",
+        }
+      : item),
+  };
+  const diff = renderWorkspaceContextDiff({
+    before: await createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return before;
+        },
+      },
+    }).assemble({ actor: testMainActor(), ownerScope }).then((assembly) => assembly.workspaceContext),
+    after: await createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return after;
+        },
+      },
+    }).assemble({ actor: testMainActor(), ownerScope }).then((assembly) => assembly.workspaceContext),
+  });
+
+  assert.ok(diff !== undefined);
+  assert.match(diff, /@@ Workspace Context/u);
+  assert.match(diff, /\+4\. recording "After 4"/u);
+  assert.equal(diff.includes("Before 0"), false);
+  assert.equal(diff.includes("Before 7"), false);
+}
 
 {
   let markStreamEntered: () => void = () => {};
@@ -321,7 +370,8 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
     actor: testMainActor([
       radioMotifSetDescriptor.name,
       radioVariationsAddDescriptor.name,
-      musicExperienceQueueAppendDescriptor.name,
+      playbackQueueAppendDescriptor.name,
+      playbackQueueMoveDescriptor.name,
     ]),
     workspaceContext: createWorkspaceContextAssembler({
       musicExperience: {
@@ -339,7 +389,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
         },
       },
     }),
-    tools: [radioMotifSetDescriptor, radioVariationsAddDescriptor, musicExperienceQueueAppendDescriptor],
+    tools: [radioMotifSetDescriptor, radioVariationsAddDescriptor, playbackQueueAppendDescriptor, playbackQueueMoveDescriptor],
     dispatch: {
       async dispatch(input) {
         observedContexts.push({
@@ -353,13 +403,12 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
             value: {
               toolName: input.toolName,
               result: {
-                radioDirectionRevision: 13,
-                changedBasis: { radioDirectionRevision: 13 },
                 direction: {
                   motif: { kind: "text", text: "basis motif" },
                   activeVariations: [],
                 },
               },
+              runtime: { changedBasis: { radioDirectionRevision: 13 } },
             },
           };
         }
@@ -369,13 +418,25 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
             value: {
               toolName: input.toolName,
               result: {
-                radioDirectionRevision: 14,
-                changedBasis: { radioDirectionRevision: 14 },
                 direction: {
                   motif: { kind: "text", text: "basis motif" },
                   activeVariations: [{ kind: "text", text: "basis variation" }],
                 },
               },
+              runtime: { changedBasis: { radioDirectionRevision: 14 } },
+            },
+          };
+        }
+        if (input.toolName === playbackQueueAppendDescriptor.name) {
+          return {
+            ok: true,
+            value: {
+              toolName: input.toolName,
+              result: {
+                items: [{ item: "[material:basis_queue]", index: 0 }],
+                queueLength: 1,
+              },
+              runtime: { changedBasis: { queueRevision: 1 } },
             },
           };
         }
@@ -384,11 +445,9 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
           value: {
             toolName: input.toolName,
             result: {
-              items: [{ item: "[material:basis_queue]", position: 0 }],
               queueLength: 1,
-              queueRevision: 1,
-              changedBasis: { queueRevision: 1 },
             },
+            runtime: { changedBasis: { queueRevision: 2 } },
           },
         };
       },
@@ -438,8 +497,19 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
             reason: "toolUse",
             message: assistantMessageWithToolCall(
               "basis-queue",
-              toPiToolName(musicExperienceQueueAppendDescriptor.name),
+              toPiToolName(playbackQueueAppendDescriptor.name),
               { items: ["[material:basis_queue]"] },
+            ),
+          });
+        }
+        if (streamCallCount === 4) {
+          return fakeAssistantMessageEventStream({
+            type: "done",
+            reason: "toolUse",
+            message: assistantMessageWithToolCall(
+              "basis-queue-move",
+              toPiToolName(playbackQueueMoveDescriptor.name),
+              { from: 0, to: 0 },
             ),
           });
         }
@@ -466,11 +536,115 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
       actor: "main_agent",
     },
     {
-      toolName: "music.experience.queue.append",
+      toolName: "playback.queue.append",
       preconditionBasis: undefined,
       actor: "main_agent",
     },
+    {
+      toolName: "playback.queue.move",
+      preconditionBasis: { queueRevision: 1 },
+      actor: "main_agent",
+    },
   ]);
+}
+
+{
+  let streamCallCount = 0;
+  let projection: MusicExperienceWorkspaceProjection = {
+    concernRevisions: concernRevisions(),
+    revision: 0,
+    queue: [],
+    radio: emptyRadioTruthSlice(),
+  };
+  const session = createMineMusicMainAgentSession({
+    ownerScope,
+    actor: testMainActor([playbackQueueAppendDescriptor.name]),
+    workspaceContext: createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return projection;
+        },
+      },
+    }),
+    tools: [playbackQueueAppendDescriptor],
+    dispatch: {
+      async dispatch(input) {
+        assert.equal(input.toolName, playbackQueueAppendDescriptor.name);
+        projection = {
+          concernRevisions: concernRevisions({ queueRevision: 1 }),
+          revision: 1,
+          queue: [
+            {
+              position: 0,
+              item: "[material:diff_track]",
+              materialKind: "recording",
+              label: "Diff Track",
+              artistsText: "Diff Artist",
+              provenance: "main_agent",
+            },
+          ],
+          radio: emptyRadioTruthSlice(),
+        };
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: {
+              items: [{ item: "[material:diff_track]", index: 0 }],
+              queueLength: 1,
+            },
+            runtime: { changedBasis: { queueRevision: 1 } },
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input) {
+        return createStageToolContext({
+          ownerScope,
+          sessionId: input.sessionId,
+          requestId: input.requestId,
+          clock: () => "2026-06-27T01:00:00.000Z",
+          ...(input.actor === undefined ? {} : { actor: input.actor }),
+          ...(input.preconditionBasis === undefined ? {} : { preconditionBasis: input.preconditionBasis }),
+        });
+      },
+    },
+    stageSessionId: "stage-session-context-diff",
+    llmProviderSessionId: "provider-session-context-diff",
+    agentOptions: {
+      streamFn() {
+        streamCallCount += 1;
+        if (streamCallCount === 1) {
+          return fakeAssistantMessageEventStream({
+            type: "done",
+            reason: "toolUse",
+            message: assistantMessageWithToolCall(
+              "context-diff-append",
+              toPiToolName(playbackQueueAppendDescriptor.name),
+              { items: ["[material:diff_track]"] },
+            ),
+          });
+        }
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "stop",
+          message: assistantTextMessage("diff observed"),
+        });
+      },
+    },
+  });
+
+  const turn = await session.runUserTurn({ userMessage: "add diff track" });
+  const toolResult = turn.newMessages.find((message) => message.role === "toolResult");
+  assert.ok(toolResult !== undefined);
+  const text = toolResultText(toolResult);
+  assert.match(text, /Appended 1 item\(s\) to queue index\(es\) 0; queue length is 1\./u);
+  assert.match(text, /Workspace Context diff:/u);
+  assert.match(text, /^-empty$/mu);
+  assert.match(text, /^\+0\. recording "Diff Track" - "Diff Artist" \[material:diff_track\] added by main$/mu);
+  assert.equal(text.includes("changedBasis"), false);
+  assert.equal(text.includes("queueRevision"), false);
 }
 
 {
@@ -529,7 +703,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
         candidateCommit: unusedCandidateCommit(),
         materialProjection,
       }),
-      createMusicExperienceQueueAppendRegistration({
+      createPlaybackQueueAppendRegistration({
         candidateCommit: unusedCandidateCommit(),
         materialProjection,
         queuePlayback,
@@ -549,14 +723,8 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
       db: database.context(),
       materialProjection,
       materialHandles: {
-        mintMaterialHandle(input) {
-          return handleMinting.mint({
-            ownerScope: input.ownerScope,
-            handleKind: "material",
-            internalAnchor: {
-              materialRef: refKey(input.materialRef),
-            },
-          });
+        mintMaterialHandles(input) {
+          return mintMaterialHandlesWithPort(handleMinting, input);
         },
       },
     }),
@@ -566,14 +734,14 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
     actor: testMainActor([
       musicDiscoveryLookupDescriptor.name,
       musicExperiencePresentDescriptor.name,
-      musicExperienceQueueAppendDescriptor.name,
+      playbackQueueAppendDescriptor.name,
       musicExperiencePlaybackPlayDescriptor.name,
     ]),
     workspaceContext,
     tools: [
       musicDiscoveryLookupDescriptor,
       musicExperiencePresentDescriptor,
-      musicExperienceQueueAppendDescriptor,
+      playbackQueueAppendDescriptor,
       musicExperiencePlaybackPlayDescriptor,
     ],
     dispatch: {
@@ -610,8 +778,8 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
             message: assistantTextMessage("Fresh context observed."),
           });
         }
-        const lastOutput = lastToolCallOutput(context.messages);
-        const message = nextA4AssistantMessage(streamCallCount, lastOutput);
+        const lastToolText = lastToolResultText(context.messages);
+        const message = nextA4AssistantMessage(streamCallCount, lastToolText);
         return fakeAssistantMessageEventStream({
           type: "done",
           reason: streamCallCount <= 4 ? "toolUse" : "stop",
@@ -628,7 +796,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
   assert.deepEqual(dispatchLog, [
     "music.discovery.lookup",
     "music.experience.present",
-    "music.experience.queue.append",
+    "playback.queue.append",
     "music.experience.playback.play",
   ]);
   assert.deepEqual(lookupCalls, [
@@ -681,7 +849,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
 
 function nextA4AssistantMessage(
   streamCallCount: number,
-  lastOutput: ToolCallOutput | undefined,
+  lastToolText: string | undefined,
 ): ReturnType<typeof assistantTextMessage> | ReturnType<typeof assistantMessageWithToolCall> {
   if (streamCallCount === 1) {
     return assistantMessageWithToolCall(
@@ -697,16 +865,7 @@ function nextA4AssistantMessage(
   }
 
   if (streamCallCount === 2) {
-    const lookupOutput = expectToolOutput<{
-      items: readonly {
-        handle: {
-          kind: "candidate" | "material";
-          id: string;
-        };
-      }[];
-    }>(lastOutput, "music.discovery.lookup");
-    const handle = lookupOutput.items[0]?.handle;
-    assert.ok(handle !== undefined);
+    const handle = firstMusicItemHandle(lastToolText);
     return assistantMessageWithToolCall(
       "a4-present",
       toPiToolName(musicExperiencePresentDescriptor.name),
@@ -717,32 +876,18 @@ function nextA4AssistantMessage(
   }
 
   if (streamCallCount === 3) {
-    const presentOutput = expectToolOutput<{
-      item: {
-        kind: "material";
-        id: string;
-      };
-    }>(lastOutput, "music.experience.present");
+    const item = firstMusicItemHandle(lastToolText);
     return assistantMessageWithToolCall(
       "a4-queue-append",
-      toPiToolName(musicExperienceQueueAppendDescriptor.name),
+      toPiToolName(playbackQueueAppendDescriptor.name),
       {
-        items: [presentOutput.item],
+        items: [item],
       },
     );
   }
 
   if (streamCallCount === 4) {
-    const appendOutput = expectToolOutput<{
-      items: readonly {
-        item: {
-          kind: "material";
-          id: string;
-        };
-      }[];
-    }>(lastOutput, "music.experience.queue.append");
-    const item = appendOutput.items[0]?.item;
-    assert.ok(item !== undefined);
+    const item = firstMusicItemHandle(lastToolText);
     return assistantMessageWithToolCall(
       "a4-playback-play",
       toPiToolName(musicExperiencePlaybackPlayDescriptor.name),
@@ -752,7 +897,7 @@ function nextA4AssistantMessage(
     );
   }
 
-  expectToolOutput(lastOutput, "music.experience.playback.play");
+  assert.match(lastToolText ?? "", /Logical playback now points to material item/u);
   return assistantTextMessage("Queued and set logical playback.");
 }
 
@@ -796,34 +941,38 @@ function testMainActor(stageToolNames: readonly string[] = []): ActorDefinition 
   };
 }
 
-function lastToolCallOutput(messages: unknown): ToolCallOutput | undefined {
+function lastToolResultText(messages: unknown): string | undefined {
   if (!Array.isArray(messages)) {
     return undefined;
   }
 
   for (const message of messages.slice().reverse()) {
     if (message !== null && typeof message === "object" && (message as { role?: unknown }).role === "toolResult") {
-      const details = (message as { details?: unknown }).details;
-      if (isToolCallOutput(details)) {
-        return details;
-      }
+      assert.equal("details" in message, false);
+      return toolResultText(message as { content: readonly { type: string; text?: string }[] });
     }
   }
 
   return undefined;
 }
 
-function expectToolOutput<T>(output: ToolCallOutput | undefined, toolName: string): T {
-  assert.ok(output !== undefined);
-  assert.equal(output.toolName, toolName);
-  return output.result as T;
+function toolResultText(message: {
+  content: readonly {
+    type: string;
+    text?: string;
+  }[];
+}): string {
+  return message.content
+    .filter((content): content is { type: "text"; text: string } => content.type === "text")
+    .map((content) => content.text)
+    .join("\n");
 }
 
-function isToolCallOutput(value: unknown): value is ToolCallOutput {
-  return value !== null &&
-    typeof value === "object" &&
-    typeof (value as { toolName?: unknown }).toolName === "string" &&
-    "result" in value;
+function firstMusicItemHandle(text: string | undefined): string {
+  assert.ok(text !== undefined);
+  const match = /\[(?:material|candidate):[^\]\r\n]+\]/u.exec(text);
+  assert.ok(match !== null);
+  return match[0];
 }
 
 async function initializedA4Database(): Promise<MusicDatabase> {
@@ -950,6 +1099,25 @@ function unusedCandidateCommit(): CandidateCommitCommand {
       throw new Error("A4 material-handle path must not call Candidate Commit.");
     },
   };
+}
+
+async function mintMaterialHandlesWithPort(
+  handleMinting: ReturnType<typeof createStageInterfaceHandleMintingPort>,
+  input: {
+    ownerScope: string;
+    materialRefs: readonly Ref[];
+  },
+): Promise<ReadonlyMap<string, string>> {
+  return new Map(await Promise.all(input.materialRefs.map(async (materialRef) => [
+    refKey(materialRef),
+    await handleMinting.mint({
+      ownerScope: input.ownerScope,
+      handleKind: "material",
+      internalAnchor: {
+        materialRef: refKey(materialRef),
+      },
+    }),
+  ] as const)));
 }
 
 function sequentialPublicIdFactory(prefix: string): () => string {

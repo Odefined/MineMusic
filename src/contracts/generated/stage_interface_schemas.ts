@@ -429,7 +429,7 @@ export const musicExperiencePresentOutputSchema = {
   }
 } as const satisfies JsonSchema;
 
-export const musicExperienceQueueAppendInputSchema = {
+export const playbackQueueAppendInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -470,47 +470,39 @@ export const musicExperienceQueueAppendInputSchema = {
   }
 } as const satisfies JsonSchema;
 
-export const musicExperienceQueueAppendOutputSchema = {
+export const playbackQueueAppendOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
     "items": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/MusicExperienceQueueAppendOutputItem"
+        "$ref": "#/definitions/PlaybackQueueAppendOutputItem"
       }
     },
     "queueLength": {
       "type": "number"
-    },
-    "queueRevision": {
-      "$ref": "#/definitions/ConcernRevision"
-    },
-    "changedBasis": {
-      "$ref": "#/definitions/ConcernRevisionSet"
     }
   },
   "required": [
     "items",
-    "queueLength",
-    "queueRevision",
-    "changedBasis"
+    "queueLength"
   ],
   "additionalProperties": false,
   "definitions": {
-    "MusicExperienceQueueAppendOutputItem": {
+    "PlaybackQueueAppendOutputItem": {
       "type": "object",
       "properties": {
         "item": {
           "$ref": "#/definitions/MaterialMusicItemHandle"
         },
-        "position": {
+        "index": {
           "type": "number"
         }
       },
       "required": [
         "item",
-        "position"
+        "index"
       ],
       "additionalProperties": false
     },
@@ -518,27 +510,137 @@ export const musicExperienceQueueAppendOutputSchema = {
       "type": "string",
       "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
       "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const playbackQueueRemoveInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "index": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99
+    }
+  },
+  "required": [
+    "index"
+  ],
+  "additionalProperties": false
+} as const satisfies JsonSchema;
+
+export const playbackQueueReplaceInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "index": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99
     },
-    "ConcernRevision": {
+    "item": {
+      "$ref": "#/definitions/MusicItemHandle"
+    }
+  },
+  "required": [
+    "index",
+    "item"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "MusicItemHandle": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MaterialMusicItemHandle"
+        },
+        {
+          "$ref": "#/definitions/CandidateMusicItemHandle"
+        }
+      ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "CandidateMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[candidate:[^\\]\\r\\n]+\\]$",
+      "description": "Provider candidate item handle. Pass the whole bracket string unchanged, e.g. \"[candidate:...]\"."
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const playbackQueueMoveInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "from": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99
+    },
+    "to": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99
+    }
+  },
+  "required": [
+    "from",
+    "to"
+  ],
+  "additionalProperties": false
+} as const satisfies JsonSchema;
+
+export const playbackQueueClearInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": {
+    "not": {}
+  }
+} as const satisfies JsonSchema;
+
+export const playbackQueueEditOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "queueLength": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "queueLength"
+  ],
+  "additionalProperties": false
+} as const satisfies JsonSchema;
+
+export const playbackQueueReplaceOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "item": {
+      "$ref": "#/definitions/MaterialMusicItemHandle"
+    },
+    "index": {
       "type": "number"
     },
-    "ConcernRevisionSet": {
-      "type": "object",
-      "properties": {
-        "radioDirectionRevision": {
-          "$ref": "#/definitions/ConcernRevision"
-        },
-        "queueRevision": {
-          "$ref": "#/definitions/ConcernRevision"
-        },
-        "radioSessionRevision": {
-          "$ref": "#/definitions/ConcernRevision"
-        },
-        "playbackRevision": {
-          "$ref": "#/definitions/ConcernRevision"
-        }
-      },
-      "additionalProperties": false
+    "queueLength": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "index",
+    "item",
+    "queueLength"
+  ],
+  "definitions": {
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
     }
   }
 } as const satisfies JsonSchema;
@@ -1259,12 +1361,6 @@ export const radioDirectionToolOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "radioDirectionRevision": {
-      "$ref": "#/definitions/ConcernRevision"
-    },
-    "changedBasis": {
-      "$ref": "#/definitions/ConcernRevisionSet"
-    },
     "direction": {
       "type": "object",
       "properties": {
@@ -1286,33 +1382,10 @@ export const radioDirectionToolOutputSchema = {
     }
   },
   "required": [
-    "radioDirectionRevision",
-    "changedBasis",
     "direction"
   ],
   "additionalProperties": false,
   "definitions": {
-    "ConcernRevision": {
-      "type": "number"
-    },
-    "ConcernRevisionSet": {
-      "type": "object",
-      "properties": {
-        "radioDirectionRevision": {
-          "$ref": "#/definitions/ConcernRevision"
-        },
-        "queueRevision": {
-          "$ref": "#/definitions/ConcernRevision"
-        },
-        "radioSessionRevision": {
-          "$ref": "#/definitions/ConcernRevision"
-        },
-        "playbackRevision": {
-          "$ref": "#/definitions/ConcernRevision"
-        }
-      },
-      "additionalProperties": false
-    },
     "RadioTruthToolValueOutput": {
       "anyOf": [
         {
@@ -1411,9 +1484,6 @@ export const radioLeanToolOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "radioDirectionRevision": {
-      "$ref": "#/definitions/ConcernRevision"
-    },
     "posture": {
       "type": "object",
       "properties": {
@@ -1424,30 +1494,22 @@ export const radioLeanToolOutputSchema = {
           },
           "maxItems": 5
         },
-        "commandedRevisionStamp": {
-          "$ref": "#/definitions/ConcernRevision"
-        },
         "stale": {
           "type": "boolean"
         }
       },
       "required": [
         "lean",
-        "commandedRevisionStamp",
         "stale"
       ],
       "additionalProperties": false
     }
   },
   "required": [
-    "radioDirectionRevision",
     "posture"
   ],
   "additionalProperties": false,
   "definitions": {
-    "ConcernRevision": {
-      "type": "number"
-    },
     "RadioTruthToolValueOutput": {
       "anyOf": [
         {
@@ -1589,19 +1651,11 @@ export const musicExperiencePlaybackPlayOutputSchema = {
     "status": {
       "type": "string",
       "const": "playing"
-    },
-    "playbackRevision": {
-      "$ref": "#/definitions/ConcernRevision"
-    },
-    "changedBasis": {
-      "$ref": "#/definitions/ConcernRevisionSet"
     }
   },
   "required": [
     "item",
-    "status",
-    "playbackRevision",
-    "changedBasis"
+    "status"
   ],
   "additionalProperties": false,
   "definitions": {
@@ -1609,27 +1663,6 @@ export const musicExperiencePlaybackPlayOutputSchema = {
       "type": "string",
       "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
       "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
-    },
-    "ConcernRevision": {
-      "type": "number"
-    },
-    "ConcernRevisionSet": {
-      "type": "object",
-      "properties": {
-        "radioDirectionRevision": {
-          "$ref": "#/definitions/ConcernRevision"
-        },
-        "queueRevision": {
-          "$ref": "#/definitions/ConcernRevision"
-        },
-        "radioSessionRevision": {
-          "$ref": "#/definitions/ConcernRevision"
-        },
-        "playbackRevision": {
-          "$ref": "#/definitions/ConcernRevision"
-        }
-      },
-      "additionalProperties": false
     }
   }
 } as const satisfies JsonSchema;

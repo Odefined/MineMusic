@@ -161,6 +161,7 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/agent_runtime
     "src/agent_runtime/speech_level.ts",
     "src/agent_runtime/stage_tool_bridge.ts",
     "src/agent_runtime/workspace_context_assembler.ts",
+    "src/agent_runtime/workspace_context_diff.ts",
     "src/agent_runtime/workspace_context_encoder.ts",
 ], "formal Agent Runtime root must stay focused on actor definitions, shared Workspace Context assembly, the pi engine facade, Main Agent turn session, Stage tool bridge, and Phase B Radio runtime substrate");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/workbench_interface")))

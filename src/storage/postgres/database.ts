@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { Pool, types, type PoolClient, type PoolConfig } from "pg";
 
 import {
@@ -11,10 +13,13 @@ import { initializePostgresSchema, type PostgresMusicDatabaseSchemaContribution 
 
 types.setTypeParser(20, (value) => Number(value));
 
+const DEFAULT_POSTGRES_TRANSACTION_TIMEOUT_MS = 60_000;
+
 export type OpenPostgresMusicDatabaseInput = {
   connectionString: string;
   maxConnections?: number;
   schema?: string;
+  transactionTimeoutMs?: number;
 };
 
 export type PostgresMusicDatabaseContext = MusicDatabaseContext;
@@ -51,6 +56,9 @@ type PostgresDatabaseState =
 export class PostgresMusicDatabase implements MusicDatabase {
   private state: PostgresDatabaseState = "opened";
   private transactionActive = false;
+  private pendingTransactions = 0;
+  private transactionQueue: Promise<void> = Promise.resolve();
+  private readonly transactionScope = new AsyncLocalStorage<boolean>();
 
   private readonly initializedContext: PostgresMusicDatabaseContext = {
     run: async (sql, params) => {
@@ -82,7 +90,10 @@ export class PostgresMusicDatabase implements MusicDatabase {
     },
   };
 
-  private constructor(private readonly pool: Pool) {}
+  private constructor(
+    private readonly pool: Pool,
+    private readonly transactionTimeoutMs: number,
+  ) {}
 
   static open(input: OpenPostgresMusicDatabaseInput): PostgresMusicDatabase {
     if (input.connectionString.trim().length === 0) {
@@ -91,13 +102,22 @@ export class PostgresMusicDatabase implements MusicDatabase {
         message: "Postgres connection string must be explicit and non-empty.",
       });
     }
+    const transactionTimeoutMs = input.transactionTimeoutMs ?? DEFAULT_POSTGRES_TRANSACTION_TIMEOUT_MS;
+    if (!Number.isSafeInteger(transactionTimeoutMs) || transactionTimeoutMs <= 0) {
+      throw new MusicDatabaseError({
+        code: "storage.invalid_transaction_timeout",
+        message: "Postgres transaction timeout must be a positive safe integer in milliseconds.",
+      });
+    }
 
     const config: PoolConfig = {
       connectionString: input.connectionString,
+      connectionTimeoutMillis: transactionTimeoutMs,
+      statement_timeout: transactionTimeoutMs,
       ...(input.schema === undefined ? {} : { options: `-c search_path=${safeSchemaName(input.schema)},public` }),
       ...(input.maxConnections === undefined ? {} : { max: input.maxConnections }),
     };
-    return new PostgresMusicDatabase(new Pool(config));
+    return new PostgresMusicDatabase(new Pool(config), transactionTimeoutMs);
   }
 
   async initialize(input: InitializePostgresMusicDatabaseInput = {}): Promise<void> {
@@ -128,44 +148,97 @@ export class PostgresMusicDatabase implements MusicDatabase {
   async transaction<Result>(
     operation: (context: PostgresMusicDatabaseTransactionContext) => Result | Promise<Result>,
   ): Promise<Result> {
+    if (this.transactionScope.getStore() === true) {
+      throw new MusicDatabaseError({
+        code: "storage.transaction_already_active",
+        message: "Postgres music database transaction is already active.",
+      });
+    }
+    this.ensureInitialized();
+    this.pendingTransactions += 1;
+    const priorTransaction = this.transactionQueue;
+    let releaseQueueSlot: () => void = () => {};
+    this.transactionQueue = new Promise<void>((resolve) => {
+      releaseQueueSlot = resolve;
+    });
+
+    await priorTransaction;
+    this.pendingTransactions -= 1;
     this.ensureCanStartTransaction();
-    const client = await this.pool.connect();
-    this.transactionActive = true;
+    let client: PoolClient | undefined;
+    let clientReleased = false;
+    let transactionTimedOut = false;
     let transactionContextActive = true;
-    const transactionContext = {
-      run: async (sql, params) => {
-        ensureTransactionContextActive(transactionContextActive);
-        this.ensureInitialized();
-        await queryRun(client, sql, params);
-      },
-      all: async (sql, params) => {
-        ensureTransactionContextActive(transactionContextActive);
-        this.ensureInitialized();
-        return queryAll(client, sql, params);
-      },
-      get: async (sql, params) => {
-        ensureTransactionContextActive(transactionContextActive);
-        this.ensureInitialized();
-        return queryGet(client, sql, params);
-      },
-    } as PostgresMusicDatabaseTransactionContext;
+    this.transactionActive = true;
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timeoutHandle = setTimeout(() => {
+        transactionTimedOut = true;
+        if (client !== undefined && !clientReleased) {
+          clientReleased = true;
+          client.release(true);
+        }
+        reject(transactionTimeoutError(this.transactionTimeoutMs));
+      }, this.transactionTimeoutMs);
+    });
 
     try {
-      await client.query("BEGIN");
-      const result = await operation(transactionContext);
-      await client.query("COMMIT");
-      return result;
+      return await Promise.race([
+        (async () => {
+          client = await this.pool.connect();
+          if (transactionTimedOut) {
+            if (!clientReleased) {
+              clientReleased = true;
+              client.release(true);
+            }
+            throw transactionTimeoutError(this.transactionTimeoutMs);
+          }
+          const activeClient = client;
+          const transactionContext = {
+            run: async (sql, params) => {
+              ensureTransactionContextActive(transactionContextActive);
+              this.ensureInitialized();
+              await queryRun(activeClient, sql, params);
+            },
+            all: async (sql, params) => {
+              ensureTransactionContextActive(transactionContextActive);
+              this.ensureInitialized();
+              return queryAll(activeClient, sql, params);
+            },
+            get: async (sql, params) => {
+              ensureTransactionContextActive(transactionContextActive);
+              this.ensureInitialized();
+              return queryGet(activeClient, sql, params);
+            },
+          } as PostgresMusicDatabaseTransactionContext;
+          await client.query("BEGIN");
+          const result = await this.transactionScope.run(true, async () => await operation(transactionContext));
+          await client.query("COMMIT");
+          return result;
+        })(),
+        timeout,
+      ]);
     } catch (error) {
-      try {
-        await client.query("ROLLBACK");
-      } catch {
-        // Preserve the original operation error.
+      if (!transactionTimedOut) {
+        try {
+          await client?.query("ROLLBACK");
+        } catch {
+          // Preserve the original operation error.
+        }
       }
       throw error;
     } finally {
+      if (timeoutHandle !== undefined) {
+        clearTimeout(timeoutHandle);
+      }
       transactionContextActive = false;
       this.transactionActive = false;
-      client.release();
+      releaseQueueSlot();
+      if (client !== undefined && !clientReleased) {
+        clientReleased = true;
+        client.release();
+      }
     }
   }
 
@@ -181,7 +254,7 @@ export class PostgresMusicDatabase implements MusicDatabase {
       });
     }
 
-    if (this.transactionActive) {
+    if (this.transactionActive || this.pendingTransactions > 0) {
       throw new MusicDatabaseError({
         code: "storage.transaction_already_active",
         message: "Cannot close Postgres music database while a transaction is active.",
@@ -368,5 +441,12 @@ function closedError(): MusicDatabaseError {
   return new MusicDatabaseError({
     code: "storage.database_closed",
     message: "Postgres music database is closed.",
+  });
+}
+
+function transactionTimeoutError(timeoutMs: number): MusicDatabaseError {
+  return new MusicDatabaseError({
+    code: "storage.transaction_timeout",
+    message: `Postgres music database transaction exceeded ${timeoutMs}ms.`,
   });
 }

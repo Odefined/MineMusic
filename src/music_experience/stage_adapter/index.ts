@@ -13,9 +13,17 @@ import {
 } from "./present.js";
 import {
   createMusicExperiencePlaybackPlayRegistration,
-  createMusicExperienceQueueAppendRegistration,
   musicExperiencePlaybackPlayDescriptor,
-  musicExperienceQueueAppendDescriptor,
+  createPlaybackQueueAppendRegistration,
+  createPlaybackQueueClearRegistration,
+  createPlaybackQueueMoveRegistration,
+  createPlaybackQueueRemoveRegistration,
+  createPlaybackQueueReplaceRegistration,
+  playbackQueueAppendDescriptor,
+  playbackQueueClearDescriptor,
+  playbackQueueMoveDescriptor,
+  playbackQueueRemoveDescriptor,
+  playbackQueueReplaceDescriptor,
 } from "./queue_playback.js";
 import {
   createMusicExperienceRadioTruthRegistrations,
@@ -30,9 +38,17 @@ export {
 } from "./present.js";
 export {
   createMusicExperiencePlaybackPlayRegistration,
-  createMusicExperienceQueueAppendRegistration,
   musicExperiencePlaybackPlayDescriptor,
-  musicExperienceQueueAppendDescriptor,
+  createPlaybackQueueAppendRegistration,
+  createPlaybackQueueClearRegistration,
+  createPlaybackQueueMoveRegistration,
+  createPlaybackQueueRemoveRegistration,
+  createPlaybackQueueReplaceRegistration,
+  playbackQueueAppendDescriptor,
+  playbackQueueClearDescriptor,
+  playbackQueueMoveDescriptor,
+  playbackQueueRemoveDescriptor,
+  playbackQueueReplaceDescriptor,
 } from "./queue_playback.js";
 export {
   createMusicExperienceRadioTruthRegistrations,
@@ -83,7 +99,27 @@ export function createMusicExperienceRuntimeModule(input: {
               candidateCommit: input.candidateCommit,
               materialProjection: input.materialProjection,
             }),
-            createMusicExperienceQueueAppendRegistration({
+            createPlaybackQueueAppendRegistration({
+              candidateCommit: input.candidateCommit,
+              materialProjection: input.materialProjection,
+              queuePlayback: input.queuePlayback,
+            }),
+            createPlaybackQueueRemoveRegistration({
+              candidateCommit: input.candidateCommit,
+              materialProjection: input.materialProjection,
+              queuePlayback: input.queuePlayback,
+            }),
+            createPlaybackQueueReplaceRegistration({
+              candidateCommit: input.candidateCommit,
+              materialProjection: input.materialProjection,
+              queuePlayback: input.queuePlayback,
+            }),
+            createPlaybackQueueMoveRegistration({
+              candidateCommit: input.candidateCommit,
+              materialProjection: input.materialProjection,
+              queuePlayback: input.queuePlayback,
+            }),
+            createPlaybackQueueClearRegistration({
               candidateCommit: input.candidateCommit,
               materialProjection: input.materialProjection,
               queuePlayback: input.queuePlayback,

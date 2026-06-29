@@ -42,6 +42,7 @@ import type {
 import {
   formatMusicScopeHandle,
   parseMusicScopeHandle,
+  stageToolHandlerOutput,
 } from "../../contracts/stage_interface.js";
 import type {
   CandidateCommitCommand,
@@ -244,7 +245,7 @@ function radioDirectionDescriptor(input: {
     usage: {
       useWhen: "Use when Main is changing the commanded radio direction after interpreting listener intent.",
       doNotUseWhen: "Do not use for Radio's self-developed posture, queue edits, playback, lookup, or presentation cards.",
-      outputSemantics: "Returns the compact commanded direction and its radio direction revision; it does not expose storage rows.",
+      outputSemantics: "Returns the compact commanded direction; it does not expose storage rows or runtime metadata.",
     },
     examples: [
       {
@@ -264,7 +265,7 @@ function radioDirectionDescriptor(input: {
     errors: radioTruthErrors,
     resultSummary(result) {
       const output = result as RadioDirectionToolOutput;
-      return `Radio direction revision is ${output.radioDirectionRevision}; ${output.direction.activeVariations.length} active variation(s).`;
+      return `Radio direction has ${output.direction.activeVariations.length} active variation(s).`;
     },
   };
 }
@@ -284,7 +285,7 @@ function radioLeanDescriptor(input: {
     usage: {
       useWhen: "Use when Radio is updating its evolved posture beneath the current commanded direction.",
       doNotUseWhen: "Do not use to change the commanded motif, commanded active variations, queue, playback, lookup, or presentation cards.",
-      outputSemantics: "Returns the compact evolved posture lean, the stamped direction revision, and whether that write is stale; it does not expose storage rows.",
+      outputSemantics: "Returns the compact evolved posture lean and whether that write is stale; it does not expose storage rows or runtime metadata.",
     },
     examples: [
       {
@@ -304,7 +305,7 @@ function radioLeanDescriptor(input: {
     errors: radioTruthErrors,
     resultSummary(result) {
       const output = result as RadioLeanToolOutput;
-      return `Radio posture has ${output.posture.lean.length} lean item(s), stamped at direction revision ${output.posture.commandedRevisionStamp}.`;
+      return `Radio posture has ${output.posture.lean.length} lean item(s); stale: ${output.posture.stale}.`;
     },
   };
 }
@@ -320,7 +321,7 @@ async function handleMotifSet(
   ctx: StageToolContext,
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
-): Promise<Result<RadioDirectionToolOutput>> {
+): Promise<Result<unknown>> {
   const aborted = failIfAborted(ctx.abortSignal);
   if (aborted !== undefined) {
     return aborted;
@@ -342,7 +343,7 @@ async function handleMotifSet(
 async function handleMotifClear(
   ctx: StageToolContext,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
-): Promise<Result<RadioDirectionToolOutput>> {
+): Promise<Result<unknown>> {
   const aborted = failIfAborted(ctx.abortSignal);
   if (aborted !== undefined) {
     return aborted;
@@ -359,7 +360,7 @@ async function handleVariationAdd(
   ctx: StageToolContext,
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
-): Promise<Result<RadioDirectionToolOutput>> {
+): Promise<Result<unknown>> {
   const aborted = failIfAborted(ctx.abortSignal);
   if (aborted !== undefined) {
     return aborted;
@@ -383,7 +384,7 @@ async function handleVariationRemove(
   ctx: StageToolContext,
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
-): Promise<Result<RadioDirectionToolOutput>> {
+): Promise<Result<unknown>> {
   const aborted = failIfAborted(ctx.abortSignal);
   if (aborted !== undefined) {
     return aborted;
@@ -402,7 +403,7 @@ async function handleVariationReplace(
   ctx: StageToolContext,
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
-): Promise<Result<RadioDirectionToolOutput>> {
+): Promise<Result<unknown>> {
   const aborted = failIfAborted(ctx.abortSignal);
   if (aborted !== undefined) {
     return aborted;
@@ -426,7 +427,7 @@ async function handleVariationMove(
   ctx: StageToolContext,
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
-): Promise<Result<RadioDirectionToolOutput>> {
+): Promise<Result<unknown>> {
   const aborted = failIfAborted(ctx.abortSignal);
   if (aborted !== undefined) {
     return aborted;
@@ -445,7 +446,7 @@ async function handleVariationMove(
 async function handleVariationClear(
   ctx: StageToolContext,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
-): Promise<Result<RadioDirectionToolOutput>> {
+): Promise<Result<unknown>> {
   const aborted = failIfAborted(ctx.abortSignal);
   if (aborted !== undefined) {
     return aborted;
@@ -599,19 +600,21 @@ async function directionCommandOutput(
     radioDirectionRevision: number;
     direction: RadioDirectionSnapshot;
   }>,
-): Promise<Result<RadioDirectionToolOutput>> {
+): Promise<Result<unknown>> {
   if (!result.ok) {
     return result;
   }
+  const output: RadioDirectionToolOutput = {
+    direction: await directionOutput(ctx, result.value.direction),
+  };
+
   return {
     ok: true,
-    value: {
-      radioDirectionRevision: result.value.radioDirectionRevision,
+    value: stageToolHandlerOutput(output, {
       changedBasis: {
         radioDirectionRevision: result.value.radioDirectionRevision,
       },
-      direction: await directionOutput(ctx, result.value.direction),
-    },
+    }),
   };
 }
 
@@ -632,18 +635,16 @@ async function leanCommandOutput(
   if (result.value.posture.commandedRevisionStamp === undefined) {
     return musicExperienceFail({
       code: "radio_truth_invalid",
-      message: "Radio lean tool wrote posture without a commanded direction revision stamp.",
+      message: "Radio lean tool could not confirm the posture write.",
       retryable: false,
-      suggestedFix: "Refresh the current radio direction basis and retry if the posture edit is still desired.",
+      suggestedFix: "Retry if the posture edit is still desired.",
     });
   }
   return {
     ok: true,
     value: {
-      radioDirectionRevision: result.value.radioDirectionRevision,
       posture: {
         lean: await Promise.all(result.value.posture.lean.map((value) => valueOutput(ctx, value))),
-        commandedRevisionStamp: result.value.posture.commandedRevisionStamp,
         stale: result.value.posture.stale,
       },
     },

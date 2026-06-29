@@ -200,6 +200,12 @@ if (initialized.ok) {
     });
     assert.equal(JSON.stringify(scopes.value.result).includes("provider"), false);
     assert.equal(JSON.stringify(scopes.value.result).includes('"all"'), false);
+    const agentText = agentResultText(initialized.value.tools, "library.catalog.list_scopes", scopes.value.result);
+    assert.match(agentText, /4 catalog scope\(s\) returned\./u);
+    assert.match(agentText, /0\. "Library" \[library\]/u);
+    assert.match(agentText, /1\. "NetEase Cloud Music saved recording" \[source_library:source_scope_recordings\]/u);
+    assert.match(agentText, /targetKind: recording/u);
+    assert.match(agentText, /3\. "favorite album" \[relation:favorite_album_scope\]/u);
   }
 
   const browseFirst = await stageInterface.dispatch(context, {
@@ -215,6 +221,12 @@ if (initialized.ok) {
     assert.deepEqual(labels(output.items), ["Artist C", "Artist A", "Album Y - Artist C"]);
     assert.equal(typeof output.nextCursor, "string");
     nextCursor = output.nextCursor ?? "";
+    const agentText = agentResultText(initialized.value.tools, "library.catalog.browse", output);
+    assert.match(agentText, /3 catalog item\(s\) returned; more available\./u);
+    assert.match(agentText, /0\. "Artist C" \[material:/u);
+    assert.match(agentText, /2\. "Album Y - Artist C" \[material:/u);
+    assert.match(agentText, new RegExp(`nextCursor: ${nextCursor}`, "u"));
+    assert.equal(agentText.includes("[cursor:"), false);
   }
 
   const browseSecond = await stageInterface.dispatch(context, {
@@ -291,6 +303,9 @@ if (initialized.ok) {
       labels((sampleA.value.result as LibraryCatalogSampleOutput).items),
       labels((sampleB.value.result as LibraryCatalogSampleOutput).items),
     );
+    const agentText = agentResultText(initialized.value.tools, "library.catalog.sample", sampleA.value.result);
+    assert.match(agentText, /4 sampled catalog item\(s\) returned\./u);
+    assert.match(agentText, /0\. ".+" \[material:/u);
   }
 
   const summary = await stageInterface.dispatch(context, {
@@ -341,6 +356,14 @@ if (initialized.ok) {
         examples: ["Album X - Artist A"],
       },
     ]);
+    const agentText = agentResultText(initialized.value.tools, "library.catalog.summary", output);
+    assert.match(agentText, /8 summary sample item\(s\), 9 concentration signal\(s\), 3 membership signal\(s\)\./u);
+    assert.match(agentText, /sampleBands:\nearliest_25:/u);
+    assert.match(agentText, /0\. "A One - Artist A" \[material:/u);
+    assert.match(agentText, /concentrationSignals:/u);
+    assert.match(agentText, /recording_artist recording "Artist A" count 2/u);
+    assert.match(agentText, /membershipSignals:/u);
+    assert.match(agentText, /"NetEase Cloud Music saved recording" \[source_library:source_scope_recordings\] count 2/u);
   }
 
   const relationSummary = await stageInterface.dispatch(context, {
@@ -482,6 +505,21 @@ if (initializedServerModule.ok) {
 
 function labels(items: readonly { description: { label: string } }[]): readonly string[] {
   return items.map((item) => item.description.label);
+}
+
+function agentResultText(
+  registrations: readonly {
+    descriptor: {
+      name: string;
+      agentResultText?: (result: unknown) => string;
+    };
+  }[] | undefined,
+  toolName: string,
+  result: unknown,
+): string {
+  const descriptor = registrations?.find((registration) => registration.descriptor.name === toolName)?.descriptor;
+  assert.ok(descriptor?.agentResultText !== undefined);
+  return descriptor.agentResultText(result);
 }
 
 function recordAt(index: number): LibraryCatalogRecord {

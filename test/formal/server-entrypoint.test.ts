@@ -128,7 +128,11 @@ try {
         "music_discovery_list_scopes",
         "music_discovery_lookup",
         "music_experience_present",
-        "music_experience_queue_append",
+        "playback_queue_append",
+        "playback_queue_remove",
+        "playback_queue_replace",
+        "playback_queue_move",
+        "playback_queue_clear",
         "music_experience_playback_play",
         "radio_motif_set",
         "radio_motif_clear",
@@ -185,7 +189,7 @@ try {
         };
     };
     assert.equal(callResult.structuredContent.status, "ready");
-    assert.equal(callResult.structuredContent.interface.toolCount, 39);
+    assert.equal(callResult.structuredContent.interface.toolCount, 43);
     assert.equal(callResult.content.length, 1);
     assert.equal(callResult.content[0]?.type, "text");
     assert.equal(callResult.content[0]?.text.startsWith("Runtime ready"), true);

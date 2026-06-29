@@ -56,7 +56,7 @@ PR3.3 (Agent Context spec)      Main consumes shared assembler; retire old Workb
         │
 PR3.4 (PB5+PB8 surfaces)   Main structural steering + Radio posture edit route
         │
-PR3.5 (queue surfaces)     user queue controls + Radio edits its own unplayed queue items
+PR3.5 (queue surfaces)     user queue controls + Radio edits its own queued items
         │
 PR3.6 (direction change)   direction_changed bypasses low-watermark for one correction turn
         │
@@ -218,7 +218,8 @@ deletion waits until both actors have migrated.
   Workbench interaction-state, emits encoded Workspace Context.
 - `src/agent_runtime/workspace_context_encoder.ts` — encodes `listening` queue
   lines with `[material:mh_<opaque>]` handles + labels, and `radio` direction /
-  posture / `directionRevision`.
+  posture. Runtime revisions remain harness/command metadata and are not
+  rendered into Workspace Context.
 - `src/contracts/music_experience.ts` — re-home the existing agent-facing slice
   as a section-agnostic `MusicExperienceWorkspaceProjectionPort`.
 
@@ -255,9 +256,15 @@ posture-stamp carry / clear, and Radio run result behavior.
 - `src/agent_runtime/agent_harness.ts` — shared adapter for Main and Radio:
   mirrors pi `AgentHarness` vocabulary (`createTurnState`, provider context,
   `prepareNextTurn`), owns runtime-only command-basis tracking, injects
-  `preconditionBasis` into Stage tool context, absorbs internal `changedBasis`,
-  and installs `state.systemPrompt` / `state.tools` before `Agent.prompt(...)`
-  snapshots provider context.
+  `preconditionBasis` into Stage tool context, absorbs internal runtime metadata
+  `changedBasis`, and installs `state.systemPrompt` / `state.tools` before
+  `Agent.prompt(...)` snapshots provider context. `changedBasis` is not part of
+  any tool's public output schema or model-facing result text. Pi tool-result
+  `content` is rendered from each tool's public `agentResultText` (falling back
+  to `resultSummary`); structured `details` remain transcript/runtime data and
+  are scrubbed from provider context. Successful state-mutating tool results
+  append a local Workspace Context diff through pi `afterToolCall`, extending
+  the public observation with what changed for the next decision.
 - `src/agent_runtime/radio_run.ts` — delete `renderRadioRunSystemPrompt`; Radio
   uses the same shared `AgentHarness` adapter as Main. Radio-specific Background
   Work, stale-posture clear, transcript persistence, and run result extraction
@@ -436,15 +443,15 @@ exists in runtime or tool code.
 
 ---
 
-## PR3.5 — Queue control + Radio edits to its own unplayed queue items
+## PR3.5 — Queue control + Radio edits to its own queued items
 
 **Covers:** queue-correction product requirements and the missing agent/user
 queue-control surfaces needed for honest Radio behavior after direction changes.
 
 **Goal:** Add Music Experience-owned queue mutation commands for explicit user
-queue controls and for Radio edits to queue items that Radio generated and that
-have not played. The system must support remove, move/reorder, and clear
-semantics for user control, and must let Radio correct its own unplayed queued
+queue controls and for Radio edits to future queue items that Radio generated
+and that still remain in the queue. The system must support remove, move/reorder,
+and clear semantics for user control, and must let Radio correct its own queued
 items when its judgement changes. Queue edit tools use the same action vocabulary
 as `activeVariations` and `lean` where queue semantics allow it, under the
 `playback.queue.*` tool family: `playback.queue.append` for tail append,
@@ -453,27 +460,34 @@ as `activeVariations` and `lean` where queue semantics allow it, under the
 mutation authority is explicit and provenance-aware.
 
 **Why one merge unit:** user correction and Radio self-correction share the same
-danger: accidentally deleting current playback, user-pinned content, or another
-actor's contribution. The command boundary, provenance rules, revision bumping,
+danger: accidentally deleting another actor's future queue contribution. The
+command boundary, provenance rules, revision bumping,
 and projection tests must be reviewed together.
 
 **Files touched:**
 - Music Experience queue command module — add indexed-list remove/move/clear
   user commands, plus replace where the product semantics require it, and a
-  command that lets Radio edit only queue items it generated and that have not
-  played. All commands bump queue revision through the owner boundary.
+  command that lets Radio edit only queue items it generated and that still
+  remain in the queue. All commands bump queue revision through the owner
+  boundary.
 - Stage registration modules — align the existing queue append capability under
   `playback.queue.append`, and expose new `playback.queue.remove`,
   `playback.queue.replace`, `playback.queue.move`, and `playback.queue.clear`
   tools with actor-appropriate availability.
-- Queue provenance/read model — expose enough provenance for the command to
-  distinguish now-playing, user/Main entries, and Radio-generated unplayed queue
-  items.
+- Agent Runtime Stage tool bridge — runtime/durable write tools execute through
+  pi's `executionMode: "sequential"` so a same-message batch of mutations has a
+  stable order for command-basis absorption, Workspace Context diffing, and
+  `prepareNextTurn` refresh.
+- Queue provenance/read model — retain enough provenance for the command to
+  distinguish user/Main entries from Radio-generated future queue items;
+  Workspace Context renders this as `added by radio/main/user`, not as raw
+  internal enum names. Now-playing material equality is not queue-item identity:
+  direct playback of a material does not consume matching queued items.
 - Stage/user-command registration — expose user queue controls on the user path
   through `playback.queue.*`.
 - Radio actor capability registration — expose only the command that lets Radio
-  edit queue items it generated and that have not played. Radio cannot mutate
-  now-playing, user-pinned, or Main/user-owned queue items.
+  edit queue items it generated and that still remain in the queue. Radio cannot
+  mutate user-owned or Main-owned queue items.
 - Workspace Context projection — keep queued handles/provenance sufficient for
   Radio dedupe and correction judgement; projection failure must fail loud rather
   than disappearing as "empty queue."
@@ -483,16 +497,19 @@ and projection tests must be reviewed together.
 **Guards / tests:**
 1. User queue edits use the `playback.queue.*` action tools and bump queue
    revision through Music Experience commands.
-2. Radio may edit only queue items it generated and that have not played,
+2. Radio may edit only queue items it generated and that still remain in the queue,
    produced under the compatible basis, using the same indexed-list shape where
    queue semantics allow it.
-3. Radio cannot touch now-playing, already-played, user-owned, or Main-owned
-   entries.
+3. Radio cannot touch user-owned or Main-owned queue entries.
 4. A stale direction/session basis voids Radio correction through the same OCC
    discipline as append.
 5. Shared Workspace Context after queue mutation shows current queue handles and
-   provenance; unresolved material/projection failure is not represented as an
-   empty queue.
+   `added by radio/main/user`; unresolved material/projection failure is not
+   represented as an empty queue.
+6. A successful queue mutation tool result renders public agent-facing
+   `content`, appends a local Workspace Context diff, and keeps runtime
+   `changedBasis` only in structured harness metadata; provider context does
+   not include `details`.
 
 **Verification:** `npm run typecheck`; targeted Stage Core tests for queue
 commands, Radio correction, and workspace projection.
@@ -511,7 +528,7 @@ adjust when direction changes, even if the queue is not below low-watermark.
 **Goal:** Make `direction_changed` a first-class wake reason for one bounded
 Radio correction turn. Low-watermark remains the normal pacing rule, but a
 direction change must allow Radio to review and correct queue items it generated
-and that have not played through the PR3.5 command.
+and that still remain in the queue through the PR3.5 command.
 
 **Why one merge unit:** this is behavior, not storage. It depends on the steering
 route from PR3.4 and the safe correction command from PR3.5; implementing it
@@ -531,7 +548,8 @@ too much queue.
 **Guards / tests:**
 1. Full queue + changed direction still triggers exactly one Radio correction
    turn.
-2. Correction is limited to queue items Radio generated and that have not played.
+2. Correction is limited to queue items Radio generated and that still remain in
+   the queue.
 3. No direction change means low-watermark remains the only ordinary refill wake.
 4. Multiple rapid direction changes coalesce without creating concurrent Radio
    runs.
@@ -662,7 +680,7 @@ fixtures, zero appended items, and script heuristics must not infer Radio's
 judgement.
 
 **Why one merge unit:** PB7a is not "notify plumbing". It requires a terminal
-judgement contract that downstream systems can trust. Putting append facts,
+judgement contract that downstream systems can trust. Putting queue mutation facts,
 run/basis identity, and failures in the same PR as declaration extraction is
 necessary because the runtime must cross-check the declaration against facts and
 fail loudly on contradictions. Runtime bus delivery is intentionally excluded so
@@ -678,8 +696,8 @@ Phase B does not smuggle in a half-designed agent-to-agent messaging layer.
 - `src/agent_runtime/radio_run.ts` — extract and validate the terminal
   declaration, then assemble `RadioRunResult` from declaration + runtime facts.
 - `src/agent_runtime/radio_run_result_recorder.ts` — keep or rename as a
-  tool-fact recorder; it may report append facts/failures but must not emit
-  semantic exhaustion.
+  tool-fact recorder; it may report queue mutation facts (`appended` and
+  `queue_corrected`) / failures but must not emit semantic exhaustion.
 - `src/agent_runtime/radio_supervisor.ts` — trust only declared
   `candidate_exhaustion_by_direction` for direction-specific backoff; do not
   deliver a runtime bus message in Phase B.
@@ -695,7 +713,7 @@ Phase B does not smuggle in a half-designed agent-to-agent messaging layer.
 2. Zero appended items without declaration is not exhaustion and does not notify.
 3. Tool/runtime failure is not converted to exhaustion.
 4. Only Radio can declare Radio terminal judgement; runtime supplies run id,
-   basis, append facts, severity, and stale/abort/failure status.
+   basis, queue mutation facts, severity, and stale/abort/failure status.
 5. New direction clears old direction exhaustion/backoff.
 6. Tests cannot inject candidate exhaustion only through result fixtures; at
    least one acceptance test must exercise the agent-facing declaration surface.
@@ -740,7 +758,7 @@ partial floor and risks another false pass.
    Music Experience truth and shared Workspace Context.
 2. Stamped posture survives only when direction revision matches.
 3. Queue handles/provenance still allow dedupe and Radio edits to queue items it
-   generated and that have not played.
+   generated and that still remain in the queue.
 4. Radio terminal declaration remains available after restart.
 5. The test mutates the persisted transcript store, not only a view-layer context.
 
@@ -782,7 +800,7 @@ uses real callable surfaces instead of fixtures or script judgement.
   complete the behavior.
 - **Queue correction must precede direction-change behavior.** Radio cannot
   proactively adjust direction if it has no safe way to edit queue items it
-  generated and that have not played.
+  generated and that still remain in the queue.
 - **Cascade follows the active writer inventory.** PR4 observes writers through
   PR3.6 and creates an extension guard for later lifecycle/playback writers.
 - **PB7a moves out of PR3.** Runtime result plumbing is not enough. Phase B
@@ -825,7 +843,7 @@ version PRD readiness.
 2. **Phase C boundary:** UI drag/drop, visual queue editor ergonomics, and richer
    playlist management can remain Phase C, but the underlying delete/move
    commands and Radio's scoped authority to edit queue items it generated and
-   that have not played are Phase B because agent behavior needs them.
+   that still remain in the queue are Phase B because agent behavior needs them.
 3. **No commanded-direction cap in this plan:** commanded direction is not capped here;
    the missing problem is structured callable authority, not text size.
 4. **Spec citations are section-level (`PBx`), not line numbers** so they do not

@@ -7,12 +7,14 @@ import type {
   StageInterfaceContract,
   StageToolContext,
   StageToolExecutionGatePreflightResult,
+  StageToolHandlerOutputEnvelope,
   StageToolRegistration,
   ToolCallInput,
   ToolCallOutput,
   ToolDeclaredError,
   ToolDeclaration,
 } from "../contracts/stage_interface.js";
+import { stageToolHandlerOutputSymbol } from "../contracts/stage_interface.js";
 import type { MusicDatabaseSchemaContribution } from "../storage/index.js";
 import { stageInterfaceHandleRegistrySchema } from "./handle_registry_schema.js";
 import { stageInterfaceLookupCursorRegistrySchema } from "./lookup_cursor_registry_schema.js";
@@ -66,6 +68,8 @@ export {
   createStageInterfaceHandleMintingPort,
   createStageInterfaceHandleMintingPortFromRecords,
   createUnavailableHandleMintingPort,
+  randomPublicHandleId,
+  stableJsonStringify,
 } from "./handle_minting.js";
 export type {
   CandidateHandleBackingCachePort,
@@ -139,6 +143,8 @@ export type CreateStageInterfaceInput = {
   defaultToolTimeoutMs?: number;
 };
 
+export const DEFAULT_STAGE_TOOL_TIMEOUT_MS = 60_000;
+
 type ToolValidation = {
   input: ValidateFunction;
   output: ValidateFunction;
@@ -146,7 +152,7 @@ type ToolValidation = {
 
 export function createStageInterface(input: CreateStageInterfaceInput): StageInterface {
   const tools = input.registrations.map((registration) => registration.descriptor);
-  const defaultToolTimeoutMs = input.defaultToolTimeoutMs ?? 30_000;
+  const defaultToolTimeoutMs = input.defaultToolTimeoutMs ?? DEFAULT_STAGE_TOOL_TIMEOUT_MS;
 
   assertUnique(input.instruments.map((instrument) => instrument.id), "instrument id");
   assertUnique(tools.map((tool) => tool.name), "tool name");
@@ -271,7 +277,9 @@ export function createStageInterface(input: CreateStageInterfaceInput): StageInt
         };
       }
 
-      if (!validation.output(handled.value)) {
+      const handlerOutput = unwrapHandlerOutput(handled.value);
+
+      if (!validation.output(handlerOutput.output)) {
         return fail(
           "stage_interface.invalid_output",
           `Tool '${call.toolName}' output does not match its public schema: ${formatAjvErrors(validation.output)}.`,
@@ -279,7 +287,7 @@ export function createStageInterface(input: CreateStageInterfaceInput): StageInt
         );
       }
 
-      const outputVeilViolations = findSampleOutputVeilViolations(handled.value);
+      const outputVeilViolations = findSampleOutputVeilViolations(handlerOutput.output);
       const warningVeilViolations =
         handled.warnings === undefined ? [] : findSampleOutputVeilViolations(handled.warnings);
 
@@ -295,12 +303,33 @@ export function createStageInterface(input: CreateStageInterfaceInput): StageInt
         ok: true,
         value: {
           toolName: registration.descriptor.name,
-          result: handled.value,
+          result: handlerOutput.output,
+          ...(handlerOutput.runtime === undefined ? {} : { runtime: handlerOutput.runtime }),
         },
         ...(handled.warnings === undefined ? {} : { warnings: handled.warnings }),
       };
     },
   };
+}
+
+function unwrapHandlerOutput(value: unknown): {
+  output: unknown;
+  runtime?: StageToolHandlerOutputEnvelope["runtime"];
+} {
+  if (isStageToolHandlerOutputEnvelope(value)) {
+    return {
+      output: value.output,
+      ...(value.runtime === undefined ? {} : { runtime: value.runtime }),
+    };
+  }
+
+  return { output: value };
+}
+
+function isStageToolHandlerOutputEnvelope(value: unknown): value is StageToolHandlerOutputEnvelope {
+  return value !== null &&
+    typeof value === "object" &&
+    (value as Partial<StageToolHandlerOutputEnvelope>)[stageToolHandlerOutputSymbol] === true;
 }
 
 function compileSchema(ajv: Ajv, schema: JsonSchema, label: string): ValidateFunction {

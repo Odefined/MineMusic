@@ -32,6 +32,34 @@ export function renderPublicToolResultSummary(input: {
   return { kind: "text", text: summary };
 }
 
+export function renderPublicToolAgentResultText(input: {
+  descriptor: ToolDeclaration | undefined;
+  result: unknown;
+}): PublicToolTextRender {
+  if (input.descriptor === undefined) {
+    return { kind: "text", text: "Tool 'unknown' returned a result." };
+  }
+
+  let text: string;
+  const renderer = input.descriptor.agentResultText ?? input.descriptor.resultSummary;
+  const rendererName = input.descriptor.agentResultText === undefined ? "resultSummary" : "agentResultText";
+  try {
+    text = renderer(input.result).trim();
+  } catch {
+    return publicTextInvariantFailure(input.descriptor, `${rendererName} failed`);
+  }
+
+  if (text.length === 0) {
+    return publicTextInvariantFailure(input.descriptor, `${rendererName} returned empty text`);
+  }
+
+  if (freeTextContainsInternalAnchor(text)) {
+    return publicTextInvariantFailure(input.descriptor, `${rendererName} exposes internal anchors`);
+  }
+
+  return { kind: "text", text };
+}
+
 export function renderPublicToolErrorText(input: {
   descriptor: ToolDeclaration | undefined;
   error: StageError;

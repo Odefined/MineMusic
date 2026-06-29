@@ -182,6 +182,16 @@ export const musicDiscoveryLookupDescriptor: ToolDeclaration = {
     const hasMore = typeof output.nextCursor === "string" && output.nextCursor.length > 0;
     return `${count} item(s) returned; ${hasMore ? "more available" : "end of results"}.`;
   },
+  agentResultText(result) {
+    const output = result as MusicDiscoveryLookupOutput;
+    const count = Array.isArray(output.items) ? output.items.length : 0;
+    const hasMore = typeof output.nextCursor === "string" && output.nextCursor.length > 0;
+    return [
+      `${count} item(s) returned; ${hasMore ? "more available" : "end of results"}.`,
+      ...output.items.map((item, index) => lookupItemLine(index, item)),
+      ...(output.nextCursor === undefined ? [] : [`nextCursor: ${output.nextCursor}`]),
+    ].join("\n");
+  },
 };
 
 export function createMusicDiscoveryLookupRegistration(
@@ -420,6 +430,23 @@ function descriptionForHit(
     ...(album === undefined ? {} : { album }),
     ...(versionText === undefined ? {} : { versionText }),
   };
+}
+
+function lookupItemLine(index: number, item: MusicDiscoveryLookupItem): string {
+  const details = [
+    optionalQuotedField("title", item.description.title),
+    optionalQuotedField("artists", item.description.artistsText),
+    optionalQuotedField("album", item.description.album),
+    optionalQuotedField("version", item.description.versionText),
+  ].filter((field): field is string => field !== undefined);
+  return [
+    `${index}. ${JSON.stringify(item.description.label)} ${item.handle}`,
+    ...(details.length === 0 ? [] : [`   ${details.join("; ")}`]),
+  ].join("\n");
+}
+
+function optionalQuotedField(label: string, value: string | undefined): string | undefined {
+  return value === undefined ? undefined : `${label}: ${JSON.stringify(value)}`;
 }
 
 function resolveLookupScopes(input: {

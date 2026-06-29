@@ -57,7 +57,7 @@ prompt-rendering workaround.
 
 - `MusicExperienceQueuePlaybackCommand.append` returns a `Result` so `queue_full`
   is an expected command failure, not a thrown invariant or a Stage-only guard.
-- `music.experience.queue.append` declares and surfaces `queue_full`.
+- `playback.queue.append` declares and surfaces `queue_full`.
 - Agent Runtime Workspace Context may render the full queue, but this remains
   safe only while the Music Experience queue bound is enforced by the owning
   command.
