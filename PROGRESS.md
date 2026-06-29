@@ -1663,6 +1663,25 @@ Agent Runtime context-engineering authority for embedded MineMusic agents:
   `playback.queue.*` tools remain the only correction path, so selection and
   queue judgement stay agentic.
 
+## 2026-06-30: Phase B PR4 Cross-Actor Cascade Core
+
+- Queue append/remove/replace/move/clear and playback play commands now emit one
+  internal post-commit `ConcernRevisionChange` on successful revision bumps,
+  using the same event shape as commanded-direction writes. Stale/failed/aborted
+  commands emit no observer event.
+- Server Host wires queue/playback/radio-direction revision events into the
+  Radio supervisor. Stage adapter actor derivation stays runtime-owned; no actor,
+  basis, run id, or revision metadata was added to model-visible tool input or
+  public result text.
+- Radio supervisor now holds a per-active-refill abort controller and applies
+  PB9 priority/basis filtering before aborting: a higher-priority writer may
+  abort lower-priority runs whose registered basis contains the changed concern,
+  while queue-only bumps are not global aborts and Radio's own writes abort
+  nobody.
+- Verification added observer-matrix coverage for queue/playback writers,
+  no-event-on-stale coverage, and deterministic Radio cascade tests for
+  Main-written direction abort, queue-only no-abort, and Radio-written no-abort.
+
 ## Next Formal Milestones
 
 The Agent-Native Workbench PRD sequencing (Phase A in-process loop → Phase B

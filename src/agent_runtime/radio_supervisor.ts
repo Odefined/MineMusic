@@ -16,6 +16,9 @@ import type {
 import type {
   ConcernRevision,
   ConcernRevisionChange,
+  ConcernRevisionChangeActor,
+  ConcernRevisionChangeConcern,
+  ConcernRevisionSet,
   StageError,
 } from "../contracts/kernel.js";
 import type { MainRadioNotifyChannel } from "./main_radio_channel.js";
@@ -108,6 +111,13 @@ type PendingRefillSubmission = {
   runAfter?: Date;
 };
 
+type ActiveRun = {
+  jobId: string;
+  actor: Extract<ConcernRevisionChangeActor, "main_agent" | "radio_agent">;
+  basis: ConcernRevisionSet;
+  abortController: AbortController;
+};
+
 const defaultClock: RadioSupervisorClock = {
   now() {
     return new Date();
@@ -129,6 +139,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   let terminalObservationAbortController: AbortController | undefined;
   let terminalObservationJobId: string | undefined;
   let pendingSubmission: PendingRefillSubmission | undefined;
+  let activeRun: ActiveRun | undefined;
   const observedRunResultsByJobId = new Map<string, RadioRunResult>();
 
   const clock = input.clock ?? defaultClock;
@@ -140,22 +151,37 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   input.backgroundWork.registerHandler<RadioRefillRunJobPayload>({
     jobType: RADIO_REFILL_JOB_TYPE,
     async handler(job) {
-      const result = await input.runPort.runRadioRefill({
-        runId: job.jobId,
-        payload: job.payload,
-        signal: job.signal,
-      });
-      if (result.runId !== job.jobId) {
-        throw new Error(`Radio refill run result '${result.runId}' did not match Background Work job '${job.jobId}'.`);
+      const runAbortController = new AbortController();
+      const registeredRun: ActiveRun = {
+        jobId: job.jobId,
+        actor: "radio_agent",
+        basis: radioRunBasis(job.payload),
+        abortController: runAbortController,
+      };
+      activeRun = registeredRun;
+      try {
+        const result = await input.runPort.runRadioRefill({
+          runId: job.jobId,
+          payload: job.payload,
+          signal: AbortSignal.any([job.signal, runAbortController.signal]),
+        });
+        if (result.runId !== job.jobId) {
+          throw new Error(`Radio refill run result '${result.runId}' did not match Background Work job '${job.jobId}'.`);
+        }
+        await handleRunResult(result);
+        observedRunResultsByJobId.set(job.jobId, result);
+      } finally {
+        if (activeRun === registeredRun) {
+          activeRun = undefined;
+        }
       }
-      await handleRunResult(result);
-      observedRunResultsByJobId.set(job.jobId, result);
     },
   });
 
   return {
     wake,
     observeRevisionChange(change) {
+      abortStaleActiveRun(change);
       // `actor` is carried for PR4 basis-table cancellation. PR3.6 schedules
       // every committed direction revision regardless of which actor wrote it.
       if (
@@ -219,11 +245,13 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       const activeObservation = terminalObservationAbortController === undefined
         ? undefined
         : terminalObservation;
+      activeRun?.abortController.abort();
       terminalObservationAbortController?.abort();
       await activeObservation;
       await directionWakeScheduling;
       terminalObservationAbortController = undefined;
       terminalObservationJobId = undefined;
+      activeRun = undefined;
       refilling = false;
     },
   };
@@ -440,6 +468,24 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     }
   }
 
+  function abortStaleActiveRun(change: ConcernRevisionChange): void {
+    if (
+      activeRun === undefined ||
+      change.ownerScope !== input.ownerScope ||
+      !basisIncludesConcern(activeRun.basis, change.concern) ||
+      !canAbort({
+        writer: change.actor,
+        runActor: activeRun.actor,
+      })
+    ) {
+      return;
+    }
+
+    activeRun.abortController.abort(new Error(
+      `Concern '${change.concern}' advanced to revision ${change.newRevision}.`,
+    ));
+  }
+
   function cooldownRunAfter(): Date | undefined {
     if (cooldownUntil === undefined) {
       return undefined;
@@ -505,6 +551,47 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       };
     }
     return undefined;
+  }
+}
+
+function radioRunBasis(payload: RadioRefillRunJobPayload): ConcernRevisionSet {
+  return {
+    radioDirectionRevision: payload.radioDirectionRevision,
+    radioSessionRevision: payload.radioSessionRevision,
+  };
+}
+
+function basisIncludesConcern(
+  basis: ConcernRevisionSet,
+  concern: ConcernRevisionChangeConcern,
+): boolean {
+  switch (concern) {
+    case "radio-direction":
+      return basis.radioDirectionRevision !== undefined;
+    case "queue":
+      return basis.queueRevision !== undefined;
+    case "radio-session":
+      return basis.radioSessionRevision !== undefined;
+    case "playback":
+      return basis.playbackRevision !== undefined;
+  }
+}
+
+function canAbort(input: {
+  writer: ConcernRevisionChangeActor;
+  runActor: Extract<ConcernRevisionChangeActor, "main_agent" | "radio_agent">;
+}): boolean {
+  return actorPriority(input.writer) > actorPriority(input.runActor);
+}
+
+function actorPriority(actor: ConcernRevisionChangeActor): number {
+  switch (actor) {
+    case "user":
+      return 3;
+    case "main_agent":
+      return 2;
+    case "radio_agent":
+      return 1;
   }
 }
 

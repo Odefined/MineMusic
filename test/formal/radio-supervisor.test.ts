@@ -706,6 +706,109 @@ async function runRadioSupervisorTests(): Promise<void> {
     second.backgroundWork.submissions[0]!.input.idempotencyKey,
   );
 }
+
+{
+  const harness = createHarness({ queueDepth: 4 });
+  let observedSignal: AbortSignal | undefined;
+  let resolveRun: ((result: RadioRunResult) => void) | undefined;
+  harness.runPort.nextResult = (input) => {
+    observedSignal = input.signal;
+    return new Promise<RadioRunResult>((resolve) => {
+      resolveRun = resolve;
+    });
+  };
+
+  await harness.supervisor.wake("low_watermark");
+  const job = harness.backgroundWork.runJob(harness.backgroundWork.submissions[0]!.jobId);
+  await harness.runPort.waitForRunStart();
+
+  assert.equal(observedSignal?.aborted, false);
+  harness.supervisor.observeRevisionChange({
+    ownerScope,
+    concern: "radio-direction",
+    newRevision: 1,
+    actor: "main_agent",
+  });
+  assert.equal(observedSignal?.aborted, true);
+
+  assert.ok(resolveRun !== undefined);
+  resolveRun({
+    runId: harness.backgroundWork.submissions[0]!.jobId,
+    radioDirectionRevision: 0,
+    radioSessionRevision: 0,
+    outcome: "voided_stale",
+    appendedCount: 0,
+  });
+  await job;
+}
+
+{
+  const harness = createHarness({ queueDepth: 4 });
+  let observedSignal: AbortSignal | undefined;
+  let resolveRun: ((result: RadioRunResult) => void) | undefined;
+  harness.runPort.nextResult = (input) => {
+    observedSignal = input.signal;
+    return new Promise<RadioRunResult>((resolve) => {
+      resolveRun = resolve;
+    });
+  };
+
+  await harness.supervisor.wake("low_watermark");
+  const job = harness.backgroundWork.runJob(harness.backgroundWork.submissions[0]!.jobId);
+  await harness.runPort.waitForRunStart();
+
+  harness.supervisor.observeRevisionChange({
+    ownerScope,
+    concern: "queue",
+    newRevision: 1,
+    actor: "main_agent",
+  });
+  assert.equal(observedSignal?.aborted, false);
+
+  assert.ok(resolveRun !== undefined);
+  resolveRun({
+    runId: harness.backgroundWork.submissions[0]!.jobId,
+    radioDirectionRevision: 0,
+    radioSessionRevision: 0,
+    outcome: "voided_stale",
+    appendedCount: 0,
+  });
+  await job;
+}
+
+{
+  const harness = createHarness({ queueDepth: 4 });
+  let observedSignal: AbortSignal | undefined;
+  let resolveRun: ((result: RadioRunResult) => void) | undefined;
+  harness.runPort.nextResult = (input) => {
+    observedSignal = input.signal;
+    return new Promise<RadioRunResult>((resolve) => {
+      resolveRun = resolve;
+    });
+  };
+
+  await harness.supervisor.wake("low_watermark");
+  const job = harness.backgroundWork.runJob(harness.backgroundWork.submissions[0]!.jobId);
+  await harness.runPort.waitForRunStart();
+
+  harness.supervisor.observeRevisionChange({
+    ownerScope,
+    concern: "radio-direction",
+    newRevision: 1,
+    actor: "radio_agent",
+  });
+  assert.equal(observedSignal?.aborted, false);
+
+  assert.ok(resolveRun !== undefined);
+  resolveRun({
+    runId: harness.backgroundWork.submissions[0]!.jobId,
+    radioDirectionRevision: 0,
+    radioSessionRevision: 0,
+    outcome: "voided_stale",
+    appendedCount: 0,
+  });
+  await job;
+}
 }
 
 function createHarness(input: {
@@ -764,20 +867,31 @@ class FakeRadioRunPort implements RadioRefillRunPort {
     runId: string;
     payload: RadioRefillRunJobPayload;
     signal: AbortSignal;
-  }) => RadioRunResult;
+  }) => RadioRunResult | Promise<RadioRunResult>;
+
+  private runStart: Promise<void> = Promise.resolve();
 
   async runRadioRefill(input: {
     runId: string;
     payload: RadioRefillRunJobPayload;
     signal: AbortSignal;
   }): Promise<RadioRunResult> {
-    return this.nextResult?.(input) ?? {
+    let resolveRunStart: (() => void) | undefined;
+    this.runStart = new Promise((resolve) => {
+      resolveRunStart = resolve;
+    });
+    resolveRunStart?.();
+    return await this.nextResult?.(input) ?? {
       runId: input.runId,
       radioDirectionRevision: input.payload.radioDirectionRevision,
       radioSessionRevision: input.payload.radioSessionRevision,
       outcome: "no_action",
       appendedCount: 0,
     };
+  }
+
+  waitForRunStart(): Promise<void> {
+    return this.runStart;
   }
 }
 

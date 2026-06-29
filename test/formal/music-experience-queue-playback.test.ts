@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { refKey, type Ref } from "../../src/contracts/kernel.js";
+import { refKey, type ConcernRevisionChange, type Ref } from "../../src/contracts/kernel.js";
 import type { MusicMaterial, SourceTrack } from "../../src/contracts/music_data_platform.js";
 import {
   MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
@@ -188,8 +188,16 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 {
   const database = await initializedMusicExperienceDatabase();
   await seedRecording(database, materialRef, "A3 Queue Song", ["Queue Artist"]);
+  const observedChanges: ConcernRevisionChange[] = [];
 
-  const command = createMusicExperienceQueuePlaybackCommand({ database });
+  const command = createMusicExperienceQueuePlaybackCommand({
+    database,
+    revisionObserver: {
+      observe(change) {
+        observedChanges.push(change);
+      },
+    },
+  });
   const appended = await command.append({
     ownerScope,
     materialRefs: [materialRef],
@@ -218,6 +226,20 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(playedOutput.playbackRevision, 1);
   assert.equal(playedOutput.status, "playing");
   assert.deepEqual(playedOutput.materialRef, materialRef);
+  assert.deepEqual(observedChanges, [
+    {
+      ownerScope,
+      concern: "queue",
+      newRevision: 1,
+      actor: "main_agent",
+    },
+    {
+      ownerScope,
+      concern: "playback",
+      newRevision: 1,
+      actor: "user",
+    },
+  ]);
 
   const snapshot = await createMusicExperienceQueuePlaybackRecords({
     db: database.context(),
@@ -237,6 +259,12 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   });
   assert.equal(removedWhileSameMaterialPlaying.ok, true);
   assert.equal(removedWhileSameMaterialPlaying.value.queueRevision, 2);
+  assert.deepEqual(observedChanges[2], {
+    ownerScope,
+    concern: "queue",
+    newRevision: 2,
+    actor: "main_agent",
+  });
 
   await database.close();
 }
@@ -253,7 +281,15 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     await seedRecording(database, ref, `PR35 Queue ${index}`, ["Queue Artist"]);
   }
 
-  const command = createMusicExperienceQueuePlaybackCommand({ database });
+  const observedChanges: ConcernRevisionChange[] = [];
+  const command = createMusicExperienceQueuePlaybackCommand({
+    database,
+    revisionObserver: {
+      observe(change) {
+        observedChanges.push(change);
+      },
+    },
+  });
   await command.append({
     ownerScope,
     materialRefs: refs.slice(0, 3),
@@ -296,6 +332,32 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(replaced.value.index, 1);
   assert.deepEqual(replaced.value.item.materialRef, refs[3]);
   assert.equal(replaced.value.item.provenance, "user");
+  assert.deepEqual(observedChanges, [
+    {
+      ownerScope,
+      concern: "queue",
+      newRevision: 1,
+      actor: "main_agent",
+    },
+    {
+      ownerScope,
+      concern: "queue",
+      newRevision: 2,
+      actor: "main_agent",
+    },
+    {
+      ownerScope,
+      concern: "queue",
+      newRevision: 3,
+      actor: "main_agent",
+    },
+    {
+      ownerScope,
+      concern: "queue",
+      newRevision: 4,
+      actor: "user",
+    },
+  ]);
 
   const snapshot = await createMusicExperienceQueuePlaybackRecords({
     db: database.context(),
@@ -319,7 +381,15 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   await seedRecording(database, userRef, "PR35 User Owned", ["Queue Artist"]);
   await seedRecording(database, radioRef, "PR35 Radio Owned", ["Queue Artist"]);
 
-  const command = createMusicExperienceQueuePlaybackCommand({ database });
+  const observedChanges: ConcernRevisionChange[] = [];
+  const command = createMusicExperienceQueuePlaybackCommand({
+    database,
+    revisionObserver: {
+      observe(change) {
+        observedChanges.push(change);
+      },
+    },
+  });
   await command.append({
     ownerScope,
     materialRefs: [userRef],
@@ -393,6 +463,26 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   });
   assert.equal(stale.ok, false);
   assert.equal(stale.error.code, "voided_stale");
+  assert.deepEqual(observedChanges, [
+    {
+      ownerScope,
+      concern: "queue",
+      newRevision: 1,
+      actor: "user",
+    },
+    {
+      ownerScope,
+      concern: "queue",
+      newRevision: 2,
+      actor: "radio_agent",
+    },
+    {
+      ownerScope,
+      concern: "queue",
+      newRevision: 3,
+      actor: "radio_agent",
+    },
+  ]);
 
   await database.close();
 }

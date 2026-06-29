@@ -406,7 +406,12 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       return undefined;
     }
 
-    queuePlaybackCommand ??= createMusicExperienceQueuePlaybackCommand({ database: defaultMusicDatabase });
+    queuePlaybackCommand ??= createMusicExperienceQueuePlaybackCommand({
+      database: defaultMusicDatabase,
+      revisionObserver: {
+        observe: observeConcernRevisionChange,
+      },
+    });
     return queuePlaybackCommand;
   }
 

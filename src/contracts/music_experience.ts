@@ -150,6 +150,7 @@ export type MusicExperienceQueueReplaceCommandOutput = MusicExperienceQueueEditC
 export type MusicExperiencePlaybackPlayCommandInput = {
   ownerScope: string;
   materialRef: Ref;
+  actor?: ConcernRevisionChangeActor;
   now: string;
 };
 

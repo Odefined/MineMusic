@@ -866,6 +866,17 @@ restored as compatibility layers.
   meets the fill target. Radio alone judges whether to remove, replace, move,
   clear, append, or leave its own future queue items unchanged; revisions and
   command basis remain outside provider context.
+- Phase B PR4 now wires the current writer inventory into the PB9 cascade core.
+  Queue append/remove/replace/move/clear and playback play commands emit the
+  same internal post-commit `ConcernRevisionChange` shape as commanded-direction
+  writes; stale, failed, aborted, or rolled-back commands emit none. Server Host
+  routes queue/playback/radio-direction revision events into the Radio
+  supervisor. The supervisor registers each active Radio refill with its
+  direction/session basis and aborts only lower-priority in-flight runs whose
+  basis contains the changed concern (`user > main_agent > radio_agent`).
+  Queue-only bumps are not global aborts, and Radio's own writes do not abort
+  Main/Radio; commit-time CAS remains the correctness boundary if an abort loses
+  the race.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection

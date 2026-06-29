@@ -1,4 +1,5 @@
 import type {
+  MusicExperiencePlaybackPlayCommandOutput,
   MusicExperienceQueuePlaybackCommand,
   MusicExperienceRadioTruthCommand,
   MusicExperienceSetRadioDirectionCommandOutput,
@@ -37,6 +38,7 @@ import {
 
 export type CreateMusicExperienceQueuePlaybackCommandInput = {
   database: MusicDatabase;
+  revisionObserver?: ConcernRevisionObserver;
 };
 
 export type CreateMusicExperienceRadioTruthCommandInput = {
@@ -53,48 +55,138 @@ export function createMusicExperienceQueuePlaybackCommand(
         assertMaterialRef(materialRef);
       }
 
-      return runQueuePlayback(input, async (db) => {
+      const result = await runQueuePlayback(input, async (db) => {
         const records = createMusicExperienceQueuePlaybackRecords({ db });
         return records.append(commandInput);
       });
+      if (result.ok) {
+        observeQueueRevision(input, {
+          ownerScope: commandInput.ownerScope,
+          queueRevision: result.value.queueRevision,
+          actor: actorForQueueProvenance(commandInput.provenance),
+        });
+      }
+      return result;
     },
     async remove(commandInput) {
-      return runQueuePlayback(input, async (db) => {
+      const result = await runQueuePlayback(input, async (db) => {
         const records = createMusicExperienceQueuePlaybackRecords({ db });
         return records.remove(commandInput);
       });
+      if (result.ok) {
+        observeQueueRevision(input, {
+          ownerScope: commandInput.ownerScope,
+          queueRevision: result.value.queueRevision,
+          actor: actorForQueuePermission(commandInput.permission),
+        });
+      }
+      return result;
     },
     async replace(commandInput) {
       assertMaterialRef(commandInput.materialRef);
-      return runQueuePlayback(input, async (db) => {
+      const result = await runQueuePlayback(input, async (db) => {
         const records = createMusicExperienceQueuePlaybackRecords({ db });
         return records.replace(commandInput);
       });
+      if (result.ok) {
+        observeQueueRevision(input, {
+          ownerScope: commandInput.ownerScope,
+          queueRevision: result.value.queueRevision,
+          actor: actorForQueuePermission(commandInput.permission),
+        });
+      }
+      return result;
     },
     async move(commandInput) {
-      return runQueuePlayback(input, async (db) => {
+      const result = await runQueuePlayback(input, async (db) => {
         const records = createMusicExperienceQueuePlaybackRecords({ db });
         return records.move(commandInput);
       });
+      if (result.ok) {
+        observeQueueRevision(input, {
+          ownerScope: commandInput.ownerScope,
+          queueRevision: result.value.queueRevision,
+          actor: actorForQueuePermission(commandInput.permission),
+        });
+      }
+      return result;
     },
     async clear(commandInput) {
-      return runQueuePlayback(input, async (db) => {
+      const result = await runQueuePlayback(input, async (db) => {
         const records = createMusicExperienceQueuePlaybackRecords({ db });
         return records.clear(commandInput);
       });
+      if (result.ok) {
+        observeQueueRevision(input, {
+          ownerScope: commandInput.ownerScope,
+          queueRevision: result.value.queueRevision,
+          actor: actorForQueuePermission(commandInput.permission),
+        });
+      }
+      return result;
     },
     async playNow(commandInput) {
       assertMaterialRef(commandInput.materialRef);
 
-      return input.database.transaction(async (db) => {
+      const result: Result<MusicExperiencePlaybackPlayCommandOutput> = await input.database.transaction(async (db) => {
         const records = createMusicExperienceQueuePlaybackRecords({ db });
         return {
           ok: true,
           value: await records.playNow(commandInput),
         };
       });
+      observePlaybackRevision(input, {
+        ownerScope: commandInput.ownerScope,
+        playbackRevision: result.value.playbackRevision,
+        actor: commandInput.actor ?? "user",
+      });
+      return result;
     },
   };
+}
+
+function observeQueueRevision(
+  input: CreateMusicExperienceQueuePlaybackCommandInput,
+  change: {
+    ownerScope: string;
+    queueRevision: number;
+    actor: ConcernRevisionChangeActor;
+  },
+): void {
+  input.revisionObserver?.observe({
+    ownerScope: change.ownerScope,
+    concern: "queue",
+    newRevision: change.queueRevision,
+    actor: change.actor,
+  });
+}
+
+function observePlaybackRevision(
+  input: CreateMusicExperienceQueuePlaybackCommandInput,
+  change: {
+    ownerScope: string;
+    playbackRevision: number;
+    actor: ConcernRevisionChangeActor;
+  },
+): void {
+  input.revisionObserver?.observe({
+    ownerScope: change.ownerScope,
+    concern: "playback",
+    newRevision: change.playbackRevision,
+    actor: change.actor,
+  });
+}
+
+function actorForQueueProvenance(
+  provenance: "main_agent" | "user" | "radio_agent",
+): ConcernRevisionChangeActor {
+  return provenance;
+}
+
+function actorForQueuePermission(input: {
+  replacementProvenance: "main_agent" | "user" | "radio_agent";
+}): ConcernRevisionChangeActor {
+  return input.replacementProvenance;
 }
 
 async function runQueuePlayback<T>(

@@ -642,6 +642,7 @@ async function handlePlaybackPlay(
   const played = await ports.queuePlayback.playNow({
     ownerScope: ctx.ownerScope,
     materialRef: resolved.value,
+    actor: revisionChangeActorForContext(ctx),
     now: ctx.clock(),
   });
   if (!played.ok) {
@@ -661,4 +662,8 @@ async function handlePlaybackPlay(
       },
     }),
   };
+}
+
+function revisionChangeActorForContext(ctx: StageToolContext): "user" | "main_agent" | "radio_agent" {
+  return ctx.actor ?? "user";
 }
