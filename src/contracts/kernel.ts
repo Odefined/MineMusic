@@ -22,8 +22,8 @@ export type StageWarning = {
   area: FormalArea;
 };
 
-// Monotonic per-area/per-concern revision captured as Agent Work Basis and,
-// from Phase B onward, compared by owning commands at commit time.
+// Monotonic per-area/per-concern revision used by runtime command-basis
+// tracking and compared by owning commands at commit time.
 export type ConcernRevision = number;
 
 // Shared set of concern revisions. Field names at each boundary carry the

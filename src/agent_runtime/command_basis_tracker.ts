@@ -23,8 +23,10 @@ const radioLeanTools = new Set([
 
 export type CommandBasisTracker = {
   preconditionBasisForTool(toolName: string): ConcernRevisionSet | undefined;
-  absorbToolResult(result: Result<ToolCallOutput>): void;
+  absorbToolResult(result: Result<ToolCallOutput>): boolean;
 };
+
+export type CommandBasisTrackerOwner = "main_agent" | "radio_agent";
 
 // Turn/run-local tracker for revision basis. Before a tool call it projects the
 // current revisions into that tool's `preconditionBasis`; after a successful
@@ -32,14 +34,16 @@ export type CommandBasisTracker = {
 // ordinary result revision fields never advance the tracker.
 export function createCommandBasisTracker(input: {
   initialBasis?: ConcernRevisionSet;
+  owner?: CommandBasisTrackerOwner;
 } = {}): CommandBasisTracker {
   let currentBasis: ConcernRevisionSet = {
     ...(input.initialBasis ?? {}),
   };
+  const owner = input.owner ?? "main_agent";
 
   return {
     preconditionBasisForTool(toolName) {
-      const keys = preconditionKeysForTool(toolName);
+      const keys = preconditionKeysForTool(owner, toolName);
       if (keys.length === 0) {
         return undefined;
       }
@@ -48,23 +52,30 @@ export function createCommandBasisTracker(input: {
     },
     absorbToolResult(result) {
       if (!result.ok) {
-        return;
+        return false;
       }
       const changedBasis = changedBasisFromToolResult(result.value.result);
       if (changedBasis === undefined) {
-        return;
+        return false;
       }
       currentBasis = {
         ...currentBasis,
         ...changedBasis,
       };
+      return true;
     },
   };
 }
 
-function preconditionKeysForTool(toolName: string): readonly ConcernRevisionKey[] {
+function preconditionKeysForTool(
+  owner: CommandBasisTrackerOwner,
+  toolName: string,
+): readonly ConcernRevisionKey[] {
   if (radioDirectionTools.has(toolName) || radioLeanTools.has(toolName)) {
     return ["radioDirectionRevision"];
+  }
+  if (owner === "radio_agent" && toolName === "music.experience.queue.append") {
+    return ["radioDirectionRevision", "radioSessionRevision"];
   }
   return [];
 }
@@ -83,7 +94,7 @@ function selectBasisKeys(
   return selected;
 }
 
-function changedBasisFromToolResult(result: unknown): ConcernRevisionSet | undefined {
+export function changedBasisFromToolResult(result: unknown): ConcernRevisionSet | undefined {
   if (result === null || typeof result !== "object") {
     return undefined;
   }

@@ -3,6 +3,7 @@ import type {
   AgentRuntimeStageToolContextFactoryPort,
   MainRadioNotifyChannel,
   RadioRunResultRecorder,
+  RadioPrepareRunHarness,
   RadioToolBridgeCache,
   StageToolDispatchPort,
 } from "../agent_runtime/index.js";
@@ -61,10 +62,6 @@ export function createAgentRuntimeRadioModule(
   const ownerScope = input.ownerScope ?? "local";
   const workspaceId = input.workspaceId ?? DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID;
   let supervisor: RadioSupervisor | undefined;
-  let currentRadioBasis: {
-    radioDirectionRevision: number;
-    radioSessionRevision: number;
-  } | undefined;
   let currentRunResultRecorder: RadioRunResultRecorder | undefined;
   let radioToolBridgeCache: RadioToolBridgeCache | undefined;
 
@@ -116,7 +113,7 @@ export function createAgentRuntimeRadioModule(
         actor: radioDefinition,
         workspaceContext,
         clock: () => new Date().toISOString(),
-        async beforeWorkspaceContextAssemble(payload) {
+        async beforeWorkspaceContextAssemble(_payload) {
           // Lean read: only the posture.stale flag is needed here, so read the
           // radio truth snapshot directly instead of the full workspace
           // projection (which projects every queued/playing material and mints
@@ -129,7 +126,7 @@ export function createAgentRuntimeRadioModule(
           const radioTruth = requirePort(input.radioTruth(), "Music Experience Radio Truth command");
           const cleared = await radioTruth.clearRadioLean({
             ownerScope,
-            commandedRevisionStamp: payload.radioDirectionRevision,
+            commandedRevisionStamp: radioTruthSnapshot.radioDirectionRevision,
             now: new Date().toISOString(),
           });
           if (!cleared.ok) {
@@ -138,13 +135,9 @@ export function createAgentRuntimeRadioModule(
             });
           }
         },
-        prepareRun(payload, _workspaceContext) {
+        prepareRun(_payload, _workspaceContext, _signal, harness) {
           currentRunResultRecorder = createRadioRunResultRecorder();
-          currentRadioBasis = {
-            radioDirectionRevision: payload.radioDirectionRevision,
-            radioSessionRevision: payload.radioSessionRevision,
-          };
-          agent.state.tools = radioTools();
+          return radioTools(harness);
         },
         resultFromRun(resultInput) {
           const recorder = requirePort(currentRunResultRecorder, "Radio run result recorder");
@@ -183,7 +176,6 @@ export function createAgentRuntimeRadioModule(
     async stop() {
       await supervisor?.stop();
       supervisor = undefined;
-      currentRadioBasis = undefined;
       currentRunResultRecorder = undefined;
       radioToolBridgeCache = undefined;
       return { ok: true, value: undefined };
@@ -198,19 +190,17 @@ export function createAgentRuntimeRadioModule(
         }
         return factory.createToolContext({
           ...perCall,
-          actor: "radio_agent",
-          ...(currentRadioBasis === undefined ? {} : { preconditionBasis: currentRadioBasis }),
         });
       },
     };
   }
 
-  function radioTools(): RadioToolBridgeCache["bridge"] {
+  function radioTools(harness: RadioPrepareRunHarness): RadioToolBridgeCache["bridge"] {
     radioToolBridgeCache = createRadioToolBridge({
       sourceTools: input.tools(),
       ...(radioToolBridgeCache === undefined ? {} : { cache: radioToolBridgeCache }),
-      dispatch: lazyDispatch(input),
-      contextFactory: radioContextFactory(),
+      dispatch: harness.wrapDispatch(lazyDispatch(input)),
+      contextFactory: harness.createToolContextFactory(radioContextFactory()),
       stageSessionId: "radio",
       observeToolResult(result) {
         currentRunResultRecorder?.observeToolResult(result);

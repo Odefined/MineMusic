@@ -17,6 +17,14 @@ export type {
   RunMineMusicMainAgentTurnInput,
 } from "./main_agent_session.js";
 export {
+  createMineMusicAgentHarness,
+} from "./agent_harness.js";
+export type {
+  MineMusicAgentHarness,
+  MineMusicAgentHarnessRunResult,
+  MineMusicAgentHarnessTurnState,
+} from "./agent_harness.js";
+export {
   createMineMusicPiAgentAdapter,
 } from "./pi_engine.js";
 export type {
@@ -41,6 +49,7 @@ export {
 } from "./workspace_context_assembler.js";
 export type {
   CreateWorkspaceContextAssemblerInput,
+  WorkspaceContextAssembly,
   WorkspaceContextAssembler,
 } from "./workspace_context_assembler.js";
 export {
@@ -72,6 +81,7 @@ export {
 } from "./radio_run.js";
 export type {
   CreatePiRadioRefillRunPortInput,
+  RadioPrepareRunHarness,
 } from "./radio_run.js";
 export {
   createInMemoryRadioTranscriptStore,

@@ -595,10 +595,13 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
   `ResolveDurableMusicItem` before writing. The handle registry anchor is only a
   private veil anchor, not current domain truth; this is the ADR-0019 survivor
   discipline carried into queue/playback and later playback/radio writes.
-- **Turn driving (harness).** A user turn is `agent.prompt(userMessage)` then
-  `agent.waitForIdle()`; the harness then reads the queue/now-playing projection
-  through the shared Agent Runtime Workspace Context assembler and asserts the
-  outcome. The agent's tools are the A1-bridged Stage tools (`lookup`,
+- **Turn driving (harness).** A user turn awaits `agent.prompt(userMessage)`;
+  low-level pi `Agent.prompt(...)` already waits for the run lifecycle and
+  awaited listeners to finish. `agent.waitForIdle()` remains the public Pi
+  idle/abort coordination capability, but the turn driver must not add a second
+  local wait loop after `prompt()`. The harness then reads the queue/now-playing
+  projection through the shared Agent Runtime Workspace Context assembler and
+  asserts the outcome. The agent's tools are the A1-bridged Stage tools (`lookup`,
   `present`, `queue.append`, `playback.play`). A4 originally captured
   pre-refactor context once at the start of each user turn; Agent Context
   PR3.1/PR3.2/PR3.3 migrated the refresh path to shared `ActorDefinition`
@@ -608,7 +611,7 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
   pi snapshots the current `state.systemPrompt`, `state.messages`, and
   `state.tools` when `prompt()` enters `runAgentLoop`, so A4 can update the
   MineMusic-rendered system prompt at the user-turn boundary while preserving
-  pi-owned transcript, lifecycle, abort, and `waitForIdle()` behavior. The A4
+  pi-owned transcript, lifecycle, abort, and idle coordination behavior. The A4
   user-turn facade is deliberately serial and does not expose pi `steer()` /
   `followUp()` queueing yet; if a later slice wants mid-run user input it should
   add that as an explicit Agent Runtime facade capability instead of accidentally
@@ -645,7 +648,7 @@ exactly**; version drift is the real risk, not capability gaps.
 | `new Agent({})` works; empty default system prompt; no baked coding/skill content | ✅ | A1 embedding choice (low-level `Agent` as engine; `AgentHarness` not runtime owner) |
 | Tools `execute(toolCallId, params, signal?, onUpdate?)`; params schema is TypeBox = JSON Schema, passed to provider verbatim | ✅ (raw JSON Schema usable directly) | A1 bridge; **resolves the JSON-Schema→pi-schema open question — near-zero conversion** |
 | Per-tool-call `AbortSignal` provided; `abort()` flips it into in-flight tools | ✅ — but **cooperative**: pi forwards the signal, does not hard-kill; the tool/dispatch must honor it | A1 `abortSignal` wiring; **PB9** (see correction below) |
-| `prompt`/`continue`/`abort` + `waitForIdle()` loop control | ✅ | PB1/PB2 discrete runs; A4 turn driving; harness `waitForIdle` |
+| `prompt`/`continue`/`abort` + `waitForIdle()` idle coordination | ✅ | PB1/PB2 discrete runs; A4 turn driving; harness idle/abort coordination |
 | `before/afterToolCall` hooks are async and awaited; can pause the loop on an external promise | ✅ (experiment) — but **a paused hook does not auto-honor `abort()`; the hook must `Promise.race` the signal itself** | A1 double-gate; **I2 integration-layer loop pause**; PB9 |
 | Persistence / compaction / endurance | ◑ **only in the harness; low-level `Agent` has none** (`reset()` clears memory; `sessionId` is just a provider cache hint) | **D-row correction below**: MineMusic builds continuity itself (ADR-0037), it is *not* inherited from pi at our chosen layer |
 | Transcript externally readable/truncatable (`agent.state.messages` is a public writable accessor) | ✅ (experiment: `slice()` truncates, no harness/LLM) | **PB8a injected-compaction test — gate PASSES, no fall-back to after-B.** Use the direct-assignment / `transformContext` path for the deterministic LLM-free test; the full `compact()` API needs an LLM + `SessionTreeEntry[]`, so it is **not** the path for a deterministic test. Compaction is manual-only (no token-threshold auto-trigger). |
@@ -701,7 +704,7 @@ exactly**; version drift is the real risk, not capability gaps.
   (`queue_full`), and guards.
 - PR A4: **implemented (pre-refactor)** — long-lived pi `Agent` turn session,
   turn-start context refresh through `state.systemPrompt`, pi `prompt()` /
-  `waitForIdle()` loop delegation, harness-visible response/messages, and
+  idle/abort coordination, harness-visible response/messages, and
   deterministic end-to-end harness over `lookup -> present -> queue.append ->
   playback.play`. The context source is scheduled to migrate to the shared
   Workspace Context assembler.

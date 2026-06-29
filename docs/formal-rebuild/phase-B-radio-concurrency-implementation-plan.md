@@ -29,7 +29,7 @@ capability routes, not because of a numbering reshuffle.
 
 ## pi Source Fidelity (load-bearing — read before any agent-loop/harness work)
 
-The spec carries a `## pi Source Fidelity (load-bearing)` section: every agent-loop / harness / transcript-continuity / compaction / abort decision must **mirror how pi actually does it** — one long-lived `Agent` accumulating `_state.messages` across `prompt()`/`continue()`, compaction in place, reload only at process restart, `agent_start` for per-run-start seams. **During execution, constantly reference the pinned pi source** (`node_modules/@earendil-works/pi-agent-core/dist`: `agent.js`, `agent-loop.js`, `harness/agent-harness.js`, `harness/session/*`, `harness/compaction/*`) and **replicate its methods — not a 1:1 copy, but match the mechanism.** No per-run Agent reconstruction, no per-turn transcript reload, no invented pi methods (the deleted `store.reload`). If a planned mechanism has no pi-source precedent, stop and cite the precedent (file:line) or raise it — do not invent. MineMusic builds only what pi genuinely lacks (pacing, single-flight, OCC, the PG durability store, the cascade, and Radio terminal declaration).
+The spec carries a `## pi Source Fidelity (load-bearing)` section: every agent-loop / harness / transcript-continuity / compaction / abort decision must **mirror how pi actually does it** — one long-lived `Agent` accumulating `_state.messages` across `prompt()`/`continue()`, compaction in place, reload only at process restart, provider context installed before `Agent.prompt(...)` snapshots `state`, `agent_start` as observation only, and same-run refresh through `prepareNextTurn`. **During execution, constantly reference the pinned pi source** (`node_modules/@earendil-works/pi-agent-core/dist`: `agent.js`, `agent-loop.js`, `harness/agent-harness.js`, `harness/session/*`, `harness/compaction/*`) and **replicate its methods — not a 1:1 copy, but match the mechanism.** No per-run Agent reconstruction, no per-turn transcript reload, no invented pi methods (the deleted `store.reload`). If a planned mechanism has no pi-source precedent, stop and cite the precedent (file:line) or raise it — do not invent. MineMusic builds only what pi genuinely lacks (pacing, single-flight, OCC, the PG durability store, the cascade, and Radio terminal declaration).
 
 ---
 
@@ -82,8 +82,8 @@ PR7 (PB8a)                 endurance acceptance: transcript erosion + floor/cont
 **Files touched:**
 - `src/music_experience/schema.ts` — add `radio_direction_revision`, `radio_session_revision`, `queue_next_position` to `music_experience_state` (bump schema contribution id; the `ensureState` seed path in `records.ts` must seed the new columns to defaults `0`/`1`).
 - `src/music_experience/records.ts` — replace `SELECT MAX(position)` with `UPDATE … SET queue_next_position = queue_next_position + :N RETURNING queue_next_position - :N AS base_position` (PB6 "Atomic mint"); add the optional basis CAS as a second statement in the same transaction (PB6 "Decoupled from the basis CAS"); zero rows ⇒ `voided_stale` (the counter increment rolls back with the transaction — no position gap).
-- `src/music_experience/commands.ts` — `append` accepts an optional `CommandPreconditionSet`; propagate `voided_stale`.
-- `src/contracts/kernel.ts` — add `CommandPreconditionSet = { radioDirectionRevision?, queueRevision?, radioSessionRevision?, playbackRevision? }` (built on the existing `ConcernRevision`); document the `voided_stale` error code.
+- `src/music_experience/commands.ts` — `append` accepts an optional `ConcernRevisionSet` as `basis`; propagate `voided_stale`.
+- `src/contracts/kernel.ts` — add `ConcernRevisionSet = { radioDirectionRevision?, queueRevision?, radioSessionRevision?, playbackRevision? }` (built on the existing `ConcernRevision`); document the `voided_stale` error code.
 - `src/contracts/music_experience.ts` — `append` input gains optional `basis?`; error vocabulary gains `voided_stale`.
 - `src/music_experience/stage_adapter/queue_playback.ts` — remove the batch-of-1 length check (`:177-184`); `provenance` is currently hardcoded `"main_agent"` (`:214`) and must accept `"radio_agent"` (Radio's use).
 - `src/contracts/generated/stage_interface_schemas.ts` — regenerate: `maxItems: 1` → N.
@@ -164,20 +164,18 @@ commands land in PR3.4 as structured actor-appropriate routes.
 - `src/agent_runtime/` (new files):
   - `radio_supervisor.ts` — lifecycle enum, `refilling` single-flight flag, wake gate (depth < `low` AND not refilling AND `Running` AND not-exhausted-for-current-direction), `refillGeneration` counter, exhaustion record (the exhausted `radio_direction_revision`), submit-to-BW with idempotency key `{workspaceId, radioSessionRevision, radioDirectionRevision, wakeReason, refillGeneration}` (PB1 "Idempotency key"), release single-flight on `awaitTerminal`, inter-job failed-terminal cooldown via `runAfter` (PB1a "Hot-loop prevention is two non-overlapping layers").
   - `radio_run.ts` — one bounded Radio turn on the supervisor's **long-lived**
-    `Agent`: capture basis `{radioDirectionRevision, radioSessionRevision}` at
-    turn start (PB3 "Commit mechanism… captures the basis at turn start"), call
-    `agent.prompt(...)` (the transcript accumulates in `_state.messages`
-    automatically — **no reload, no reconstruct**), select + batch-append (via
-    `playback.queue.append`, provenance `radio_agent`) + emit the run result; **after**
-    the turn (`agent_end` + `waitForIdle`) persist the accumulated
-    `agent.state.messages` to the PG store. Run-start logic — PB8 posture stamp
-    check (carry iff stamp matches current `radio_direction_revision`; stale
-    posture is surfaced as stale and not treated as current lean) and the PB5
-    direction refresh — runs on the supervisor's `subscribe(agent_start)` hook
-    (pi's per-run-start event, `agent-loop.js`), **not**
-    `prepareNextTurn`/`beforeToolCall`. The durable Radio posture clear/rewrite
-    capability lands in PR3.4. PR3.2 replaces the landed PR3 temporary legacy
-    direction injection with the shared Workspace Context assembler.
+    `Agent`: call `agent.prompt(...)` (the transcript accumulates in
+    `_state.messages` automatically — **no reload, no reconstruct**), select +
+    batch-append (via `playback.queue.append`, provenance `radio_agent`) + emit
+    the run result; the `agent_end` listener persists accumulated
+    `agent.state.messages` to the PG store, and pi `Agent.prompt(...)` resolves
+    only after the loop/listeners finish. The landed PR3 substrate
+    still carries payload revisions for supervisor idempotency/result
+    correlation, but PR3.2 moves prompt/context refresh and command-basis
+    tracking into the shared AgentHarness adapter. Run-start PB8 stale-posture
+    check is a pre-assembly Music Experience domain hook; `agent_start` is only
+    an observation hook because pi snapshots provider context before emitting it.
+    Same-run context refresh after tool results uses pi `prepareNextTurn`.
   - `radio_session_repo_facade.ts` + PG transcript store — the MineMusic-built durability layer, **root-export-helper-first** (ADR-0039 §3). PR3 ships **a real Postgres-backed Agent Runtime transcript repository for production** (PB2 "survives process restart") **plus an in-memory double for the deterministic harness** (PB8a — PG unneeded for that acceptance). **Writes only after each turn** (persist `agent.state.messages` to PG); **reads only at restart** — reconstruct via `new Agent({ initialState: { messages: store.load(...) } })` (low-level Agent path) or `repo.open`→`session.buildContext`→`state.messages` (harness-style session). `SessionRepo` exposes `create/open/list/delete/fork` — **no `reload`** (that was an invented method, now removed). **No per-run reload**: production reads come from the long-lived Agent's `_state.messages`. Compaction reuses pi's `prepareCompaction`/`compact`/`appendCompaction` helpers on the held Agent/session (ADR-0039). PG store is Phase B production scope, not deferred.
   - `main_radio_channel.ts` — optional typed Main↔Radio channel shell only. Phase B does not require runtime bus delivery for PR6; do not add PB7 semantic forwarding here.
   - `speech_level.ts` — minimal `Silent | Notify` vocabulary shell. PB7 terminal declaration and derived notify intent land in PR6.
@@ -198,7 +196,7 @@ commands land in PR3.4 as structured actor-appropriate routes.
 
 **Verification:** `npm run typecheck`; `npm run test:stage-core radio-supervisor`; `npm run test:stage-core background-work-backend`.
 
-**Stopping condition:** wake gate correct across all three lifecycle states + exhaustion shell; single-flight coalesces; zero-append/no-action is not script-promoted to candidate exhaustion; failed-terminal cools down, succeeded does not; idempotency key correct across retries vs generations; **one long-lived Agent per Radio** accumulates `_state.messages` across `prompt()` turns with NO per-run reload/reconstruct; run-start stamp/context logic runs on `subscribe(agent_start)`; transcript persisted after each turn to PG; **cross-context two-step (test 7) voids on stale basis and the idempotent retry resolves the same material ref and appends exactly once, with a committed-but-not-appended material treated as a benign orphan (PB4)**; a simulated restart reconstructs the Agent from PG and continuity survives (in-memory double in the harness). The temporary legacy context injection path is retired by PR3.2; PB7 remains open until PR6's structured Radio terminal declaration.
+**Stopping condition:** wake gate correct across all three lifecycle states + exhaustion shell; single-flight coalesces; zero-append/no-action is not script-promoted to candidate exhaustion; failed-terminal cools down, succeeded does not; idempotency key correct across retries vs generations; **one long-lived Agent per Radio** accumulates `_state.messages` across `prompt()` turns with NO per-run reload/reconstruct; transcript persisted after each turn to PG; run-start context is installed before `Agent.prompt(...)` by PR3.2's shared AgentHarness path, and `agent_start` remains observation-only; **cross-context two-step (test 7) voids on stale basis and the idempotent retry resolves the same material ref and appends exactly once, with a committed-but-not-appended material treated as a benign orphan (PB4)**; a simulated restart reconstructs the Agent from PG and continuity survives (in-memory double in the harness). The temporary legacy context injection path is retired by PR3.2; PB7 remains open until PR6's structured Radio terminal declaration.
 
 **Optional split point:** if the BW port extension is contentious in review, split it into PR3a (port + fake backend) immediately before this PR. Default: keep folded.
 
@@ -249,18 +247,27 @@ works for current actors, and no actor has a second new context path.
 **Covers:** `docs/formal-rebuild/agent-context-engineering-spec.md` (Radio application), replaces the landed PR3 Radio-only prompt floor.
 
 **Goal:** Move Radio's run-start context load from `renderRadioRunSystemPrompt`
-to the shared Workspace Context assembler, while preserving PR3's long-lived pi
-Agent, `agent_start` timing, transcript persistence, PB8 posture-stamp carry /
-clear, and Radio run result behavior.
+to the shared MineMusic `AgentHarness` adapter and Workspace Context assembler,
+while preserving PR3's long-lived pi Agent, transcript persistence, PB8
+posture-stamp carry / clear, and Radio run result behavior.
 
 **Files touched:**
-- `src/agent_runtime/radio_run.ts` — delete `renderRadioRunSystemPrompt`; run-start
-  refresh drives the shared assembler (`radio` + `listening`) into
-  `state.systemPrompt` before the pi snapshot.
+- `src/agent_runtime/agent_harness.ts` — shared adapter for Main and Radio:
+  mirrors pi `AgentHarness` vocabulary (`createTurnState`, provider context,
+  `prepareNextTurn`), owns runtime-only command-basis tracking, injects
+  `preconditionBasis` into Stage tool context, absorbs internal `changedBasis`,
+  and installs `state.systemPrompt` / `state.tools` before `Agent.prompt(...)`
+  snapshots provider context.
+- `src/agent_runtime/radio_run.ts` — delete `renderRadioRunSystemPrompt`; Radio
+  uses the same shared `AgentHarness` adapter as Main. Radio-specific Background
+  Work, stale-posture clear, transcript persistence, and run result extraction
+  stay outside the shared agent loop path.
 - `src/server/agent_runtime_radio_module.ts` — drop the inline
-  `radioBaseSystemPrompt` ownership and wire `radioDefinition`.
+  `radioBaseSystemPrompt` ownership and wire `radioDefinition`; do not inject
+  command basis in the server module.
 - `src/contracts/agent_runtime.ts` — replace prose Radio invocation with JSON
-  `{run:{kind:"radio_refill",runId,wakeReason,suggestedAppendCount,basis:{radioDirectionRevision,radioSessionRevision}}}`.
+  `{run:{kind:"radio_refill",runId,wakeReason,suggestedAppendCount}}`. Runtime
+  command basis is not agent-facing invocation content.
 
 **Dependencies:** PR3.1, PR2, landed PR3.
 
@@ -268,9 +275,10 @@ clear, and Radio run result behavior.
 - Radio run-start `systemPrompt` equals shared assembler output, not a Radio-only
   renderer.
 - Radio sees current queue handles/labels for dedupe, not only queue length.
-- Invocation Context is JSON and carries basis revisions separately from
-  Workspace Context.
-- `agent_start` timing remains the run-start seam.
+- Invocation Context is JSON and does not carry command basis.
+- pi source fidelity: run-start context is installed before `Agent.prompt(...)`
+  because pi snapshots before `agent_start`; same-run refresh uses
+  `prepareNextTurn`.
 
 **Verification:** `npm run typecheck`; `npm run test:stage-core radio-run radio-supervisor`.
 
@@ -376,11 +384,11 @@ correctness dependent on a projection trick.
   `radio.motif.set` / `radio.motif.clear` and `radio.variations.*` to Main's tool
   pack; add only `radio.lean.*` to Radio's tool pack.
 - `src/agent_runtime/stage_tool_bridge.ts` and
-  `src/agent_runtime/main_agent_session.ts` — let the bridge pass the current
-  Stage tool name into context creation, and inject `radioDirectionRevision`
-  basis for Main only when the tool being called is one of the radio-direction
-  action tools. Do not put direction basis on all Main tools; queue append must
-  not accidentally inherit it.
+  `src/agent_runtime/agent_harness.ts` — let the bridge pass the current Stage
+  tool name into context creation. The shared AgentHarness adapter injects
+  runtime-only `preconditionBasis` for both Main and Radio according to the
+  current actor definition and tool policy; Main and Radio do not carry parallel
+  basis logic.
 - `src/agent_runtime/radio_run.ts` and shared context projection tests — run-start
   may observe stale posture, but the correction path is the Music
   Experience-owned posture command surface, not encoder suppression.
@@ -643,8 +651,9 @@ own musical judgement at run end, including
 `candidate_exhaustion_by_direction`. Radio declares only the judgement
 (`refill_complete`, `no_action`, or `candidate_exhaustion_by_direction`) plus any
 short summary/rationale it owns. Agent Runtime supplies mechanical facts:
-`runId`, basis revisions, append counts, tool facts, stale/abort/failure status,
-derived severity, and any notify intent. Discovery, selection, recorder
+`runId`, runtime concern revisions, append counts, tool facts,
+stale/abort/failure status, derived severity, and any notify intent. Discovery,
+selection, recorder
 fixtures, zero appended items, and script heuristics must not infer Radio's
 judgement.
 
@@ -743,7 +752,7 @@ uses real callable surfaces instead of fixtures or script judgement.
 
 | Requirement | Short title | PR | Build-dependency reason for placement |
 |----|------|----|----------------------|
-| PB3 | per-area per-concern basis + CAS + CommandPreconditionSet | **PR1** | Columns + CAS are the read/write substrate for every later OCC behavior. |
+| PB3 | per-area per-concern basis + CAS + ConcernRevisionSet | **PR1** | Columns + CAS are the read/write substrate for every later OCC behavior. |
 | PB6 | atomic position mint + batch-of-N + cross-owner two-step | **PR1** (build); **PR3** (integration test) | Build is the same transaction body as CAS; cross-context two-step needs Radio wiring. |
 | PB4 | three-layer item model; queue holds material refs | **PR3** (integration confirm only) | Existing model is confirmed through Radio append/retry behavior. |
 | PB5 | Radio steering = musical ops on owned radio truth | **PR2** (storage); **PR3.4** (structured Main steering route); **PR3.6** (direction-change correction) | Storage alone is not enough; Main needs motif/variation edits and Radio needs active correction semantics. |

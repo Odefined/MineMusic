@@ -54,9 +54,5 @@ export type RadioRefillRunInvocation = {
     runId: string;
     wakeReason: RadioWakeReason;
     suggestedAppendCount: number;
-    basis: {
-      radioDirectionRevision: ConcernRevision;
-      radioSessionRevision: ConcernRevision;
-    };
   };
 };

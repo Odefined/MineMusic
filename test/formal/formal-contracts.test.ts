@@ -95,7 +95,7 @@ export type _stageRuntimeStatusShape = Expect<Equal<StageRuntimeStatus, "created
 export type _runtimeModuleStatusShape = Expect<Equal<RuntimeModuleStatus, "created" | "initializing" | "initialized" | "stopping" | "stopped" | "failed">>;
 export type _runtimeModuleOwnerAreas = Expect<Equal<RuntimeModuleOwnerArea, "stage_core" | "agent_runtime" | "workbench_interface" | "extension" | "music_data_platform" | "music_intelligence" | "music_experience" | "memory" | "effect_boundary">>;
 export type _runtimeSnapshotShapes = Expect<Equal<keyof RuntimeErrorSummary, "code" | "message" | "area"> & Equal<keyof RuntimeModuleSnapshot, "id" | "ownerArea" | "status" | "error"> & Equal<keyof StageRuntimeSnapshot, "status" | "modules" | "interfaceContract" | "error" | "cleanupErrors"> & Equal<ForbiddenKeys<StageRuntimeSnapshot, "handlers" | "config" | "providerDescriptors" | "dbPath">, never>>;
-export type _musicExperienceWorkspaceProjectionShape = Expect<Equal<keyof MusicExperienceWorkspaceProjection, "revision" | "queue" | "nowPlaying" | "radio">>;
+export type _musicExperienceWorkspaceProjectionShape = Expect<Equal<keyof MusicExperienceWorkspaceProjection, "concernRevisions" | "revision" | "queue" | "nowPlaying" | "radio">>;
 export type _musicExperienceWorkspaceProjectionPortShape = Expect<Equal<keyof MusicExperienceWorkspaceProjectionPort, "readWorkspaceProjection">>;
 export type _radioNotifyRequestSubjectShape = Expect<
     Equal<keyof RadioNotifyRequest, "speechLevel" | "severity" | "eventKind" | "runId" | "radioDirectionRevision" | "subject" | "summary"> &

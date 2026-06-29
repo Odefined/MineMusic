@@ -63,12 +63,19 @@ const assembler = createWorkspaceContextAssembler({
   },
 });
 
-const workspaceContext = await assembler.assemble({
+const assembly = await assembler.assemble({
   actor: mainDefinition,
   ownerScope: "local",
 });
+const workspaceContext = assembly.workspaceContext;
 
 assert.deepEqual(readCalls, [{ ownerScope: "local" }]);
+assert.deepEqual(assembly.commandBasis, {
+  queueRevision: 7,
+  radioDirectionRevision: 7,
+  radioSessionRevision: 0,
+  playbackRevision: 0,
+});
 assert.deepEqual(workspaceContext, {
   listening: {
     nowPlaying: "\"whoo\" - \"Nemophila\" [material:public_material_1]",
@@ -134,10 +141,11 @@ assert.equal(agent.state.systemPrompt, rendered);
 
 const maliciousRendered = renderAgentRuntimeSystemPrompt({
   actor: mainDefinition,
-  workspaceContext: await createWorkspaceContextAssembler({
+  workspaceContext: (await createWorkspaceContextAssembler({
     musicExperience: {
       async readWorkspaceProjection() {
         return {
+          concernRevisions: defaultConcernRevisions({ queueRevision: 8, radioDirectionRevision: 0 }),
           revision: 8,
           nowPlaying: {
             item: "[material:public_material_3]" as const,
@@ -156,7 +164,7 @@ const maliciousRendered = renderAgentRuntimeSystemPrompt({
         };
       },
     },
-  }).assemble({ actor: mainDefinition, ownerScope: "local" }),
+  }).assemble({ actor: mainDefinition, ownerScope: "local" })).workspaceContext,
 });
 
 assert.equal(maliciousRendered.includes("\nWorkspace Context:\nradio:"), false);
@@ -177,6 +185,7 @@ assert.throws(
 
 function projectionFixture(): MusicExperienceWorkspaceProjection {
   return {
+    concernRevisions: defaultConcernRevisions({ queueRevision: 7, radioDirectionRevision: 7 }),
     revision: 7,
     nowPlaying: {
       item: "[material:public_material_1]",
@@ -207,6 +216,18 @@ function projectionFixture(): MusicExperienceWorkspaceProjection {
         stale: false,
       },
     },
+  };
+}
+
+function defaultConcernRevisions(input: {
+  queueRevision: number;
+  radioDirectionRevision: number;
+}) {
+  return {
+    queueRevision: input.queueRevision,
+    radioDirectionRevision: input.radioDirectionRevision,
+    radioSessionRevision: 0,
+    playbackRevision: 0,
   };
 }
 

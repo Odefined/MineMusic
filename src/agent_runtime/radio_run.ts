@@ -1,6 +1,7 @@
 import type {
   Agent,
   AgentMessage,
+  AgentTool,
 } from "@earendil-works/pi-agent-core";
 
 import type {
@@ -10,6 +11,9 @@ import type {
 } from "../contracts/agent_runtime.js";
 import { finalAssistantMessage } from "./agent_message_helpers.js";
 import {
+  createMineMusicAgentHarness,
+} from "./agent_harness.js";
+import {
   radioDefinition,
   type ActorDefinition,
 } from "./actor_definition.js";
@@ -18,11 +22,19 @@ import type {
   RadioTranscriptStore,
 } from "./radio_session_repo_facade.js";
 import type { RadioRefillRunPort } from "./radio_supervisor.js";
+import type {
+  AgentRuntimeStageToolContextFactoryPort,
+  StageToolDispatchPort,
+} from "./stage_tool_bridge.js";
 import type { WorkspaceContextAssembler } from "./workspace_context_assembler.js";
-import {
-  renderAgentRuntimeSystemPrompt,
-  type EncodedWorkspaceContext,
-} from "./workspace_context_encoder.js";
+import type { EncodedWorkspaceContext } from "./workspace_context_encoder.js";
+
+export type RadioPrepareRunHarness = {
+  createToolContextFactory(
+    factory: AgentRuntimeStageToolContextFactoryPort,
+  ): AgentRuntimeStageToolContextFactoryPort;
+  wrapDispatch(dispatch: StageToolDispatchPort): StageToolDispatchPort;
+};
 
 export type CreatePiRadioRefillRunPortInput = RadioTranscriptKey & {
   agent: Agent;
@@ -45,7 +57,8 @@ export type CreatePiRadioRefillRunPortInput = RadioTranscriptKey & {
     payload: RadioRefillRunJobPayload,
     workspaceContext: EncodedWorkspaceContext,
     signal: AbortSignal,
-  ) => Promise<void> | void;
+    harness: RadioPrepareRunHarness,
+  ) => readonly AgentTool[] | Promise<readonly AgentTool[] | void> | void;
   resultFromRun?: (input: {
     runId: string;
     payload: RadioRefillRunJobPayload;
@@ -72,6 +85,12 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
   let activePayload: RadioRefillRunJobPayload | undefined;
   let activeWorkspaceContext: EncodedWorkspaceContext | undefined;
   const actor = input.actor ?? radioDefinition;
+  const harness = createMineMusicAgentHarness({
+    agent: () => input.agent,
+    actor,
+    ownerScope: input.ownerScope,
+    workspaceContext: input.workspaceContext,
+  });
   const maxTranscriptMessages = input.maxTranscriptMessages ?? 200;
   if (!Number.isSafeInteger(maxTranscriptMessages) || maxTranscriptMessages <= 0) {
     throw new Error("Radio transcript message cap must be a positive safe integer.");
@@ -116,42 +135,44 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
 
       activeRunId = runInput.runId;
       activePayload = runInput.payload;
-      const abortAgent = () => {
-        input.agent.abort();
-      };
-      let firstNewMessageIndex = 0;
       try {
         await input.beforeWorkspaceContextAssemble?.(runInput.payload, runInput.signal);
         if (runInput.signal.aborted) {
           return voidedStaleResult(runInput.runId, runInput.payload);
         }
-        activeWorkspaceContext = await input.workspaceContext.assemble({
-          actor,
-          ownerScope: input.ownerScope,
+        const initialTurnState = await harness.createTurnState({
+          tools: [],
         });
+        activeWorkspaceContext = initialTurnState.workspaceContext;
         if (runInput.signal.aborted) {
           return voidedStaleResult(runInput.runId, runInput.payload);
         }
-        // The shared Workspace Context and tool bridge must be installed before
-        // prompt(), because pi snapshots provider context before agent_start.
-        input.agent.state.systemPrompt = renderAgentRuntimeSystemPrompt({
-          actor,
-          workspaceContext: activeWorkspaceContext,
-        });
-        await input.prepareRun?.(runInput.payload, activeWorkspaceContext, runInput.signal);
+        const preparedTools = await input.prepareRun?.(
+          runInput.payload,
+          activeWorkspaceContext,
+          runInput.signal,
+          {
+            createToolContextFactory: harness.createToolContextFactory,
+            wrapDispatch: harness.wrapDispatch,
+          },
+        );
         if (runInput.signal.aborted) {
           return voidedStaleResult(runInput.runId, runInput.payload);
         }
-        firstNewMessageIndex = input.agent.state.messages.length;
-        runInput.signal.addEventListener("abort", abortAgent, { once: true });
-        await input.agent.prompt(await promptForPayload(input, {
-          runId: runInput.runId,
-          payload: runInput.payload,
-          workspaceContext: activeWorkspaceContext,
-        }));
-        await input.agent.waitForIdle();
-
-        const newMessages = input.agent.state.messages.slice(firstNewMessageIndex);
+        const turnState = {
+          ...initialTurnState,
+          tools: preparedTools ?? input.agent.state.tools,
+        };
+        const runResult = await harness.runAgentTurn({
+          prompt: await promptForPayload(input, {
+            runId: runInput.runId,
+            payload: runInput.payload,
+            workspaceContext: activeWorkspaceContext,
+          }),
+          turnState,
+          abortSignal: runInput.signal,
+        });
+        const newMessages = runResult.newMessages;
         if (finalAssistantAborted(newMessages)) {
           return voidedStaleResult(runInput.runId, runInput.payload);
         }
@@ -172,7 +193,6 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
 
         return result;
       } finally {
-        runInput.signal.removeEventListener("abort", abortAgent);
         activeRunId = undefined;
         activePayload = undefined;
         activeWorkspaceContext = undefined;
@@ -210,10 +230,6 @@ function radioInvocationForPayload(input: {
       runId: input.runId,
       wakeReason: input.payload.wakeReason,
       suggestedAppendCount: input.payload.suggestedAppendCount,
-      basis: {
-        radioDirectionRevision: input.payload.radioDirectionRevision,
-        radioSessionRevision: input.payload.radioSessionRevision,
-      },
     },
   };
 }

@@ -65,6 +65,12 @@ export function createMusicExperienceReadModel(
       }
 
       return {
+        concernRevisions: {
+          queueRevision: snapshot.queueRevision,
+          radioDirectionRevision: snapshot.radioDirectionRevision,
+          radioSessionRevision: snapshot.radioSessionRevision,
+          playbackRevision: snapshot.playbackRevision,
+        },
         revision: snapshot.queueRevision,
         queue: snapshot.queue.map((item) => ({
           ...requireProjectedSummary(item.materialRef, summaries),

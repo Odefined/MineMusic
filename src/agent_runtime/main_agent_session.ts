@@ -2,6 +2,10 @@ import type { Agent, AgentMessage } from "@earendil-works/pi-agent-core";
 
 import { finalAssistantMessage } from "./agent_message_helpers.js";
 import {
+  createMineMusicAgentHarness,
+  type MineMusicAgentHarness,
+} from "./agent_harness.js";
+import {
   mainDefinition,
   selectActorStageToolDeclarations,
   type ActorDefinition,
@@ -10,14 +14,7 @@ import {
   createMineMusicPiAgentAdapter,
   type CreateMineMusicPiAgentAdapterInput,
 } from "./pi_engine.js";
-import {
-  createCommandBasisTracker,
-  type CommandBasisTracker,
-} from "./command_basis_tracker.js";
-import {
-  renderAgentRuntimeSystemPrompt,
-  type EncodedWorkspaceContext,
-} from "./workspace_context_encoder.js";
+import type { EncodedWorkspaceContext } from "./workspace_context_encoder.js";
 import type { WorkspaceContextAssembler } from "./workspace_context_assembler.js";
 
 export type MineMusicMainAgentAssistantMessage = Extract<AgentMessage, { role: "assistant" }>;
@@ -61,110 +58,62 @@ export function createMineMusicMainAgentSession(
   input: CreateMineMusicMainAgentSessionInput,
 ): MineMusicMainAgentSession {
   const actor = input.actor ?? mainDefinition;
-  let currentTurnBasisTracker: CommandBasisTracker | undefined;
-  const agent = createMineMusicPiAgentAdapter({
+  let agent: Agent;
+
+  if (input.agentOptions.prepareNextTurn !== undefined) {
+    throw new Error("MineMusic Main Agent session owns pi prepareNextTurn for Workspace Context refresh.");
+  }
+
+  const harness = createMineMusicAgentHarness({
+    agent: () => agent,
+    actor,
+    ownerScope: input.ownerScope,
+    workspaceContext: input.workspaceContext,
+  });
+
+  agent = createMineMusicPiAgentAdapter({
     ...input,
-    dispatch: {
-      async dispatch(dispatchInput) {
-        const result = await input.dispatch.dispatch(dispatchInput);
-        currentTurnBasisTracker?.absorbToolResult(result);
-        return result;
-      },
-    },
-    contextFactory: {
-      createToolContext(perCall) {
-        const preconditionBasis = currentTurnBasisTracker?.preconditionBasisForTool(perCall.toolName);
-        return input.contextFactory.createToolContext({
-          ...perCall,
-          actor: "main_agent",
-          ...(preconditionBasis === undefined ? {} : { preconditionBasis }),
-        });
-      },
-    },
+    dispatch: harness.wrapDispatch(input.dispatch),
+    contextFactory: harness.createToolContextFactory(input.contextFactory),
     tools: selectActorStageToolDeclarations({
       actor,
       tools: input.tools,
     }),
-    systemPrompt: renderAgentRuntimeSystemPrompt({
-      actor,
-      workspaceContext: {},
-    }),
+    systemPrompt: "",
+    agentOptions: input.agentOptions,
   });
 
   return createMainAgentSessionController({
     agent,
-    actor,
-    ownerScope: input.ownerScope,
-    workspaceContext: input.workspaceContext,
-    seedCurrentTurnBasisTracker(workspaceContext) {
-      currentTurnBasisTracker = createCommandBasisTracker({
-        initialBasis: {
-          ...(workspaceContext.radio === undefined
-            ? {}
-            : { radioDirectionRevision: workspaceContext.radio.directionRevision }),
-        },
-      });
-    },
-    clearCurrentTurnBasisTracker() {
-      currentTurnBasisTracker = undefined;
-    },
+    harness,
   });
 }
 
 function createMainAgentSessionController(input: {
   agent: Agent;
-  actor: ActorDefinition;
-  ownerScope: string;
-  workspaceContext: WorkspaceContextAssembler;
-  seedCurrentTurnBasisTracker(workspaceContext: EncodedWorkspaceContext): void;
-  clearCurrentTurnBasisTracker(): void;
+  harness: MineMusicAgentHarness;
 }): MineMusicMainAgentSession {
-  let activeTurn = false;
-
   return {
     async runUserTurn(turnInput) {
-      if (activeTurn) {
-        throw new Error(
-          "MineMusic Main Agent turn facade is serial in Phase A4; pi steer()/followUp() queueing is intentionally not exposed through this facade yet.",
-        );
-      }
+      const runResult = await input.harness.runAgentTurn({
+        prompt: turnInput.userMessage,
+        tools: input.agent.state.tools,
+      });
+      const { turnState, newMessages } = runResult;
+      const finalAssistant = finalAssistantMessage(newMessages);
+      const responseText = finalAssistant === undefined ? undefined : assistantResponseText(finalAssistant);
 
-      activeTurn = true;
-      try {
-        const workspaceContext = await input.workspaceContext.assemble({
-          actor: input.actor,
-          ownerScope: input.ownerScope,
-        });
-        input.seedCurrentTurnBasisTracker(workspaceContext);
-
-        input.agent.state.systemPrompt = renderAgentRuntimeSystemPrompt({
-          actor: input.actor,
-          workspaceContext,
-        });
-
-        const firstNewMessageIndex = input.agent.state.messages.length;
-        await input.agent.prompt(turnInput.userMessage);
-        await input.agent.waitForIdle();
-        const newMessages = input.agent.state.messages.slice(firstNewMessageIndex);
-        const finalAssistant = finalAssistantMessage(newMessages);
-        const responseText = finalAssistant === undefined ? undefined : assistantResponseText(finalAssistant);
-
-        return {
-          workspaceContext,
-          newMessages,
-          finalAssistantMessage: finalAssistant,
-          stopReason: finalAssistant?.stopReason,
-          errorMessage: finalAssistant?.errorMessage,
-          assistantResponseText: responseText,
-          workspaceContextAfterTurn: await input.workspaceContext.assemble({
-            actor: input.actor,
-            ownerScope: input.ownerScope,
-          }),
-        };
-      } finally {
-        input.clearCurrentTurnBasisTracker();
-        activeTurn = false;
-      }
+      return {
+        workspaceContext: turnState.workspaceContext,
+        newMessages,
+        finalAssistantMessage: finalAssistant,
+        stopReason: finalAssistant?.stopReason,
+        errorMessage: finalAssistant?.errorMessage,
+        assistantResponseText: responseText,
+        workspaceContextAfterTurn: (await input.harness.createTurnState({
+          tools: input.agent.state.tools,
+        })).workspaceContext,
+      };
     },
     abort() {
       input.agent.abort();

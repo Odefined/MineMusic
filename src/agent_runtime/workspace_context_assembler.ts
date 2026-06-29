@@ -1,4 +1,5 @@
 import type { MusicExperienceWorkspaceProjectionPort } from "../contracts/music_experience.js";
+import type { ConcernRevisionSet } from "../contracts/kernel.js";
 import type {
   ActorDefinition,
 } from "./actor_definition.js";
@@ -7,11 +8,16 @@ import {
   type EncodedWorkspaceContext,
 } from "./workspace_context_encoder.js";
 
+export type WorkspaceContextAssembly = {
+  workspaceContext: EncodedWorkspaceContext;
+  commandBasis: ConcernRevisionSet;
+};
+
 export type WorkspaceContextAssembler = {
   assemble(input: {
     actor: ActorDefinition;
     ownerScope: string;
-  }): Promise<EncodedWorkspaceContext>;
+  }): Promise<WorkspaceContextAssembly>;
 };
 
 export type CreateWorkspaceContextAssemblerInput = {
@@ -26,10 +32,15 @@ export function createWorkspaceContextAssembler(
       const musicExperience = await input.musicExperience.readWorkspaceProjection({
         ownerScope: assembleInput.ownerScope,
       });
-      return encodeWorkspaceContext({
-        sections: assembleInput.actor.declaredWorkspaceSections,
-        musicExperience,
-      });
+      return {
+        workspaceContext: encodeWorkspaceContext({
+          sections: assembleInput.actor.declaredWorkspaceSections,
+          musicExperience,
+        }),
+        commandBasis: {
+          ...musicExperience.concernRevisions,
+        },
+      };
     },
   };
 }

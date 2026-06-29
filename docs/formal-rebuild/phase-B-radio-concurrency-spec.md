@@ -32,8 +32,12 @@ each turn snapshots the in-memory transcript (`createContextSnapshot`), compacti
 runs in place on the live session, and `SessionRepo` (`create/open/list/delete/fork`
 only) is durability + restart — there is **no per-turn reload and no per-run Agent
 reconstruction**; the only reload is reconstructing the Agent/session at process
-restart. Per-run-start logic uses pi's `agent_start` event (`subscribe`,
-`agent-loop.js`), not `prepareNextTurn` (per-turn) or `beforeToolCall` (per-tool).
+restart. Run-start provider context must be prepared before `Agent.prompt(...)`,
+because pi snapshots `state.systemPrompt` / `state.tools` before `agent_start`
+(`agent.js:createContextSnapshot`; `agent-loop.js` emits `agent_start` after the
+context is already built). Same-run context refresh uses pi's
+`prepareNextTurn` seam after `turn_end` and before the next provider request,
+matching `AgentHarness.createLoopConfig(...).prepareNextTurn`.
 
 **During execution, constantly reference the pinned pi source**
 (`node_modules/@earendil-works/pi-agent-core/dist`: `agent.js`, `agent-loop.js`,
@@ -277,11 +281,11 @@ Radio is event-driven and mostly idle; a live loop between refills wastes cycles
 and worsens the compaction/endurance risk; discrete bounded runs are easier to
 supervise.
 
-### PB3 — Agent Work Basis is per-area, per-concern (not one revision per area)
+### PB3 — Command basis is per-area, per-concern (not one revision per area)
 
 ADR-0033's per-area revision is too coarse for Radio. Music Experience maintains
 separate revisions per concern — **radio-direction** (motif/active-variation),
-**queue**, and (later) **playback** — and the Agent Work Basis is a tuple of
+**queue**, and (later) **playback** — and the command basis is a tuple of
 these. Each owning command declares which components it checks:
 
 - A Radio refill's basis is sensitive to the **radio-direction** revision (a
@@ -349,15 +353,15 @@ That is exactly why a user reorder (which bumps `queue`) does not void the
 refill: the refill never put `queue` in its CAS predicate. This "checked set ≠
 bumped set" rule is the precise CAS form of PB3's per-concern basis.
 
-**Naming: `CommandPreconditionSet`, not "version vector."** The tuple a command
+**Naming: `ConcernRevisionSet`, not "version vector."** The tuple a command
 checks is a set of independent CAS preconditions — `{ radioDirectionRevision?,
 queueRevision?, radioSessionRevision?, playbackRevision? }` — **not** a version
 vector. There is no distributed causality and no merge of concurrent histories;
-each entry is a standalone equality precondition. Call it a
-`CommandPreconditionSet` (a set of `ConcernRevision` assertions, per the
-roadmap's shared-primitive note); reserve "Agent Work Basis" for the
-agent-facing snapshot of those revisions carried as Invocation Context `basis`.
-Note against ADR-0033.
+each entry is a standalone equality precondition. The shared primitive is
+`ConcernRevisionSet`; the boundary field names carry direction of use:
+`preconditionBasis` is checked before a write, while `changedBasis` is absorbed
+after a successful write. These revisions are runtime harness state, not
+agent-facing Invocation Context.
 
 ### PB4 — Three-layer item model; queue holds durable material refs
 
@@ -387,13 +391,14 @@ Main relays a user's radio redirection by calling Music Experience radio-truth
 commands (musical operations on **motif** / **active variations**). Each bumps
 the per-concern radio-direction revision (PB3) and signals the supervisor to wake
 Radio; Radio reads current motif/variations through the shared Agent Runtime
-Workspace Context assembler's `radio` section **at run start, via the
-supervisor's `subscribe(agent_start)` hook on the long-lived Agent** (PB2) —
-pi's per-run-start event (`agent-loop.js` `agent_start`), not `prepareNextTurn`
-(per-turn) or `beforeToolCall` (per-tool) — refreshing `state.systemPrompt` with
-the assembler output before the pi snapshot. Basis revisions such as
-`radioDirectionRevision` and `radioSessionRevision` ride the Radio Invocation
-Context `basis`, not Workspace Context. Routing the change through owned state — not a directive
+Workspace Context assembler's `radio` section. The MineMusic `AgentHarness`
+adapter prepares the shared turn state and installs `state.systemPrompt` /
+`state.tools` before `Agent.prompt(...)` takes pi's provider-context snapshot;
+`agent_start` is an observation hook, not the refresh mechanism. The same
+adapter owns runtime-only command basis (`preconditionBasis` before tool calls,
+`changedBasis` after successful tool results) and refreshes the next provider
+context through pi `prepareNextTurn`. Basis revisions are not Radio Invocation
+Context and are not agent-facing prompt content. Routing the change through owned state — not a directive
 payload message — unifies three things: the write boundary (radio truth is Music
 Experience-owned), the PB3 OCC revision source, and the wake trigger. This
 refines ADR-0032's "typed messages": the typed Main↔Radio channel is reserved for
@@ -581,12 +586,12 @@ only Radio-owned musical judgement:
   **0 fit** the current motif/active-variations; this may include the short
   summary/rationale Main can later reuse.
 
-Radio does **not** fill mechanical runtime facts: `runId`, basis revisions,
-`appendedCount`, tool facts, stale/abort/failure status, severity floors, or
-one-run/one-direction suppression state. Agent Runtime derives those from the
-invocation context, the tool fact recorder, and supervisor state. A declaration
-whose judgement conflicts with runtime facts fails loudly; the runtime does not
-"fix" it into a different judgement.
+Radio does **not** fill mechanical runtime facts: `runId`, runtime concern
+revisions, `appendedCount`, tool facts, stale/abort/failure status, severity
+floors, or one-run/one-direction suppression state. Agent Runtime derives those
+from the invocation context, the tool fact recorder, the command-basis tracker,
+and supervisor state. A declaration whose judgement conflicts with runtime facts
+fails loudly; the runtime does not "fix" it into a different judgement.
 
 **No script inference.** `candidate_exhaustion_by_direction` exists only when
 Radio declares that judgement. Discovery, selection, recorder fixtures, zero
@@ -667,10 +672,11 @@ Full rationale and OCC table in ADR-0037. In Phase B terms:
   stale → clear and re-evolve from the new direction. Clearing is conditional
   (not every run) and is **not** a side effect of the steering command — Main
   steering only bumps the commanded revision; stale posture falls away at Radio's
-  next run via stamp mismatch. The "at each run start" comparison runs on the
-  supervisor's `subscribe(agent_start)` hook — pi's per-run-start event
-  (`agent-loop.js`); do **not** use `prepareNextTurn` (per-turn) or `beforeToolCall`
-  (per-tool).
+  next run via stamp mismatch. The stale-posture command runs before the shared
+  `AgentHarness` adapter assembles and installs the run-start turn state. The
+  next model step after any tool result that declares `changedBasis` is refreshed
+  through pi `prepareNextTurn`; tool preconditions continue to come from the
+  run-local command-basis tracker.
 - **Late-write race needs no guard.** A posture write landing just after a
   steering change is handled by the abort cascade (Cross-Cutting, usually kills
   the in-flight run first) plus stamp mismatch (any landed write carries the old
@@ -742,7 +748,7 @@ one `Agent`; Agent Runtime owns the cascade across actors.
 
 - **Trigger face = OCC void face (not a broadcast).** A cascade is not "any write
   aborts everyone." A revision bump on concern C aborts exactly the in-flight runs
-  whose Agent Work Basis depends on C (PB3 per-concern dependency, already
+  whose command basis depends on C (PB3 per-concern dependency, already
   declared per command). abort's job is to stop early the runs that the
   commit-time basis check *would void anyway*; so the abort set must equal the
   void set. Example: a commanded-direction bump aborts a Radio refill (its basis
@@ -1029,8 +1035,8 @@ phase-A pi Capability Assumptions Ledger.
 
 - PB7 structured terminal declaration — **Phase-B semantics settled** (see PB7
   terminal model): Radio declares only musical judgement; runtime supplies run
-  id, basis revisions, append facts, failures, stale/abort state, and derived
-  notify intent. `candidate_exhaustion_by_direction` is emitted only by Radio
+  id, runtime concern revisions, append facts, failures, stale/abort state, and
+  derived notify intent. `candidate_exhaustion_by_direction` is emitted only by Radio
   declaration, once per direction revision via PB1a exhaustion back-off. The
   general Main↔Radio runtime bus/topic delivery is later work. **Still open**:
   exact field names/type choices and the terminal judgement enum spelling. No UI

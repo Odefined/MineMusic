@@ -145,6 +145,7 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/agent_runtime
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
     "src/agent_runtime/actor_definition.ts",
+    "src/agent_runtime/agent_harness.ts",
     "src/agent_runtime/agent_message_helpers.ts",
     "src/agent_runtime/command_basis_tracker.ts",
     "src/agent_runtime/index.ts",

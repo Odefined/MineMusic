@@ -299,6 +299,7 @@ export type MusicExperienceWorkspaceRadioTruth = {
 };
 
 export type MusicExperienceWorkspaceProjection = {
+  concernRevisions: ConcernRevisionSet;
   revision: ConcernRevision;
   queue: readonly MusicExperienceWorkspaceQueueEntry[];
   nowPlaying?: MusicExperienceWorkspaceNowPlaying;

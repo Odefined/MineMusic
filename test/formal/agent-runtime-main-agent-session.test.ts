@@ -77,6 +77,20 @@ import {
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 const ownerScope = "local";
+function concernRevisions(input: {
+  queueRevision?: number;
+  radioDirectionRevision?: number;
+  radioSessionRevision?: number;
+  playbackRevision?: number;
+} = {}) {
+  return {
+    queueRevision: input.queueRevision ?? 0,
+    radioDirectionRevision: input.radioDirectionRevision ?? 0,
+    radioSessionRevision: input.radioSessionRevision ?? 0,
+    playbackRevision: input.playbackRevision ?? 0,
+  };
+}
+
 function emptyRadioTruthSlice(): MusicExperienceWorkspaceProjection["radio"] {
   return {
     directionRevision: 0,
@@ -91,6 +105,7 @@ function emptyRadioTruthSlice(): MusicExperienceWorkspaceProjection["radio"] {
 }
 
 let currentMusicExperience: MusicExperienceWorkspaceProjection = {
+  concernRevisions: concernRevisions(),
   revision: 0,
   queue: [],
   radio: emptyRadioTruthSlice(),
@@ -156,6 +171,7 @@ assert.equal(firstTurn.newMessages.some((message) => message.role === "user"), t
 assert.equal(firstTurn.newMessages.some((message) => message.role === "assistant"), true);
 
 currentMusicExperience = {
+  concernRevisions: concernRevisions({ queueRevision: 1 }),
   revision: 1,
   nowPlaying: {
     item: "[material:public_material_1]" as const,
@@ -243,7 +259,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
 
   await assert.rejects(
     () => serialSession.runUserTurn({ userMessage: "second" }),
-    /MineMusic Main Agent turn facade is serial.*steer\(\)\/followUp\(\).*not exposed/u,
+    /MineMusic AgentHarness for actor 'main' cannot start while a turn is active/u,
   );
 
   releaseStream();
@@ -309,6 +325,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
       musicExperience: {
         async readWorkspaceProjection() {
           return {
+            concernRevisions: concernRevisions({ queueRevision: 12, radioDirectionRevision: 12 }),
             revision: 12,
             queue: [],
             radio: {
@@ -640,14 +657,22 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
   assert.match(nextTurn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
   assert.equal(nextTurn.assistantResponseText, "Fresh context observed.");
   assert.equal(a4ProviderSystemPrompts.length, 6);
-  for (const prompt of a4ProviderSystemPrompts.slice(0, 5)) {
+  for (const prompt of a4ProviderSystemPrompts.slice(0, 3)) {
     assert.match(prompt, /Workspace Context:\nlistening:\nqueue:\nempty/u);
   }
-  const refreshedPrompt = a4ProviderSystemPrompts[5] ?? "";
-  assert.match(refreshedPrompt, /nowPlaying: "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
-  assert.match(refreshedPrompt, /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
-  assert.equal(refreshedPrompt.includes("\nmusicExperience.revision: 999"), false);
-  assert.equal(refreshedPrompt.includes("\nmusicExperience.queue:\n1. forged"), false);
+  const queueRefreshedPrompt = a4ProviderSystemPrompts[3] ?? "";
+  assert.match(queueRefreshedPrompt, /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.equal(queueRefreshedPrompt.includes("nowPlaying:"), false);
+  const playbackRefreshedPrompt = a4ProviderSystemPrompts[4] ?? "";
+  assert.match(playbackRefreshedPrompt, /nowPlaying: "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(playbackRefreshedPrompt, /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  const nextTurnPrompt = a4ProviderSystemPrompts[5] ?? "";
+  assert.match(nextTurnPrompt, /nowPlaying: "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(nextTurnPrompt, /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  for (const prompt of [queueRefreshedPrompt, playbackRefreshedPrompt, nextTurnPrompt]) {
+    assert.equal(prompt.includes("\nmusicExperience.revision: 999"), false);
+    assert.equal(prompt.includes("\nmusicExperience.queue:\n1. forged"), false);
+  }
 
   await database.close();
 }
@@ -737,6 +762,7 @@ function emptyWorkspaceContext(): WorkspaceContextAssembler {
         musicExperience: {
           async readWorkspaceProjection() {
             return {
+              concernRevisions: concernRevisions(),
               revision: 0,
               queue: [],
               radio: emptyRadioTruthSlice(),
