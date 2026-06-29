@@ -316,7 +316,6 @@ const key = {
                   result: {
                     items: [],
                     queueLength: 0,
-                    queueRevision: 12,
                   },
                   runtime: { changedBasis: { queueRevision: 12 } },
                 },
@@ -329,7 +328,6 @@ const key = {
                   toolName: input.toolName,
                   result: {
                     queueLength: 0,
-                    queueRevision: 13,
                   },
                   runtime: { changedBasis: { queueRevision: 13 } },
                 },
@@ -340,10 +338,8 @@ const key = {
               value: {
                 toolName: input.toolName,
                 result: {
-                  radioDirectionRevision: 8,
                   posture: {
                     lean: [],
-                    commandedRevisionStamp: 7,
                     stale: false,
                   },
                 },
@@ -412,7 +408,6 @@ const key = {
             { item: "[material:material:two]", index: 1 },
           ],
           queueLength: 2,
-          queueRevision: 9,
         },
         runtime: { changedBasis: { queueRevision: 9 } },
       },
@@ -458,7 +453,6 @@ const key = {
           item: "[material:material:replacement]",
           index: 1,
           queueLength: 2,
-          queueRevision: 10,
         },
         runtime: { changedBasis: { queueRevision: 10 } },
       },
@@ -486,7 +480,6 @@ const key = {
           item: "[material:material:replacement]",
           index: 1,
           queueLength: 2,
-          queueRevision: 11,
         },
         runtime: { changedBasis: { queueRevision: 11 } },
       },
@@ -551,7 +544,6 @@ const key = {
             { item: "[material:material:one]", index: 0 },
           ],
           queueLength: 1,
-          queueRevision: 9,
         },
       },
     },
@@ -591,7 +583,6 @@ const key = {
             { item: "[material:material:one]", index: 0 },
           ],
           queueLength: 1,
-          queueRevision: 9,
         },
       },
     },

@@ -6,9 +6,13 @@ import {
   MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
 } from "../../src/contracts/music_experience.js";
 import {
+  musicExperiencePlaybackPlayOutputSchema,
+  playbackQueueAppendOutputSchema,
+  playbackQueueEditOutputSchema,
   playbackQueueMoveInputSchema,
   playbackQueueRemoveInputSchema,
   playbackQueueReplaceInputSchema,
+  playbackQueueReplaceOutputSchema,
 } from "../../src/contracts/generated/stage_interface_schemas.js";
 import type {
   MusicExperiencePlaybackPlayCommandOutput,
@@ -55,7 +59,6 @@ import {
   createStageInterface,
   createStageInterfaceHandleMintingPort,
   createStageToolContext,
-  renderModelVisibleToolDescription,
   stageInterfaceHandleRegistrySchema,
 } from "../../src/stage_interface/index.js";
 import type { MusicDatabase } from "../../src/storage/index.js";
@@ -94,16 +97,10 @@ assert.equal(playbackQueueMoveDescriptor.name, "playback.queue.move");
 assert.equal(playbackQueueClearDescriptor.name, "playback.queue.clear");
 assert.equal(playbackQueueRemoveDescriptor.errors.some((error) => error.code === "queue_item_not_editable"), true);
 assert.equal(playbackQueueRemoveDescriptor.errors.some((error) => error.code === "candidate_not_found"), false);
-for (const descriptor of [
-  playbackQueueAppendDescriptor,
-  playbackQueueRemoveDescriptor,
-  playbackQueueReplaceDescriptor,
-  playbackQueueMoveDescriptor,
-  playbackQueueClearDescriptor,
-  musicExperiencePlaybackPlayDescriptor,
-]) {
-  assert.equal(/revision/iu.test(renderModelVisibleToolDescription(descriptor)), false);
-}
+assert.deepEqual(Object.keys(playbackQueueAppendOutputSchema.properties ?? {}).sort(), ["items", "queueLength"]);
+assert.deepEqual(Object.keys(playbackQueueEditOutputSchema.properties ?? {}).sort(), ["queueLength"]);
+assert.deepEqual(Object.keys(playbackQueueReplaceOutputSchema.properties ?? {}).sort(), ["index", "item", "queueLength"]);
+assert.deepEqual(Object.keys(musicExperiencePlaybackPlayOutputSchema.properties ?? {}).sort(), ["item", "status"]);
 assert.equal(playbackQueueMoveDescriptor.errors.some((error) => error.code === "queue_full"), false);
 assert.equal(playbackQueueClearDescriptor.errors.some((error) => error.code === "material_not_found"), false);
 assert.equal(playbackQueueReplaceDescriptor.errors.some((error) => error.code === "candidate_not_found"), true);
@@ -462,7 +459,6 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     item: `[material:${replacementHandle}]`,
     index: 1,
     queueLength: 2,
-    queueRevision: 3,
   });
 
   const removed = await stageInterface.dispatch(ctx, {
@@ -665,7 +661,6 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(appendResult.ok, true);
   const appendOutput = output<PlaybackQueueAppendOutput>(appendResult);
   assert.equal(appendOutput.queueLength, 1);
-  assert.equal(appendOutput.queueRevision, 1);
   assert.deepEqual(appendResult.value.runtime?.changedBasis, { queueRevision: 1 });
   assert.deepEqual(appendOutput.items, [
     {
@@ -683,7 +678,6 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   });
   assert.equal(playResult.ok, true);
   const playOutput = output<MusicExperiencePlaybackPlayOutput>(playResult);
-  assert.equal(playOutput.playbackRevision, 1);
   assert.deepEqual(playResult.value.runtime?.changedBasis, { playbackRevision: 1 });
   assert.equal(playOutput.status, "playing");
   assert.deepEqual(playOutput.item, `[material:${materialHandleId}]`);

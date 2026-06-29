@@ -130,7 +130,7 @@ function queueAppendOutputFromToolOutput(output: ToolCallOutput): PlaybackQueueA
   }
 
   const queueOutput = output.result as Partial<PlaybackQueueAppendOutput>;
-  if (!Array.isArray(queueOutput.items) || typeof queueOutput.queueLength !== "number" || typeof queueOutput.queueRevision !== "number") {
+  if (!Array.isArray(queueOutput.items) || typeof queueOutput.queueLength !== "number") {
     throw new Error("Radio queue append tool result payload had an invalid shape.");
   }
 

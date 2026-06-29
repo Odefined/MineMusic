@@ -6,7 +6,6 @@
 import type {
   AgentActorKind,
   ConcernRevisionSet,
-  ConcernRevision,
   FormalArea,
   Result,
 } from "./kernel.js";
@@ -750,7 +749,6 @@ export type PlaybackQueueAppendOutputItem = {
 export type PlaybackQueueAppendOutput = {
   items: readonly PlaybackQueueAppendOutputItem[];
   queueLength: number;
-  queueRevision: ConcernRevision;
 };
 
 export type PlaybackQueueRemoveInput = {
@@ -771,7 +769,6 @@ export type PlaybackQueueClearInput = Record<string, never>;
 
 export type PlaybackQueueEditOutput = {
   queueLength: number;
-  queueRevision: ConcernRevision;
 };
 
 export type PlaybackQueueReplaceOutput = PlaybackQueueEditOutput & {
@@ -838,7 +835,6 @@ export type RadioLeanMoveInput = {
 export type RadioLeanClearInput = Record<string, never>;
 
 export type RadioDirectionToolOutput = {
-  radioDirectionRevision: ConcernRevision;
   direction: {
     motif?: RadioTruthToolValueOutput;
     activeVariations: readonly RadioTruthToolValueOutput[];
@@ -846,10 +842,8 @@ export type RadioDirectionToolOutput = {
 };
 
 export type RadioLeanToolOutput = {
-  radioDirectionRevision: ConcernRevision;
   posture: {
     lean: readonly RadioTruthToolValueOutput[];
-    commandedRevisionStamp: ConcernRevision;
     stale: boolean;
   };
 };
@@ -864,7 +858,6 @@ export type MusicExperiencePlaybackPlayInput = {
 export type MusicExperiencePlaybackPlayOutput = {
   item: MaterialMusicItemHandle;
   status: Extract<MusicExperiencePlaybackStatus, "playing">;
-  playbackRevision: ConcernRevision;
 };
 
 export type MusicDiscoveryLookupItemDescription = PublicHandleDescription & {

@@ -27,6 +27,7 @@ import type {
 } from "../../contracts/stage_interface.js";
 import { stageToolHandlerOutput } from "../../contracts/stage_interface.js";
 import type {
+  MusicExperienceQueueEditCommandOutput,
   MusicExperienceQueueEditPermission,
   MusicExperienceQueueItemProvenance,
   MusicExperienceQueuePlaybackCommand,
@@ -413,7 +414,6 @@ async function handleQueueAppend(
       index: firstAppendedIndex + index,
     }))),
     queueLength: appended.value.queueLength,
-    queueRevision: appended.value.queueRevision,
   };
 
   return {
@@ -427,7 +427,7 @@ async function handleQueueAppend(
 }
 
 function queueEditOutput(
-  result: Result<PlaybackQueueEditOutput>,
+  result: Result<MusicExperienceQueueEditCommandOutput>,
 ): Result<unknown> {
   if (!result.ok) {
     return result;
@@ -435,7 +435,6 @@ function queueEditOutput(
 
   const output: PlaybackQueueEditOutput = {
     queueLength: result.value.queueLength,
-    queueRevision: result.value.queueRevision,
   };
   return {
     ok: true,
@@ -532,7 +531,6 @@ async function handleQueueReplace(
     item: await mintMaterialItemHandle(ctx, replaced.value.item.materialRef),
     index: replaced.value.index,
     queueLength: replaced.value.queueLength,
-    queueRevision: replaced.value.queueRevision,
   };
   return {
     ok: true,
@@ -618,7 +616,6 @@ async function handlePlaybackPlay(
   const output: MusicExperiencePlaybackPlayOutput = {
     item: await mintMaterialItemHandle(ctx, played.value.materialRef),
     status: played.value.status,
-    playbackRevision: played.value.playbackRevision,
   };
 
   return {

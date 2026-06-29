@@ -482,15 +482,11 @@ export const playbackQueueAppendOutputSchema = {
     },
     "queueLength": {
       "type": "number"
-    },
-    "queueRevision": {
-      "$ref": "#/definitions/ConcernRevision"
     }
   },
   "required": [
     "items",
-    "queueLength",
-    "queueRevision"
+    "queueLength"
   ],
   "additionalProperties": false,
   "definitions": {
@@ -514,9 +510,6 @@ export const playbackQueueAppendOutputSchema = {
       "type": "string",
       "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
       "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
-    },
-    "ConcernRevision": {
-      "type": "number"
     }
   }
 } as const satisfies JsonSchema;
@@ -615,21 +608,12 @@ export const playbackQueueEditOutputSchema = {
   "properties": {
     "queueLength": {
       "type": "number"
-    },
-    "queueRevision": {
-      "$ref": "#/definitions/ConcernRevision"
     }
   },
   "required": [
-    "queueLength",
-    "queueRevision"
+    "queueLength"
   ],
-  "additionalProperties": false,
-  "definitions": {
-    "ConcernRevision": {
-      "type": "number"
-    }
-  }
+  "additionalProperties": false
 } as const satisfies JsonSchema;
 
 export const playbackQueueReplaceOutputSchema = {
@@ -645,25 +629,18 @@ export const playbackQueueReplaceOutputSchema = {
     },
     "queueLength": {
       "type": "number"
-    },
-    "queueRevision": {
-      "$ref": "#/definitions/ConcernRevision"
     }
   },
   "required": [
     "index",
     "item",
-    "queueLength",
-    "queueRevision"
+    "queueLength"
   ],
   "definitions": {
     "MaterialMusicItemHandle": {
       "type": "string",
       "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
       "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
-    },
-    "ConcernRevision": {
-      "type": "number"
     }
   }
 } as const satisfies JsonSchema;
@@ -1384,9 +1361,6 @@ export const radioDirectionToolOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "radioDirectionRevision": {
-      "$ref": "#/definitions/ConcernRevision"
-    },
     "direction": {
       "type": "object",
       "properties": {
@@ -1408,14 +1382,10 @@ export const radioDirectionToolOutputSchema = {
     }
   },
   "required": [
-    "radioDirectionRevision",
     "direction"
   ],
   "additionalProperties": false,
   "definitions": {
-    "ConcernRevision": {
-      "type": "number"
-    },
     "RadioTruthToolValueOutput": {
       "anyOf": [
         {
@@ -1514,9 +1484,6 @@ export const radioLeanToolOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "radioDirectionRevision": {
-      "$ref": "#/definitions/ConcernRevision"
-    },
     "posture": {
       "type": "object",
       "properties": {
@@ -1527,30 +1494,22 @@ export const radioLeanToolOutputSchema = {
           },
           "maxItems": 5
         },
-        "commandedRevisionStamp": {
-          "$ref": "#/definitions/ConcernRevision"
-        },
         "stale": {
           "type": "boolean"
         }
       },
       "required": [
         "lean",
-        "commandedRevisionStamp",
         "stale"
       ],
       "additionalProperties": false
     }
   },
   "required": [
-    "radioDirectionRevision",
     "posture"
   ],
   "additionalProperties": false,
   "definitions": {
-    "ConcernRevision": {
-      "type": "number"
-    },
     "RadioTruthToolValueOutput": {
       "anyOf": [
         {
@@ -1692,15 +1651,11 @@ export const musicExperiencePlaybackPlayOutputSchema = {
     "status": {
       "type": "string",
       "const": "playing"
-    },
-    "playbackRevision": {
-      "$ref": "#/definitions/ConcernRevision"
     }
   },
   "required": [
     "item",
-    "status",
-    "playbackRevision"
+    "status"
   ],
   "additionalProperties": false,
   "definitions": {
@@ -1708,9 +1663,6 @@ export const musicExperiencePlaybackPlayOutputSchema = {
       "type": "string",
       "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
       "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
-    },
-    "ConcernRevision": {
-      "type": "number"
     }
   }
 } as const satisfies JsonSchema;

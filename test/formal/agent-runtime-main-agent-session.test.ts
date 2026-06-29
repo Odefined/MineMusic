@@ -403,7 +403,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
             value: {
               toolName: input.toolName,
               result: {
-                radioDirectionRevision: 13,
                 direction: {
                   motif: { kind: "text", text: "basis motif" },
                   activeVariations: [],
@@ -419,7 +418,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
             value: {
               toolName: input.toolName,
               result: {
-                radioDirectionRevision: 14,
                 direction: {
                   motif: { kind: "text", text: "basis motif" },
                   activeVariations: [{ kind: "text", text: "basis variation" }],
@@ -437,7 +435,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
               result: {
                 items: [{ item: "[material:basis_queue]", index: 0 }],
                 queueLength: 1,
-                queueRevision: 1,
               },
               runtime: { changedBasis: { queueRevision: 1 } },
             },
@@ -449,7 +446,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
             toolName: input.toolName,
             result: {
               queueLength: 1,
-              queueRevision: 2,
             },
             runtime: { changedBasis: { queueRevision: 2 } },
           },
@@ -596,7 +592,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
             result: {
               items: [{ item: "[material:diff_track]", index: 0 }],
               queueLength: 1,
-              queueRevision: 1,
             },
             runtime: { changedBasis: { queueRevision: 1 } },
           },

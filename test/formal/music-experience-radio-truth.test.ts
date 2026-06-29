@@ -14,6 +14,10 @@ import {
   MAX_RADIO_POSTURE_LEAN_ITEMS,
 } from "../../src/contracts/music_experience.js";
 import {
+  radioDirectionToolOutputSchema,
+  radioLeanToolOutputSchema,
+} from "../../src/contracts/generated/stage_interface_schemas.js";
+import {
   createMaterialProjection,
   musicDataPlatformIdentitySchema,
   MusicDataPlatformError,
@@ -49,7 +53,6 @@ import {
   createStageInterface,
   createStageInterfaceHandleMintingPort,
   createStageToolContext,
-  renderModelVisibleToolDescription,
   stageInterfaceHandleRegistrySchema,
 } from "../../src/stage_interface/index.js";
 import type { MusicDatabase } from "../../src/storage/index.js";
@@ -73,34 +76,14 @@ for (const [descriptor, propertyName] of [
 ] as const) {
   assert.equal(inputPropertySchemaType(descriptor.inputSchema, propertyName), "integer");
 }
-for (const descriptor of [
-  radioMotifSetDescriptor,
-  radioMotifClearDescriptor,
-  radioVariationsAddDescriptor,
-  radioVariationsRemoveDescriptor,
-  radioVariationsReplaceDescriptor,
-  radioVariationsMoveDescriptor,
-  radioVariationsClearDescriptor,
-  radioLeanAddDescriptor,
-  radioLeanRemoveDescriptor,
-  radioLeanReplaceDescriptor,
-  radioLeanMoveDescriptor,
-  radioLeanClearDescriptor,
-]) {
-  assert.equal(/revision/iu.test(renderModelVisibleToolDescription(descriptor)), false);
-}
-assert.equal(/revision/iu.test(radioMotifSetDescriptor.resultSummary({
-  radioDirectionRevision: 1,
-  direction: { activeVariations: [] },
-})), false);
-assert.equal(/revision/iu.test(radioLeanAddDescriptor.resultSummary({
-  radioDirectionRevision: 1,
-  posture: {
-    lean: [],
-    stale: false,
-    commandedRevisionStamp: 1,
-  },
-})), false);
+assert.deepEqual(Object.keys(radioDirectionToolOutputSchema.properties ?? {}).sort(), ["direction"]);
+assert.deepEqual(Object.keys(radioLeanToolOutputSchema.properties ?? {}).sort(), ["posture"]);
+const radioLeanPostureSchema = radioLeanToolOutputSchema.properties?.posture;
+assert.equal(typeof radioLeanPostureSchema, "object");
+assert.deepEqual(
+  Object.keys((radioLeanPostureSchema as { properties?: Record<string, unknown> }).properties ?? {}).sort(),
+  ["lean", "stale"],
+);
 assert.equal(
   definitionTextSchemaMaxLength(radioVariationsAddDescriptor.inputSchema, "RadioTruthToolValue"),
   MAX_RADIO_DIRECTION_TEXT_LENGTH,
@@ -326,7 +309,6 @@ assert.equal(
   assert.equal(motifSet.ok, true);
   if (motifSet.ok) {
     assert.deepEqual(motifSet.value.result, {
-      radioDirectionRevision: 1,
       direction: {
         motif: { kind: "text", text: "stage motif" },
         activeVariations: [],
@@ -351,7 +333,6 @@ assert.equal(
   assert.equal(variationAdd.ok, true);
   if (variationAdd.ok) {
     assert.deepEqual(variationAdd.value.result, {
-      radioDirectionRevision: 2,
       direction: {
         motif: { kind: "text", text: "stage motif" },
         activeVariations: [{ kind: "scope", scope: "[library]" }],
@@ -376,10 +357,8 @@ assert.equal(
   assert.equal(leanAdd.ok, true);
   if (leanAdd.ok) {
     assert.deepEqual(leanAdd.value.result, {
-      radioDirectionRevision: 2,
       posture: {
         lean: [{ kind: "text", text: "stage lean" }],
-        commandedRevisionStamp: 2,
         stale: false,
       },
     });

@@ -605,7 +605,6 @@ async function directionCommandOutput(
     return result;
   }
   const output: RadioDirectionToolOutput = {
-    radioDirectionRevision: result.value.radioDirectionRevision,
     direction: await directionOutput(ctx, result.value.direction),
   };
 
@@ -644,10 +643,8 @@ async function leanCommandOutput(
   return {
     ok: true,
     value: {
-      radioDirectionRevision: result.value.radioDirectionRevision,
       posture: {
         lean: await Promise.all(result.value.posture.lean.map((value) => valueOutput(ctx, value))),
-        commandedRevisionStamp: result.value.posture.commandedRevisionStamp,
         stale: result.value.posture.stale,
       },
     },
