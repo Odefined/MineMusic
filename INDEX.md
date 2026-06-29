@@ -211,6 +211,11 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   requires Main and Radio to share the same Workspace Context assembly model
   instead of maintaining separate workspace-state renderers. PR3.1/PR3.2/PR3.3
   implement the shared assembler for Main and Radio.
+- `docs/formal-rebuild/phase-B-radio-plan-spec-prd-audit.md`: audit finding and
+  plan-rewrite input comparing the current Phase B Radio implementation plan
+  against the Phase B spec, Agent Context spec, roadmap, PRD, and live code.
+  Records missing posture, steering, queue correction, lifecycle, cascade,
+  endurance, and PRD-coverage capability chains before further Phase B work.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
