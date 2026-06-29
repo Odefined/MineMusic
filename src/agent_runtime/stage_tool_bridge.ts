@@ -39,6 +39,7 @@ export type AgentRuntimeStageToolContextFactoryPort = {
   createToolContext(input: {
     sessionId: string;
     requestId: string;
+    toolName: string;
     actor?: AgentActorKind;
     commandBasis?: CommandPreconditionSet;
     abortSignal?: AbortSignal;
@@ -99,6 +100,7 @@ function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
           piToolName: input.piToolName,
           toolCallId,
         }) ?? toolCallId,
+        toolName: descriptor.name,
         ...(signal === undefined ? {} : { abortSignal: signal }),
       });
       const result = await input.dispatch.dispatch({

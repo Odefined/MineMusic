@@ -13,6 +13,7 @@ import {
   createMaterialProjection,
   musicDataPlatformIdentitySchema,
   MusicDataPlatformError,
+  type CandidateCommitCommand,
   type MaterialProjection,
 } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
@@ -25,7 +26,13 @@ import {
   musicExperienceRadioTruthSchema,
 } from "../../src/music_experience/index.js";
 import {
+  createMusicExperienceRadioTruthRegistrations,
+  musicExperienceInstrument,
+} from "../../src/music_experience/stage_adapter/index.js";
+import {
+  createStageInterface,
   createStageInterfaceHandleMintingPort,
+  createStageToolContext,
   stageInterfaceHandleRegistrySchema,
 } from "../../src/stage_interface/index.js";
 import type { MusicDatabase } from "../../src/storage/index.js";
@@ -86,6 +93,194 @@ const ownerScope = "local";
 {
   const database = await initializedMusicExperienceDatabase();
   const command = createMusicExperienceRadioTruthCommand({ database });
+  const material = materialRef("phase_b_radio_truth_action_material");
+  await seedRecording(database, material, "Action Material", ["Action Artist"]);
+
+  const motif = expectDirectionOutput(await command.setRadioMotif({
+    ownerScope,
+    value: { kind: "text", text: "night drive" },
+    basis: { radioDirectionRevision: 0 },
+    now,
+  }));
+  assert.equal(motif.radioDirectionRevision, 1);
+  assert.deepEqual(motif.direction, {
+    motif: { kind: "text", text: "night drive" },
+    activeVariations: [],
+  });
+
+  const firstVariation = expectDirectionOutput(await command.addRadioVariation({
+    ownerScope,
+    value: { kind: "text", text: "warmer" },
+    basis: { radioDirectionRevision: 1 },
+    now,
+  }));
+  assert.equal(firstVariation.radioDirectionRevision, 2);
+
+  const insertedVariation = expectDirectionOutput(await command.addRadioVariation({
+    ownerScope,
+    value: { kind: "scope", scope: { kind: "library" } },
+    at: 0,
+    basis: { radioDirectionRevision: 2 },
+    now,
+  }));
+  assert.deepEqual(insertedVariation.direction.activeVariations.map((value) => value.kind), ["scope", "text"]);
+
+  const movedVariation = expectDirectionOutput(await command.moveRadioVariation({
+    ownerScope,
+    from: 0,
+    to: 1,
+    basis: { radioDirectionRevision: 3 },
+    now,
+  }));
+  assert.deepEqual(movedVariation.direction.activeVariations.map((value) => value.kind), ["text", "scope"]);
+
+  const replacedVariation = expectDirectionOutput(await command.replaceRadioVariation({
+    ownerScope,
+    index: 1,
+    value: { kind: "material", materialRef: material },
+    basis: { radioDirectionRevision: 4 },
+    now,
+  }));
+  assert.deepEqual(replacedVariation.direction.activeVariations.map((value) => value.kind), ["text", "material"]);
+
+  const removedVariation = expectDirectionOutput(await command.removeRadioVariation({
+    ownerScope,
+    index: 0,
+    basis: { radioDirectionRevision: 5 },
+    now,
+  }));
+  assert.deepEqual(removedVariation.direction.activeVariations.map((value) => value.kind), ["material"]);
+
+  const clearedMotif = expectDirectionOutput(await command.clearRadioMotif({
+    ownerScope,
+    basis: { radioDirectionRevision: 6 },
+    now,
+  }));
+  assert.equal(clearedMotif.direction.motif, undefined);
+
+  const clearedVariations = expectDirectionOutput(await command.clearRadioVariations({
+    ownerScope,
+    basis: { radioDirectionRevision: 7 },
+    now,
+  }));
+  assert.deepEqual(clearedVariations.direction.activeVariations, []);
+
+  const stale = await command.setRadioMotif({
+    ownerScope,
+    value: { kind: "text", text: "stale write" },
+    basis: { radioDirectionRevision: 0 },
+    now,
+  });
+  assert.equal(stale.ok, false);
+  if (!stale.ok) {
+    assert.equal(stale.error.code, "voided_stale");
+  }
+
+  const invalidIndex = await command.removeRadioVariation({
+    ownerScope,
+    index: 0,
+    basis: { radioDirectionRevision: 8 },
+    now,
+  });
+  assert.equal(invalidIndex.ok, false);
+  if (!invalidIndex.ok) {
+    assert.equal(invalidIndex.error.code, "index_out_of_range");
+  }
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: createMusicExperienceRadioTruthRegistrations({
+      candidateCommit: unusedCandidateCommit(),
+      materialProjection: unusedMaterialProjection(),
+      radioTruth: createMusicExperienceRadioTruthCommand({ database }),
+    }),
+  });
+  const ctx = createStageToolContext({
+    ownerScope,
+    sessionId: "radio-truth-stage-session",
+    requestId: "radio-truth-stage-request",
+    actor: "main_agent",
+    commandBasis: { radioDirectionRevision: 0 },
+    clock: () => now,
+  });
+
+  const motifSet = await stageInterface.dispatch(ctx, {
+    toolName: "radio.motif.set",
+    payload: {
+      value: { kind: "text", text: "stage motif" },
+    },
+  });
+  assert.equal(motifSet.ok, true);
+  if (motifSet.ok) {
+    assert.deepEqual(motifSet.value.result, {
+      radioDirectionRevision: 1,
+      direction: {
+        motif: { kind: "text", text: "stage motif" },
+        activeVariations: [],
+      },
+    });
+  }
+
+  const variationAdd = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "radio-truth-stage-session",
+    requestId: "radio-truth-stage-request-2",
+    actor: "main_agent",
+    commandBasis: { radioDirectionRevision: 1 },
+    clock: () => now,
+  }), {
+    toolName: "radio.variations.add",
+    payload: {
+      value: { kind: "scope", scope: "[library]" },
+    },
+  });
+  assert.equal(variationAdd.ok, true);
+  if (variationAdd.ok) {
+    assert.deepEqual(variationAdd.value.result, {
+      radioDirectionRevision: 2,
+      direction: {
+        motif: { kind: "text", text: "stage motif" },
+        activeVariations: [{ kind: "scope", scope: "[library]" }],
+      },
+    });
+  }
+
+  const leanAdd = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "radio-truth-stage-session",
+    requestId: "radio-truth-stage-request-3",
+    actor: "radio_agent",
+    commandBasis: { radioDirectionRevision: 2 },
+    clock: () => now,
+  }), {
+    toolName: "radio.lean.add",
+    payload: {
+      value: { kind: "text", text: "stage lean" },
+    },
+  });
+  assert.equal(leanAdd.ok, true);
+  if (leanAdd.ok) {
+    assert.deepEqual(leanAdd.value.result, {
+      radioDirectionRevision: 2,
+      posture: {
+        lean: [{ kind: "text", text: "stage lean" }],
+        commandedRevisionStamp: 2,
+        stale: false,
+      },
+    });
+  }
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const command = createMusicExperienceRadioTruthCommand({ database });
   const firstDirection = expectDirectionOutput(await command.setRadioDirection({
     ownerScope,
     motif: {
@@ -134,6 +329,78 @@ const ownerScope = "local";
   assert.equal(truth.radioDirectionRevision, 2);
   assert.equal(truth.posture.commandedRevisionStamp, 1);
   assert.equal(truth.posture.stale, true);
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const command = createMusicExperienceRadioTruthCommand({ database });
+  const direction = expectDirectionOutput(await command.setRadioDirection({
+    ownerScope,
+    motif: { kind: "text", text: "lean command baseline" },
+    activeVariations: [],
+    now,
+  }));
+
+  const added = expectPostureOutput(await command.addRadioLean({
+    ownerScope,
+    value: { kind: "text", text: "dry drums" },
+    commandedRevisionStamp: direction.radioDirectionRevision,
+    now,
+  }));
+  assert.equal(added.radioDirectionRevision, 1);
+  assert.deepEqual(added.posture.lean, [{ kind: "text", text: "dry drums" }]);
+
+  const inserted = expectPostureOutput(await command.addRadioLean({
+    ownerScope,
+    value: { kind: "scope", scope: { kind: "library" } },
+    at: 0,
+    commandedRevisionStamp: direction.radioDirectionRevision,
+    now,
+  }));
+  assert.deepEqual(inserted.posture.lean.map((value) => value.kind), ["scope", "text"]);
+
+  const moved = expectPostureOutput(await command.moveRadioLean({
+    ownerScope,
+    from: 0,
+    to: 1,
+    commandedRevisionStamp: direction.radioDirectionRevision,
+    now,
+  }));
+  assert.deepEqual(moved.posture.lean.map((value) => value.kind), ["text", "scope"]);
+
+  const replaced = expectPostureOutput(await command.replaceRadioLean({
+    ownerScope,
+    index: 1,
+    value: { kind: "text", text: "less glossy" },
+    commandedRevisionStamp: direction.radioDirectionRevision,
+    now,
+  }));
+  assert.deepEqual(replaced.posture.lean, [
+    { kind: "text", text: "dry drums" },
+    { kind: "text", text: "less glossy" },
+  ]);
+
+  const removed = expectPostureOutput(await command.removeRadioLean({
+    ownerScope,
+    index: 0,
+    commandedRevisionStamp: direction.radioDirectionRevision,
+    now,
+  }));
+  assert.deepEqual(removed.posture.lean, [{ kind: "text", text: "less glossy" }]);
+
+  const cleared = expectPostureOutput(await command.clearRadioLean({
+    ownerScope,
+    commandedRevisionStamp: direction.radioDirectionRevision,
+    now,
+  }));
+  assert.deepEqual(cleared.posture, {
+    lean: [],
+    commandedRevisionStamp: 1,
+    stale: false,
+  });
+  assert.equal((await readStateRevisions(database)).radio_direction_revision, 1);
 
   await database.close();
 }
@@ -724,6 +991,25 @@ function expectPostureOutput(
     throw new Error(`expected radio posture command to succeed, got ${result.error.code}`);
   }
   return result.value;
+}
+
+function unusedCandidateCommit(): CandidateCommitCommand {
+  return {
+    commitCandidate() {
+      throw new Error("Radio truth stage adapter text/scope test must not commit candidates.");
+    },
+  };
+}
+
+function unusedMaterialProjection(): MaterialProjection {
+  return {
+    projectMusicMaterial() {
+      throw new Error("Radio truth stage adapter text/scope test must not project material.");
+    },
+    async projectMusicMaterials() {
+      return new Map();
+    },
+  };
 }
 
 function materialRef(id: string): Ref {

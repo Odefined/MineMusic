@@ -57,6 +57,76 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
+    exportName: "radioMotifSetInputSchema",
+    typeName: "RadioMotifSetInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioMotifClearInputSchema",
+    typeName: "RadioMotifClearInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioVariationsAddInputSchema",
+    typeName: "RadioVariationsAddInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioVariationsRemoveInputSchema",
+    typeName: "RadioVariationsRemoveInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioVariationsReplaceInputSchema",
+    typeName: "RadioVariationsReplaceInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioVariationsMoveInputSchema",
+    typeName: "RadioVariationsMoveInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioVariationsClearInputSchema",
+    typeName: "RadioVariationsClearInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioLeanAddInputSchema",
+    typeName: "RadioLeanAddInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioLeanRemoveInputSchema",
+    typeName: "RadioLeanRemoveInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioLeanReplaceInputSchema",
+    typeName: "RadioLeanReplaceInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioLeanMoveInputSchema",
+    typeName: "RadioLeanMoveInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioLeanClearInputSchema",
+    typeName: "RadioLeanClearInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioDirectionToolOutputSchema",
+    typeName: "RadioDirectionToolOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioLeanToolOutputSchema",
+    typeName: "RadioLeanToolOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
     exportName: "musicExperiencePlaybackPlayInputSchema",
     typeName: "MusicExperiencePlaybackPlayInput",
     sourcePath: "src/contracts/stage_interface.ts",

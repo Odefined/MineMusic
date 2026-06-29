@@ -54,6 +54,8 @@ import {
   musicExperiencePlaybackPlayDescriptor,
   musicExperiencePresentDescriptor,
   musicExperienceQueueAppendDescriptor,
+  radioMotifSetDescriptor,
+  radioVariationsAddDescriptor,
 } from "../../src/music_experience/stage_adapter/index.js";
 import {
   createStageInterface,
@@ -287,6 +289,166 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
   assert.equal(turn.errorMessage, "Request was aborted.");
   assert.equal(turn.finalAssistantMessage?.stopReason, "aborted");
   assert.equal(turn.newMessages.at(-1), turn.finalAssistantMessage);
+}
+
+{
+  const observedContexts: {
+    toolName: string;
+    commandBasis: unknown;
+    actor: unknown;
+  }[] = [];
+  let streamCallCount = 0;
+  const session = createMineMusicMainAgentSession({
+    ownerScope,
+    actor: testMainActor([
+      radioMotifSetDescriptor.name,
+      radioVariationsAddDescriptor.name,
+      musicExperienceQueueAppendDescriptor.name,
+    ]),
+    workspaceContext: createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return {
+            revision: 12,
+            queue: [],
+            radio: {
+              directionRevision: 12,
+              direction: { activeVariations: [] },
+              posture: { lean: [], stale: false },
+            },
+          };
+        },
+      },
+    }),
+    tools: [radioMotifSetDescriptor, radioVariationsAddDescriptor, musicExperienceQueueAppendDescriptor],
+    dispatch: {
+      async dispatch(input) {
+        observedContexts.push({
+          toolName: input.toolName,
+          commandBasis: input.ctx.commandBasis,
+          actor: input.ctx.actor,
+        });
+        if (input.toolName === radioMotifSetDescriptor.name) {
+          return {
+            ok: true,
+            value: {
+              toolName: input.toolName,
+              result: {
+                radioDirectionRevision: 13,
+                direction: {
+                  motif: { kind: "text", text: "basis motif" },
+                  activeVariations: [],
+                },
+              },
+            },
+          };
+        }
+        if (input.toolName === radioVariationsAddDescriptor.name) {
+          return {
+            ok: true,
+            value: {
+              toolName: input.toolName,
+              result: {
+                radioDirectionRevision: 14,
+                direction: {
+                  motif: { kind: "text", text: "basis motif" },
+                  activeVariations: [{ kind: "text", text: "basis variation" }],
+                },
+              },
+            },
+          };
+        }
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: {
+              items: [{ item: "[material:basis_queue]", position: 0 }],
+              queueLength: 1,
+              queueRevision: 1,
+            },
+          },
+        };
+      },
+    },
+    contextFactory: {
+      createToolContext(input) {
+        return createStageToolContext({
+          ownerScope,
+          sessionId: input.sessionId,
+          requestId: input.requestId,
+          clock: () => "2026-06-27T01:00:00.000Z",
+          ...(input.actor === undefined ? {} : { actor: input.actor }),
+          ...(input.commandBasis === undefined ? {} : { commandBasis: input.commandBasis }),
+        });
+      },
+    },
+    stageSessionId: "stage-session-main-basis",
+    llmProviderSessionId: "provider-session-main-basis",
+    agentOptions: {
+      streamFn() {
+        streamCallCount += 1;
+        if (streamCallCount === 1) {
+          return fakeAssistantMessageEventStream({
+            type: "done",
+            reason: "toolUse",
+            message: assistantMessageWithToolCall(
+              "basis-radio-motif",
+              toPiToolName(radioMotifSetDescriptor.name),
+              { value: { kind: "text", text: "basis motif" } },
+            ),
+          });
+        }
+        if (streamCallCount === 2) {
+          return fakeAssistantMessageEventStream({
+            type: "done",
+            reason: "toolUse",
+            message: assistantMessageWithToolCall(
+              "basis-radio-variation",
+              toPiToolName(radioVariationsAddDescriptor.name),
+              { value: { kind: "text", text: "basis variation" } },
+            ),
+          });
+        }
+        if (streamCallCount === 3) {
+          return fakeAssistantMessageEventStream({
+            type: "done",
+            reason: "toolUse",
+            message: assistantMessageWithToolCall(
+              "basis-queue",
+              toPiToolName(musicExperienceQueueAppendDescriptor.name),
+              { items: ["[material:basis_queue]"] },
+            ),
+          });
+        }
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "stop",
+          message: assistantTextMessage("basis checked"),
+        });
+      },
+    },
+  });
+
+  const turn = await session.runUserTurn({ userMessage: "steer radio then queue" });
+  assert.equal(turn.assistantResponseText, "basis checked");
+  assert.deepEqual(observedContexts, [
+    {
+      toolName: "radio.motif.set",
+      commandBasis: { radioDirectionRevision: 12 },
+      actor: "main_agent",
+    },
+    {
+      toolName: "radio.variations.add",
+      commandBasis: { radioDirectionRevision: 13 },
+      actor: "main_agent",
+    },
+    {
+      toolName: "music.experience.queue.append",
+      commandBasis: undefined,
+      actor: "main_agent",
+    },
+  ]);
 }
 
 {

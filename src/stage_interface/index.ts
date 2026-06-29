@@ -340,14 +340,8 @@ function assertToolDeclarations(tools: readonly ToolDeclaration[]): void {
       throw new Error(`Tool '${tool.name}' uses invalid instrument namespace '${tool.instrumentId}'.`);
     }
 
-    if (!tool.name.startsWith(`${tool.instrumentId}.`)) {
-      throw new Error(`Tool '${tool.name}' must be named '${tool.instrumentId}.<action>'.`);
-    }
-
-    const action = tool.name.slice(tool.instrumentId.length + 1);
-
-    if (!/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/u.test(action)) {
-      throw new Error(`Tool '${tool.name}' uses invalid action '${action}'.`);
+    if (!/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/u.test(tool.name)) {
+      throw new Error(`Tool '${tool.name}' uses invalid public tool name.`);
     }
 
     if (tool.description.trim().length === 0) {

@@ -130,6 +130,18 @@ try {
         "music_experience_present",
         "music_experience_queue_append",
         "music_experience_playback_play",
+        "radio_motif_set",
+        "radio_motif_clear",
+        "radio_variations_add",
+        "radio_variations_remove",
+        "radio_variations_replace",
+        "radio_variations_move",
+        "radio_variations_clear",
+        "radio_lean_add",
+        "radio_lean_remove",
+        "radio_lean_replace",
+        "radio_lean_move",
+        "radio_lean_clear",
         "stage_runtime_status",
     ]);
     // Every listed tool carries a stitched description, inputSchema, outputSchema,
@@ -173,7 +185,7 @@ try {
         };
     };
     assert.equal(callResult.structuredContent.status, "ready");
-    assert.equal(callResult.structuredContent.interface.toolCount, 27);
+    assert.equal(callResult.structuredContent.interface.toolCount, 39);
     assert.equal(callResult.content.length, 1);
     assert.equal(callResult.content[0]?.type, "text");
     assert.equal(callResult.content[0]?.text.startsWith("Runtime ready"), true);

@@ -25,7 +25,10 @@ import type { RadioWakeReason } from "../contracts/agent_runtime.js";
 import type {
   ToolDeclaration,
 } from "../contracts/stage_interface.js";
-import type { MusicExperienceWorkspaceProjectionPort } from "../contracts/music_experience.js";
+import type {
+  MusicExperienceRadioTruthCommand,
+  MusicExperienceWorkspaceProjectionPort,
+} from "../contracts/music_experience.js";
 import {
   createMusicExperienceQueuePlaybackRecords,
   DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID,
@@ -39,6 +42,7 @@ export type CreateAgentRuntimeRadioModuleInput = {
   database(): MusicDatabaseContext | undefined;
   backgroundWork(): BackgroundWorkBackend | undefined;
   musicExperienceRead(): MusicExperienceWorkspaceProjectionPort | undefined;
+  radioTruth(): MusicExperienceRadioTruthCommand | undefined;
   notifyChannel(): MainRadioNotifyChannel | undefined;
   agentOptions(): MineMusicPiAgentAdapterOptions | undefined;
   tools(): readonly ToolDeclaration[];
@@ -109,6 +113,21 @@ export function createAgentRuntimeRadioModule(
         actor: radioDefinition,
         workspaceContext,
         clock: () => new Date().toISOString(),
+        async beforeWorkspaceContextAssemble(payload) {
+          const projection = await musicExperienceRead.readWorkspaceProjection({ ownerScope });
+          if (!projection.radio.posture.stale) {
+            return;
+          }
+          const radioTruth = requirePort(input.radioTruth(), "Music Experience Radio Truth command");
+          const cleared = await radioTruth.clearRadioLean({
+            ownerScope,
+            commandedRevisionStamp: payload.radioDirectionRevision,
+            now: new Date().toISOString(),
+          });
+          if (!cleared.ok) {
+            throw new Error(`Radio run-start failed to clear stale posture: ${cleared.error.code}`);
+          }
+        },
         prepareRun(payload, _workspaceContext) {
           currentRunResultRecorder = createRadioRunResultRecorder();
           currentRadioBasis = {

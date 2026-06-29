@@ -96,9 +96,10 @@ string/prose guard or an encoder workaround.
 
 **Required change.**
 
-1. Add a Stage Interface tool or Agent Runtime-injected capability for Radio
-   posture updates, for example `music.experience.radio.posture.write`.
-2. Wire it only into the Radio actor tool pack.
+1. Add Stage Interface tools for Radio posture updates:
+   `radio.lean.add`, `radio.lean.remove`, `radio.lean.replace`,
+   `radio.lean.move`, and `radio.lean.clear`.
+2. Wire them only into the Radio actor tool pack.
 3. Keep the durable write in Music Experience commands/records.
 4. At run start, if posture stamp mismatches the current
    `radioDirectionRevision`, Radio must see stale state, then write the next
@@ -144,7 +145,8 @@ behind stale ones.
   `docs/formal-rebuild/phase-B-radio-concurrency-spec.md:891-898`.
 - Live command port only exposes `append` and `playNow`:
   `src/contracts/music_experience.ts:101-104`.
-- Live Stage tools register `present`, `queue.append`, and `playback.play`, not
+- Live Stage tools register old-name queue/playback tools (`present`,
+  `music.experience.queue.append`, and `music.experience.playback.play`), not
   queue correction tools:
   `src/music_experience/stage_adapter/index.ts:53-69`.
 
@@ -164,6 +166,9 @@ Radio generated and that have not played.
    items that Radio generated and that have not played. It should be scoped by
    actor authority and provenance, not named or shaped as a one-off
    exhaustion/control escape hatch.
+   The input shape should reuse the shared indexed-list edit contract used for
+   queue-like ordered collections, with queue-specific authority and side-effect
+   rules.
 2. The command may only affect unplayed queue items safely attributable to
    Radio. It must not touch:
    - now-playing;
@@ -181,7 +186,7 @@ Radio generated and that have not played.
    Radio requests explicitly. In both cases, Stage Interface remains the callable
    boundary and Music Experience remains the write owner.
 6. Add tests proving:
-   - Radio can replace only queue items it generated and that have not played;
+   - Radio can edit only queue items it generated and that have not played;
    - user/manual queue items are preserved;
    - current playback is untouched;
    - stale basis returns `voided_stale`;
@@ -221,7 +226,9 @@ unrestricted authority.
 
 **Required change.**
 
-1. Add user/workbench queue commands for at least remove and move/reorder.
+1. Add user/workbench queue commands for at least remove and move/reorder under
+   the `playback.queue.*` tool family, using the same indexed action vocabulary
+   as the Radio queue-correction path where queue semantics allow it.
 2. Add a queue clear operation only with explicit semantics:
    shutdown clear, start refresh clear, and user clear must not be conflated.
 3. Record provenance/source for queue actions so Workspace Context can expose
@@ -231,12 +238,12 @@ unrestricted authority.
 5. Add tests proving user edits do not void Radio append/correction unless the
    checked concern set says they should.
 
-### P1: Main / user radio steering has no real entry path
+### P1: Main radio steering has no real entry path
 
 **Problem.** PB5 requires Main to relay user redirection through Music
 Experience radio-truth commands. The command layer exists, but the plan does not
-complete the agent-facing or user-command path that lets Main/user actually call
-it.
+complete the Main-facing capability path that lets Main actually steer radio
+truth on the user's behalf.
 
 **Evidence.**
 
@@ -255,19 +262,34 @@ it.
   `src/agent_runtime/actor_definition.ts:102-116`.
 
 **Impact.** Direction changes can be tested by directly calling commands, but not
-through the actor/product path the spec describes. PB5 can false-pass at the
-command layer while Main and the user still cannot steer Radio.
+through the actor path the spec describes. PB5 can false-pass at the command
+layer while Main still cannot steer Radio on the user's behalf.
 
 **Recommendation.** The rewritten post-PR3.3 sequence must add an explicit
-Main/user steering surface before any cascade slice depends on direction bumps.
+Main steering surface before any cascade slice depends on direction bumps. The
+surface should express the already-defined motif slot and ordered
+active-variation list without exposing the internal command-layer snapshot write
+as a naked whole-object set. `activeVariations` should use the same action
+vocabulary as other agent-editable ordered collections, addressed by the indexes
+rendered in the current Workspace Context projection.
 
 **Required change.**
 
-1. Add a Stage tool or user-command path for commanded radio direction updates.
-2. Route it to the Music Experience radio-truth command.
-3. Emit the PB9 revision observer after commit.
-4. Wake Radio with `wakeReason: "direction_changed"` through the supervisor.
-5. Add tests that exercise the route from Main/user command to stored direction,
+1. Add Main-facing Stage tools for structural commanded radio direction
+   steering: `radio.motif.set`, `radio.motif.clear`,
+   `radio.variations.add`, `radio.variations.remove`,
+   `radio.variations.replace`, `radio.variations.move`, and
+   `radio.variations.clear`.
+2. Route it to the Music Experience radio-truth command boundary, which
+   materializes the resulting direction snapshot internally.
+3. Validate the runtime-provided `radioDirectionRevision` basis and fail loudly
+   on stale basis or invalid index.
+4. Render `activeVariations` as a numbered list in Workspace Context, matching
+   the queue convention; do not introduce separate public identities for
+   variation entries.
+5. Emit the PB9 revision observer after commit.
+6. Wake Radio with `wakeReason: "direction_changed"` through the supervisor.
+7. Add tests that exercise the route from Main steering to stored direction,
    observer event, supervisor wake, and Radio run-start Workspace Context.
 
 ### P1: `direction_changed` wake semantics conflict with low-watermark pacing
@@ -384,7 +406,7 @@ directly write repositories.
 ### P2: PB8a endurance can false-pass
 
 **Problem.** PR6 depends only on PR2 and PR3, but endurance needs shared
-Workspace Context and the missing posture write capability. Without them, a test
+Workspace Context and the missing posture edit capability. Without them, a test
 can pass against command fixtures or legacy context instead of the real run-start
 floor.
 
@@ -660,7 +682,7 @@ that introduces the writer.
 ### Rewrite Principle 5: endurance is the final gate, not a moved test
 
 Endurance should be the closing acceptance gate for the rewritten sequence. It
-must depend on real shared Workspace Context, real posture write capability, real
+must depend on real shared Workspace Context, real posture edit capability, real
 steering route, real restart reconstruction, and real Radio queue correction
 semantics. It must not be able to pass through a legacy renderer, fixture-only
 radio truth, or stale lean hidden by projection.
@@ -685,18 +707,21 @@ This is the missing capability surface PR. It must exist before cascade.
 
 Owns:
 
-- Main/user commanded-direction steering route;
-- Radio posture write route;
-- Stage/user-command boundary for both routes;
+- Main commanded-direction action tools: `radio.motif.*` and
+  `radio.variations.*`;
+- Radio posture action tools: `radio.lean.*`;
+- Stage tool boundary for actor routes; short `radio.*` names are intentional
+  because `ownerArea` / `instrumentId` carry Music Experience ownership;
 - Radio actor tool-pack update for posture only if Radio is the intended writer;
 - observer event for direction steering. Direction-change correction behavior is
   accepted in Next PR3.6 after the safe queue-correction surface exists.
 
 Stopping condition:
 
-- steering through the real route bumps `radioDirectionRevision`;
-- Radio can write posture through Music Experience-owned command;
-- posture write bumps no revision and stamps the current direction revision;
+- structural steering through the real Main route bumps `radioDirectionRevision`;
+- Radio can edit posture through Music Experience-owned command;
+- posture edit/write operation bumps no revision and stamps the current
+  direction revision;
 - stale posture is not used as current lean.
 
 ### Next PR3.5: Queue control and Radio edits to its own unplayed queue items
@@ -705,7 +730,8 @@ This PR replaces the append-only assumption with scoped queue mutation.
 
 Owns:
 
-- user queue remove / move or reorder command contracts;
+- `playback.queue.remove` / `playback.queue.move` user command contracts, plus
+  `playback.queue.replace` where product semantics require replacement;
 - queue correction contract that lets Radio modify only queue items it generated
   and that have not played;
 - clear semantics split between shutdown, start refresh, and user clear;
@@ -757,7 +783,8 @@ Stopping condition:
 
 - every writer introduced through PR3.6 is in the observer matrix;
 - post-commit emits exactly once, rollback emits zero;
-- Main/user direction changes abort stale Radio runs;
+- Main-originated direction changes abort stale Radio runs; future user-command
+  direction routes must drive the same direction writer instead of bypassing it;
 - Radio writes abort nobody;
 - queue-only writes do not abort runs unless the run basis checks queue.
 
@@ -823,7 +850,7 @@ Stopping condition:
 | Requirement | Pre-rewrite plan status | Next post-PR3.3 responsibility |
 | --- | --- | --- |
 | PB5 commanded direction through owned truth | Command layer only | Next PR3.4 steering route + observer event; Next PR3.6 direction-change correction |
-| PB8 evolved posture floor | Command layer only | Next PR3.4 Radio posture capability + stale run-start test |
+| PB8 evolved posture floor | Command layer only | Next PR3.4 Radio posture edit capability + stale run-start test |
 | PB8a endurance | Under-dependent | Next PR7 final endurance gate |
 | PB9 cascade | Core planned before writers | Next PR4 after writer inventory |
 | PB10 lifecycle | Planned, missing queue/playback substrate | Next PR5 lifecycle + playback/queue commands |

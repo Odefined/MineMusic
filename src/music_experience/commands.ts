@@ -1,11 +1,13 @@
 import type {
   MusicExperienceQueuePlaybackCommand,
   MusicExperienceRadioTruthCommand,
+  MusicExperienceSetRadioDirectionCommandOutput,
+  MusicExperienceWriteRadioPostureCommandOutput,
   RadioDirectionScopeValue,
   RadioDirectionSnapshot,
   VariationItem,
 } from "../contracts/music_experience.js";
-import type { Ref, Result } from "../contracts/kernel.js";
+import type { CommandPreconditionSet, Ref, Result } from "../contracts/kernel.js";
 import {
   MAX_RADIO_POSTURE_LEAN_ITEMS,
   MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
@@ -103,11 +105,55 @@ export function createMusicExperienceRadioTruthCommand(
                 ...(commandInput.motif === undefined ? {} : { motif: commandInput.motif }),
                 activeVariations: commandInput.activeVariations,
               },
+              ...(commandInput.basis === undefined ? {} : { basis: commandInput.basis }),
               now: commandInput.now,
             }),
           };
         });
       });
+    },
+    async setRadioMotif(commandInput) {
+      return editRadioDirection(input, commandInput, (direction) => ({
+        ...direction,
+        motif: commandInput.value,
+      }));
+    },
+    async clearRadioMotif(commandInput) {
+      return editRadioDirection(input, commandInput, (direction) => {
+        return {
+          activeVariations: direction.activeVariations,
+        };
+      });
+    },
+    async addRadioVariation(commandInput) {
+      return editRadioDirection(input, commandInput, (direction) => ({
+        ...direction,
+        activeVariations: insertAt(direction.activeVariations, commandInput.value, commandInput.at),
+      }));
+    },
+    async removeRadioVariation(commandInput) {
+      return editRadioDirection(input, commandInput, (direction) => ({
+        ...direction,
+        activeVariations: removeAt(direction.activeVariations, commandInput.index),
+      }));
+    },
+    async replaceRadioVariation(commandInput) {
+      return editRadioDirection(input, commandInput, (direction) => ({
+        ...direction,
+        activeVariations: replaceAt(direction.activeVariations, commandInput.index, commandInput.value),
+      }));
+    },
+    async moveRadioVariation(commandInput) {
+      return editRadioDirection(input, commandInput, (direction) => ({
+        ...direction,
+        activeVariations: moveItem(direction.activeVariations, commandInput.from, commandInput.to),
+      }));
+    },
+    async clearRadioVariations(commandInput) {
+      return editRadioDirection(input, commandInput, (direction) => ({
+        ...direction,
+        activeVariations: [],
+      }));
     },
     async writeRadioPosture(commandInput) {
       return runRadioTruth(async () => {
@@ -121,7 +167,79 @@ export function createMusicExperienceRadioTruthCommand(
         });
       });
     },
+    async addRadioLean(commandInput) {
+      return editRadioPosture(input, commandInput, (lean) => insertAt(lean, commandInput.value, commandInput.at));
+    },
+    async removeRadioLean(commandInput) {
+      return editRadioPosture(input, commandInput, (lean) => removeAt(lean, commandInput.index));
+    },
+    async replaceRadioLean(commandInput) {
+      return editRadioPosture(input, commandInput, (lean) => replaceAt(lean, commandInput.index, commandInput.value));
+    },
+    async moveRadioLean(commandInput) {
+      return editRadioPosture(input, commandInput, (lean) => moveItem(lean, commandInput.from, commandInput.to));
+    },
+    async clearRadioLean(commandInput) {
+      return editRadioPosture(input, commandInput, () => []);
+    },
   };
+}
+
+async function editRadioDirection(
+  input: CreateMusicExperienceQueuePlaybackCommandInput,
+  commandInput: {
+    ownerScope: string;
+    basis?: CommandPreconditionSet;
+    now: string;
+  },
+  edit: (direction: RadioDirectionSnapshot) => RadioDirectionSnapshot,
+): Promise<Result<MusicExperienceSetRadioDirectionCommandOutput>> {
+  return runRadioTruth(async () => {
+    return input.database.transaction(async (db) => {
+      const records = createMusicExperienceRadioTruthRecords({ db });
+      const current = await records.read({ ownerScope: commandInput.ownerScope });
+      const direction = edit(current.direction);
+      validateRadioDirection(direction);
+      return {
+        ok: true,
+        value: await records.setDirection({
+          ownerScope: commandInput.ownerScope,
+          direction,
+          ...(commandInput.basis === undefined ? {} : { basis: commandInput.basis }),
+          now: commandInput.now,
+        }),
+      };
+    });
+  });
+}
+
+async function editRadioPosture(
+  input: CreateMusicExperienceQueuePlaybackCommandInput,
+  commandInput: {
+    ownerScope: string;
+    commandedRevisionStamp: number;
+    now: string;
+  },
+  edit: (lean: readonly VariationItem[]) => readonly VariationItem[],
+): Promise<Result<MusicExperienceWriteRadioPostureCommandOutput>> {
+  return runRadioTruth(async () => {
+    return input.database.transaction(async (db) => {
+      const records = createMusicExperienceRadioTruthRecords({ db });
+      const current = await records.read({ ownerScope: commandInput.ownerScope });
+      const baseLean = current.posture.stale ? [] : current.posture.lean;
+      const lean = edit(baseLean);
+      validateVariationItems(lean);
+      return {
+        ok: true,
+        value: await records.writePosture({
+          ownerScope: commandInput.ownerScope,
+          lean,
+          commandedRevisionStamp: commandInput.commandedRevisionStamp,
+          now: commandInput.now,
+        }),
+      };
+    });
+  });
 }
 
 function validateRadioDirection(input: RadioDirectionSnapshot): void {
@@ -191,6 +309,75 @@ function validateScope(scope: RadioDirectionScopeValue): void {
   }
 }
 
+function insertAt<T>(
+  items: readonly T[],
+  item: T,
+  at: number | undefined,
+): readonly T[] {
+  const index = at ?? items.length;
+  assertInsertIndex(index, items.length);
+  return [
+    ...items.slice(0, index),
+    item,
+    ...items.slice(index),
+  ];
+}
+
+function removeAt<T>(
+  items: readonly T[],
+  index: number,
+): readonly T[] {
+  assertExistingIndex(index, items.length);
+  return [
+    ...items.slice(0, index),
+    ...items.slice(index + 1),
+  ];
+}
+
+function replaceAt<T>(
+  items: readonly T[],
+  index: number,
+  item: T,
+): readonly T[] {
+  assertExistingIndex(index, items.length);
+  return items.map((existing, existingIndex) => existingIndex === index ? item : existing);
+}
+
+function moveItem<T>(
+  items: readonly T[],
+  from: number,
+  to: number,
+): readonly T[] {
+  assertExistingIndex(from, items.length);
+  assertExistingIndex(to, items.length);
+  const next = items.slice();
+  const [item] = next.splice(from, 1);
+  if (item === undefined) {
+    throw new Error("Radio list move source disappeared after index validation.");
+  }
+  next.splice(to, 0, item);
+  return next;
+}
+
+function assertInsertIndex(index: number, length: number): void {
+  if (!Number.isSafeInteger(index) || index < 0 || index > length) {
+    throw new RadioTruthIndexError(`Radio list insert index ${index} is outside 0..${length}.`);
+  }
+}
+
+function assertExistingIndex(index: number, length: number): void {
+  if (!Number.isSafeInteger(index) || index < 0 || index >= length) {
+    throw new RadioTruthIndexError(`Radio list index ${index} is outside 0..${Math.max(0, length - 1)}.`);
+  }
+}
+
+class RadioTruthIndexError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RadioTruthIndexError";
+  }
+}
+
 function radioTruthInvalidResult(message: string) {
   return {
     ok: false as const,
@@ -204,9 +391,34 @@ function radioTruthInvalidResult(message: string) {
   };
 }
 
-// Runs a radio-truth command body, translating declared validation failures into
-// the public radio_truth_invalid Result at this owned command boundary. Every
-// other error (programmer errors, system failures) is rethrown untouched.
+function radioTruthIndexResult(message: string) {
+  return {
+    ok: false as const,
+    error: {
+      code: "index_out_of_range",
+      message,
+      area: "music_experience" as const,
+      retryable: false,
+      suggestedFix: "Refresh Workspace Context and retry with one of the listed zero-based indexes.",
+    },
+  };
+}
+
+function radioTruthStaleResult() {
+  return {
+    ok: false as const,
+    error: {
+      code: "voided_stale",
+      message: "Music Experience radio direction basis was stale at commit time.",
+      area: "music_experience" as const,
+      retryable: true,
+      suggestedFix: "Refresh the current radio direction basis and retry if the steering action is still desired.",
+    },
+  };
+}
+
+// Runs a radio-truth command body, translating declared command failures at this
+// owned command boundary. Programmer errors and system failures are rethrown.
 async function runRadioTruth<T>(
   body: () => Promise<{ ok: true; value: T }>,
 ): Promise<Result<T>> {
@@ -215,6 +427,12 @@ async function runRadioTruth<T>(
   } catch (error) {
     if (error instanceof RadioTruthValidationError) {
       return radioTruthInvalidResult(error.message);
+    }
+    if (error instanceof RadioTruthIndexError) {
+      return radioTruthIndexResult(error.message);
+    }
+    if (error instanceof StaleCommandPreconditionError) {
+      return radioTruthStaleResult();
     }
     throw error;
   }

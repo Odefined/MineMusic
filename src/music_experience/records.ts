@@ -62,6 +62,7 @@ export type MusicExperienceRadioTruthRecords = {
   setDirection(input: {
     ownerScope: string;
     direction: RadioDirectionSnapshot;
+    basis?: CommandPreconditionSet;
     now: string;
   }): Promise<{
     radioDirectionRevision: ConcernRevision;
@@ -73,6 +74,7 @@ export type MusicExperienceRadioTruthRecords = {
     commandedRevisionStamp: ConcernRevision;
     now: string;
   }): Promise<{
+    radioDirectionRevision: ConcernRevision;
     posture: EvolvedPostureSnapshot;
   }>;
   readQueuedMaterialRefs(input: {
@@ -260,7 +262,12 @@ export function createMusicExperienceRadioTruthRecords(
     async setDirection(setInput) {
       const key = workspaceKey(setInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: setInput.now });
-      const state = await updateRadioDirectionRevision({ db, key, now: setInput.now });
+      const state = await updateRadioDirectionRevision({
+        db,
+        key,
+        now: setInput.now,
+        ...(setInput.basis === undefined ? {} : { basis: setInput.basis }),
+      });
       await writeRadioDirection({
         db,
         key,
@@ -296,6 +303,7 @@ export function createMusicExperienceRadioTruthRecords(
       });
 
       return {
+        radioDirectionRevision: state.radio_direction_revision,
         posture: postureSnapshot({
           lean: writeInput.lean,
           commandedRevisionStamp: writeInput.commandedRevisionStamp,
@@ -508,8 +516,24 @@ async function updatePlayback(input: {
 async function updateRadioDirectionRevision(input: {
   db: MusicDatabaseContext;
   key: MusicExperienceWorkspaceKey;
+  basis?: CommandPreconditionSet;
   now: string;
 }): Promise<StateRow> {
+  const conditions: string[] = [];
+  const params: (string | number)[] = [input.now, input.key.ownerScope, input.key.workspaceId];
+  const basisConditions: Array<[fragment: string, revision: ConcernRevision | undefined]> = [
+    ["AND radio_direction_revision = ?", input.basis?.radioDirectionRevision],
+    ["AND queue_revision = ?", input.basis?.queueRevision],
+    ["AND radio_session_revision = ?", input.basis?.radioSessionRevision],
+    ["AND playback_revision = ?", input.basis?.playbackRevision],
+  ];
+  for (const [fragment, revision] of basisConditions) {
+    if (revision !== undefined) {
+      conditions.push(fragment);
+      params.push(revision);
+    }
+  }
+
   const row = await input.db.get<StateRow>(
     `
       UPDATE music_experience_state
@@ -517,13 +541,14 @@ async function updateRadioDirectionRevision(input: {
         updated_at = ?
       WHERE owner_scope = ?
         AND workspace_id = ?
+        ${conditions.join("\n        ")}
       RETURNING ${STATE_ROW_COLUMNS}
     `,
-    [input.now, input.key.ownerScope, input.key.workspaceId],
+    params,
   );
 
   if (row === undefined) {
-    throw new Error("Music Experience radio direction update did not return a state row.");
+    throw new StaleCommandPreconditionError();
   }
 
   return row;

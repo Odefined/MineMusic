@@ -723,6 +723,81 @@ export type MusicExperienceQueueAppendOutput = {
   queueRevision: ConcernRevision;
 };
 
+export type RadioTruthToolValue =
+  | { kind: "text"; text: string }
+  | { kind: "material"; item: MusicItemHandle }
+  | { kind: "scope"; scope: MusicScope };
+
+export type RadioTruthToolValueOutput =
+  | { kind: "text"; text: string }
+  | { kind: "material"; item: MaterialMusicItemHandle }
+  | { kind: "scope"; scope: MusicScope };
+
+export type RadioMotifSetInput = {
+  value: RadioTruthToolValue;
+};
+
+export type RadioMotifClearInput = Record<string, never>;
+
+export type RadioVariationsAddInput = {
+  value: RadioTruthToolValue;
+  at?: number;
+};
+
+export type RadioVariationsRemoveInput = {
+  index: number;
+};
+
+export type RadioVariationsReplaceInput = {
+  index: number;
+  value: RadioTruthToolValue;
+};
+
+export type RadioVariationsMoveInput = {
+  from: number;
+  to: number;
+};
+
+export type RadioVariationsClearInput = Record<string, never>;
+
+export type RadioLeanAddInput = {
+  value: RadioTruthToolValue;
+  at?: number;
+};
+
+export type RadioLeanRemoveInput = {
+  index: number;
+};
+
+export type RadioLeanReplaceInput = {
+  index: number;
+  value: RadioTruthToolValue;
+};
+
+export type RadioLeanMoveInput = {
+  from: number;
+  to: number;
+};
+
+export type RadioLeanClearInput = Record<string, never>;
+
+export type RadioDirectionToolOutput = {
+  radioDirectionRevision: ConcernRevision;
+  direction: {
+    motif?: RadioTruthToolValueOutput;
+    activeVariations: readonly RadioTruthToolValueOutput[];
+  };
+};
+
+export type RadioLeanToolOutput = {
+  radioDirectionRevision: ConcernRevision;
+  posture: {
+    lean: readonly RadioTruthToolValueOutput[];
+    commandedRevisionStamp: ConcernRevision;
+    stale: boolean;
+  };
+};
+
 export type MusicExperiencePlaybackStatus = "playing" | "paused";
 
 export type MusicExperiencePlaybackPlayInput = {

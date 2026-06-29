@@ -41,6 +41,7 @@ export const radioDefinition: ActorDefinition = {
     operatingRules:
       "Work from current state: `radio` gives the direction and posture, `listening` gives what is queued and playing. " +
       "In the direction, the `motif` is the main theme and the active variations are layered on it: keep the motif primary; variations shade it, they do not compete with it or override it. " +
+      "Use `radio_lean_add`, `radio_lean_replace`, `radio_lean_remove`, `radio_lean_move`, or `radio_lean_clear` when your current musical posture needs to evolve under the same commanded direction. " +
       "Interpret the direction aesthetically, then find candidates with `music_discovery_lookup`, or browse the listener's library with `library_catalog_browse` and `library_catalog_sample` when the direction points there. " +
       "Add roughly the run's `suggestedAppendCount`, then stop. " +
       "Let `userTasteHint` guide toward the listener's taste, and append with `music_experience_queue_append`.",
@@ -60,6 +61,11 @@ export const radioDefinition: ActorDefinition = {
       "library.catalog.sample",
       "library.catalog.summary",
       "music.experience.queue.append",
+      "radio.lean.add",
+      "radio.lean.remove",
+      "radio.lean.replace",
+      "radio.lean.move",
+      "radio.lean.clear",
     ],
   },
 };
@@ -80,6 +86,7 @@ export const mainDefinition: ActorDefinition = {
       "Ground your suggestions: find real candidates with `music_discovery_lookup` or `library_catalog_browse`, and show a settled pick with `music_experience_present`. " +
       "Check `listening` for what is playing and queued before suggesting next steps. " +
       "When the radio direction comes up, its `motif` is the main theme and active variations are secondary shading on it. " +
+      "Use `radio_motif_set` or `radio_motif_clear` for the single motif slot, and `radio_variations_add`, `radio_variations_remove`, `radio_variations_replace`, `radio_variations_move`, or `radio_variations_clear` for the ordered active-variation list. " +
       "Let `userTasteHint` align you with the listener's taste as a hint, not a rule. " +
       "Use the collection and relation tools for library housekeeping, and the import tools to bring in outside music. " +
       "Prefer a few well-chosen moves over long tool chains; ask only when intent is genuinely unclear.",
@@ -112,6 +119,13 @@ export const mainDefinition: ActorDefinition = {
       "music.experience.present",
       "music.experience.queue.append",
       "music.experience.playback.play",
+      "radio.motif.set",
+      "radio.motif.clear",
+      "radio.variations.add",
+      "radio.variations.remove",
+      "radio.variations.replace",
+      "radio.variations.move",
+      "radio.variations.clear",
       "stage.runtime.status",
     ],
   },

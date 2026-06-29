@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { refKey, type Ref, type Result } from "../../src/contracts/kernel.js";
 import type { ProviderMaterialCandidate, SourceTrack, } from "../../src/contracts/music_data_platform.js";
-import type { MusicExperienceQueuePlaybackCommand } from "../../src/contracts/music_experience.js";
+import type {
+    MusicExperienceQueuePlaybackCommand,
+    MusicExperienceRadioTruthCommand,
+} from "../../src/contracts/music_experience.js";
 import type { MusicExperiencePresentOutput, MusicItemHandle, ToolCallOutput, } from "../../src/contracts/stage_interface.js";
 import { parseMusicItemHandle } from "../../src/contracts/stage_interface.js";
 import { createMemoryStageToolAuditPort, createConservativeStageToolExecutionGate, } from "../../src/effect_boundary/index.js";
@@ -386,6 +389,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
         candidateCommit: stubCandidateCommit(),
         materialProjection: stubMaterialProjection(),
         queuePlayback: stubQueuePlaybackCommand(),
+        radioTruth: stubRadioTruthCommand(),
     });
     const initialized = await module.initialize({});
     assert.equal(initialized.ok, true);
@@ -397,6 +401,18 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
         "music.experience.present",
         "music.experience.queue.append",
         "music.experience.playback.play",
+        "radio.motif.set",
+        "radio.motif.clear",
+        "radio.variations.add",
+        "radio.variations.remove",
+        "radio.variations.replace",
+        "radio.variations.move",
+        "radio.variations.clear",
+        "radio.lean.add",
+        "radio.lean.remove",
+        "radio.lean.replace",
+        "radio.lean.move",
+        "radio.lean.clear",
     ]);
 }
 async function initializedPresentDatabase(): Promise<MusicDatabase> {
@@ -508,6 +524,17 @@ function stubQueuePlaybackCommand(): MusicExperienceQueuePlaybackCommand {
         },
     };
 }
+
+function stubRadioTruthCommand(): MusicExperienceRadioTruthCommand {
+    return new Proxy({}, {
+        get() {
+            return () => {
+                throw new Error("Music Experience radio truth command should not be called by this test.");
+            };
+        },
+    }) as MusicExperienceRadioTruthCommand;
+}
+
 function candidateHandlesFor(input: {
     publicId: string;
     materialCandidateRef: Ref;

@@ -403,7 +403,10 @@ coordination "over the shared read model."
 
 Phase B scope uses only the PRD-named core vocabulary: **motif** and **active
 variations**. A richer musical-operation vocabulary is a recorded future
-direction, deliberately not built now (see Deferred).
+direction, deliberately not built now (see Deferred). This does **not** mean the
+Main capability surface is a raw whole-object `set` of the direction snapshot.
+The agent-facing surface must express the already-defined structure: one motif
+slot plus an ordered active-variation list.
 
 **Value shape (ADR-0037).** Motif is a single overwriting slot; active variations
 is an ordered list. Each value (the motif, and each variation item) is a
@@ -416,46 +419,86 @@ which is exactly what the motif/variations split is for. The deferred controlled
 vocabulary graduates later by adding structured variation-list items, without
 changing the truth shape.
 
+**Steering capability shape.** Main steering edits the commanded direction with
+the same action vocabulary used for other agent-editable ordered collections.
+
+- `motif` is the exception: it is one optional slot, so Main can set it or clear
+  it through `radio.motif.set` / `radio.motif.clear`.
+- `activeVariations` is an ordered list of `RadioDirectionValue`s, so Main can
+  add, remove, replace, move, or clear entries through
+  `radio.variations.add` / `radio.variations.remove` /
+  `radio.variations.replace` / `radio.variations.move` /
+  `radio.variations.clear`, addressed by the zero-based indexes shown in the
+  current Workspace Context projection.
+
+These are separate agent-facing action tools. The Stage tool `ownerArea` and
+instrument identify Music Experience ownership; the public tool names do not
+repeat the long `music.experience` prefix.
+
+Workspace Context must render agent-editable ordered collections with one
+numbered-list convention. `listening.queue` already renders as `0. ...`,
+`1. ...`; `radio.direction.activeVariations` must render as an
+`activeVariations:` numbered list, not as repeated singular `activeVariation:`
+lines. Active-variation entries are list entries, not separate public
+identities. Existing public references inside a value still keep their existing
+forms: material values use `MusicItemHandle`; scope values use `MusicScope`.
+
+The command boundary supplies and validates the current
+`radioDirectionRevision` basis before applying indexed edits. A stale basis or
+invalid index fails loudly; a successful steering call materializes one resulting
+commanded direction and bumps `radio_direction_revision` once. The Music
+Experience command implementation may materialize the resulting
+`RadioDirectionSnapshot` internally, but the Main-facing capability must not be
+a naked snapshot overwrite. Main derives steering edits from user intent and the
+current Workspace Context; the user does not directly call the radio-truth tool.
+Future Workbench or Web user-command routes may drive the same Music
+Experience-owned command boundary, but they do not bypass Main judgement in
+Phase B.
+
 ### PB6 — One generalized silent batch append tool; commit is internal
 
-A single generalized `queue.append(handles[])` tool _(proposed)_ takes a batch of
-candidate-or-material handles, commits candidates to material **internally**
-(hiding `candidate_commit`, exactly as `present` already does), and appends them
-with provenance — silent, no card. Radio uses it for batch refill; Main uses it
-for silent enqueue; `present` remains the with-card path. **`queue.append`
-is the same tool across A and B (Grill #8):** Phase A already ships
-`queue.append` as candidate-or-material, batch-of-1, with
-`ResolveDurableMusicItem` extracted (ADR-0040); Phase B only **widens** it to
-batch-of-N for Radio refill — not a replace, not a second tool. No raw agent-facing commit primitive is
-exposed; the append result reports the **minted public `material` handles** (per
-ADR-0040's unified item-handle currency) and their provenance — **never raw
-material refs** (returning an internal storage ref would violate the Public
-Handle Veil / Agent-Facing Output rule). Per-item handles (not just a count) are
-returned because a caller may later need to reference an appended item (Main's
-"move the third one I just added"); an unused handle costs nothing, a handle
-never returned cannot be recovered. Rationale: matches present's existing
-encapsulation; "several per turn, not one per inference" wants minimal calls per
-refill; agency lives in selection, not in commit/append plumbing.
+A single generalized `playback.queue.append(handles[])` tool _(proposed)_ takes
+a batch of candidate-or-material handles, commits candidates to material
+**internally** (hiding `candidate_commit`, exactly as `present` already does),
+and appends them with provenance — silent, no card. Radio uses it for batch
+refill; Main uses it for silent enqueue; `present` remains the with-card path.
+**`playback.queue.append` is the target name for the existing append capability
+across A and B (Grill #8):** Phase A already ships the append behavior under the
+older Music Experience queue naming, as candidate-or-material, batch-of-1, with
+`ResolveDurableMusicItem` extracted (ADR-0040); Phase B widens that capability to
+batch-of-N for Radio refill and PR3.5 aligns queue tools under the
+`playback.queue.*` family — not a replace, not a second append capability. No raw
+agent-facing commit primitive is exposed; the append result reports the **minted
+public `material` handles** (per ADR-0040's unified item-handle currency) and
+their provenance — **never raw material refs** (returning an internal storage ref
+would violate the Public Handle Veil / Agent-Facing Output rule). Per-item
+handles (not just a count) are returned because a caller may later need to
+reference an appended item (Main's "move the third one I just added"); an unused
+handle costs nothing, a handle never returned cannot be recovered. Rationale:
+matches present's existing encapsulation; "several per turn, not one per
+inference" wants minimal calls per refill; agency lives in selection, not in
+commit/append plumbing.
 
 **Cross-context write boundary is two-step and non-atomic — by design, not a
-saga.** `queue.append` performs two writes in different owners: a Music Data
+saga.** `playback.queue.append` performs two writes in different owners: a Music Data
 Platform candidate→material commit, then a Music Experience queue append. These
 do **not** share one transaction and do **not** need a saga/outbox/compensation,
 because `commitCandidate` is idempotent (a re-commit returns the existing binding
 with `created:false`) and a committed-but-not-appended material is a **benign
 orphan** — exactly PB4's legal "durable material not in the catalog/library"
 intermediate state: invisible to the user, safe to retry (re-running
-`queue.append` re-commits to the same material and appends). This is the pattern
+`playback.queue.append` re-commits to the same material and appends). This is the pattern
 `present` already uses (commit, then present; no rollback on partial failure).
 The shared "resolve a candidate-or-material handle to a current material via
 idempotent commit" step is extracted as a reusable capability (working name
-`ResolveDurableMusicItem`) in **Phase A**, where `queue.append` (moved from PB6
-by Grill #8, and accepting candidate handles) becomes `present`'s second real
-caller; Phase B reuses it. See ADR-0040 and issue #113.
+`ResolveDurableMusicItem`) in **Phase A**, where the queue append capability
+(moved from PB6 by Grill #8, and accepting candidate handles) becomes `present`'s
+second real caller; Phase B reuses it under the `playback.queue.append` target
+name. See ADR-0040 and issue #113.
 
 **PB6 must define the widened batch semantics explicitly.** Phase A's public
-schema enforces exactly one `queue.append` item; it does not expose batch
-semantics early. When Radio widens `queue.append` to batch-of-N, the Music
+append schema enforces exactly one item; it does not expose batch semantics
+early. When Radio widens `playback.queue.append` to batch-of-N, the Music
 Experience append transaction is all-or-nothing, but any candidate commits that
 completed before a later item fails have already landed in Music Data Platform.
 That partial candidate-materialization is acceptable only because the commit is
@@ -501,10 +544,14 @@ append can both read the same tail and collide on the `position` primary key
   radio concern columns `radio_direction_revision` / `radio_session_revision`
   must be added to `music_experience_state`, which today carries only
   `queue_revision` + `playback_revision`.)
-- **Scope: append-only; reorder deferred.** `reorder`/`move` is not a Phase B
-  command (`commands.ts` ships only `append`), so Phase B's position column is
-  append-only monotonic — no concurrent "rewrite existing positions." Reorder
-  lands with the Phase C Web UI; its position-coexistence tests defer with it.
+- **Scope of PB6: append allocation only.** The generalized
+  `playback.queue.append` path remains the batch append path and owns monotonic
+  tail-position minting. `playback.queue.remove` / `playback.queue.replace` /
+  `playback.queue.move` / `playback.queue.clear` are separate Music
+  Experience queue-edit capabilities in the post-PR3.3 plan, using the same
+  action vocabulary as `activeVariations` and `lean` where queue semantics allow
+  it. Their position rewrite and authority tests live with that queue-edit
+  capability, not inside PB6's append allocator.
 - **Row lock does not cross the LLM turn.** The append transaction is the short
   counter-mint + INSERT + CAS sequence; the LLM turn precedes it (basis captured
   at turn start, PB3:218-219), so the row lock is held for milliseconds only.
@@ -601,6 +648,18 @@ Full rationale and OCC table in ADR-0037. In Phase B terms:
   (soul). This takes the LangGraph structured-state route over the MemGPT
   free-text route deliberately (anti-bloat by cap, anti-drift by anchors-not-prose
   + replace trade-off); see ADR-0037 Rejected Alternatives.
+- **Posture edit capability mirrors the shared list structure.** Radio's
+  callable posture surface edits the bounded `lean` list with the same action
+  vocabulary used by `queue` and `activeVariations`, not an unbounded prose note
+  and not a forced full rewrite. Radio may add, remove, replace, move, or clear
+  lean entries through `radio.lean.add` / `radio.lean.remove` /
+  `radio.lean.replace` / `radio.lean.move` / `radio.lean.clear`, addressed by
+  the zero-based indexes shown in the current Workspace Context projection.
+  These are separate agent-facing action tools. Workspace Context renders
+  `lean:` as a numbered list, not as repeated singular `lean:` lines. Lean
+  entries are list entries, not separate public identities. The runtime/command
+  boundary derives mechanical fields such as owner scope, clock time, and
+  commanded-revision stamp; Radio supplies only musical lean edits.
 - **Posture is revision-stamped, conditionally cleared, Radio-owned.** Each
   posture write is stamped with the commanded revision it was evolved under
   (posture has no revision of its own). At each run start Radio compares: stamp
@@ -716,7 +775,7 @@ one `Agent`; Agent Runtime owns the cascade across actors.
     material does not pollute the owner catalog (PB4). A later retry re-commits to
     the same ref.
   - **Half-writes are blocked by command-transaction atomicity** (A3: writes go
-    through `database.transaction`); a `queue.append` either lands whole or not at
+    through `database.transaction`); a `playback.queue.append` either lands whole or not at
     all.
   - **A write racing the abort (already past basis capture, mid-commit) is not
     handled by abort but by the commit-time basis check** — the aborted run's
@@ -724,7 +783,7 @@ one `Agent`; Agent Runtime owns the cascade across actors.
     made it stale), so its commit is voided.
 - **Two write boundaries, abort-safe in between.** A Radio refill spans two write
   boundaries — `candidate_commit` (Music Data Platform source-of-truth write via
-  `runSourceOfTruthWrite`, triggers projection maintenance) then `queue.append`
+  `runSourceOfTruthWrite`, triggers projection maintenance) then `playback.queue.append`
   (Music Experience write, no projection trigger). An abort landing between them
   is harmless precisely because each segment is its own atomic transaction and the
   material commit is idempotent.
@@ -802,7 +861,7 @@ one `Agent`; Agent Runtime owns the cascade across actors.
 Radio is driven by three **user button controls** — `start`, `pause`, `shutdown`
 — that govern the Radio **agent instance lifecycle**. They are user actions on a
 par with playback play/pause: they travel the user-command path and **do not go
-through any agent loop**. ("Agent calls a tool" like `queue.append` is a
+through any agent loop**. ("Agent calls a tool" like `playback.queue.append` is a
 separate, normal mechanism; the lifecycle buttons are not that.) The Radio agent
 has three lifecycle states:
 
@@ -910,7 +969,7 @@ because OCC correctness and pi wiring are separable and must not be conflated:
   Experience owning command's commit-time basis check (PB3), which is synchronous
   and deterministic. The race is **orchestrated explicitly by test code**, not
   produced by running two LLM loops: (1) capture a basis at concern revision N;
-  (2) call the steering command to bump it to N+1; (3) call `queue.append` with basis=N;
+  (2) call the steering command to bump it to N+1; (3) call `playback.queue.append` with basis=N;
   (4) assert the append is voided. No pi, no async LLM timing — this is where
   "latest intent wins / stale rejected" is actually proven.
 - **pi integration layer (wiring, happy-path).** With a stubbed LLM stream
@@ -936,8 +995,9 @@ phase-A pi Capability Assumptions Ledger.
 - Radio acts only through Music Experience commands; it never writes queue or
   commanded-direction truth directly. Its one self-write is *evolved posture*
   (PB8), which is OCC-invisible and still goes through a Music Experience
-  posture-write command (write-boundary rule holds; the data is Music
-  Experience-owned).
+  posture-edit command (write-boundary rule holds; the data is Music
+  Experience-owned). Radio supplies musical edits; runtime and Music Experience
+  derive mechanical fields and stamps.
 
 ## Deferred
 

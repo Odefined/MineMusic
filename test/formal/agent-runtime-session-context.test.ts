@@ -55,8 +55,16 @@ assert.deepEqual(workspaceContext, {
   },
   radio: {
     directionRevision: 7,
-    direction: "motif: \"late night neon\"",
-    posture: "stale: false",
+    direction: [
+      "motif: \"late night neon\"",
+      "activeVariations:",
+      "0. [library]",
+    ].join("\n"),
+    posture: [
+      "lean:",
+      "0. \"dry drums\"",
+      "stale: false",
+    ].join("\n"),
   },
 });
 
@@ -168,10 +176,10 @@ function projectionFixture(): MusicExperienceWorkspaceProjection {
       directionRevision: 7,
       direction: {
         motif: { kind: "text", text: "late night neon" },
-        activeVariations: [],
+        activeVariations: [{ kind: "scope", scope: { kind: "library" } }],
       },
       posture: {
-        lean: [],
+        lean: [{ kind: "text", text: "dry drums" }],
         stale: false,
       },
     },

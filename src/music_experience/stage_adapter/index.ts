@@ -5,6 +5,7 @@ import type {
 } from "../../music_data_platform/index.js";
 import type {
   MusicExperienceQueuePlaybackCommand,
+  MusicExperienceRadioTruthCommand,
 } from "../../contracts/music_experience.js";
 import {
   createMusicExperiencePresentRegistration,
@@ -16,6 +17,11 @@ import {
   musicExperiencePlaybackPlayDescriptor,
   musicExperienceQueueAppendDescriptor,
 } from "./queue_playback.js";
+import {
+  createMusicExperienceRadioTruthRegistrations,
+  radioDirectionToolNames,
+  radioLeanToolNames,
+} from "./radio_truth.js";
 
 export {
   createMusicExperiencePresentRegistration,
@@ -28,17 +34,38 @@ export {
   musicExperiencePlaybackPlayDescriptor,
   musicExperienceQueueAppendDescriptor,
 } from "./queue_playback.js";
+export {
+  createMusicExperienceRadioTruthRegistrations,
+  radioDirectionToolNames,
+  radioLeanToolNames,
+  radioLeanAddDescriptor,
+  radioLeanClearDescriptor,
+  radioLeanMoveDescriptor,
+  radioLeanRemoveDescriptor,
+  radioLeanReplaceDescriptor,
+  radioMotifClearDescriptor,
+  radioMotifSetDescriptor,
+  radioVariationsAddDescriptor,
+  radioVariationsClearDescriptor,
+  radioVariationsMoveDescriptor,
+  radioVariationsRemoveDescriptor,
+  radioVariationsReplaceDescriptor,
+} from "./radio_truth.js";
 export type {
   CreateMusicExperiencePresentRegistrationInput,
 } from "./present.js";
 export type {
   CreateMusicExperienceQueuePlaybackRegistrationInput,
 } from "./queue_playback.js";
+export type {
+  CreateMusicExperienceRadioTruthRegistrationInput,
+} from "./radio_truth.js";
 
 export function createMusicExperienceRuntimeModule(input: {
   candidateCommit: CandidateCommitCommand;
   materialProjection: MaterialProjection;
   queuePlayback: MusicExperienceQueuePlaybackCommand;
+  radioTruth: MusicExperienceRadioTruthCommand;
 }): RuntimeModule {
   return {
     descriptor: {
@@ -65,6 +92,11 @@ export function createMusicExperienceRuntimeModule(input: {
               candidateCommit: input.candidateCommit,
               materialProjection: input.materialProjection,
               queuePlayback: input.queuePlayback,
+            }),
+            ...createMusicExperienceRadioTruthRegistrations({
+              candidateCommit: input.candidateCommit,
+              materialProjection: input.materialProjection,
+              radioTruth: input.radioTruth,
             }),
           ],
         },

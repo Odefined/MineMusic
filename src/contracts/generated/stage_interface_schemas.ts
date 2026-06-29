@@ -521,6 +521,974 @@ export const musicExperienceQueueAppendOutputSchema = {
   }
 } as const satisfies JsonSchema;
 
+export const radioMotifSetInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "value": {
+      "$ref": "#/definitions/RadioTruthToolValue"
+    }
+  },
+  "required": [
+    "value"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "RadioTruthToolValue": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "material"
+            },
+            "item": {
+              "$ref": "#/definitions/MusicItemHandle"
+            }
+          },
+          "required": [
+            "kind",
+            "item"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "scope"
+            },
+            "scope": {
+              "$ref": "#/definitions/MusicScope"
+            }
+          },
+          "required": [
+            "kind",
+            "scope"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "MusicItemHandle": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MaterialMusicItemHandle"
+        },
+        {
+          "$ref": "#/definitions/CandidateMusicItemHandle"
+        }
+      ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "CandidateMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[candidate:[^\\]\\r\\n]+\\]$",
+      "description": "Provider candidate item handle. Pass the whole bracket string unchanged, e.g. \"[candidate:...]\"."
+    },
+    "MusicScope": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MusicAbstractScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicLibraryScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicProviderScopeHandle"
+        }
+      ]
+    },
+    "MusicAbstractScopeHandle": {
+      "enum": [
+        "[all]",
+        "[library]"
+      ],
+      "description": "Abstract music scope handle. Pass the whole bracket string unchanged: \"[all]\" or \"[library]\"."
+    },
+    "MusicLibraryScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[(source_library|relation|collection):[^\\]\\r\\n]+\\]$",
+      "description": "Library-backed music scope handle. Pass the whole bracket string unchanged, e.g. \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
+    },
+    "MusicProviderScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[provider:[^\\]\\r\\n]+\\]$",
+      "description": "Provider music scope handle. Pass the whole bracket string unchanged, e.g. \"[provider:netease]\"."
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const radioMotifClearInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": {
+    "not": {}
+  }
+} as const satisfies JsonSchema;
+
+export const radioVariationsAddInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "value": {
+      "$ref": "#/definitions/RadioTruthToolValue"
+    },
+    "at": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "value"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "RadioTruthToolValue": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "material"
+            },
+            "item": {
+              "$ref": "#/definitions/MusicItemHandle"
+            }
+          },
+          "required": [
+            "kind",
+            "item"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "scope"
+            },
+            "scope": {
+              "$ref": "#/definitions/MusicScope"
+            }
+          },
+          "required": [
+            "kind",
+            "scope"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "MusicItemHandle": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MaterialMusicItemHandle"
+        },
+        {
+          "$ref": "#/definitions/CandidateMusicItemHandle"
+        }
+      ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "CandidateMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[candidate:[^\\]\\r\\n]+\\]$",
+      "description": "Provider candidate item handle. Pass the whole bracket string unchanged, e.g. \"[candidate:...]\"."
+    },
+    "MusicScope": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MusicAbstractScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicLibraryScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicProviderScopeHandle"
+        }
+      ]
+    },
+    "MusicAbstractScopeHandle": {
+      "enum": [
+        "[all]",
+        "[library]"
+      ],
+      "description": "Abstract music scope handle. Pass the whole bracket string unchanged: \"[all]\" or \"[library]\"."
+    },
+    "MusicLibraryScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[(source_library|relation|collection):[^\\]\\r\\n]+\\]$",
+      "description": "Library-backed music scope handle. Pass the whole bracket string unchanged, e.g. \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
+    },
+    "MusicProviderScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[provider:[^\\]\\r\\n]+\\]$",
+      "description": "Provider music scope handle. Pass the whole bracket string unchanged, e.g. \"[provider:netease]\"."
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const radioVariationsRemoveInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "index": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "index"
+  ],
+  "additionalProperties": false
+} as const satisfies JsonSchema;
+
+export const radioVariationsReplaceInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "index": {
+      "type": "number"
+    },
+    "value": {
+      "$ref": "#/definitions/RadioTruthToolValue"
+    }
+  },
+  "required": [
+    "index",
+    "value"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "RadioTruthToolValue": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "material"
+            },
+            "item": {
+              "$ref": "#/definitions/MusicItemHandle"
+            }
+          },
+          "required": [
+            "kind",
+            "item"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "scope"
+            },
+            "scope": {
+              "$ref": "#/definitions/MusicScope"
+            }
+          },
+          "required": [
+            "kind",
+            "scope"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "MusicItemHandle": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MaterialMusicItemHandle"
+        },
+        {
+          "$ref": "#/definitions/CandidateMusicItemHandle"
+        }
+      ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "CandidateMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[candidate:[^\\]\\r\\n]+\\]$",
+      "description": "Provider candidate item handle. Pass the whole bracket string unchanged, e.g. \"[candidate:...]\"."
+    },
+    "MusicScope": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MusicAbstractScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicLibraryScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicProviderScopeHandle"
+        }
+      ]
+    },
+    "MusicAbstractScopeHandle": {
+      "enum": [
+        "[all]",
+        "[library]"
+      ],
+      "description": "Abstract music scope handle. Pass the whole bracket string unchanged: \"[all]\" or \"[library]\"."
+    },
+    "MusicLibraryScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[(source_library|relation|collection):[^\\]\\r\\n]+\\]$",
+      "description": "Library-backed music scope handle. Pass the whole bracket string unchanged, e.g. \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
+    },
+    "MusicProviderScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[provider:[^\\]\\r\\n]+\\]$",
+      "description": "Provider music scope handle. Pass the whole bracket string unchanged, e.g. \"[provider:netease]\"."
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const radioVariationsMoveInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "from": {
+      "type": "number"
+    },
+    "to": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "from",
+    "to"
+  ],
+  "additionalProperties": false
+} as const satisfies JsonSchema;
+
+export const radioVariationsClearInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": {
+    "not": {}
+  }
+} as const satisfies JsonSchema;
+
+export const radioLeanAddInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "value": {
+      "$ref": "#/definitions/RadioTruthToolValue"
+    },
+    "at": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "value"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "RadioTruthToolValue": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "material"
+            },
+            "item": {
+              "$ref": "#/definitions/MusicItemHandle"
+            }
+          },
+          "required": [
+            "kind",
+            "item"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "scope"
+            },
+            "scope": {
+              "$ref": "#/definitions/MusicScope"
+            }
+          },
+          "required": [
+            "kind",
+            "scope"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "MusicItemHandle": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MaterialMusicItemHandle"
+        },
+        {
+          "$ref": "#/definitions/CandidateMusicItemHandle"
+        }
+      ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "CandidateMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[candidate:[^\\]\\r\\n]+\\]$",
+      "description": "Provider candidate item handle. Pass the whole bracket string unchanged, e.g. \"[candidate:...]\"."
+    },
+    "MusicScope": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MusicAbstractScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicLibraryScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicProviderScopeHandle"
+        }
+      ]
+    },
+    "MusicAbstractScopeHandle": {
+      "enum": [
+        "[all]",
+        "[library]"
+      ],
+      "description": "Abstract music scope handle. Pass the whole bracket string unchanged: \"[all]\" or \"[library]\"."
+    },
+    "MusicLibraryScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[(source_library|relation|collection):[^\\]\\r\\n]+\\]$",
+      "description": "Library-backed music scope handle. Pass the whole bracket string unchanged, e.g. \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
+    },
+    "MusicProviderScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[provider:[^\\]\\r\\n]+\\]$",
+      "description": "Provider music scope handle. Pass the whole bracket string unchanged, e.g. \"[provider:netease]\"."
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const radioLeanRemoveInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "index": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "index"
+  ],
+  "additionalProperties": false
+} as const satisfies JsonSchema;
+
+export const radioLeanReplaceInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "index": {
+      "type": "number"
+    },
+    "value": {
+      "$ref": "#/definitions/RadioTruthToolValue"
+    }
+  },
+  "required": [
+    "index",
+    "value"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "RadioTruthToolValue": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "material"
+            },
+            "item": {
+              "$ref": "#/definitions/MusicItemHandle"
+            }
+          },
+          "required": [
+            "kind",
+            "item"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "scope"
+            },
+            "scope": {
+              "$ref": "#/definitions/MusicScope"
+            }
+          },
+          "required": [
+            "kind",
+            "scope"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "MusicItemHandle": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MaterialMusicItemHandle"
+        },
+        {
+          "$ref": "#/definitions/CandidateMusicItemHandle"
+        }
+      ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "CandidateMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[candidate:[^\\]\\r\\n]+\\]$",
+      "description": "Provider candidate item handle. Pass the whole bracket string unchanged, e.g. \"[candidate:...]\"."
+    },
+    "MusicScope": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MusicAbstractScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicLibraryScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicProviderScopeHandle"
+        }
+      ]
+    },
+    "MusicAbstractScopeHandle": {
+      "enum": [
+        "[all]",
+        "[library]"
+      ],
+      "description": "Abstract music scope handle. Pass the whole bracket string unchanged: \"[all]\" or \"[library]\"."
+    },
+    "MusicLibraryScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[(source_library|relation|collection):[^\\]\\r\\n]+\\]$",
+      "description": "Library-backed music scope handle. Pass the whole bracket string unchanged, e.g. \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
+    },
+    "MusicProviderScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[provider:[^\\]\\r\\n]+\\]$",
+      "description": "Provider music scope handle. Pass the whole bracket string unchanged, e.g. \"[provider:netease]\"."
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const radioLeanMoveInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "from": {
+      "type": "number"
+    },
+    "to": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "from",
+    "to"
+  ],
+  "additionalProperties": false
+} as const satisfies JsonSchema;
+
+export const radioLeanClearInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": {
+    "not": {}
+  }
+} as const satisfies JsonSchema;
+
+export const radioDirectionToolOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "radioDirectionRevision": {
+      "$ref": "#/definitions/ConcernRevision"
+    },
+    "direction": {
+      "type": "object",
+      "properties": {
+        "motif": {
+          "$ref": "#/definitions/RadioTruthToolValueOutput"
+        },
+        "activeVariations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RadioTruthToolValueOutput"
+          }
+        }
+      },
+      "required": [
+        "activeVariations"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "radioDirectionRevision",
+    "direction"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "ConcernRevision": {
+      "type": "number"
+    },
+    "RadioTruthToolValueOutput": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "material"
+            },
+            "item": {
+              "$ref": "#/definitions/MaterialMusicItemHandle"
+            }
+          },
+          "required": [
+            "kind",
+            "item"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "scope"
+            },
+            "scope": {
+              "$ref": "#/definitions/MusicScope"
+            }
+          },
+          "required": [
+            "kind",
+            "scope"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "MusicScope": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MusicAbstractScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicLibraryScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicProviderScopeHandle"
+        }
+      ]
+    },
+    "MusicAbstractScopeHandle": {
+      "enum": [
+        "[all]",
+        "[library]"
+      ],
+      "description": "Abstract music scope handle. Pass the whole bracket string unchanged: \"[all]\" or \"[library]\"."
+    },
+    "MusicLibraryScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[(source_library|relation|collection):[^\\]\\r\\n]+\\]$",
+      "description": "Library-backed music scope handle. Pass the whole bracket string unchanged, e.g. \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
+    },
+    "MusicProviderScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[provider:[^\\]\\r\\n]+\\]$",
+      "description": "Provider music scope handle. Pass the whole bracket string unchanged, e.g. \"[provider:netease]\"."
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const radioLeanToolOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "radioDirectionRevision": {
+      "$ref": "#/definitions/ConcernRevision"
+    },
+    "posture": {
+      "type": "object",
+      "properties": {
+        "lean": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RadioTruthToolValueOutput"
+          }
+        },
+        "commandedRevisionStamp": {
+          "$ref": "#/definitions/ConcernRevision"
+        },
+        "stale": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "lean",
+        "commandedRevisionStamp",
+        "stale"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "radioDirectionRevision",
+    "posture"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "ConcernRevision": {
+      "type": "number"
+    },
+    "RadioTruthToolValueOutput": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "material"
+            },
+            "item": {
+              "$ref": "#/definitions/MaterialMusicItemHandle"
+            }
+          },
+          "required": [
+            "kind",
+            "item"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "scope"
+            },
+            "scope": {
+              "$ref": "#/definitions/MusicScope"
+            }
+          },
+          "required": [
+            "kind",
+            "scope"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "MaterialMusicItemHandle": {
+      "type": "string",
+      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
+      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
+    },
+    "MusicScope": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/MusicAbstractScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicLibraryScopeHandle"
+        },
+        {
+          "$ref": "#/definitions/MusicProviderScopeHandle"
+        }
+      ]
+    },
+    "MusicAbstractScopeHandle": {
+      "enum": [
+        "[all]",
+        "[library]"
+      ],
+      "description": "Abstract music scope handle. Pass the whole bracket string unchanged: \"[all]\" or \"[library]\"."
+    },
+    "MusicLibraryScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[(source_library|relation|collection):[^\\]\\r\\n]+\\]$",
+      "description": "Library-backed music scope handle. Pass the whole bracket string unchanged, e.g. \"[source_library:...]\", \"[relation:...]\", or \"[collection:...]\"."
+    },
+    "MusicProviderScopeHandle": {
+      "type": "string",
+      "pattern": "^\\[provider:[^\\]\\r\\n]+\\]$",
+      "description": "Provider music scope handle. Pass the whole bracket string unchanged, e.g. \"[provider:netease]\"."
+    }
+  }
+} as const satisfies JsonSchema;
+
 export const musicExperiencePlaybackPlayInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",

@@ -145,6 +145,66 @@ const key = {
 }
 
 {
+  const transcriptStore = createInMemoryRadioTranscriptStore();
+  let observedSystemPrompt = "";
+  let projection = workspaceProjectionFixture({
+    posture: {
+      lean: [{ kind: "text", text: "old stale lean" }],
+      commandedRevisionStamp: 6,
+      stale: true,
+    },
+  });
+  const agent = createTestRadioAgent("stale-posture", {
+    streamFn(_model, context) {
+      observedSystemPrompt = context.systemPrompt ?? "";
+      return fakeAssistantMessageEventStream({
+        type: "done",
+        reason: "stop",
+        message: assistantTextMessage("stale cleared"),
+      });
+    },
+  });
+  let clearCalls = 0;
+  const runPort = createPiRadioRefillRunPort({
+    ...key,
+    agent,
+    transcriptStore,
+    clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromRun: defaultRadioResult,
+    async beforeWorkspaceContextAssemble(payload) {
+      assert.equal(payload.radioDirectionRevision, 7);
+      if (projection.radio.posture.stale) {
+        clearCalls += 1;
+        projection = workspaceProjectionFixture({
+          posture: {
+            lean: [],
+            commandedRevisionStamp: payload.radioDirectionRevision,
+            stale: false,
+          },
+        });
+      }
+    },
+    workspaceContext: createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return projection;
+        },
+      },
+    }),
+  });
+
+  await runPort.runRadioRefill({
+    runId: "radio-job-stale-posture",
+    payload: payloadWithRevisions({ refillGeneration: 17, radioSessionRevision: 0, radioDirectionRevision: 7 }),
+    signal: new AbortController().signal,
+  });
+
+  assert.equal(clearCalls, 1);
+  assert.equal(observedSystemPrompt.includes("old stale lean"), false);
+  assert.match(observedSystemPrompt, /posture:\nlean:\nempty\nstale: false\ncommandedRevisionStamp: 7/u);
+}
+
+{
   const appendedRecorder = createRadioRunResultRecorder();
   appendedRecorder.observeToolResult({
     toolName: "music.experience.queue.append",

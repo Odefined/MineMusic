@@ -50,6 +50,10 @@ export type CreatePiRadioRefillRunPortInput = RadioTranscriptKey & {
     runId: string;
     payload: RadioRefillRunJobPayload;
   }) => RadioRunResult | Promise<RadioRunResult>;
+  beforeWorkspaceContextAssemble?: (
+    payload: RadioRefillRunJobPayload,
+    signal: AbortSignal,
+  ) => Promise<void> | void;
 };
 
 export async function restoreRadioAgentTranscript(input: RadioTranscriptKey & {
@@ -117,6 +121,10 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
       };
       let firstNewMessageIndex = 0;
       try {
+        await input.beforeWorkspaceContextAssemble?.(runInput.payload, runInput.signal);
+        if (runInput.signal.aborted) {
+          return voidedStaleResult(runInput.runId, runInput.payload);
+        }
         activeWorkspaceContext = await input.workspaceContext.assemble({
           actor,
           ownerScope: input.ownerScope,
