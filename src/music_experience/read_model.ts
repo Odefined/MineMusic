@@ -16,10 +16,10 @@ import {
 } from "./records.js";
 
 export type MusicExperienceMaterialHandleMintingPort = {
-  mintMaterialHandle(input: {
+  mintMaterialHandles(input: {
     ownerScope: string;
-    materialRef: Ref;
-  }): Promise<string>;
+    materialRefs: readonly Ref[];
+  }): Promise<ReadonlyMap<string, string>>;
 };
 
 export type CreateMusicExperienceReadModelInput = {
@@ -45,6 +45,11 @@ export function createMusicExperienceReadModel(
       ]);
       const summaries = new Map<string, MusicExperienceWorkspaceItemSummary>();
       const projectedMaterials = await projectMaterialsForRead(input.materialProjection, materialRefs);
+      const projectedMaterialRefs = materialRefs.filter((materialRef) => projectedMaterials.has(refKey(materialRef)));
+      const publicIdsByMaterialRef = await input.materialHandles.mintMaterialHandles({
+        ownerScope: readInput.ownerScope,
+        materialRefs: projectedMaterialRefs,
+      });
 
       for (const materialRef of materialRefs) {
         const material = projectedMaterials.get(refKey(materialRef));
@@ -52,10 +57,10 @@ export function createMusicExperienceReadModel(
           continue;
         }
 
-        const publicId = await input.materialHandles.mintMaterialHandle({
-          ownerScope: readInput.ownerScope,
-          materialRef: material.materialRef,
-        });
+        const publicId = publicIdsByMaterialRef.get(refKey(material.materialRef));
+        if (publicId === undefined) {
+          throw new Error("Music Experience material handle batch did not return a handle for a projected material.");
+        }
         const summary = musicItemSummaryFromMaterial(material);
         summaries.set(refKey(materialRef), {
           item: formatWorkspaceMaterialHandle(publicId),

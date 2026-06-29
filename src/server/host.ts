@@ -1,4 +1,4 @@
-import { refKey, type Result } from "../contracts/kernel.js";
+import { refKey, type Ref, type Result } from "../contracts/kernel.js";
 import type { StageRuntimeSnapshot } from "../contracts/stage_core.js";
 import type {
   StageToolContext,
@@ -56,6 +56,9 @@ import {
 import { createStageToolContextAssembly } from "./stage_tool_context_assembly.js";
 import {
   createStageInterfaceRuntimePorts,
+  createStageInterfaceHandleRegistryRecords,
+  randomPublicHandleId,
+  stableJsonStringify,
   type StageInterfaceRuntimePorts,
   type StageToolContextFactory,
 } from "../stage_interface/index.js";
@@ -423,17 +426,16 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       return undefined;
     }
 
+    const database = defaultMusicDatabase;
     return createMusicExperienceReadModel({
-      db: defaultMusicDatabase.context(),
+      db: database.context(),
       materialProjection,
       materialHandles: {
-        mintMaterialHandle(input) {
-          return handleMinting.mint({
+        mintMaterialHandles(input) {
+          return mintWorkspaceMaterialHandles({
+            db: database.context(),
             ownerScope: input.ownerScope,
-            handleKind: "material",
-            internalAnchor: {
-              materialRef: refKey(input.materialRef),
-            },
+            materialRefs: input.materialRefs,
           });
         },
       },
@@ -523,6 +525,61 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       };
     }
   }
+}
+
+async function mintWorkspaceMaterialHandles(input: {
+  db: ReturnType<MusicDatabase["context"]>;
+  ownerScope: string;
+  materialRefs: readonly Ref[];
+}): Promise<ReadonlyMap<string, string>> {
+  const refsByKey = new Map<string, Ref>();
+  for (const materialRef of input.materialRefs) {
+    refsByKey.set(refKey(materialRef), materialRef);
+  }
+  if (refsByKey.size === 0) {
+    return new Map();
+  }
+
+  const records = createStageInterfaceHandleRegistryRecords({ db: input.db });
+  const now = new Date().toISOString();
+  const anchorByRefKey = new Map(
+    [...refsByKey.entries()].map(([materialRefKey]) => [
+      materialRefKey,
+      stableJsonStringify({ materialRef: materialRefKey }),
+    ]),
+  );
+  const existing = await records.bindings.listByOwnerAnchors({
+    ownerScope: input.ownerScope,
+    handleKind: "material",
+    internalAnchorJsons: [...anchorByRefKey.values()],
+  });
+  const publicIdByAnchor = new Map(
+    existing
+      .filter((binding) => binding.expiresAt === undefined || binding.expiresAt > now)
+      .map((binding) => [binding.internalAnchorJson, binding.publicId] as const),
+  );
+  const missing = [...anchorByRefKey.values()].filter((internalAnchorJson) => !publicIdByAnchor.has(internalAnchorJson));
+
+  if (missing.length > 0) {
+    const created = await records.bindings.createBindings(missing.map((internalAnchorJson) => ({
+      publicId: randomPublicHandleId(),
+      ownerScope: input.ownerScope,
+      handleKind: "material",
+      internalAnchorJson,
+      issuedAt: now,
+    })));
+    for (const binding of created) {
+      publicIdByAnchor.set(binding.internalAnchorJson, binding.publicId);
+    }
+  }
+
+  return new Map([...anchorByRefKey.entries()].map(([materialRefKey, internalAnchorJson]) => {
+    const publicId = publicIdByAnchor.get(internalAnchorJson);
+    if (publicId === undefined) {
+      throw new Error("Stage Interface material handle batch did not mint every requested material handle.");
+    }
+    return [materialRefKey, publicId] as const;
+  }));
 }
 
 function providerDisplayNames(extensionRuntime: ExtensionRuntime): ReadonlyMap<string, string> {

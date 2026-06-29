@@ -518,7 +518,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     db: database.context(),
     materialProjection: createMaterialProjection({ db: database.context() }),
     materialHandles: {
-      mintMaterialHandle() {
+      mintMaterialHandles() {
         throw new Error("Stale unprojectable material must not be minted into a Workspace Context handle.");
       },
     },
@@ -693,14 +693,8 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     db: database.context(),
     materialProjection,
     materialHandles: {
-      mintMaterialHandle(input) {
-        return handleMinting.mint({
-          ownerScope: input.ownerScope,
-          handleKind: "material",
-          internalAnchor: {
-            materialRef: refKey(input.materialRef),
-          },
-        });
+      mintMaterialHandles(input) {
+        return mintMaterialHandlesWithPort(handleMinting, input);
       },
     },
   });
@@ -1723,6 +1717,25 @@ function blockingMaterialProjection(input: {
       return new Map([[refKey(input.materialRef), musicRecording(input.materialRef, input.label)]]);
     },
   };
+}
+
+async function mintMaterialHandlesWithPort(
+  handleMinting: ReturnType<typeof createStageInterfaceHandleMintingPort>,
+  input: {
+    ownerScope: string;
+    materialRefs: readonly Ref[];
+  },
+): Promise<ReadonlyMap<string, string>> {
+  return new Map(await Promise.all(input.materialRefs.map(async (materialRef) => [
+    refKey(materialRef),
+    await handleMinting.mint({
+      ownerScope: input.ownerScope,
+      handleKind: "material",
+      internalAnchor: {
+        materialRef: refKey(materialRef),
+      },
+    }),
+  ] as const)));
 }
 
 function musicRecording(materialRef: Ref, label: string): MusicMaterial {

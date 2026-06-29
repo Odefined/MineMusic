@@ -728,14 +728,8 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
       db: database.context(),
       materialProjection,
       materialHandles: {
-        mintMaterialHandle(input) {
-          return handleMinting.mint({
-            ownerScope: input.ownerScope,
-            handleKind: "material",
-            internalAnchor: {
-              materialRef: refKey(input.materialRef),
-            },
-          });
+        mintMaterialHandles(input) {
+          return mintMaterialHandlesWithPort(handleMinting, input);
         },
       },
     }),
@@ -1110,6 +1104,25 @@ function unusedCandidateCommit(): CandidateCommitCommand {
       throw new Error("A4 material-handle path must not call Candidate Commit.");
     },
   };
+}
+
+async function mintMaterialHandlesWithPort(
+  handleMinting: ReturnType<typeof createStageInterfaceHandleMintingPort>,
+  input: {
+    ownerScope: string;
+    materialRefs: readonly Ref[];
+  },
+): Promise<ReadonlyMap<string, string>> {
+  return new Map(await Promise.all(input.materialRefs.map(async (materialRef) => [
+    refKey(materialRef),
+    await handleMinting.mint({
+      ownerScope: input.ownerScope,
+      handleKind: "material",
+      internalAnchor: {
+        materialRef: refKey(materialRef),
+      },
+    }),
+  ] as const)));
 }
 
 function sequentialPublicIdFactory(prefix: string): () => string {

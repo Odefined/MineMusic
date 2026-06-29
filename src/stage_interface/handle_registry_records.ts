@@ -33,7 +33,13 @@ export type StageInterfaceHandleBindingRepository = {
     handleKind: StageInterfaceHandleKind;
     internalAnchorJson: string;
   }): Promise<StageInterfaceHandleBindingRecord | undefined>;
+  listByOwnerAnchors(input: {
+    ownerScope: string;
+    handleKind: StageInterfaceHandleKind;
+    internalAnchorJsons: readonly string[];
+  }): Promise<readonly StageInterfaceHandleBindingRecord[]>;
   createBinding(record: StageInterfaceHandleBindingRecord): Promise<StageInterfaceHandleBindingRecord>;
+  createBindings(records: readonly StageInterfaceHandleBindingRecord[]): Promise<readonly StageInterfaceHandleBindingRecord[]>;
 };
 
 type StageInterfaceHandleBindingRow = {
@@ -101,6 +107,29 @@ export function createStageInterfaceHandleRegistryRecords(
 
       return row === undefined ? undefined : bindingFromRow(row);
     },
+    async listByOwnerAnchors(readInput) {
+      assertNonEmptyString(readInput.ownerScope, "ownerScope");
+      assertHandleKind(readInput.handleKind);
+      for (const internalAnchorJson of readInput.internalAnchorJsons) {
+        assertJsonString(internalAnchorJson);
+      }
+      if (readInput.internalAnchorJsons.length === 0) {
+        return [];
+      }
+
+      const rows = await db.all<StageInterfaceHandleBindingRow>(
+        `
+          SELECT *
+          FROM stage_interface_handle_registry
+          WHERE owner_scope = ?
+            AND handle_kind = ?
+            AND internal_anchor_json IN (${placeholders(readInput.internalAnchorJsons.length)})
+        `,
+        [readInput.ownerScope, readInput.handleKind, ...readInput.internalAnchorJsons],
+      );
+
+      return rows.map(bindingFromRow);
+    },
     async createBinding(record) {
       assertBindingRecord(record);
 
@@ -132,9 +161,49 @@ export function createStageInterfaceHandleRegistryRecords(
 
       return record;
     },
+    async createBindings(records) {
+      for (const record of records) {
+        assertBindingRecord(record);
+      }
+      if (records.length === 0) {
+        return [];
+      }
+
+      await db.run(
+        `
+          INSERT INTO stage_interface_handle_registry (
+            public_id,
+            owner_scope,
+            handle_kind,
+            internal_anchor_json,
+            issued_at,
+            expires_at
+          )
+          VALUES ${records.map(() => "(?, ?, ?, ?, ?, ?)").join(", ")}
+          ON CONFLICT(owner_scope, handle_kind, internal_anchor_json) DO UPDATE SET
+            public_id = excluded.public_id,
+            issued_at = excluded.issued_at,
+            expires_at = excluded.expires_at
+        `,
+        records.flatMap((record) => [
+          record.publicId,
+          record.ownerScope,
+          record.handleKind,
+          record.internalAnchorJson,
+          record.issuedAt,
+          record.expiresAt ?? null,
+        ]),
+      );
+
+      return records;
+    },
   };
 
   return { bindings };
+}
+
+function placeholders(count: number): string {
+  return Array.from({ length: count }, () => "?").join(", ");
 }
 
 function bindingFromRow(row: StageInterfaceHandleBindingRow): StageInterfaceHandleBindingRecord {

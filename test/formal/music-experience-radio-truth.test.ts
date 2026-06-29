@@ -930,14 +930,8 @@ assert.equal(
     db: database.context(),
     materialProjection: createMaterialProjection({ db: database.context() }),
     materialHandles: {
-      mintMaterialHandle(input) {
-        return handleMinting.mint({
-          ownerScope: input.ownerScope,
-          handleKind: "material",
-          internalAnchor: {
-            materialRef: refKey(input.materialRef),
-          },
-        });
+      mintMaterialHandles(input) {
+        return mintMaterialHandlesWithPort(handleMinting, input);
       },
     },
   });
@@ -1020,6 +1014,7 @@ assert.equal(
   }));
 
   const projectedBatchInputs: Ref[][] = [];
+  const handleBatchInputs: Ref[][] = [];
   const readModel = createMusicExperienceReadModel({
     db: database.context(),
     materialProjection: {
@@ -1035,14 +1030,19 @@ assert.equal(
       },
     } satisfies MaterialProjection,
     materialHandles: {
-      async mintMaterialHandle(input) {
-        return `mh_${input.materialRef.id}`;
+      async mintMaterialHandles(input) {
+        handleBatchInputs.push([...input.materialRefs]);
+        return syntheticMaterialHandles(input.materialRefs);
       },
     },
   });
 
   const slice = await readModel.readWorkspaceProjection({ ownerScope });
   assert.deepEqual(projectedBatchInputs.map((refs) => refs.map(refKey)), [[
+    refKey(queuedRef),
+    refKey(postureRef),
+  ]]);
+  assert.deepEqual(handleBatchInputs.map((refs) => refs.map(refKey)), [[
     refKey(queuedRef),
     refKey(postureRef),
   ]]);
@@ -1109,8 +1109,8 @@ assert.equal(
       },
     } satisfies MaterialProjection,
     materialHandles: {
-      async mintMaterialHandle(input) {
-        return `mh_${input.materialRef.id}`;
+      async mintMaterialHandles(input) {
+        return syntheticMaterialHandles(input.materialRefs);
       },
     },
   });
@@ -1148,8 +1148,8 @@ assert.equal(
       },
     } satisfies MaterialProjection,
     materialHandles: {
-      async mintMaterialHandle(input) {
-        return `mh_${input.materialRef.id}`;
+      async mintMaterialHandles(input) {
+        return syntheticMaterialHandles(input.materialRefs);
       },
     },
   });
@@ -1323,6 +1323,32 @@ function unusedMaterialProjection(): MaterialProjection {
       return new Map();
     },
   };
+}
+
+async function mintMaterialHandlesWithPort(
+  handleMinting: ReturnType<typeof createStageInterfaceHandleMintingPort>,
+  input: {
+    ownerScope: string;
+    materialRefs: readonly Ref[];
+  },
+): Promise<ReadonlyMap<string, string>> {
+  return new Map(await Promise.all(input.materialRefs.map(async (materialRef) => [
+    refKey(materialRef),
+    await handleMinting.mint({
+      ownerScope: input.ownerScope,
+      handleKind: "material",
+      internalAnchor: {
+        materialRef: refKey(materialRef),
+      },
+    }),
+  ] as const)));
+}
+
+function syntheticMaterialHandles(materialRefs: readonly Ref[]): ReadonlyMap<string, string> {
+  return new Map(materialRefs.map((materialRef) => [
+    refKey(materialRef),
+    `mh_${materialRef.id}`,
+  ] as const));
 }
 
 function materialRef(id: string): Ref {

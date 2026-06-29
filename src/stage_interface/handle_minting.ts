@@ -223,7 +223,7 @@ export function createUnavailableHandleMintingPort(): HandleMintingPort {
   };
 }
 
-function randomPublicHandleId(): string {
+export function randomPublicHandleId(): string {
   return `mh_${randomUUID().replaceAll("-", "").slice(0, 18)}`;
 }
 
@@ -272,7 +272,7 @@ function isExpired(expiresAt: string | undefined, now: string): boolean {
   return expiresAt !== undefined && expiresAt <= now;
 }
 
-function stableJsonStringify(value: unknown): string {
+export function stableJsonStringify(value: unknown): string {
   return JSON.stringify(toStableJsonValue(value));
 }
 

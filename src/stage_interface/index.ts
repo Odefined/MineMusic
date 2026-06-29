@@ -68,6 +68,8 @@ export {
   createStageInterfaceHandleMintingPort,
   createStageInterfaceHandleMintingPortFromRecords,
   createUnavailableHandleMintingPort,
+  randomPublicHandleId,
+  stableJsonStringify,
 } from "./handle_minting.js";
 export type {
   CandidateHandleBackingCachePort,
