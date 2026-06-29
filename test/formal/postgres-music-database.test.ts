@@ -76,6 +76,31 @@ await orderedDatabase.transaction(async () => {
     await assertDatabaseErrorAsync(() => orderedDatabase.transaction(async () => undefined), "storage.transaction_already_active");
     await assertDatabaseErrorAsync(() => orderedDatabase.close(), "storage.transaction_already_active");
 });
+let releaseFirstTransaction: () => void = () => {};
+const firstTransactionMayFinish = new Promise<void>((resolve) => {
+    releaseFirstTransaction = resolve;
+});
+const transactionOrder: string[] = [];
+const firstConcurrentTransaction = orderedDatabase.transaction(async (tx) => {
+    transactionOrder.push("first:start");
+    await tx.run("INSERT INTO first_schema (label) VALUES (?)", ["queued-first"]);
+    await firstTransactionMayFinish;
+    transactionOrder.push("first:end");
+});
+await waitUntil(() => transactionOrder.includes("first:start"));
+const secondConcurrentTransaction = orderedDatabase.transaction(async (tx) => {
+    transactionOrder.push("second:start");
+    await tx.run("INSERT INTO first_schema (label) VALUES (?)", ["queued-second"]);
+    transactionOrder.push("second:end");
+});
+await Promise.resolve();
+assert.deepEqual(transactionOrder, ["first:start"]);
+releaseFirstTransaction();
+await Promise.all([firstConcurrentTransaction, secondConcurrentTransaction]);
+assert.deepEqual(transactionOrder, ["first:start", "first:end", "second:start", "second:end"]);
+assert.equal((await context.get<{
+    count: number;
+}>("SELECT COUNT(*) AS count FROM first_schema WHERE label IN (?, ?)", ["queued-first", "queued-second"]))?.count, 2);
 let staleContext: PostgresMusicDatabaseContext | undefined;
 await orderedDatabase.transaction(async (tx) => {
     staleContext = tx;
@@ -150,6 +175,15 @@ function assertDatabaseError(operation: () => unknown, code: MusicDatabaseError[
 }
 async function assertDatabaseErrorAsync(operation: () => Promise<unknown>, code: MusicDatabaseError["code"]): Promise<void> {
     await assert.rejects(operation, (error) => isMusicDatabaseError(error) && error.code === code);
+}
+async function waitUntil(predicate: () => boolean): Promise<void> {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+        if (predicate()) {
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    throw new Error("Timed out waiting for test condition.");
 }
 function connectionStringWithApplicationName(connectionString: string, applicationName: string): string {
     const url = new URL(connectionString);

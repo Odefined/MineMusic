@@ -314,16 +314,47 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(forbidden.ok, false);
   assert.equal(forbidden.error.code, "queue_item_not_editable");
 
-  const removed = await command.remove({
+  const forbiddenReplace = await command.replace({
     ownerScope,
-    index: 1,
+    index: 0,
+    materialRef: radioRef,
     permission: { kind: "radio_owned_queued_items", replacementProvenance: "radio_agent" },
     basis: { queueRevision: 2, radioDirectionRevision: 0, radioSessionRevision: 0 },
     now,
   });
-  assert.equal(removed.ok, true);
-  assert.equal(removed.value.queueLength, 1);
-  assert.equal(removed.value.queueRevision, 3);
+  assert.equal(forbiddenReplace.ok, false);
+  assert.equal(forbiddenReplace.error.code, "queue_item_not_editable");
+
+  const forbiddenMove = await command.move({
+    ownerScope,
+    from: 0,
+    to: 1,
+    permission: { kind: "radio_owned_queued_items", replacementProvenance: "radio_agent" },
+    basis: { queueRevision: 2, radioDirectionRevision: 0, radioSessionRevision: 0 },
+    now,
+  });
+  assert.equal(forbiddenMove.ok, false);
+  assert.equal(forbiddenMove.error.code, "queue_item_not_editable");
+
+  const clearedRadioOwned = await command.clear({
+    ownerScope,
+    permission: { kind: "radio_owned_queued_items", replacementProvenance: "radio_agent" },
+    basis: { queueRevision: 2, radioDirectionRevision: 0, radioSessionRevision: 0 },
+    now,
+  });
+  assert.equal(clearedRadioOwned.ok, true);
+  assert.equal(clearedRadioOwned.value.queueLength, 1);
+  assert.equal(clearedRadioOwned.value.queueRevision, 3);
+
+  const radioOwnedSnapshot = await createMusicExperienceQueuePlaybackRecords({
+    db: database.context(),
+  }).read({ ownerScope });
+  assert.deepEqual(radioOwnedSnapshot.queue.map((item) => ({
+    materialRef: item.materialRef,
+    provenance: item.provenance,
+  })), [
+    { materialRef: userRef, provenance: "user" },
+  ]);
 
   const stale = await command.clear({
     ownerScope,

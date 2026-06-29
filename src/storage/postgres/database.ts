@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { Pool, types, type PoolClient, type PoolConfig } from "pg";
 
 import {
@@ -51,6 +53,9 @@ type PostgresDatabaseState =
 export class PostgresMusicDatabase implements MusicDatabase {
   private state: PostgresDatabaseState = "opened";
   private transactionActive = false;
+  private pendingTransactions = 0;
+  private transactionQueue: Promise<void> = Promise.resolve();
+  private readonly transactionScope = new AsyncLocalStorage<boolean>();
 
   private readonly initializedContext: PostgresMusicDatabaseContext = {
     run: async (sql, params) => {
@@ -128,36 +133,54 @@ export class PostgresMusicDatabase implements MusicDatabase {
   async transaction<Result>(
     operation: (context: PostgresMusicDatabaseTransactionContext) => Result | Promise<Result>,
   ): Promise<Result> {
+    if (this.transactionScope.getStore() === true) {
+      throw new MusicDatabaseError({
+        code: "storage.transaction_already_active",
+        message: "Postgres music database transaction is already active.",
+      });
+    }
+    this.ensureInitialized();
+    this.pendingTransactions += 1;
+    const priorTransaction = this.transactionQueue;
+    let releaseQueueSlot: () => void = () => {};
+    this.transactionQueue = new Promise<void>((resolve) => {
+      releaseQueueSlot = resolve;
+    });
+
+    await priorTransaction;
+    this.pendingTransactions -= 1;
     this.ensureCanStartTransaction();
-    const client = await this.pool.connect();
-    this.transactionActive = true;
+    let client: PoolClient | undefined;
     let transactionContextActive = true;
-    const transactionContext = {
-      run: async (sql, params) => {
-        ensureTransactionContextActive(transactionContextActive);
-        this.ensureInitialized();
-        await queryRun(client, sql, params);
-      },
-      all: async (sql, params) => {
-        ensureTransactionContextActive(transactionContextActive);
-        this.ensureInitialized();
-        return queryAll(client, sql, params);
-      },
-      get: async (sql, params) => {
-        ensureTransactionContextActive(transactionContextActive);
-        this.ensureInitialized();
-        return queryGet(client, sql, params);
-      },
-    } as PostgresMusicDatabaseTransactionContext;
 
     try {
+      client = await this.pool.connect();
+      const activeClient = client;
+      this.transactionActive = true;
+      const transactionContext = {
+        run: async (sql, params) => {
+          ensureTransactionContextActive(transactionContextActive);
+          this.ensureInitialized();
+          await queryRun(activeClient, sql, params);
+        },
+        all: async (sql, params) => {
+          ensureTransactionContextActive(transactionContextActive);
+          this.ensureInitialized();
+          return queryAll(activeClient, sql, params);
+        },
+        get: async (sql, params) => {
+          ensureTransactionContextActive(transactionContextActive);
+          this.ensureInitialized();
+          return queryGet(activeClient, sql, params);
+        },
+      } as PostgresMusicDatabaseTransactionContext;
       await client.query("BEGIN");
-      const result = await operation(transactionContext);
+      const result = await this.transactionScope.run(true, async () => await operation(transactionContext));
       await client.query("COMMIT");
       return result;
     } catch (error) {
       try {
-        await client.query("ROLLBACK");
+        await client?.query("ROLLBACK");
       } catch {
         // Preserve the original operation error.
       }
@@ -165,7 +188,8 @@ export class PostgresMusicDatabase implements MusicDatabase {
     } finally {
       transactionContextActive = false;
       this.transactionActive = false;
-      client.release();
+      releaseQueueSlot();
+      client?.release();
     }
   }
 
@@ -181,7 +205,7 @@ export class PostgresMusicDatabase implements MusicDatabase {
       });
     }
 
-    if (this.transactionActive) {
+    if (this.transactionActive || this.pendingTransactions > 0) {
       throw new MusicDatabaseError({
         code: "storage.transaction_already_active",
         message: "Cannot close Postgres music database while a transaction is active.",
