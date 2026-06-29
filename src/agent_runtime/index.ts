@@ -24,15 +24,35 @@ export type {
   MineMusicPiAgentAdapterOptions,
 } from "./pi_engine.js";
 export {
-  assembleAgentSessionContext,
-  captureAgentSessionContext,
-  renderAgentSessionContextForSystemPrompt,
-  renderSystemPromptWithSessionContext,
-} from "./session_context.js";
+  mainDefinition,
+  radioDefinition,
+  selectActorStageToolDeclarations,
+  validateActorDefinition,
+} from "./actor_definition.js";
 export type {
-  AgentSessionContext,
-  CaptureAgentSessionContextInput,
-} from "./session_context.js";
+  ActorDefinition,
+  ActorIdentity,
+  ActorInstruction,
+  ActorName,
+  WorkspaceContextSectionName,
+} from "./actor_definition.js";
+export {
+  createWorkspaceContextAssembler,
+} from "./workspace_context_assembler.js";
+export type {
+  CreateWorkspaceContextAssemblerInput,
+  WorkspaceContextAssembler,
+} from "./workspace_context_assembler.js";
+export {
+  encodeWorkspaceContext,
+  renderAgentRuntimeSystemPrompt,
+  renderWorkspaceContextForSystemPrompt,
+} from "./workspace_context_encoder.js";
+export type {
+  EncodedWorkspaceContext,
+  ListeningWorkspaceContextSection,
+  RadioWorkspaceContextSection,
+} from "./workspace_context_encoder.js";
 export {
   createStageToolBridge,
   isStageToolErrorDetails,

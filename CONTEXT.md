@@ -174,8 +174,8 @@ workspace-visible sections, but one shared Agent Runtime assembler owns reading
 the required area facts, selecting the actor's declared sections, compressing
 repeated semantics, and encoding the Workspace Context. Callers pass
 `{ actor, ownerScope }`; they do not pass ad hoc section lists. Main and Radio
-must not maintain separate hand-written descriptions or separate compression
-logic for the same Workspace Context facts.
+now use this shared assembler and must not maintain separate hand-written
+descriptions or separate compression logic for the same Workspace Context facts.
 
 _Avoid_: one prompt blob, actor-specific workspace-state renderer, formal
 top-level area, unified workspace state owner, Stage Core state, generic session

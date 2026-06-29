@@ -5,16 +5,12 @@ import {
   type StageToolResultObserver,
   type StageToolDispatchPort,
 } from "./stage_tool_bridge.js";
+import {
+  radioDefinition,
+  selectActorStageToolDeclarations,
+} from "./actor_definition.js";
 
-export const RADIO_STAGE_TOOL_NAMES = [
-  "music.discovery.list_scopes",
-  "music.discovery.lookup",
-  "library.catalog.list_scopes",
-  "library.catalog.browse",
-  "library.catalog.sample",
-  "library.catalog.summary",
-  "music.experience.queue.append",
-] as const;
+export const RADIO_STAGE_TOOL_NAMES = radioDefinition.toolPack.stageToolNames;
 
 export type RadioToolBridgeCache = {
   sourceTools: readonly ToolDeclaration[];
@@ -34,14 +30,17 @@ export type CreateRadioToolBridgeInput = {
 export function selectRadioStageToolDeclarations(
   tools: readonly ToolDeclaration[],
 ): readonly ToolDeclaration[] {
-  const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
-  return RADIO_STAGE_TOOL_NAMES.map((name) => {
-    const tool = toolsByName.get(name);
-    if (tool === undefined) {
-      throw new Error(`Radio Agent requires Stage tool '${name}'.`);
+  try {
+    return selectActorStageToolDeclarations({
+      actor: radioDefinition,
+      tools,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(error.message.replace("Actor 'radio' requires", "Radio Agent requires"));
     }
-    return tool;
-  });
+    throw error;
+  }
 }
 
 export function createRadioToolBridge(

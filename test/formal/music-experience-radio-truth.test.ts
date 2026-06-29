@@ -8,9 +8,7 @@ import type {
   MusicExperienceSetRadioDirectionCommandOutput,
   MusicExperienceWriteRadioPostureCommandOutput,
 } from "../../src/contracts/music_experience.js";
-import {
-  MAX_RADIO_POSTURE_LEAN_ITEMS,
-} from "../../src/contracts/music_experience.js";
+import { MAX_RADIO_POSTURE_LEAN_ITEMS } from "../../src/contracts/music_experience.js";
 import {
   createMaterialProjection,
   musicDataPlatformIdentitySchema,
@@ -428,7 +426,7 @@ const ownerScope = "local";
     },
   });
 
-  const slice = await readModel.readMusicExperience({ ownerScope });
+  const slice = await readModel.readWorkspaceProjection({ ownerScope });
   assert.deepEqual(slice.radio, {
     directionRevision: 1,
     direction: {
@@ -526,7 +524,7 @@ const ownerScope = "local";
     },
   });
 
-  const slice = await readModel.readMusicExperience({ ownerScope });
+  const slice = await readModel.readWorkspaceProjection({ ownerScope });
   assert.deepEqual(projectedBatchInputs.map((refs) => refs.map(refKey)), [[
     refKey(queuedRef),
     refKey(postureRef),
@@ -576,19 +574,11 @@ const ownerScope = "local";
   }));
 
   let batchCallCount = 0;
-  const singleCallRefs: string[] = [];
   const readModel = createMusicExperienceReadModel({
     db: database.context(),
     materialProjection: {
-      async projectMusicMaterial(input) {
-        singleCallRefs.push(refKey(input.materialRef));
-        if (refKey(input.materialRef) === refKey(postureRef)) {
-          throw new MusicDataPlatformError({
-            code: "music_data.source_not_found",
-            message: "missing source for projection",
-          });
-        }
-        return musicRecording(input.materialRef, "Batch Drop Queue");
+      async projectMusicMaterial() {
+        throw new Error("Music Experience read model must not fall back to single material projection.");
       },
       async projectMusicMaterials() {
         batchCallCount += 1;
@@ -605,24 +595,49 @@ const ownerScope = "local";
     },
   });
 
-  const slice = await readModel.readMusicExperience({ ownerScope });
+  await assert.rejects(
+    () => readModel.readWorkspaceProjection({ ownerScope }),
+    /missing source for batch projection/,
+  );
   assert.equal(batchCallCount, 1);
-  assert.deepEqual(singleCallRefs, [
-    refKey(queuedRef),
-    refKey(postureRef),
-  ]);
-  assert.equal(slice.queue[0]?.item, `[material:mh_${queuedRef.id}]`);
-  assert.deepEqual(slice.radio.direction, {
-    activeVariations: [],
-  });
-  assert.deepEqual(slice.radio.posture.lean, [
-    {
-      kind: "material",
-      item: `[material:mh_${queuedRef.id}]`,
-      label: "Batch Drop Queue",
-      artistsText: "Batch Artist",
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const queuedRef = materialRef("phase_b_radio_truth_missing_projection_queue");
+  await seedRecording(database, queuedRef, "Missing Projection Queue", ["Batch Artist"]);
+
+  const queueCommand = createMusicExperienceQueuePlaybackCommand({ database });
+  assert.equal((await queueCommand.append({
+    ownerScope,
+    materialRefs: [queuedRef],
+    provenance: "radio_agent",
+    now,
+  })).ok, true);
+
+  const readModel = createMusicExperienceReadModel({
+    db: database.context(),
+    materialProjection: {
+      async projectMusicMaterial() {
+        throw new Error("Music Experience read model must use batch material projection.");
+      },
+      async projectMusicMaterials() {
+        return new Map();
+      },
+    } satisfies MaterialProjection,
+    materialHandles: {
+      async mintMaterialHandle(input) {
+        return `mh_${input.materialRef.id}`;
+      },
     },
-  ]);
+  });
+
+  await assert.rejects(
+    () => readModel.readWorkspaceProjection({ ownerScope }),
+    /could not project current material/,
+  );
 
   await database.close();
 }

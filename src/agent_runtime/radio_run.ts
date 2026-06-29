@@ -5,36 +5,45 @@ import type {
 
 import type {
   RadioRefillRunJobPayload,
+  RadioRefillRunInvocation,
   RadioRunResult,
 } from "../contracts/agent_runtime.js";
-import type { WorkspaceReadModel, WorkspaceReadModelReader } from "../contracts/workbench_interface.js";
 import { finalAssistantMessage } from "./agent_message_helpers.js";
+import {
+  radioDefinition,
+  type ActorDefinition,
+} from "./actor_definition.js";
 import type {
   RadioTranscriptKey,
   RadioTranscriptStore,
 } from "./radio_session_repo_facade.js";
 import type { RadioRefillRunPort } from "./radio_supervisor.js";
+import type { WorkspaceContextAssembler } from "./workspace_context_assembler.js";
+import {
+  renderAgentRuntimeSystemPrompt,
+  type EncodedWorkspaceContext,
+} from "./workspace_context_encoder.js";
 
 export type CreatePiRadioRefillRunPortInput = RadioTranscriptKey & {
   agent: Agent;
   transcriptStore: RadioTranscriptStore;
   clock: () => string;
-  baseSystemPrompt?: string;
+  actor?: ActorDefinition;
   maxTranscriptMessages?: number;
-  runStartRead?: WorkspaceReadModelReader;
+  workspaceContext: WorkspaceContextAssembler;
   promptForPayload?: (input: {
     runId: string;
     payload: RadioRefillRunJobPayload;
-    runStartContext?: WorkspaceReadModel;
+    workspaceContext: EncodedWorkspaceContext;
   }) => string | Promise<string>;
   onRunStart?: (
     payload: RadioRefillRunJobPayload,
-    runStartContext: WorkspaceReadModel | undefined,
+    workspaceContext: EncodedWorkspaceContext,
     signal: AbortSignal,
   ) => Promise<void> | void;
   prepareRun?: (
     payload: RadioRefillRunJobPayload,
-    runStartContext: WorkspaceReadModel | undefined,
+    workspaceContext: EncodedWorkspaceContext,
     signal: AbortSignal,
   ) => Promise<void> | void;
   resultFromRun?: (input: {
@@ -57,11 +66,18 @@ export async function restoreRadioAgentTranscript(input: RadioTranscriptKey & {
 export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInput): RadioRefillRunPort {
   let activeRunId: string | undefined;
   let activePayload: RadioRefillRunJobPayload | undefined;
-  let activeRunStartContext: WorkspaceReadModel | undefined;
+  let activeWorkspaceContext: EncodedWorkspaceContext | undefined;
+  const actor = input.actor ?? radioDefinition;
   const maxTranscriptMessages = input.maxTranscriptMessages ?? 200;
   if (!Number.isSafeInteger(maxTranscriptMessages) || maxTranscriptMessages <= 0) {
     throw new Error("Radio transcript message cap must be a positive safe integer.");
   }
+  const requireActiveWorkspaceContext = (): EncodedWorkspaceContext => {
+    if (activeWorkspaceContext === undefined) {
+      throw new Error("Radio run-start fired before Workspace Context was assembled.");
+    }
+    return activeWorkspaceContext;
+  };
 
   // pi @0.80.2 fidelity: agent.js:130-139 says listener promises are awaited
   // before idle; agent.js:261-276 snapshots state before runAgentLoop, and
@@ -70,17 +86,17 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
   // and provider failure as final assistant messages.
   input.agent.subscribe(async (event, signal) => {
     if (event.type === "agent_start" && activePayload !== undefined) {
-      await input.onRunStart?.(activePayload, activeRunStartContext, signal);
+      await input.onRunStart?.(activePayload, requireActiveWorkspaceContext(), signal);
     }
 
-      if (event.type === "agent_end") {
-        await input.transcriptStore.save({
-          ownerScope: input.ownerScope,
-          workspaceId: input.workspaceId,
-          messages: cappedTranscript(input.agent.state.messages, maxTranscriptMessages),
-          now: input.clock(),
-        });
-      }
+    if (event.type === "agent_end") {
+      await input.transcriptStore.save({
+        ownerScope: input.ownerScope,
+        workspaceId: input.workspaceId,
+        messages: cappedTranscript(input.agent.state.messages, maxTranscriptMessages),
+        now: input.clock(),
+      });
+    }
   });
 
   return {
@@ -101,21 +117,20 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
       };
       let firstNewMessageIndex = 0;
       try {
-        activeRunStartContext = await input.runStartRead?.readWorkspace({
+        activeWorkspaceContext = await input.workspaceContext.assemble({
+          actor,
           ownerScope: input.ownerScope,
         });
         if (runInput.signal.aborted) {
           return voidedStaleResult(runInput.runId, runInput.payload);
         }
-        if (input.baseSystemPrompt !== undefined && activeRunStartContext !== undefined) {
-          // The current run floor and tool bridge must be installed before
-          // prompt(), because pi snapshots provider context before agent_start.
-          input.agent.state.systemPrompt = renderRadioRunSystemPrompt({
-            baseSystemPrompt: input.baseSystemPrompt,
-            runStartContext: activeRunStartContext,
-          });
-        }
-        await input.prepareRun?.(runInput.payload, activeRunStartContext, runInput.signal);
+        // The shared Workspace Context and tool bridge must be installed before
+        // prompt(), because pi snapshots provider context before agent_start.
+        input.agent.state.systemPrompt = renderAgentRuntimeSystemPrompt({
+          actor,
+          workspaceContext: activeWorkspaceContext,
+        });
+        await input.prepareRun?.(runInput.payload, activeWorkspaceContext, runInput.signal);
         if (runInput.signal.aborted) {
           return voidedStaleResult(runInput.runId, runInput.payload);
         }
@@ -124,36 +139,36 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
         await input.agent.prompt(await promptForPayload(input, {
           runId: runInput.runId,
           payload: runInput.payload,
-          ...(activeRunStartContext === undefined ? {} : { runStartContext: activeRunStartContext }),
+          workspaceContext: activeWorkspaceContext,
         }));
         await input.agent.waitForIdle();
+
+        const newMessages = input.agent.state.messages.slice(firstNewMessageIndex);
+        if (finalAssistantAborted(newMessages)) {
+          return voidedStaleResult(runInput.runId, runInput.payload);
+        }
+        throwIfFinalAssistantFailed(runInput.runId, newMessages);
+
+        if (input.resultFromRun === undefined) {
+          throw new Error(`Radio refill run '${runInput.runId}' has no result extractor.`);
+        }
+
+        const result = await input.resultFromRun({
+          runId: runInput.runId,
+          payload: runInput.payload,
+        });
+
+        if (result.runId !== runInput.runId) {
+          throw new Error(`Radio refill run result '${result.runId}' did not match Background Work job '${runInput.runId}'.`);
+        }
+
+        return result;
       } finally {
         runInput.signal.removeEventListener("abort", abortAgent);
         activeRunId = undefined;
         activePayload = undefined;
-        activeRunStartContext = undefined;
+        activeWorkspaceContext = undefined;
       }
-
-      const newMessages = input.agent.state.messages.slice(firstNewMessageIndex);
-      if (finalAssistantAborted(newMessages)) {
-        return voidedStaleResult(runInput.runId, runInput.payload);
-      }
-      throwIfFinalAssistantFailed(runInput.runId, newMessages);
-
-      if (input.resultFromRun === undefined) {
-        throw new Error(`Radio refill run '${runInput.runId}' has no result extractor.`);
-      }
-
-      const result = await input.resultFromRun({
-        runId: runInput.runId,
-        payload: runInput.payload,
-      });
-
-      if (result.runId !== runInput.runId) {
-        throw new Error(`Radio refill run result '${result.runId}' did not match Background Work job '${runInput.runId}'.`);
-      }
-
-      return result;
     },
   };
 }
@@ -170,11 +185,29 @@ async function promptForPayload(
   promptInput: {
     runId: string;
     payload: RadioRefillRunJobPayload;
-    runStartContext?: WorkspaceReadModel;
+    workspaceContext: EncodedWorkspaceContext;
   },
 ): Promise<string> {
   return await input.promptForPayload?.(promptInput) ??
-    `Radio refill run: ${promptInput.payload.wakeReason}; target about ${promptInput.payload.suggestedAppendCount} tracks if the current direction has fitting candidates.`;
+    JSON.stringify(radioInvocationForPayload(promptInput), null, 2);
+}
+
+function radioInvocationForPayload(input: {
+  runId: string;
+  payload: RadioRefillRunJobPayload;
+}): RadioRefillRunInvocation {
+  return {
+    run: {
+      kind: "radio_refill",
+      runId: input.runId,
+      wakeReason: input.payload.wakeReason,
+      suggestedAppendCount: input.payload.suggestedAppendCount,
+      basis: {
+        radioDirectionRevision: input.payload.radioDirectionRevision,
+        radioSessionRevision: input.payload.radioSessionRevision,
+      },
+    },
+  };
 }
 
 function throwIfFinalAssistantFailed(runId: string, messages: readonly AgentMessage[]): void {
@@ -200,26 +233,4 @@ function voidedStaleResult(
     outcome: "voided_stale",
     appendedCount: 0,
   };
-}
-
-function renderRadioRunSystemPrompt(input: {
-  baseSystemPrompt: string;
-  runStartContext: WorkspaceReadModel;
-}): string {
-  const radio = input.runStartContext.musicExperience.radio;
-  // Transitional PR3 behavior: until Radio's posture-write command is wired
-  // into the run, stale posture is stripped from the prompt floor rather than
-  // durably cleared. ADR-0037 keeps the durable clear Radio-owned at run start.
-  const posture = radio.posture.stale ? { ...radio.posture, lean: [] } : radio.posture;
-  return [
-    input.baseSystemPrompt,
-    "",
-    "Radio Run Floor:",
-    `ownerScope: ${input.runStartContext.ownerScope}`,
-    `capturedAt: ${input.runStartContext.capturedAt}`,
-    `radio.directionRevision: ${radio.directionRevision}`,
-    `radio.direction: ${JSON.stringify(radio.direction)}`,
-    `radio.posture: ${JSON.stringify(posture)}`,
-    `musicExperience.queueLength: ${input.runStartContext.musicExperience.queue.length}`,
-  ].join("\n");
 }

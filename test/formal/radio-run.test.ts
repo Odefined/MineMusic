@@ -6,11 +6,13 @@ import {
   createMineMusicPiAgentAdapter,
   createPiRadioRefillRunPort,
   createRadioRunResultRecorder,
+  createWorkspaceContextAssembler,
   restoreRadioAgentTranscript,
+  type EncodedWorkspaceContext,
   type RadioTranscriptStore,
 } from "../../src/agent_runtime/index.js";
 import type { StageToolContext } from "../../src/contracts/stage_interface.js";
-import type { WorkspaceReadModel } from "../../src/contracts/workbench_interface.js";
+import type { MusicExperienceWorkspaceProjection } from "../../src/contracts/music_experience.js";
 import {
   assistantErrorMessage,
   assistantTextMessage,
@@ -31,6 +33,7 @@ const key = {
     ...key,
     agent: firstAgent,
     transcriptStore,
+    ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
     resultFromRun: defaultRadioResult,
     onRunStart(payload) {
@@ -75,6 +78,7 @@ const key = {
     ...key,
     agent: restartedAgent,
     transcriptStore,
+    ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:02.000Z",
     resultFromRun: defaultRadioResult,
   });
@@ -110,12 +114,13 @@ const key = {
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
     resultFromRun: defaultRadioResult,
-    baseSystemPrompt: "Base radio prompt.",
-    runStartRead: {
-      async readWorkspace() {
-        return workspaceReadModelFixture();
+    workspaceContext: createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return workspaceProjectionFixture();
+        },
       },
-    },
+    }),
     prepareRun() {
       agent.state.tools = [fakeRadioTool() as never];
     },
@@ -127,11 +132,15 @@ const key = {
     signal: new AbortController().signal,
   });
 
-  assert.match(observedSystemPrompt, /Base radio prompt\./);
-  assert.match(observedSystemPrompt, /Radio Run Floor:/);
-  assert.match(observedSystemPrompt, /radio\.directionRevision: 7/);
-  assert.match(observedSystemPrompt, /musicExperience\.queueLength: 1/);
-  assert.match(observedMessagesJson, /target about 5 tracks/);
+  assert.match(observedSystemPrompt, /MineMusic Agent Context/);
+  assert.match(observedSystemPrompt, /Actor Identity:/);
+  assert.match(observedSystemPrompt, /Workspace Context:/);
+  assert.match(observedSystemPrompt, /radio:\ndirectionRevision: 7/);
+  assert.match(observedSystemPrompt, /0\. "Already Queued" \[material:material:already-queued\]/);
+  assert.equal(observedSystemPrompt.includes("Radio Run Floor:"), false);
+  assert.match(observedMessagesJson, /radio_refill/);
+  assert.match(observedMessagesJson, /suggestedAppendCount/);
+  assert.match(observedMessagesJson, /radioDirectionRevision/);
   assert.equal(observedToolCount, 1);
 }
 
@@ -235,6 +244,7 @@ const key = {
     ...key,
     agent,
     transcriptStore,
+    ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
     resultFromRun: defaultRadioResult,
   });
@@ -262,6 +272,7 @@ const key = {
     ...key,
     agent: createTestRadioAgent("save-failed"),
     transcriptStore,
+    ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
     resultFromRun: defaultRadioResult,
   });
@@ -306,6 +317,7 @@ const key = {
     ...key,
     agent,
     transcriptStore,
+    ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
     resultFromRun: defaultRadioResult,
   });
@@ -333,6 +345,7 @@ const key = {
     ...key,
     agent: createTestRadioAgent("pre-abort"),
     transcriptStore,
+    ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
     resultFromRun: defaultRadioResult,
   });
@@ -354,15 +367,15 @@ const key = {
 {
   const transcriptStore = createInMemoryRadioTranscriptStore();
   const agent = createTestRadioAgent("concurrent");
-  let resolveRead: ((value: ReturnType<typeof workspaceReadModelFixture>) => void) | undefined;
+  let resolveRead: ((value: EncodedWorkspaceContext | Promise<EncodedWorkspaceContext>) => void) | undefined;
   const runPort = createPiRadioRefillRunPort({
     ...key,
     agent,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
     resultFromRun: defaultRadioResult,
-    runStartRead: {
-      readWorkspace() {
+    workspaceContext: {
+      assemble() {
         return new Promise((resolve) => {
           resolveRead = resolve;
         });
@@ -384,7 +397,69 @@ const key = {
     /cannot start while 'radio-job-concurrent-1' is active/,
   );
   assert.ok(resolveRead !== undefined);
-  resolveRead(workspaceReadModelFixture());
+  resolveRead(createWorkspaceContextAssembler({
+    musicExperience: {
+      async readWorkspaceProjection() {
+        return workspaceProjectionFixture();
+      },
+    },
+  }).assemble({
+    actor: {
+      name: "radio",
+      identity: {
+        role: "Radio test.",
+        job: "Run radio tests.",
+        persona: "Precise.",
+      },
+      instruction: {
+        responsibilities: "Run.",
+        operatingRules: "Use `music_experience_queue_append`.",
+        prohibitions: "None.",
+      },
+      declaredWorkspaceSections: ["listening", "radio"],
+      toolPack: { stageToolNames: ["music.experience.queue.append"] },
+    },
+    ownerScope: key.ownerScope,
+  }));
+  await firstRun;
+}
+
+{
+  const transcriptStore = createInMemoryRadioTranscriptStore();
+  const agent = createTestRadioAgent("async-result");
+  let releaseResult: (() => void) | undefined;
+  const resultWait = new Promise<void>((resolve) => {
+    releaseResult = resolve;
+  });
+  const runPort = createPiRadioRefillRunPort({
+    ...key,
+    agent,
+    transcriptStore,
+    ...radioRunDefaults(),
+    clock: () => "2026-06-28T00:00:00.000Z",
+    async resultFromRun(input) {
+      await resultWait;
+      return defaultRadioResult(input);
+    },
+  });
+  const firstRun = runPort.runRadioRefill({
+    runId: "radio-job-result-held-1",
+    payload: payload(15),
+    signal: new AbortController().signal,
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await assert.rejects(
+    () => runPort.runRadioRefill({
+      runId: "radio-job-result-held-2",
+      payload: payload(16),
+      signal: new AbortController().signal,
+    }),
+    /cannot start while 'radio-job-result-held-1' is active/,
+  );
+
+  assert.ok(releaseResult !== undefined);
+  releaseResult();
   await firstRun;
 }
 
@@ -394,6 +469,7 @@ const key = {
     ...key,
     agent: createTestRadioAgent("missing-result-extractor"),
     transcriptStore,
+    ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
   });
 
@@ -564,27 +640,45 @@ function fakeRadioTool() {
   };
 }
 
-function workspaceReadModelFixture(): WorkspaceReadModel {
+function radioRunDefaults(): {
+  workspaceContext: ReturnType<typeof emptyWorkspaceContext>;
+} {
   return {
-    ownerScope: key.ownerScope,
-    capturedAt: "2026-06-28T00:00:00.000Z",
+    workspaceContext: emptyWorkspaceContext(),
+  };
+}
+
+function emptyWorkspaceContext() {
+  return createWorkspaceContextAssembler({
     musicExperience: {
-      revision: 11,
-      queue: [{
-        position: 0,
-        item: "[material:material:already-queued]" as const,
-        label: "Already Queued",
-      }],
-      radio: {
-        directionRevision: 7,
-        direction: {
-          motif: { kind: "text" as const, text: "late night neon" },
-          activeVariations: [],
-        },
-        posture: {
+      async readWorkspaceProjection() {
+        return workspaceProjectionFixture();
+      },
+    },
+  });
+}
+
+function workspaceProjectionFixture(input: {
+  posture?: MusicExperienceWorkspaceProjection["radio"]["posture"];
+} = {}): MusicExperienceWorkspaceProjection {
+  return {
+    revision: 11,
+    queue: [{
+      position: 0,
+      item: "[material:material:already-queued]" as const,
+      label: "Already Queued",
+    }],
+    radio: {
+      directionRevision: 7,
+      direction: {
+        motif: { kind: "text" as const, text: "late night neon" },
+        activeVariations: [],
+      },
+      posture: {
+        ...(input.posture ?? {
           lean: [],
           stale: false,
-        },
+        }),
       },
     },
   };

@@ -798,13 +798,13 @@ restored as compatibility layers.
   execution gate. The queue has a hard product/runtime cap of 100 items enforced
   by the owning command (`queue_full`); ADR-0044 records this as an explicit
   decision replacing Phase A's earlier read-side-only bounded projection plan.
-  A4 adds a MineMusic Main Agent turn session over a long-lived pi `Agent`: each
-  user turn currently captures pre-refactor Session Context through the Workbench
-  read-model seam, refreshes `state.systemPrompt`, runs pi `prompt()` /
-  `waitForIdle()`, returns the pi-produced turn messages plus final assistant
-  status/error/text, and observes queue/playback outcome through the same seam.
-  The current Agent Context spec marks that path for migration to shared
-  `ActorDefinition` objects and the Agent Runtime Workspace Context assembler.
+  A4 adds a MineMusic Main Agent turn session over a long-lived pi `Agent`.
+  Agent Context PR3.1/PR3.2/PR3.3 have now migrated Main and Radio onto shared
+  `ActorDefinition` objects and the Agent Runtime Workspace Context assembler:
+  each Main user turn refreshes `state.systemPrompt` from `{ actor, ownerScope }`
+  before pi `prompt()` / `waitForIdle()`, returns the pi-produced turn messages
+  plus final assistant status/error/text, and observes queue/playback outcome
+  through the same shared Workspace Context path.
 - Phase B PR1/PR2 Music Experience substrate has landed: `music_experience_state`
   now carries queue, playback, radio-direction, radio-session, and queue-tail
   revisions/counters for commit-time OCC, and `music_experience_radio_truth`

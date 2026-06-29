@@ -17,8 +17,9 @@
 
 Add the second concurrent writer — Radio Agent — in process, and activate
 commit-time optimistic concurrency under two concurrent writers, validated by a
-deterministic in-process harness. Includes a minimal Speech Level
-(Silent/Notify) for Radio→Main notification (PB7). No Web, no Proposal Unit
+deterministic in-process harness. Includes Radio structured terminal judgement
+for exhaustion/backoff and derived notify intent (PB7a). The general
+Radio→Main runtime bus delivery is later work. No Web, no Proposal Unit
 confirmation flow, no Memory.
 
 ## pi Source Fidelity (load-bearing)
@@ -41,8 +42,8 @@ restart. Per-run-start logic uses pi's `agent_start` event (`subscribe`,
 / harness / context-loading / compaction / abort design without a pi-source
 precedent is closed-door invention and is forbidden; each such decision must cite
 the pi `file:line` it mirrors. MineMusic builds only what pi genuinely lacks
-(pacing, single-flight, OCC, the PG-backed durability store, the cascade, the
-notify channel).
+(pacing, single-flight, OCC, the PG-backed durability store, the cascade, and
+Radio terminal declaration).
 
 ## Locked Decisions (grilled)
 
@@ -166,8 +167,8 @@ Resolution:
   revision changes (user steered — a new direction may not be dry), or (b) Radio
   is restarted (`shutdown`→`start`, a fresh instance). `pause`/resume does **not**
   reset it: the same instance still holds the same dry direction. This kills the
-  cross-run notify storm at the source (PB7) — one exhaustion run per direction ⇒
-  PB7's one-notify-per-run is effectively one-notify-per-direction, with no
+  cross-run notify-intent storm at the source (PB7a) — one exhaustion run per
+  direction means at most one derived notify intent per direction, with no
   separate suppression-key machinery. (This is also the gap fix the three-leg
   gate needed: depth + single-flight + lifecycle assumed refill is always
   possible; exhaustion is the case where it is not.)
@@ -513,132 +514,68 @@ batch-of-N ⇒ positions contiguous and input-ordered; append racing
 pause/shutdown ⇒ voided by the `radio_session` CAS; retry after
 `commitCandidate` ⇒ no duplicate queue entries unless the caller re-appends.
 
-### PB7 — Radio→Main is a notify signal under Speech Level, not an imperative speak
+### PB7 — Radio terminal judgement first; Radio→Main delivery later
 
-Radio does not command Main to speak. It emits a notify-worthy signal (it
-*proposes* a notification); the Agent-Runtime-owned **Speech Level**
-(Silent/Notify/Speak) decides whether and how it reaches the user, and Main
-performs the surfacing. This keeps Speech Level the single authority on
-user-facing speech and stops Radio from flooding the conversation. The signal
-travels on the Agent-Runtime typed Main↔Radio channel, not by writing directly
-to the public agent-work projection; Main decides whether to materialize it as
-public work projection, badge/status, or chat speech. The contract is **signal,
-not imperative**. Consequence: a
-**minimal Speech Level** (at least Silent/Notify) enters Phase B scope — Phase A
-deferred it (no UI), but Radio→Main notification is where it first becomes
-necessary.
+Radio does not command Main to speak. The durable Phase-B requirement is that
+Radio can honestly end a run with its own musical judgement, and that the
+runtime can trust that judgement without inventing it from tool side effects.
+Radio→Main delivery remains a **signal, not an imperative**, but the general
+runtime message bus/topic delivery path is **not** the Phase-B build. Phase B
+ships the structured terminal judgement; later runtime-bus work delivers that
+signal to Main.
 
-**Phase B emit model (grilled).** The concrete Phase-B shape:
+**Phase B terminal model.** A completed Radio run ends with one structured,
+schema-validated terminal declaration produced by Radio. The declaration carries
+only Radio-owned musical judgement:
 
-- **Emission mechanism — an optional field in the Radio run-result envelope.** A
-  Radio run already "emits a result, then ends" (PB2); the notify is an optional
-  field in that result, read by the supervisor at run end and forwarded to Main
-  on the typed channel. It is **not** a tool (no `notify_main` tool) and not a
-  separate mailbox message. One run → at most one notify. Cross-run flooding is
-  prevented at the source by PB1a's exhaustion back-off (one exhaustion run per
-  direction ⇒ effectively one notify per direction), not by a notify-layer
-  suppression key.
-- **Single producer — Radio.** Only Radio emits (in its run-result). The
-  supervisor only *wakes* Radio (PB1a pacing); it does not emit notifies.
-- **Emit trigger — actionable selection signal only.** The field is present only
-  when Radio has a selection judgement the user can act on. In Phase B that is
-  exactly one event: **candidate-exhaustion-by-direction** — Radio searched,
-  candidates exist, but **0 fit** the current motif/active-variations. It is
-  emitted whenever an exhaustion run occurs; PB1a's exhaustion back-off ensures
-  at most one such run per direction revision, so this is
-  one-notify-per-direction in practice (no separate suppression state on the
-  notify channel). Absence of the field means "nothing
-  actionable for Main" — either a clean refill or a silent failure (below).
-- **Failures do not notify — they go to an event log.** Provider failure, refill
-  failure, and stall are not actionable by the user (Radio retries; the user
-  cannot fix a provider) and do **not** go through notify. They land in a
-  Radio/Agent-Runtime **event log** (ops/debug). The event log is a **follow-up**
-  — Phase B ships no log yet, so failures simply silent-retry until it lands
-  (see Deferred).
-- **Severity — the field stays; Phase B emits `low` only.** The two-actor
-  severity/interruption framework below remains the design for future phases; in
-  Phase B the severity axis is exercised at a single band (`low`), so the
-  high-impact Notify floor is **dormant** (no Phase-B event triggers it).
-- **Work correlation — the originating Radio run id.** Main ties a notify back
-  to the run that produced it via the run id (the same per-run identity PB9's
-  per-run AbortSignal and supervisor basis table key on).
+- `refill_complete` — Radio considers the refill work complete for this run.
+- `no_action` — Radio intentionally did not append; optional short reason.
+- `candidate_exhaustion_by_direction` — Radio searched, candidates exist, but
+  **0 fit** the current motif/active-variations; this may include the short
+  summary/rationale Main can later reuse.
 
-**Two-actor decision split (refines CONTEXT.md "Speech Level").** CONTEXT.md
-locks the level rule-locked at both ends (routine → Silent; high-impact → Speak
-or proposal) with the middle — "is this worth interrupting the user" — left to
-the actor's judgement. On the Radio→Main chain there are *two* actors, so the
-middle judgement splits across two **orthogonal axes**, each owned by the actor
-that uniquely holds the needed information.
+Radio does **not** fill mechanical runtime facts: `runId`, basis revisions,
+`appendedCount`, tool facts, stale/abort/failure status, severity floors, or
+one-run/one-direction suppression state. Agent Runtime derives those from the
+invocation context, the tool fact recorder, and supervisor state. A declaration
+whose judgement conflicts with runtime facts fails loudly; the runtime does not
+"fix" it into a different judgement.
 
-This is the same shape as mature OS notification models — **iOS interruption
-levels** (passive / active / time-sensitive / critical) × **Focus** modes, and
-Android **notification importance** (sender) × **DND/channel** (receiver): the
-sender declares importance, the receiver's context decides what breaks through,
-and time-sensitive/critical break through Focus by design (our high-impact Notify
-floor). The validated prior art is the severity-vs-breakthrough split and the
-"critical always breaks through" floor; we borrow those. The MineMusic-specific
-part (not in the OS models, which are single sender→single device) is that the
-two axes are owned by **two different agent actors** — Radio holds event severity,
-Main holds the conversation context — because only Main sees "talk less" and
-current user attention. Phase B's bar is a **minimal** Speech Level (Silent /
-Notify), so the level *vocabulary* stays at 2–3 levels (not iOS's four); the
-two-actor ownership split is the load-bearing part, the level count is not.
+**No script inference.** `candidate_exhaustion_by_direction` exists only when
+Radio declares that judgement. Discovery, selection, recorder fixtures, zero
+appended items, and script heuristics must not infer it. The recorder records
+facts such as append counts, stale append results, and tool failures; it does
+not manufacture semantic outcomes. This keeps PB1's "Radio agent decides"
+property intact.
 
-The two axes, each owned by the actor that uniquely holds the needed information:
+**Phase-B notify intent.** For the Phase-B candidate-exhaustion case, the runtime
+may derive a notify intent from Radio's declaration and its own facts:
+event kind `candidate_exhaustion_by_direction`, severity `low`, run/work
+correlation, current direction basis, and Radio's summary. This is still part of
+the Radio run result / harness boundary, not a general `notify_main` tool, not a
+public Workbench DTO, and not the future Main↔Radio message bus. One run yields
+at most one notify intent. Cross-run flooding is prevented at the source by
+PB1a's exhaustion back-off: one exhaustion run per direction revision.
 
-- **Severity axis — owned by Radio + rule-lock.** Radio judges *event*
-  importance (e.g. candidate exhaustion) from Music Experience truth it can read
-  (queue depth);
-  the two-end rule-lock still bounds it. Main does **not** re-estimate severity —
-  it has no broader *event* view than Radio. If Radio under-rates severity, that
-  is a Radio signal-quality concern (give Radio the right inputs), not a reason
-  to give Main an upgrade power.
-- **Interruption axis — owned by Main.** Main holds the *conversation* context
-  (user attention, a recent "talk less" session-steering signal) that Radio
-  cannot see, and decides only *whether to interrupt now*: Speak (interrupt) vs
-  Notify (non-interrupting badge/status) vs — for routine only — Silent. This is
-  exactly CONTEXT.md's "is this worth interrupting the user," nothing more.
+**Failures do not become judgement.** Provider failure, refill failure, abort,
+and stale basis are runtime terminal states, not Radio musical judgements. They
+do not notify in Phase B. Provider/refill/stall failures belong in a
+Radio/Agent-Runtime event log (deferred); until that log ships they silently
+retry according to PB1a failure handling.
 
-**Intersection rule (the hard floor).** The interruption axis's lower bound
-depends on the severity band: **routine** can be pushed all the way to Silent
-(fully invisible); **high-impact** has a floor of **Notify** — Main may choose a
-non-interrupting form but may **not** make it invisible. So a high-impact event
-(e.g. stream about to stall, provider hard-down) is always surfaced; Main's
-conversational restraint can only change *how* it surfaces, never suppress it.
-This keeps the severity axis's "high-impact must surface" rule-lock penetrating
-the interruption axis. (Phase B has no high-impact notify — failures are
-event-log and candidate-exhaustion is `low`, see Phase B emit model — so this
-floor is dormant in Phase B; it activates when a future high-impact,
-user-actionable event is added.) (Rejected: Main able to push high-impact to
-Silent — violates the rule-lock; Radio fixing the level itself — then it could
-not consume "talk less," which lives only in Main's chat context.)
+**Later Radio→Main bus semantics.** The future typed runtime bus/topic carries
+Radio-originated signals to Main. At that point Main owns the interruption axis:
+it sees user attention, "talk less" steering, and the current conversation, then
+decides whether to speak, badge, or stay silent under Speech Level. Radio owns
+only the event judgement and summary. Main must not re-estimate the musical
+exhaustion judgement, and Radio must not decide user-facing speech.
 
-Implementation-open: the **exact field names, type choices, and event-kind enum
-value(s)** for the typed notify request. The Phase-B semantics are settled (see
-Phase B emit model): optional run-result field, candidate-exhaustion-by-direction
-only, severity `low`, run-id correlation. Still open: `subject handle`
-(candidate-exhaustion is about the direction, not a concrete object — likely
-unused in Phase B, not finalized), backpressure policy (bounded by
-one-notify-per-run + rare actionable signals — likely a non-issue in Phase B,
-not finalized), and exact spelling. Record as a note against CONTEXT.md "Speech
-Level" / ADR-0033, not a separate ADR.
-
-**Locked payload discipline.** The typed notify request is a **semantic** actor
-signal, not a UI surface DTO. It carries only the minimal fields Main needs to
-decide surfacing under Speech Level:
-
-- suggested severity from Radio (Phase B: always `low`);
-- reason code / event kind;
-- run/work correlation so Main can tie the signal back to the originating Radio
-  work (Phase B: the run id);
-- optional subject handle/ref when the notification is about a concrete public
-  object;
-- a short agent summary that Main may reuse as source text.
-
-It must **not** carry badge copy, chat copy, card DTOs, A2UI payloads, work
-projection placement, or other Workbench-surface instructions. Those belong to
-Main's surfacing decision and the later Workbench/public-projection path, not
-to the internal Radio→Main mailbox.
+**Locked payload discipline.** The eventual typed signal is a semantic actor
+signal, not a UI surface DTO. It must carry only minimal facts needed for Main's
+surfacing decision: event kind, runtime correlation, optional subject handle/ref,
+derived severity, and Radio's short summary. It must not carry badge copy, chat
+copy, card DTOs, AG-UI payloads, work projection placement, or other Workbench
+surface instructions.
 
 ### PB8 — Radio truth splits into commanded direction + evolved posture; continuity is layered
 
@@ -1030,13 +967,14 @@ phase-A pi Capability Assumptions Ledger.
 
 ## Open (to drill or settle in implementation)
 
-- PB7 typed notify request — **Phase-B semantics settled** (see PB7 "Phase B emit
-  model"): optional run-result field; emitted only for
-  candidate-exhaustion-by-direction, once per direction revision (PB1a's
-  exhaustion back-off prevents the cross-run notify storm — no suppression key);
-  severity `low`; run-id correlation; failures → event log. **Still open**: exact
-  field names/type choices and the event-kind enum value(s); `subject handle`
-  (likely unused in Phase B). No UI copy or Workbench/A2UI surface payload.
+- PB7 structured terminal declaration — **Phase-B semantics settled** (see PB7
+  terminal model): Radio declares only musical judgement; runtime supplies run
+  id, basis revisions, append facts, failures, stale/abort state, and derived
+  notify intent. `candidate_exhaustion_by_direction` is emitted only by Radio
+  declaration, once per direction revision via PB1a exhaustion back-off. The
+  general Main↔Radio runtime bus/topic delivery is later work. **Still open**:
+  exact field names/type choices and the terminal judgement enum spelling. No UI
+  copy or Workbench/AG-UI surface payload.
 - Cross-actor cancellation cascade: fully settled by PB9 — trigger = OCC void
   set, priority-directed (user > Main > Radio), no rollback, touches only pi run
   lifecycle, and the routing (revision bump → which runs abort → per-run

@@ -1,18 +1,15 @@
 import { refKey, type Ref } from "../contracts/kernel.js";
 import type {
-  WorkbenchMaterialMusicItemHandle,
-  WorkbenchRadioDirection,
-  WorkbenchRadioDirectionValue,
-  WorkbenchRadioPosture,
-  WorkbenchMusicExperienceReadPort,
-  WorkbenchMusicItemSummary,
-} from "../contracts/workbench_interface.js";
+  MusicExperienceWorkspaceMaterialHandle,
+  MusicExperienceWorkspaceProjectionPort,
+  MusicExperienceWorkspaceRadioDirection,
+  MusicExperienceWorkspaceRadioDirectionValue,
+  MusicExperienceWorkspaceRadioPosture,
+  MusicExperienceWorkspaceItemSummary,
+} from "../contracts/music_experience.js";
 import type { MusicMaterial } from "../contracts/music_data_platform.js";
 import type { RadioDirectionValue } from "../contracts/music_experience.js";
-import {
-  isMusicDataPlatformError,
-  type MaterialProjection,
-} from "../music_data_platform/index.js";
+import type { MaterialProjection } from "../music_data_platform/index.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 import {
   createMusicExperienceQueuePlaybackRecords,
@@ -33,11 +30,11 @@ export type CreateMusicExperienceReadModelInput = {
 
 export function createMusicExperienceReadModel(
   input: CreateMusicExperienceReadModelInput,
-): WorkbenchMusicExperienceReadPort {
+): MusicExperienceWorkspaceProjectionPort {
   const records = createMusicExperienceQueuePlaybackRecords({ db: input.db });
 
   return {
-    async readMusicExperience(readInput) {
+    async readWorkspaceProjection(readInput) {
       const snapshot = await records.read(readInput);
       const materialRefs = uniqueMaterialRefs([
         ...snapshot.queue.map((item) => item.materialRef),
@@ -46,7 +43,7 @@ export function createMusicExperienceReadModel(
         ...snapshot.radio.direction.activeVariations.flatMap(radioMaterialRefs),
         ...snapshot.radio.posture.lean.flatMap(radioMaterialRefs),
       ]);
-      const summaries = new Map<string, WorkbenchMusicItemSummary>();
+      const summaries = new Map<string, MusicExperienceWorkspaceItemSummary>();
       const projectedMaterials = await projectMaterialsForRead(input.materialProjection, materialRefs);
 
       for (const materialRef of materialRefs) {
@@ -61,7 +58,7 @@ export function createMusicExperienceReadModel(
         });
         const summary = musicItemSummaryFromMaterial(material);
         summaries.set(refKey(materialRef), {
-          item: formatWorkbenchMaterialHandle(publicId),
+          item: formatWorkspaceMaterialHandle(publicId),
           label: summary.label,
           ...(summary.artistsText === undefined ? {} : { artistsText: summary.artistsText }),
         });
@@ -69,15 +66,10 @@ export function createMusicExperienceReadModel(
 
       return {
         revision: snapshot.queueRevision,
-        queue: snapshot.queue.flatMap((item) => {
-          const summary = summaries.get(refKey(item.materialRef));
-          return summary === undefined
-            ? []
-            : [{
-                ...summary,
-                position: item.position,
-              }];
-        }),
+        queue: snapshot.queue.map((item) => ({
+          ...requireProjectedSummary(item.materialRef, summaries),
+          position: item.position,
+        })),
         ...nowPlayingSlice(snapshot.playback.materialRef, summaries),
         radio: {
           directionRevision: snapshot.radio.radioDirectionRevision,
@@ -89,9 +81,9 @@ export function createMusicExperienceReadModel(
   };
 }
 
-function formatWorkbenchMaterialHandle(publicId: string): WorkbenchMaterialMusicItemHandle {
+function formatWorkspaceMaterialHandle(publicId: string): MusicExperienceWorkspaceMaterialHandle {
   if (publicId.length === 0 || publicId.includes("]") || publicId.includes("\r") || publicId.includes("\n")) {
-    throw new Error("Workbench material handle public id must be non-empty and must not contain ']', CR, or LF.");
+    throw new Error("Workspace material handle public id must be non-empty and must not contain ']', CR, or LF.");
   }
   return `[material:${publicId}]`;
 }
@@ -100,41 +92,7 @@ async function projectMaterialsForRead(
   materialProjection: MaterialProjection,
   materialRefs: readonly Ref[],
 ): Promise<ReadonlyMap<string, MusicMaterial>> {
-  try {
-    return await materialProjection.projectMusicMaterials({ materialRefs });
-  } catch (error) {
-    if (isDroppableMaterialProjectionError(error)) {
-      return projectMaterialsForReadOneByOne(materialProjection, materialRefs);
-    }
-    throw error;
-  }
-}
-
-async function projectMaterialsForReadOneByOne(
-  materialProjection: MaterialProjection,
-  materialRefs: readonly Ref[],
-): Promise<ReadonlyMap<string, MusicMaterial>> {
-  const projected = new Map<string, MusicMaterial>();
-  for (const materialRef of materialRefs) {
-    try {
-      const material = await materialProjection.projectMusicMaterial({ materialRef });
-      if (material !== undefined) {
-        projected.set(refKey(materialRef), material);
-      }
-    } catch (error) {
-      if (!isDroppableMaterialProjectionError(error)) {
-        throw error;
-      }
-    }
-  }
-  return projected;
-}
-
-function isDroppableMaterialProjectionError(error: unknown): boolean {
-  return isMusicDataPlatformError(error) && (
-    error.code === "music_data.material_source_binding_invalid" ||
-    error.code === "music_data.source_not_found"
-  );
+  return await materialProjection.projectMusicMaterials({ materialRefs });
 }
 
 function uniqueMaterialRefs(refs: readonly Ref[]): readonly Ref[] {
@@ -147,17 +105,13 @@ function uniqueMaterialRefs(refs: readonly Ref[]): readonly Ref[] {
 
 function nowPlayingSlice(
   materialRef: Ref | undefined,
-  summaries: ReadonlyMap<string, WorkbenchMusicItemSummary>,
-): { nowPlaying: WorkbenchMusicItemSummary } | Record<string, never> {
+  summaries: ReadonlyMap<string, MusicExperienceWorkspaceItemSummary>,
+): { nowPlaying: MusicExperienceWorkspaceItemSummary } | Record<string, never> {
   if (materialRef === undefined) {
     return {};
   }
 
-  const summary = summaries.get(refKey(materialRef));
-  if (summary === undefined) {
-    return {};
-  }
-  return { nowPlaying: summary };
+  return { nowPlaying: requireProjectedSummary(materialRef, summaries) };
 }
 
 function radioDirectionSlice(
@@ -165,8 +119,8 @@ function radioDirectionSlice(
     motif?: RadioDirectionValue;
     activeVariations: readonly RadioDirectionValue[];
   },
-  summaries: ReadonlyMap<string, WorkbenchMusicItemSummary>,
-): WorkbenchRadioDirection {
+  summaries: ReadonlyMap<string, MusicExperienceWorkspaceItemSummary>,
+): MusicExperienceWorkspaceRadioDirection {
   return {
     ...radioMotifSlice(direction.motif, summaries),
     activeVariations: direction.activeVariations.flatMap((item) => radioValueSlice(item, summaries)),
@@ -179,8 +133,8 @@ function radioPostureSlice(
     commandedRevisionStamp?: number;
     stale: boolean;
   },
-  summaries: ReadonlyMap<string, WorkbenchMusicItemSummary>,
-): WorkbenchRadioPosture {
+  summaries: ReadonlyMap<string, MusicExperienceWorkspaceItemSummary>,
+): MusicExperienceWorkspaceRadioPosture {
   return {
     lean: posture.lean.flatMap((item) => radioValueSlice(item, summaries)),
     ...(posture.commandedRevisionStamp === undefined ? {} : {
@@ -192,8 +146,8 @@ function radioPostureSlice(
 
 function radioMotifSlice(
   value: RadioDirectionValue | undefined,
-  summaries: ReadonlyMap<string, WorkbenchMusicItemSummary>,
-): { motif: WorkbenchRadioDirectionValue } | Record<string, never> {
+  summaries: ReadonlyMap<string, MusicExperienceWorkspaceItemSummary>,
+): { motif: MusicExperienceWorkspaceRadioDirectionValue } | Record<string, never> {
   if (value === undefined) {
     return {};
   }
@@ -204,18 +158,28 @@ function radioMotifSlice(
 
 function radioValueSlice(
   value: RadioDirectionValue,
-  summaries: ReadonlyMap<string, WorkbenchMusicItemSummary>,
-): readonly WorkbenchRadioDirectionValue[] {
+  summaries: ReadonlyMap<string, MusicExperienceWorkspaceItemSummary>,
+): readonly MusicExperienceWorkspaceRadioDirectionValue[] {
   switch (value.kind) {
     case "text":
       return [{ kind: "text", text: value.text }];
     case "material": {
-      const summary = summaries.get(refKey(value.materialRef));
-      return summary === undefined ? [] : [{ kind: "material", ...summary }];
+      return [{ kind: "material", ...requireProjectedSummary(value.materialRef, summaries) }];
     }
     case "scope":
       return [{ kind: "scope", scope: { ...value.scope } }];
   }
+}
+
+function requireProjectedSummary(
+  materialRef: Ref,
+  summaries: ReadonlyMap<string, MusicExperienceWorkspaceItemSummary>,
+): MusicExperienceWorkspaceItemSummary {
+  const summary = summaries.get(refKey(materialRef));
+  if (summary === undefined) {
+    throw new Error(`Music Experience workspace projection could not project current material '${refKey(materialRef)}'.`);
+  }
+  return summary;
 }
 
 function radioMaterialRefs(value: RadioDirectionValue | undefined): readonly Ref[] {

@@ -1,27 +1,31 @@
 import type { Agent, AgentMessage } from "@earendil-works/pi-agent-core";
 
-import type { WorkspaceReadModel, WorkspaceReadModelReader } from "../contracts/workbench_interface.js";
 import { finalAssistantMessage } from "./agent_message_helpers.js";
+import {
+  mainDefinition,
+  selectActorStageToolDeclarations,
+  type ActorDefinition,
+} from "./actor_definition.js";
 import {
   createMineMusicPiAgentAdapter,
   type CreateMineMusicPiAgentAdapterInput,
 } from "./pi_engine.js";
 import {
-  captureAgentSessionContext,
-  renderSystemPromptWithSessionContext,
-  type AgentSessionContext,
-} from "./session_context.js";
+  renderAgentRuntimeSystemPrompt,
+  type EncodedWorkspaceContext,
+} from "./workspace_context_encoder.js";
+import type { WorkspaceContextAssembler } from "./workspace_context_assembler.js";
 
 export type MineMusicMainAgentAssistantMessage = Extract<AgentMessage, { role: "assistant" }>;
 export type MineMusicMainAgentTurnStopReason = MineMusicMainAgentAssistantMessage["stopReason"];
 
 export type CreateMineMusicMainAgentSessionInput = Omit<
   CreateMineMusicPiAgentAdapterInput,
-  "systemPrompt" | "sessionContext"
+  "systemPrompt"
 > & {
-  baseSystemPrompt: string;
   ownerScope: string;
-  readModel: WorkspaceReadModelReader;
+  workspaceContext: WorkspaceContextAssembler;
+  actor?: ActorDefinition;
 };
 
 export type RunMineMusicMainAgentTurnInput = {
@@ -29,7 +33,7 @@ export type RunMineMusicMainAgentTurnInput = {
 };
 
 export type MineMusicMainAgentTurnResult = {
-  sessionContext: AgentSessionContext;
+  workspaceContext: EncodedWorkspaceContext;
   /**
    * Messages appended by pi during this user turn. This is the pi-owned
    * transcript slice and may include user, assistant, tool-result, error, or
@@ -40,7 +44,7 @@ export type MineMusicMainAgentTurnResult = {
   stopReason: MineMusicMainAgentTurnStopReason | undefined;
   errorMessage: string | undefined;
   assistantResponseText: string | undefined;
-  readModelAfterTurn: WorkspaceReadModel;
+  workspaceContextAfterTurn: EncodedWorkspaceContext;
 };
 
 export type MineMusicMainAgentSession = {
@@ -52,24 +56,32 @@ export type MineMusicMainAgentSession = {
 export function createMineMusicMainAgentSession(
   input: CreateMineMusicMainAgentSessionInput,
 ): MineMusicMainAgentSession {
+  const actor = input.actor ?? mainDefinition;
   const agent = createMineMusicPiAgentAdapter({
     ...input,
-    systemPrompt: input.baseSystemPrompt,
+    tools: selectActorStageToolDeclarations({
+      actor,
+      tools: input.tools,
+    }),
+    systemPrompt: renderAgentRuntimeSystemPrompt({
+      actor,
+      workspaceContext: {},
+    }),
   });
 
   return createMainAgentSessionController({
     agent,
-    baseSystemPrompt: input.baseSystemPrompt,
+    actor,
     ownerScope: input.ownerScope,
-    readModel: input.readModel,
+    workspaceContext: input.workspaceContext,
   });
 }
 
 function createMainAgentSessionController(input: {
   agent: Agent;
-  baseSystemPrompt: string;
+  actor: ActorDefinition;
   ownerScope: string;
-  readModel: WorkspaceReadModelReader;
+  workspaceContext: WorkspaceContextAssembler;
 }): MineMusicMainAgentSession {
   let activeTurn = false;
 
@@ -83,14 +95,14 @@ function createMainAgentSessionController(input: {
 
       activeTurn = true;
       try {
-        const sessionContext = await captureAgentSessionContext({
+        const workspaceContext = await input.workspaceContext.assemble({
+          actor: input.actor,
           ownerScope: input.ownerScope,
-          readModel: input.readModel,
         });
 
-        input.agent.state.systemPrompt = renderSystemPromptWithSessionContext({
-          systemPrompt: input.baseSystemPrompt,
-          sessionContext,
+        input.agent.state.systemPrompt = renderAgentRuntimeSystemPrompt({
+          actor: input.actor,
+          workspaceContext,
         });
 
         const firstNewMessageIndex = input.agent.state.messages.length;
@@ -101,13 +113,14 @@ function createMainAgentSessionController(input: {
         const responseText = finalAssistant === undefined ? undefined : assistantResponseText(finalAssistant);
 
         return {
-          sessionContext,
+          workspaceContext,
           newMessages,
           finalAssistantMessage: finalAssistant,
           stopReason: finalAssistant?.stopReason,
           errorMessage: finalAssistant?.errorMessage,
           assistantResponseText: responseText,
-          readModelAfterTurn: await input.readModel.readWorkspace({
+          workspaceContextAfterTurn: await input.workspaceContext.assemble({
+            actor: input.actor,
             ownerScope: input.ownerScope,
           }),
         };

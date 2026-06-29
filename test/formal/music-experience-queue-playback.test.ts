@@ -192,17 +192,14 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     materialProjection: createMaterialProjection({ db: database.context() }),
     materialHandles: {
       mintMaterialHandle() {
-        throw new Error("Stale unprojectable material must not be minted into a Workbench handle.");
+        throw new Error("Stale unprojectable material must not be minted into a Workspace Context handle.");
       },
     },
   });
-  const workbenchSlice = await readModel.readMusicExperience({ ownerScope });
-
-  assert.deepEqual(workbenchSlice, {
-    revision: 1,
-    queue: [],
-    radio: emptyWorkbenchRadioTruth(),
-  });
+  await assert.rejects(
+    () => readModel.readWorkspaceProjection({ ownerScope }),
+    /Material sourceRefs must match current source-material bindings/,
+  );
 
   await database.close();
 }
@@ -378,7 +375,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
       },
     },
   });
-  const workbenchSlice = await readModel.readMusicExperience({ ownerScope });
+  const workbenchSlice = await readModel.readWorkspaceProjection({ ownerScope });
   assert.deepEqual(workbenchSlice, {
     revision: 1,
     queue: [

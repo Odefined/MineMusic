@@ -134,3 +134,60 @@ export type MusicExperienceRadioTruthCommand = {
     input: MusicExperienceWriteRadioPostureCommandInput,
   ): Promise<Result<MusicExperienceWriteRadioPostureCommandOutput>>;
 };
+
+export type MusicExperienceWorkspaceMaterialHandle = `[material:${string}]`;
+
+export type MusicExperienceWorkspaceItemSummary = {
+  item: MusicExperienceWorkspaceMaterialHandle;
+  label: string;
+  artistsText?: string;
+};
+
+export type MusicExperienceWorkspaceQueueEntry = MusicExperienceWorkspaceItemSummary & {
+  position: number;
+};
+
+export type MusicExperienceWorkspaceNowPlaying = MusicExperienceWorkspaceItemSummary;
+
+export type MusicExperienceWorkspaceRadioDirectionScope =
+  | { kind: "all" }
+  | { kind: "library" }
+  | { kind: "source_library"; id: string }
+  | { kind: "relation"; id: string }
+  | { kind: "collection"; id: string }
+  | { kind: "provider"; providerId: string };
+
+export type MusicExperienceWorkspaceRadioDirectionValue =
+  | { kind: "text"; text: string }
+  | ({ kind: "material" } & MusicExperienceWorkspaceItemSummary)
+  | { kind: "scope"; scope: MusicExperienceWorkspaceRadioDirectionScope };
+
+export type MusicExperienceWorkspaceRadioDirection = {
+  motif?: MusicExperienceWorkspaceRadioDirectionValue;
+  activeVariations: readonly MusicExperienceWorkspaceRadioDirectionValue[];
+};
+
+export type MusicExperienceWorkspaceRadioPosture = {
+  lean: readonly MusicExperienceWorkspaceRadioDirectionValue[];
+  commandedRevisionStamp?: ConcernRevision;
+  stale: boolean;
+};
+
+export type MusicExperienceWorkspaceRadioTruth = {
+  directionRevision: ConcernRevision;
+  direction: MusicExperienceWorkspaceRadioDirection;
+  posture: MusicExperienceWorkspaceRadioPosture;
+};
+
+export type MusicExperienceWorkspaceProjection = {
+  revision: ConcernRevision;
+  queue: readonly MusicExperienceWorkspaceQueueEntry[];
+  nowPlaying?: MusicExperienceWorkspaceNowPlaying;
+  radio: MusicExperienceWorkspaceRadioTruth;
+};
+
+export type MusicExperienceWorkspaceProjectionPort = {
+  readWorkspaceProjection(input: {
+    ownerScope: string;
+  }): Promise<MusicExperienceWorkspaceProjection>;
+};

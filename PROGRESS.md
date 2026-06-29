@@ -1502,37 +1502,36 @@ catalog integration. Design authority:
   the bridge, Stage `ask` decisions flowing from dispatch without invoking the
   handler, and synthetic Stage-tool session ids staying separate from pi
   provider-session ids.
-- A2 adds the minimal `src/workbench_interface` formal root and
-  `src/contracts/workbench_interface.ts`. Workbench Interface composes an
-  in-process `WorkspaceReadModel` from an injected Music Experience projection
-  port; Agent Runtime captures an immutable `AgentSessionContext` from that
-  seam and renders it into the pi system prompt. Guards now prove the seam does
-  not import AG-UI/web/transport or area internals, and exact port/key-set tests
-  pin the slice-1 read shape.
+- A2 added the minimal `src/workbench_interface` formal root and
+  `src/contracts/workbench_interface.ts` as a pre-refactor agent context seam.
+  Agent Context PR3.1/PR3.2/PR3.3 have since retired that composed
+  agent-facing seam; Workbench Interface remains the owner for workspace
+  interaction-state contracts, while embedded-agent Workspace Context is
+  assembled in Agent Runtime from area-owned projections plus Workbench-owned
+  interaction-state facts.
 - A3 adds Music Experience queue/playback truth behind `music_experience_state`
   and `music_experience_queue_items`, with `MusicExperienceQueuePlaybackCommand`
   owning `append` and `playNow` writes through `database.transaction(...)`.
   The Stage tools `music.experience.queue.append` and
   `music.experience.playback.play` auto-pass as runtime-state writes and return
-  compact public handles/positions/revisions. The Workbench read-model seam can
-  now read the Music Experience projection from real queue/playback state. The
+  compact public handles/positions/revisions. The Music Experience workspace
+  projection port exposes queue/playback state to the shared Agent Runtime
+  Workspace Context assembler. The
   queue is bounded at 100 items by the owning command and returns `queue_full`
   instead of allowing unbounded prompt growth; ADR-0044 records this as an
   explicit Phase A4 decision replacing the earlier read-side-only bounded
   projection plan.
 - A4 adds `createMineMusicMainAgentSession`, a MineMusic-owned turn facade over
-  a long-lived pi `Agent`. Each `runUserTurn` currently captures fresh
-  pre-refactor Session Context through the A2 Workbench read-model seam,
-  refreshes the pi `state.systemPrompt` at the user-turn boundary, then delegates
-  loop control to pi `prompt()` / `waitForIdle()` while preserving pi-owned
-  transcript, lifecycle, queueing, abort, and tool execution behavior. The
-  facade returns the pi-produced turn messages plus final assistant
-  status/error/text. The current Agent Context spec marks this context source for
-  migration to shared `ActorDefinition` objects and the Agent Runtime Workspace
-  Context assembler. The formal A4 harness drives `lookup -> present ->
+  a long-lived pi `Agent`. Each `runUserTurn` now refreshes the pi
+  `state.systemPrompt` from the shared Agent Runtime Workspace Context assembler
+  at the user-turn boundary, then delegates loop control to pi `prompt()` /
+  `waitForIdle()` while preserving pi-owned transcript, lifecycle, queueing,
+  abort, and tool execution behavior. The facade returns the pi-produced turn
+  messages plus final assistant status/error/text. The formal A4 harness drives
+  `lookup -> present ->
   queue.append -> playback.play` through the A1-bridged Stage tools and verifies
-  the Music Experience read projection reflects the queue/now-playing outcome.
-  Radio, Memory, skill runtime, and Web behavior are still unimplemented.
+  the shared Workspace Context reflects the queue/now-playing outcome. Memory,
+  skill runtime, and Web behavior are still unimplemented.
 - Phase B PR1/PR2 adds the Music Experience command/read substrate for Radio +
   concurrency without adding the Radio actor runtime yet. Queue append now has
   per-concern OCC basis support, atomic tail-position minting, batch append, and
@@ -1629,6 +1628,22 @@ Agent Runtime context-engineering authority for embedded MineMusic agents:
   hint, not durable Memory or an explicit user preference rule;
 - `Session Context` is retained only as a legacy umbrella term; new design and
   code should use the seven rails explicitly.
+
+## 2026-06-29: Agent Context PR3.1/PR3.2/PR3.3 Implementation
+
+- PR3.1 adds `ActorDefinition`, shared Workspace Context assembler/encoder, and
+  the `MusicExperienceWorkspaceProjectionPort` in the Music Experience contract.
+  Actor identity/instruction/tool packs/declared sections now have one
+  Agent Runtime definition per actor.
+- PR3.2 moves Radio run-start context from the retired Radio-only Run Floor to
+  the shared assembler and changes Radio refill invocation to JSON with
+  `runId`, `wakeReason`, `suggestedAppendCount`, and basis revisions separated
+  from Workspace Context.
+- PR3.3 moves Main turn-start context onto the same assembler and removes the
+  old `session_context.ts` / Workbench agent-composition seam. Guards now cover
+  structural ActorDefinition validation, assembler section selection, Radio
+  queue handle visibility, Main system prompt refresh, and active-tree deletion
+  of the retired seam.
 
 ## Next Formal Milestones
 

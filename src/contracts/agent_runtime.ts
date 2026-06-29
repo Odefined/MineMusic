@@ -1,11 +1,7 @@
-// Agent Runtime contract surface. Session Context is Agent Runtime-owned, but
-// assembled over the Workbench Interface in-process read model rather than over
-// Web/AG-UI wire state.
+// Agent Runtime contract surface.
 
 import type { ConcernRevision } from "./kernel.js";
-import type { WorkbenchMusicItemSummary, WorkspaceReadModel } from "./workbench_interface.js";
-
-export type AgentSessionContext = WorkspaceReadModel;
+import type { MusicExperienceWorkspaceMaterialHandle } from "./music_experience.js";
 
 export type RadioWakeGateState = "Running" | "Paused" | "Shutdown";
 
@@ -23,7 +19,7 @@ export type RadioNotifyRequest = {
   eventKind: RadioNotifyEventKind;
   runId: string;
   radioDirectionRevision: ConcernRevision;
-  subject?: { kind: "material"; handle: WorkbenchMusicItemSummary["item"] };
+  subject?: { kind: "material"; handle: MusicExperienceWorkspaceMaterialHandle };
   summary: string;
 };
 
@@ -50,4 +46,17 @@ export type RadioRefillRunJobPayload = {
   wakeReason: RadioWakeReason;
   refillGeneration: number;
   suggestedAppendCount: number;
+};
+
+export type RadioRefillRunInvocation = {
+  run: {
+    kind: "radio_refill";
+    runId: string;
+    wakeReason: RadioWakeReason;
+    suggestedAppendCount: number;
+    basis: {
+      radioDirectionRevision: ConcernRevision;
+      radioSessionRevision: ConcernRevision;
+    };
+  };
 };
