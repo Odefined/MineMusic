@@ -396,9 +396,17 @@ adapter prepares the shared turn state and installs `state.systemPrompt` /
 `state.tools` before `Agent.prompt(...)` takes pi's provider-context snapshot;
 `agent_start` is an observation hook, not the refresh mechanism. The same
 adapter owns runtime-only command basis (`preconditionBasis` before tool calls,
-`changedBasis` after successful tool results) and refreshes the next provider
-context through pi `prepareNextTurn`. Basis revisions are not Radio Invocation
-Context and are not agent-facing prompt content. Routing the change through owned state — not a directive
+internal runtime metadata `changedBasis` after successful tool results) and
+refreshes the next provider context through pi `prepareNextTurn`. `changedBasis`
+is not part of any tool's public output schema or model-facing result text. Pi
+tool-result `content` is the model-visible public observation rendered by Stage
+Interface; structured `details` stay on the transcript/runtime side and are
+stripped from provider context. After a successful state-mutating tool result,
+Agent Runtime may use pi `afterToolCall` to append a local Workspace Context
+diff to the model-visible tool-result `content`; the diff is produced by
+re-reading Workspace Context and does not expose command basis.
+Basis revisions are not Radio Invocation Context and are not agent-facing prompt
+content. Routing the change through owned state — not a directive
 payload message — unifies three things: the write boundary (radio truth is Music
 Experience-owned), the PB3 OCC revision source, and the wake trigger. This
 refines ADR-0032's "typed messages": the typed Main↔Radio channel is reserved for
@@ -598,9 +606,9 @@ fails loudly; the runtime does not "fix" it into a different judgement.
 **No script inference.** `candidate_exhaustion_by_direction` exists only when
 Radio declares that judgement. Discovery, selection, recorder fixtures, zero
 appended items, and script heuristics must not infer it. The recorder records
-facts such as append counts, stale append results, and tool failures; it does
-not manufacture semantic outcomes. This keeps PB1's "Radio agent decides"
-property intact.
+  facts such as append counts, queue-correction mutations, stale queue results,
+  and tool failures; it does not manufacture semantic exhaustion. This keeps
+  PB1's "Radio agent decides" property intact.
 
 **Phase-B notify intent.** For the Phase-B candidate-exhaustion case, the runtime
 may derive a notify intent from Radio's declaration and its own facts:
@@ -677,9 +685,13 @@ Full rationale and OCC table in ADR-0037. In Phase B terms:
   steering only bumps the commanded revision; stale posture falls away at Radio's
   next run via stamp mismatch. The stale-posture command runs before the shared
   `AgentHarness` adapter assembles and installs the run-start turn state. The
-  next model step after any tool result that declares `changedBasis` is refreshed
-  through pi `prepareNextTurn`; tool preconditions continue to come from the
-  run-local command-basis tracker.
+  next model step after any tool result that carries internal runtime metadata
+  `changedBasis` is refreshed through pi `prepareNextTurn`; tool preconditions
+  continue to come from the run-local command-basis tracker. Runtime and durable
+  write tools run with pi's per-tool sequential execution mode so same-message
+  mutation batches have a stable order for public tool-result content, context
+  diffs, and refresh. Structured tool-result `details` are transcript/runtime
+  data, not provider-context input.
 - **Late-write race needs no guard.** A posture write landing just after a
   steering change is handled by the abort cascade (Cross-Cutting, usually kills
   the in-flight run first) plus stamp mismatch (any landed write carries the old
@@ -1038,7 +1050,7 @@ phase-A pi Capability Assumptions Ledger.
 
 - PB7 structured terminal declaration — **Phase-B semantics settled** (see PB7
   terminal model): Radio declares only musical judgement; runtime supplies run
-  id, runtime concern revisions, append facts, failures, stale/abort state, and
+  id, runtime concern revisions, queue mutation facts, failures, stale/abort state, and
   derived notify intent. `candidate_exhaustion_by_direction` is emitted only by Radio
   declaration, once per direction revision via PB1a exhaustion back-off. The
   general Main↔Radio runtime bus/topic delivery is later work. **Still open**:

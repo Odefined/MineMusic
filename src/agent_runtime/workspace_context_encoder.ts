@@ -1,6 +1,8 @@
 import type {
+  MusicExperienceQueueItemProvenance,
   MusicExperienceWorkspaceItemSummary,
   MusicExperienceWorkspaceProjection,
+  MusicExperienceWorkspaceQueueEntry,
   MusicExperienceWorkspaceRadioDirectionValue,
 } from "../contracts/music_experience.js";
 import { formatMusicScopeHandle } from "../contracts/stage_interface.js";
@@ -15,7 +17,6 @@ export type ListeningWorkspaceContextSection = {
 export type RadioWorkspaceContextSection = {
   direction?: string;
   posture?: string;
-  directionRevision: number;
 };
 
 export type EncodedWorkspaceContext = {
@@ -75,7 +76,6 @@ export function renderWorkspaceContextForSystemPrompt(context: EncodedWorkspaceC
   }
   if (context.radio !== undefined) {
     lines.push("radio:");
-    lines.push(`directionRevision: ${context.radio.directionRevision}`);
     if (context.radio.direction !== undefined) {
       lines.push("direction:");
       lines.push(context.radio.direction);
@@ -100,7 +100,7 @@ function encodeListeningSection(
       : musicExperience.queue
           .slice()
           .sort((left, right) => left.position - right.position)
-          .map((item, index) => `${index}. ${formatMusicItem(item)}`)
+          .map((item, index) => `${index}. ${formatQueueItem(item)}`)
           .join("\n"),
   };
 }
@@ -109,7 +109,6 @@ function encodeRadioSection(
   musicExperience: MusicExperienceWorkspaceProjection,
 ): RadioWorkspaceContextSection {
   return {
-    directionRevision: musicExperience.radio.directionRevision,
     ...compactString("direction", [
       valueLine("motif", musicExperience.radio.direction.motif),
       valueList("activeVariations", musicExperience.radio.direction.activeVariations),
@@ -119,9 +118,6 @@ function encodeRadioSection(
         ? []
         : [valueList("lean", musicExperience.radio.posture.lean)]),
       `stale: ${musicExperience.radio.posture.stale}`,
-      ...(musicExperience.radio.posture.commandedRevisionStamp === undefined
-        ? []
-        : [`commandedRevisionStamp: ${musicExperience.radio.posture.commandedRevisionStamp}`]),
     ]),
   };
 }
@@ -170,6 +166,21 @@ function formatRadioValue(value: MusicExperienceWorkspaceRadioDirectionValue): s
 function formatMusicItem(item: MusicExperienceWorkspaceItemSummary): string {
   const artists = item.artistsText === undefined ? "" : ` - ${quoteText(item.artistsText)}`;
   return `${item.materialKind} ${quoteText(item.label)}${artists} ${item.item}`;
+}
+
+function formatQueueItem(item: MusicExperienceWorkspaceQueueEntry): string {
+  return `${formatMusicItem(item)} added by ${formatQueueContributor(item.provenance)}`;
+}
+
+function formatQueueContributor(provenance: MusicExperienceQueueItemProvenance): string {
+  switch (provenance) {
+    case "radio_agent":
+      return "radio";
+    case "main_agent":
+      return "main";
+    case "user":
+      return "user";
+  }
 }
 
 function quoteText(text: string): string {

@@ -33,10 +33,14 @@ import {
   createMusicExperienceRadioTruthRegistrations,
   musicExperienceInstrument,
   radioLeanAddDescriptor,
+  radioLeanClearDescriptor,
   radioLeanMoveDescriptor,
   radioLeanRemoveDescriptor,
   radioLeanReplaceDescriptor,
+  radioMotifClearDescriptor,
+  radioMotifSetDescriptor,
   radioVariationsAddDescriptor,
+  radioVariationsClearDescriptor,
   radioVariationsMoveDescriptor,
   radioVariationsRemoveDescriptor,
   radioVariationsReplaceDescriptor,
@@ -45,6 +49,7 @@ import {
   createStageInterface,
   createStageInterfaceHandleMintingPort,
   createStageToolContext,
+  renderModelVisibleToolDescription,
   stageInterfaceHandleRegistrySchema,
 } from "../../src/stage_interface/index.js";
 import type { MusicDatabase } from "../../src/storage/index.js";
@@ -68,6 +73,34 @@ for (const [descriptor, propertyName] of [
 ] as const) {
   assert.equal(inputPropertySchemaType(descriptor.inputSchema, propertyName), "integer");
 }
+for (const descriptor of [
+  radioMotifSetDescriptor,
+  radioMotifClearDescriptor,
+  radioVariationsAddDescriptor,
+  radioVariationsRemoveDescriptor,
+  radioVariationsReplaceDescriptor,
+  radioVariationsMoveDescriptor,
+  radioVariationsClearDescriptor,
+  radioLeanAddDescriptor,
+  radioLeanRemoveDescriptor,
+  radioLeanReplaceDescriptor,
+  radioLeanMoveDescriptor,
+  radioLeanClearDescriptor,
+]) {
+  assert.equal(/revision/iu.test(renderModelVisibleToolDescription(descriptor)), false);
+}
+assert.equal(/revision/iu.test(radioMotifSetDescriptor.resultSummary({
+  radioDirectionRevision: 1,
+  direction: { activeVariations: [] },
+})), false);
+assert.equal(/revision/iu.test(radioLeanAddDescriptor.resultSummary({
+  radioDirectionRevision: 1,
+  posture: {
+    lean: [],
+    stale: false,
+    commandedRevisionStamp: 1,
+  },
+})), false);
 assert.equal(
   definitionTextSchemaMaxLength(radioVariationsAddDescriptor.inputSchema, "RadioTruthToolValue"),
   MAX_RADIO_DIRECTION_TEXT_LENGTH,
@@ -294,12 +327,12 @@ assert.equal(
   if (motifSet.ok) {
     assert.deepEqual(motifSet.value.result, {
       radioDirectionRevision: 1,
-      changedBasis: { radioDirectionRevision: 1 },
       direction: {
         motif: { kind: "text", text: "stage motif" },
         activeVariations: [],
       },
     });
+    assert.deepEqual(motifSet.value.runtime?.changedBasis, { radioDirectionRevision: 1 });
   }
 
   const variationAdd = await stageInterface.dispatch(createStageToolContext({
@@ -319,12 +352,12 @@ assert.equal(
   if (variationAdd.ok) {
     assert.deepEqual(variationAdd.value.result, {
       radioDirectionRevision: 2,
-      changedBasis: { radioDirectionRevision: 2 },
       direction: {
         motif: { kind: "text", text: "stage motif" },
         activeVariations: [{ kind: "scope", scope: "[library]" }],
       },
     });
+    assert.deepEqual(variationAdd.value.runtime?.changedBasis, { radioDirectionRevision: 2 });
   }
 
   const leanAdd = await stageInterface.dispatch(createStageToolContext({

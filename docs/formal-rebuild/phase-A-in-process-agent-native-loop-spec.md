@@ -140,7 +140,7 @@ satisfying the write-boundary hard rule (no direct writes outside the command).
   boundary without collapsing the concerns into one mixed command
   (commit-time CAS serialization is Phase B — see A3 deep dive);
   a public projection exposing current queue + now-playing; agent-facing
-  tool registrations (e.g. `music.experience.queue.append`,
+  tool registrations (e.g. `playback.queue.append`,
   `music.experience.playback.play`) contributed through
   `createMusicExperienceRuntimeModule`.
 - Write boundary: all mutation goes through the owning command. Orchestration,
@@ -529,7 +529,7 @@ since Phase 21.
   state in a prompt renderer. The database table still stores ordinary queue
   rows; the product invariant keeps both queue state and prompt surface bounded.
 
-- **Agent-facing tools.** `music.experience.queue.append` and
+- **Agent-facing tools.** `playback.queue.append` and
   `music.experience.playback.play` _(proposed)_ register under the existing
   `music.experience` instrument through `createMusicExperienceRuntimeModule`.
   They are intentionally distinct tools, not one "queue-and-play" surface.
@@ -568,7 +568,7 @@ Boundary-routed workflow") — exactly the gap A3/A4 fill.
 
 - **Tool-composition seam.** The slice-1 agent flow is `music.discovery.lookup`
   → `music.experience.present` (durable-materializes the candidate and yields a
-  `material` handle) → `music.experience.queue.append([material handle])` →
+  `material` handle) → `playback.queue.append([material handle])` →
   `music.experience.playback.play`. `queue.append` accepts a
   **candidate-or-`material`** `MusicItemHandle` list (slice 1: exactly one item;
   ADR-0040) and resolves each via the shared `ResolveDurableMusicItem`

@@ -1512,7 +1512,7 @@ catalog integration. Design authority:
 - A3 adds Music Experience queue/playback truth behind `music_experience_state`
   and `music_experience_queue_items`, with `MusicExperienceQueuePlaybackCommand`
   owning `append` and `playNow` writes through `database.transaction(...)`.
-  The Stage tools `music.experience.queue.append` and
+  The Stage tools `playback.queue.append` and
   `music.experience.playback.play` auto-pass as runtime-state writes and return
   compact public handles/positions/revisions. The Music Experience workspace
   projection port exposes queue/playback state to the shared Agent Runtime

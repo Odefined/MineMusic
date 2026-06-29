@@ -175,6 +175,13 @@ export const libraryCatalogListScopesDescriptor: ToolDeclaration = {
     const output = result as LibraryCatalogListScopesOutput;
     return `${output.scopes.length} catalog scope(s) returned.`;
   },
+  agentResultText(result) {
+    const output = result as LibraryCatalogListScopesOutput;
+    return [
+      `${output.scopes.length} catalog scope(s) returned.`,
+      ...output.scopes.map((scope, index) => catalogScopeLine(index, scope)),
+    ].join("\n");
+  },
 };
 
 export const libraryCatalogBrowseDescriptor: ToolDeclaration = {
@@ -220,6 +227,14 @@ export const libraryCatalogBrowseDescriptor: ToolDeclaration = {
     const output = result as LibraryCatalogBrowseOutput;
     return `${output.items.length} catalog item(s) returned${output.nextCursor === undefined ? "." : " with more available."}`;
   },
+  agentResultText(result) {
+    const output = result as LibraryCatalogBrowseOutput;
+    return [
+      `${output.items.length} catalog item(s) returned; ${output.nextCursor === undefined ? "end of results" : "more available"}.`,
+      ...output.items.map((item, index) => catalogItemLine(index, item)),
+      ...(output.nextCursor === undefined ? [] : [`nextCursor: ${output.nextCursor}`]),
+    ].join("\n");
+  },
 };
 
 export const libraryCatalogSampleDescriptor: ToolDeclaration = {
@@ -252,6 +267,13 @@ export const libraryCatalogSampleDescriptor: ToolDeclaration = {
   resultSummary(result) {
     const output = result as LibraryCatalogSampleOutput;
     return `${output.items.length} sampled catalog item(s) returned.`;
+  },
+  agentResultText(result) {
+    const output = result as LibraryCatalogSampleOutput;
+    return [
+      `${output.items.length} sampled catalog item(s) returned.`,
+      ...output.items.map((item, index) => catalogItemLine(index, item)),
+    ].join("\n");
   },
 };
 
@@ -289,6 +311,29 @@ export const libraryCatalogSummaryDescriptor: ToolDeclaration = {
       ? ""
       : ` and ${output.membershipSignals.length} membership signal(s)`;
     return `${sampleCount} summary sample item(s), ${output.concentrationSignals.length} concentration signal(s)${membershipSuffix}.`;
+  },
+  agentResultText(result) {
+    const output = result as LibraryCatalogSummaryOutput;
+    const sampleCount = output.sampleBands.reduce((count, band) => count + band.items.length, 0);
+    const membershipSuffix = output.membershipSignals === undefined
+      ? ""
+      : `, ${output.membershipSignals.length} membership signal(s)`;
+    return [
+      `${sampleCount} summary sample item(s), ${output.concentrationSignals.length} concentration signal(s)${membershipSuffix}.`,
+      "sampleBands:",
+      ...output.sampleBands.flatMap((band) => [
+        `${band.band}:`,
+        ...band.items.map((item, index) => catalogItemLine(index, item)),
+      ]),
+      "concentrationSignals:",
+      ...output.concentrationSignals.map((signal, index) => concentrationSignalLine(index, signal)),
+      ...(output.membershipSignals === undefined
+        ? []
+        : [
+            "membershipSignals:",
+            ...output.membershipSignals.map((signal, index) => membershipSignalLine(index, signal)),
+          ]),
+    ].join("\n");
   },
 };
 
@@ -682,6 +727,50 @@ function listCollectionScope(
       ...(scope.detailText === undefined ? {} : { detailText: scope.detailText }),
     }),
   };
+}
+
+function catalogScopeLine(index: number, scope: ListedLibraryCatalogScope): string {
+  const details = [
+    optionalTextField("targetKind", scope.description.targetKind),
+    optionalQuotedField("detail", scope.description.detailText),
+  ].filter((field): field is string => field !== undefined);
+
+  return [
+    `${index}. ${JSON.stringify(scope.description.label)} ${scope.scope}`,
+    ...(details.length === 0 ? [] : [`   ${details.join("; ")}`]),
+  ].join("\n");
+}
+
+function catalogItemLine(index: number, item: LibraryCatalogItem): string {
+  return `${index}. ${JSON.stringify(item.description.label)} ${item.item}`;
+}
+
+function concentrationSignalLine(index: number, signal: LibraryCatalogConcentrationSignal): string {
+  return [
+    `${index}. ${signal.signalKind} ${signal.materialKind} ${JSON.stringify(signal.label)} count ${signal.count}`,
+    ...(signal.examples.length === 0 ? [] : [`   examples: ${inlineCatalogItems(signal.examples)}`]),
+  ].join("\n");
+}
+
+function membershipSignalLine(index: number, signal: LibraryCatalogMembershipSignal): string {
+  return [
+    `${index}. ${JSON.stringify(signal.scope.description.label)} ${signal.scope.scope} count ${signal.count}`,
+    ...(signal.examples.length === 0 ? [] : [`   examples: ${inlineCatalogItems(signal.examples)}`]),
+  ].join("\n");
+}
+
+function inlineCatalogItems(items: readonly LibraryCatalogItem[]): string {
+  return items
+    .map((item) => `${JSON.stringify(item.description.label)} ${item.item}`)
+    .join("; ");
+}
+
+function optionalTextField(label: string, value: string | undefined): string | undefined {
+  return value === undefined ? undefined : `${label}: ${value}`;
+}
+
+function optionalQuotedField(label: string, value: string | undefined): string | undefined {
+  return value === undefined ? undefined : `${label}: ${JSON.stringify(value)}`;
 }
 
 function serializableScope(scope: LibraryCatalogReadScope): SerializableCatalogScope {

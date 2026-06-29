@@ -44,7 +44,7 @@ export const radioDefinition: ActorDefinition = {
       "Use `radio_lean_add`, `radio_lean_replace`, `radio_lean_remove`, `radio_lean_move`, or `radio_lean_clear` when your current musical posture needs to evolve under the same commanded direction. " +
       "Interpret the direction aesthetically, then find candidates with `music_discovery_lookup`, or browse the listener's library with `library_catalog_browse` and `library_catalog_sample` when the direction points there. " +
       "Add roughly the run's `suggestedAppendCount`, then stop. " +
-      "Let `userTasteHint` guide toward the listener's taste, and append with `music_experience_queue_append`.",
+      "Let `userTasteHint` guide toward the listener's taste, append with `playback_queue_append`, and use `playback_queue_remove`, `playback_queue_replace`, `playback_queue_move`, or `playback_queue_clear` only to correct queue items you added.",
     prohibitions:
       "Do not repeat what is already queued or playing. " +
       "Do not search the direction literally: a motif like 'night' does not mean songs with 'night' in the title; think about what actually carries a night feeling or fits night listening, then look that up. " +
@@ -60,7 +60,11 @@ export const radioDefinition: ActorDefinition = {
       "library.catalog.browse",
       "library.catalog.sample",
       "library.catalog.summary",
-      "music.experience.queue.append",
+      "playback.queue.append",
+      "playback.queue.remove",
+      "playback.queue.replace",
+      "playback.queue.move",
+      "playback.queue.clear",
       "radio.lean.add",
       "radio.lean.remove",
       "radio.lean.replace",
@@ -87,6 +91,7 @@ export const mainDefinition: ActorDefinition = {
       "Check `listening` for what is playing and queued before suggesting next steps. " +
       "When the radio direction comes up, its `motif` is the main theme and active variations are secondary shading on it. " +
       "Use `radio_motif_set` or `radio_motif_clear` for the single motif slot, and `radio_variations_add`, `radio_variations_remove`, `radio_variations_replace`, `radio_variations_move`, or `radio_variations_clear` for the ordered active-variation list. " +
+      "Use `playback_queue_append`, `playback_queue_remove`, `playback_queue_replace`, `playback_queue_move`, or `playback_queue_clear` to edit the current queue when the listener asks for queue changes. " +
       "Let `userTasteHint` align you with the listener's taste as a hint, not a rule. " +
       "Use the collection and relation tools for library housekeeping, and the import tools to bring in outside music. " +
       "Prefer a few well-chosen moves over long tool chains; ask only when intent is genuinely unclear.",
@@ -117,7 +122,11 @@ export const mainDefinition: ActorDefinition = {
       "library.import.start",
       "library.import.status",
       "music.experience.present",
-      "music.experience.queue.append",
+      "playback.queue.append",
+      "playback.queue.remove",
+      "playback.queue.replace",
+      "playback.queue.move",
+      "playback.queue.clear",
       "music.experience.playback.play",
       "radio.motif.set",
       "radio.motif.clear",

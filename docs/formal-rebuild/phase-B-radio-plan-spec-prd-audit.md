@@ -22,7 +22,7 @@ not exist in the plan or live tool surface:
 - Radio cannot durably write or clear evolved posture, so PB8 / PB8a can only
   false-pass.
 - Radio can only append queue items; it cannot modify queue items that Radio
-  generated and that have not played when the direction changes.
+  generated and that still remain in the queue when the direction changes.
 - Users also lack queue remove / move / clear controls that the PRD treats as
   first-version session signals.
 - Main / user commanded-direction steering has a command layer but not a real
@@ -76,7 +76,7 @@ no callable capability to perform that write.
   `docs/formal-rebuild/phase-B-radio-concurrency-implementation-plan.md:127-162`,
   `docs/formal-rebuild/phase-B-radio-concurrency-implementation-plan.md:208-239`.
 - Live `radioDefinition.toolPack.stageToolNames` includes search, catalog, and
-  `music.experience.queue.append`, but no posture write:
+  `playback.queue.append`, but no posture write:
   `src/agent_runtime/actor_definition.ts:30-65`.
 - The Radio server module wires tools and workspace context, not a radio-truth
   posture command port:
@@ -115,7 +115,7 @@ string/prose guard or an encoder workaround.
 
 **Problem.** The pre-rewrite plan makes Radio an append-only refill agent. That is
 not enough for PRD Radio behavior. When direction changes slightly, or when Radio
-recognizes that queue items it generated and that have not played no longer fit, it must be
+recognizes that queue items it generated and that still remain in the queue no longer fit, it must be
 able to adjust its own queue contribution instead of only appending more items
 behind stale ones.
 
@@ -145,8 +145,8 @@ behind stale ones.
   `docs/formal-rebuild/phase-B-radio-concurrency-spec.md:891-898`.
 - Live command port only exposes `append` and `playNow`:
   `src/contracts/music_experience.ts:101-104`.
-- Live Stage tools register old-name queue/playback tools (`present`,
-  `music.experience.queue.append`, and `music.experience.playback.play`), not
+- Live Stage tools register queue/playback tools (`present`,
+  `playback.queue.append`, and `music.experience.playback.play`), not
   queue correction tools:
   `src/music_experience/stage_adapter/index.ts:53-69`.
 
@@ -158,20 +158,20 @@ correct already queued Radio material.
 
 **Recommendation.** Do not promote a full generic queue editor by accident, but
 do add a Music Experience queue-correction contract scoped to queue items that
-Radio generated and that have not played.
+Radio generated and that still remain in the queue.
 
 **Required change.**
 
 1. Add a Music Experience-owned queue correction capability scoped to queue
-   items that Radio generated and that have not played. It should be scoped by
-   actor authority and provenance, not named or shaped as a one-off
+   items that Radio generated and that still remain in the queue. It should be
+   scoped by actor authority and provenance, not named or shaped as a one-off
    exhaustion/control escape hatch.
    The input shape should reuse the shared indexed-list edit contract used for
    queue-like ordered collections, with queue-specific authority and side-effect
    rules.
-2. The command may only affect unplayed queue items safely attributable to
-   Radio. It must not touch:
-   - now-playing;
+2. The command may only affect queue items safely attributable to Radio that
+   still remain in the queue. It must not target:
+   - now-playing state;
    - user-inserted items;
    - Main-inserted items unless the spec explicitly grants that authority;
    - already played history.
@@ -186,7 +186,7 @@ Radio generated and that have not played.
    Radio requests explicitly. In both cases, Stage Interface remains the callable
    boundary and Music Experience remains the write owner.
 6. Add tests proving:
-   - Radio can edit only queue items it generated and that have not played;
+   - Radio can edit only queue items it generated and that still remain in the queue;
    - user/manual queue items are preserved;
    - current playback is untouched;
    - stale basis returns `voided_stale`;
@@ -219,7 +219,7 @@ Radio also loses a key feedback signal because queue edits never become durable
 facts it can observe.
 
 **Recommendation.** Separate user queue control from Radio's authority to modify
-queue items it generated and that have not played, but plan both. User queue edits are
+queue items it generated and that still remain in the queue, but plan both. User queue edits are
 product interaction commands; Radio correction is agent work. They may share
 lower-level Music Experience queue mutation records, but they should not share
 unrestricted authority.
@@ -320,7 +320,7 @@ supervisor and tests are wrong.
 
 - Option A: `direction_changed` bypasses low-watermark and runs one bounded turn.
   This pairs naturally with letting Radio modify only queue items it generated
-  and that have not played.
+  and that still remain in the queue.
 - Option B: `direction_changed` only re-evaluates pacing and may not run if queue
   depth is high. Then PRD language about redirecting in-progress/near-future
   Radio needs a different mechanism.
@@ -383,7 +383,7 @@ surface is too small for those side effects.
   `docs/formal-rebuild/phase-B-radio-concurrency-implementation-plan.md:309-337`.
 - Live Music Experience command port only has `append` and `playNow`:
   `src/contracts/music_experience.ts:101-104`.
-- Live Stage tool surface only has `playback.play`, not pause/stop/skip:
+- Live Stage tool surface only has `music.experience.playback.play`, not pause/stop/skip:
   `src/music_experience/stage_adapter/index.ts:53-69`.
 
 **Impact.** PR5 is underspecified. It depends on queue clear and playback
@@ -497,7 +497,7 @@ produced honestly by the agent. Tests can only fixture-inject the outcome.
   `docs/formal-rebuild/phase-B-radio-concurrency-spec.md:543-551`.
 - PR3 tests supervisor behavior when a run reports exhaustion:
   `docs/formal-rebuild/phase-B-radio-concurrency-implementation-plan.md:150-155`.
-- Live `radio_run_result_recorder` observes `music.experience.queue.append`
+- Live `radio_run_result_recorder` observes `playback.queue.append`
   output/failure and derives `appended`, `voided_stale`, or `no_action` from
   those side effects. It has no observed Radio declaration for exhaustion or
   notify:
@@ -645,7 +645,7 @@ The plan should distinguish:
 
 - user queue control: remove, move/reorder, insert, skip, manual play;
 - Radio queue correction: Radio may modify only queue items it generated and
-  that have not played;
+  that still remain in the queue;
 - lifecycle queue effects: shutdown clear, start refresh clear, and running
   direction-change correction.
 
@@ -674,7 +674,7 @@ observer matrix complete:
 - radio direction steering;
 - radio lifecycle start/pause/shutdown;
 - user queue remove/move/clear;
-- Radio may modify only queue items it generated and that have not played.
+- Radio may modify only queue items it generated and that still remain in the queue.
 
 Writers added later must extend the structural observer guard in the same PR
 that introduces the writer.
@@ -724,7 +724,7 @@ Stopping condition:
   direction revision;
 - stale posture is not used as current lean.
 
-### Next PR3.5: Queue control and Radio edits to its own unplayed queue items
+### Next PR3.5: Queue control and Radio edits to its own queued items
 
 This PR replaces the append-only assumption with scoped queue mutation.
 
@@ -733,17 +733,17 @@ Owns:
 - `playback.queue.remove` / `playback.queue.move` user command contracts, plus
   `playback.queue.replace` where product semantics require replacement;
 - queue correction contract that lets Radio modify only queue items it generated
-  and that have not played;
+  and that still remain in the queue;
 - clear semantics split between shutdown, start refresh, and user clear;
 - queue provenance / actor source needed by Workspace Context;
 - observer events for new queue writers.
 
 Stopping condition:
 
-- Radio can modify only queue items it generated and that have not played;
+- Radio can modify only queue items it generated and that still remain in the queue;
 - user-inserted and Main-inserted items are protected unless the command
   explicitly targets them through the user path;
-- now-playing is never removed by Radio correction;
+- now-playing state is never targeted by Radio correction;
 - stale direction/session basis voids Radio correction;
 - user queue edits are visible as current session context.
 
@@ -756,7 +756,7 @@ Owns:
 
 - `direction_changed` wake bypasses low-watermark for exactly one bounded
   correction/refill turn;
-- Running direction change adjusts Radio-generated unplayed queue items rather
+- Running direction change adjusts Radio-generated queued items rather
   than blanket-clearing the whole queue;
 - low-watermark remains the pacing trigger for ordinary refill.
 
@@ -854,7 +854,7 @@ Stopping condition:
 | PB8a endurance | Under-dependent | Next PR7 final endurance gate |
 | PB9 cascade | Core planned before writers | Next PR4 after writer inventory |
 | PB10 lifecycle | Planned, missing queue/playback substrate | Next PR5 lifecycle + playback/queue commands |
-| Radio active correction | Missing | Next PR3.5 / PR3.6: Radio may modify only queue items it generated and that have not played |
+| Radio active correction | Missing | Next PR3.5 / PR3.6: Radio may modify only queue items it generated and that still remain in the queue |
 | User queue control | Missing | Next PR3.5 user-command remove/move/clear command contracts |
 | `userTasteHint` | Mentioned but not supplied | Post-PR3.3 context follow-up supplies rail/provider or removes instruction reference |
 | Workbench interaction state | Spec says source, plan lacks placement | Post-PR3.3 context follow-up decides section and provider or defers explicitly |

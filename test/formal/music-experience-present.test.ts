@@ -453,7 +453,11 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     assert.deepEqual(initialized.value.instruments, [musicExperienceInstrument]);
     assert.deepEqual(initialized.value.tools?.map((tool) => tool.descriptor.name), [
         "music.experience.present",
-        "music.experience.queue.append",
+        "playback.queue.append",
+        "playback.queue.remove",
+        "playback.queue.replace",
+        "playback.queue.move",
+        "playback.queue.clear",
         "music.experience.playback.play",
         "radio.motif.set",
         "radio.motif.clear",
@@ -575,6 +579,18 @@ function stubMaterialProjection(): MaterialProjection {
 function stubQueuePlaybackCommand(): MusicExperienceQueuePlaybackCommand {
     return {
         append() {
+            throw new Error("Music Experience queue command should not be called by this test.");
+        },
+        remove() {
+            throw new Error("Music Experience queue command should not be called by this test.");
+        },
+        replace() {
+            throw new Error("Music Experience queue command should not be called by this test.");
+        },
+        move() {
+            throw new Error("Music Experience queue command should not be called by this test.");
+        },
+        clear() {
             throw new Error("Music Experience queue command should not be called by this test.");
         },
         playNow() {

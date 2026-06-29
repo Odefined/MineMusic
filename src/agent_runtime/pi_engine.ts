@@ -6,6 +6,7 @@ import {
   type AfterToolCallResult,
   type StreamFn,
 } from "@earendil-works/pi-agent-core";
+import type { Message } from "@earendil-works/pi-ai/compat";
 
 import type { ToolDeclaration } from "../contracts/stage_interface.js";
 import {
@@ -17,7 +18,7 @@ import {
 
 export type MineMusicPiAgentAdapterOptions = Omit<
   AgentOptions,
-  "initialState" | "sessionId" | "streamFn"
+  "initialState" | "sessionId" | "streamFn" | "convertToLlm"
 > & {
   streamFn: StreamFn;
 };
@@ -40,6 +41,7 @@ export type CreateMineMusicPiAgentAdapterInput = {
 export function createMineMusicPiAgentAdapter(input: CreateMineMusicPiAgentAdapterInput): Agent {
   return new Agent({
     ...input.agentOptions,
+    convertToLlm: mineMusicConvertToLlm,
     afterToolCall: stageToolErrorAwareAfterToolCall(input.agentOptions.afterToolCall),
     ...(input.llmProviderSessionId === undefined ? {} : { sessionId: input.llmProviderSessionId }),
     initialState: {
@@ -52,6 +54,27 @@ export function createMineMusicPiAgentAdapter(input: CreateMineMusicPiAgentAdapt
         stageSessionId: input.stageSessionId,
       }),
     },
+  });
+}
+
+function mineMusicConvertToLlm(messages: AgentMessage[]): Message[] {
+  return messages.flatMap((message): Message[] => {
+    switch (message.role) {
+      case "user":
+      case "assistant":
+        return [message];
+      case "toolResult":
+        return [{
+          role: "toolResult",
+          toolCallId: message.toolCallId,
+          toolName: message.toolName,
+          content: message.content,
+          isError: message.isError,
+          timestamp: message.timestamp,
+        }];
+      default:
+        return [];
+    }
   });
 }
 

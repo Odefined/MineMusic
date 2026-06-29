@@ -98,6 +98,13 @@ export const musicDiscoveryListScopesDescriptor: ToolDeclaration = {
     const count = Array.isArray(output.scopes) ? output.scopes.length : 0;
     return `${count} selectable music scope(s) returned.`;
   },
+  agentResultText(result) {
+    const output = result as MusicListScopesOutput;
+    return [
+      `${output.scopes.length} selectable music scope(s) returned.`,
+      ...output.scopes.map((scope, index) => listedMusicScopeLine(index, scope)),
+    ].join("\n");
+  },
 };
 
 export function createMusicDiscoveryListScopesRegistration(
@@ -185,4 +192,21 @@ function listProviderScope(scope: MusicProviderScopeAvailability): ListedMusicSc
     }),
     targetKinds: scope.targetKinds,
   };
+}
+
+function listedMusicScopeLine(index: number, scope: ListedMusicScope): string {
+  const details = [
+    optionalTextField("targetKind", scope.description.targetKind),
+    optionalTextField("detail", scope.description.detailText),
+    "targetKinds" in scope ? `targetKinds: ${scope.targetKinds.join(", ")}` : undefined,
+  ].filter((field): field is string => field !== undefined);
+
+  return [
+    `${index}. ${JSON.stringify(scope.description.label)} ${scope.scope}`,
+    ...(details.length === 0 ? [] : [`   ${details.join("; ")}`]),
+  ].join("\n");
+}
+
+function optionalTextField(label: string, value: string | undefined): string | undefined {
+  return value === undefined ? undefined : `${label}: ${value}`;
 }

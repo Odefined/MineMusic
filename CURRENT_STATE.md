@@ -793,7 +793,7 @@ restored as compatibility layers.
   Memory.
 - Phase A3 queue/playback truth has landed in Music Experience:
   `music_experience_state` and `music_experience_queue_items` persist logical
-  queue/now-playing runtime state, with `music.experience.queue.append` and
+  queue/now-playing runtime state, with `playback.queue.append` and
   `music.experience.playback.play` exposed as Stage tools through the existing
   execution gate. The queue has a hard product/runtime cap of 100 items enforced
   by the owning command (`queue_full`); ADR-0044 records this as an explicit

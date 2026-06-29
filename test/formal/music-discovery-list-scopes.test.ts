@@ -96,6 +96,14 @@ if (allScopes.ok) {
         false,
         "music.discovery.list_scopes must not surface collection scopes (use library.catalog.list_scopes instead)",
     );
+    const agentText = registration.descriptor.agentResultText?.(allScopes.value.result) ?? "";
+    assert.match(agentText, /4 selectable music scope\(s\) returned\./u);
+    assert.match(agentText, /0\. "Library" \[library\]/u);
+    assert.match(agentText, /1\. "NetEase Cloud Music saved recording" \[source_library:scope_saved_recording\]/u);
+    assert.match(agentText, /targetKind: recording/u);
+    assert.match(agentText, /3\. "NetEase Cloud Music" \[provider:netease\]/u);
+    assert.match(agentText, /targetKinds: recording, album/u);
+    assert.equal(agentText.includes("[collection:"), false);
 }
 const providerScopes = await stageInterface.dispatch(testStageToolContext(), {
     toolName: "music.discovery.list_scopes",

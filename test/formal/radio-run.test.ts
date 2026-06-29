@@ -17,7 +17,8 @@ import type { StageToolContext } from "../../src/contracts/stage_interface.js";
 import type { MusicExperienceWorkspaceProjection } from "../../src/contracts/music_experience.js";
 import type { AgentActorKind, ConcernRevisionSet } from "../../src/contracts/kernel.js";
 import {
-  musicExperienceQueueAppendDescriptor,
+  playbackQueueAppendDescriptor,
+  playbackQueueMoveDescriptor,
   radioLeanAddDescriptor,
 } from "../../src/music_experience/stage_adapter/index.js";
 import {
@@ -143,7 +144,9 @@ const key = {
   assert.match(observedSystemPrompt, /MineMusic Agent Context/);
   assert.match(observedSystemPrompt, /Actor Identity:/);
   assert.match(observedSystemPrompt, /Workspace Context:/);
-  assert.match(observedSystemPrompt, /radio:\ndirectionRevision: 7/);
+  assert.match(observedSystemPrompt, /radio:\ndirection:/);
+  assert.equal(observedSystemPrompt.includes("directionRevision"), false);
+  assert.equal(observedSystemPrompt.includes("commandedRevisionStamp"), false);
   assert.match(observedSystemPrompt, /0\. recording "Already Queued" \[material:material:already-queued\]/);
   assert.equal(observedSystemPrompt.includes("Radio Run Floor:"), false);
   assert.match(observedMessagesJson, /radio_refill/);
@@ -209,7 +212,8 @@ const key = {
 
   assert.equal(clearCalls, 1);
   assert.equal(observedSystemPrompt.includes("old stale lean"), false);
-  assert.match(observedSystemPrompt, /posture:\nlean:\nempty\nstale: false\ncommandedRevisionStamp: 7/u);
+  assert.match(observedSystemPrompt, /posture:\nlean:\nempty\nstale: false/u);
+  assert.equal(observedSystemPrompt.includes("commandedRevisionStamp"), false);
 }
 
 {
@@ -229,12 +233,23 @@ const key = {
           reason: "toolUse",
           message: assistantMessageWithToolCall(
             "radio-basis-queue",
-            toPiToolName(musicExperienceQueueAppendDescriptor.name),
+            toPiToolName(playbackQueueAppendDescriptor.name),
             { items: ["[material:basis_queue]"] },
           ),
         });
       }
       if (streamCallCount === 2) {
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "toolUse",
+          message: assistantMessageWithToolCall(
+            "radio-basis-queue-move",
+            toPiToolName(playbackQueueMoveDescriptor.name),
+            { from: 0, to: 0 },
+          ),
+        });
+      }
+      if (streamCallCount === 3) {
         return fakeAssistantMessageEventStream({
           type: "done",
           reason: "toolUse",
@@ -245,7 +260,7 @@ const key = {
           ),
         });
       }
-      if (streamCallCount === 3) {
+      if (streamCallCount === 4) {
         return fakeAssistantMessageEventStream({
           type: "done",
           reason: "toolUse",
@@ -285,7 +300,7 @@ const key = {
     }),
     prepareRun(_payload, _workspaceContext, _signal, harness) {
       return createStageToolBridge({
-        tools: [musicExperienceQueueAppendDescriptor, radioLeanAddDescriptor],
+        tools: [playbackQueueAppendDescriptor, playbackQueueMoveDescriptor, radioLeanAddDescriptor],
         dispatch: harness.wrapDispatch({
           async dispatch(input) {
             observedContexts.push({
@@ -293,7 +308,7 @@ const key = {
               preconditionBasis: input.ctx.preconditionBasis,
               actor: input.ctx.actor,
             });
-            if (input.toolName === musicExperienceQueueAppendDescriptor.name) {
+            if (input.toolName === playbackQueueAppendDescriptor.name) {
               return {
                 ok: true,
                 value: {
@@ -302,8 +317,21 @@ const key = {
                     items: [],
                     queueLength: 0,
                     queueRevision: 12,
-                    changedBasis: { queueRevision: 12 },
                   },
+                  runtime: { changedBasis: { queueRevision: 12 } },
+                },
+              };
+            }
+            if (input.toolName === playbackQueueMoveDescriptor.name) {
+              return {
+                ok: true,
+                value: {
+                  toolName: input.toolName,
+                  result: {
+                    queueLength: 0,
+                    queueRevision: 13,
+                  },
+                  runtime: { changedBasis: { queueRevision: 13 } },
                 },
               };
             }
@@ -313,13 +341,13 @@ const key = {
                 toolName: input.toolName,
                 result: {
                   radioDirectionRevision: 8,
-                  changedBasis: { radioDirectionRevision: 8 },
                   posture: {
                     lean: [],
                     commandedRevisionStamp: 7,
                     stale: false,
                   },
                 },
+                runtime: { changedBasis: { radioDirectionRevision: 8 } },
               },
             };
           },
@@ -348,8 +376,13 @@ const key = {
 
   assert.deepEqual(observedContexts, [
     {
-      toolName: "music.experience.queue.append",
+      toolName: "playback.queue.append",
       preconditionBasis: { radioDirectionRevision: 7, radioSessionRevision: 3 },
+      actor: "radio_agent",
+    },
+    {
+      toolName: "playback.queue.move",
+      preconditionBasis: { queueRevision: 12, radioDirectionRevision: 7, radioSessionRevision: 3 },
       actor: "radio_agent",
     },
     {
@@ -368,19 +401,20 @@ const key = {
 {
   const appendedRecorder = createRadioRunResultRecorder();
   appendedRecorder.observeToolResult({
-    toolName: "music.experience.queue.append",
+    toolName: "playback.queue.append",
     result: {
       ok: true,
       value: {
-        toolName: "music.experience.queue.append",
+        toolName: "playback.queue.append",
         result: {
           items: [
-            { item: "[material:material:one]", position: 0 },
-            { item: "[material:material:two]", position: 1 },
+            { item: "[material:material:one]", index: 0 },
+            { item: "[material:material:two]", index: 1 },
           ],
           queueLength: 2,
           queueRevision: 9,
         },
+        runtime: { changedBasis: { queueRevision: 9 } },
       },
     },
   });
@@ -397,7 +431,7 @@ const key = {
 
   const failedRecorder = createRadioRunResultRecorder();
   failedRecorder.observeToolResult({
-    toolName: "music.experience.queue.append",
+    toolName: "playback.queue.append",
     result: {
       ok: false,
       error: {
@@ -411,11 +445,79 @@ const key = {
   assert.throws(() => failedRecorder.result({
     runId: "radio-result-error-test",
     payload: payloadWithRevisions({ refillGeneration: 12, radioSessionRevision: 3, radioDirectionRevision: 5 }),
-  }), /failed during music\.experience\.queue\.append/);
+  }), /failed during playback\.queue\.append/);
+
+  const correctedRecorder = createRadioRunResultRecorder();
+  correctedRecorder.observeToolResult({
+    toolName: "playback.queue.replace",
+    result: {
+      ok: true,
+      value: {
+        toolName: "playback.queue.replace",
+        result: {
+          item: "[material:material:replacement]",
+          index: 1,
+          queueLength: 2,
+          queueRevision: 10,
+        },
+        runtime: { changedBasis: { queueRevision: 10 } },
+      },
+    },
+  });
+  assert.deepEqual(correctedRecorder.result({
+    runId: "radio-result-corrected-test",
+    payload: payloadWithRevisions({ refillGeneration: 17, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+  }), {
+    runId: "radio-result-corrected-test",
+    radioDirectionRevision: 5,
+    radioSessionRevision: 3,
+    outcome: "queue_corrected",
+    appendedCount: 0,
+  });
+
+  const correctedThenFailedRecorder = createRadioRunResultRecorder();
+  correctedThenFailedRecorder.observeToolResult({
+    toolName: "playback.queue.replace",
+    result: {
+      ok: true,
+      value: {
+        toolName: "playback.queue.replace",
+        result: {
+          item: "[material:material:replacement]",
+          index: 1,
+          queueLength: 2,
+          queueRevision: 11,
+        },
+        runtime: { changedBasis: { queueRevision: 11 } },
+      },
+    },
+  });
+  correctedThenFailedRecorder.observeToolResult({
+    toolName: "playback.queue.remove",
+    result: {
+      ok: false,
+      error: {
+        code: "queue_item_not_editable",
+        message: "That queue item cannot be edited by this actor.",
+        area: "music_experience",
+        retryable: false,
+      },
+    },
+  });
+  assert.deepEqual(correctedThenFailedRecorder.result({
+    runId: "radio-result-corrected-then-failed-test",
+    payload: payloadWithRevisions({ refillGeneration: 18, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+  }), {
+    runId: "radio-result-corrected-then-failed-test",
+    radioDirectionRevision: 5,
+    radioSessionRevision: 3,
+    outcome: "queue_corrected",
+    appendedCount: 0,
+  });
 
   const staleRecorder = createRadioRunResultRecorder();
   staleRecorder.observeToolResult({
-    toolName: "music.experience.queue.append",
+    toolName: "playback.queue.append",
     result: {
       ok: false,
         error: {
@@ -439,14 +541,14 @@ const key = {
 
   const appendedThenStaleRecorder = createRadioRunResultRecorder();
   appendedThenStaleRecorder.observeToolResult({
-    toolName: "music.experience.queue.append",
+    toolName: "playback.queue.append",
     result: {
       ok: true,
       value: {
-        toolName: "music.experience.queue.append",
+        toolName: "playback.queue.append",
         result: {
           items: [
-            { item: "[material:material:one]", position: 0 },
+            { item: "[material:material:one]", index: 0 },
           ],
           queueLength: 1,
           queueRevision: 9,
@@ -455,7 +557,7 @@ const key = {
     },
   });
   appendedThenStaleRecorder.observeToolResult({
-    toolName: "music.experience.queue.append",
+    toolName: "playback.queue.append",
     result: {
       ok: false,
       error: {
@@ -479,14 +581,14 @@ const key = {
 
   const appendedThenAbortRecorder = createRadioRunResultRecorder();
   appendedThenAbortRecorder.observeToolResult({
-    toolName: "music.experience.queue.append",
+    toolName: "playback.queue.append",
     result: {
       ok: true,
       value: {
-        toolName: "music.experience.queue.append",
+        toolName: "playback.queue.append",
         result: {
           items: [
-            { item: "[material:material:one]", position: 0 },
+            { item: "[material:material:one]", index: 0 },
           ],
           queueLength: 1,
           queueRevision: 9,
@@ -495,7 +597,7 @@ const key = {
     },
   });
   appendedThenAbortRecorder.observeToolResult({
-    toolName: "music.experience.queue.append",
+    toolName: "playback.queue.append",
     result: {
       ok: false,
       error: {
@@ -714,11 +816,11 @@ const key = {
       },
       instruction: {
         responsibilities: "Run.",
-        operatingRules: "Use `music_experience_queue_append`.",
+        operatingRules: "Use `playback_queue_append`.",
         prohibitions: "None.",
       },
       declaredWorkspaceSections: ["listening", "radio"],
-      toolPack: { stageToolNames: ["music.experience.queue.append"] },
+      toolPack: { stageToolNames: ["playback.queue.append"] },
     },
     ownerScope: key.ownerScope,
   }));
@@ -980,6 +1082,7 @@ function workspaceProjectionFixture(input: {
       item: "[material:material:already-queued]" as const,
       materialKind: "recording",
       label: "Already Queued",
+      provenance: "radio_agent",
     }],
     radio: {
       directionRevision: 7,

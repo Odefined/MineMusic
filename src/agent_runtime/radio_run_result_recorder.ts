@@ -4,11 +4,12 @@ import type {
 } from "../contracts/agent_runtime.js";
 import type { Result } from "../contracts/kernel.js";
 import type {
-  MusicExperienceQueueAppendOutput,
+  PlaybackQueueAppendOutput,
   ToolCallOutput,
 } from "../contracts/stage_interface.js";
 
-const radioQueueAppendToolName = "music.experience.queue.append";
+const radioQueueAppendToolName = "playback.queue.append";
+const radioQueueToolPrefix = "playback.queue.";
 
 export type RadioRunResultRecorder = {
   observeToolResult(input: {
@@ -23,32 +24,41 @@ export type RadioRunResultRecorder = {
 
 export function createRadioRunResultRecorder(): RadioRunResultRecorder {
   let appendedCount = 0;
+  let queueChanged = false;
   let voidedStale = false;
-  let appendFailure: Error | undefined;
+  let queueMutationFailure: Error | undefined;
 
   return {
     observeToolResult(input) {
-      if (input.toolName !== radioQueueAppendToolName) {
-        return;
-      }
       if (!input.result.ok) {
+        if (!input.toolName.startsWith(radioQueueToolPrefix)) {
+          return;
+        }
         if (input.result.error.code === "voided_stale" || input.result.error.code === "operation_aborted") {
           voidedStale = true;
           return;
         }
-        appendFailure = new Error(`Radio refill run failed during ${radioQueueAppendToolName}.`);
+        queueMutationFailure = new Error(`Radio refill run failed during ${input.toolName}.`);
         return;
       }
 
-      const output = queueAppendOutputFromToolOutput(input.result.value);
-      appendedCount += output.items.length;
+      if (input.result.value.runtime?.changedBasis?.queueRevision !== undefined) {
+        queueChanged = true;
+      }
+      if (input.toolName === radioQueueAppendToolName) {
+        const output = queueAppendOutputFromToolOutput(input.result.value);
+        appendedCount += output.items.length;
+      }
     },
     result(input) {
       if (appendedCount > 0) {
         return radioAppendedResult(input, appendedCount);
       }
-      if (appendFailure !== undefined) {
-        throw appendFailure;
+      if (queueChanged) {
+        return radioQueueCorrectedResult(input);
+      }
+      if (queueMutationFailure !== undefined) {
+        throw queueMutationFailure;
       }
       if (voidedStale) {
         return radioVoidedStaleResult(input);
@@ -56,6 +66,19 @@ export function createRadioRunResultRecorder(): RadioRunResultRecorder {
 
       return radioNoActionResult(input);
     },
+  };
+}
+
+function radioQueueCorrectedResult(input: {
+  runId: string;
+  payload: RadioRefillRunJobPayload;
+}): RadioRunResult {
+  return {
+    runId: input.runId,
+    radioDirectionRevision: input.payload.radioDirectionRevision,
+    radioSessionRevision: input.payload.radioSessionRevision,
+    outcome: "queue_corrected",
+    appendedCount: 0,
   };
 }
 
@@ -98,7 +121,7 @@ function radioVoidedStaleResult(input: {
   };
 }
 
-function queueAppendOutputFromToolOutput(output: ToolCallOutput): MusicExperienceQueueAppendOutput {
+function queueAppendOutputFromToolOutput(output: ToolCallOutput): PlaybackQueueAppendOutput {
   if (output.toolName !== radioQueueAppendToolName) {
     throw new Error("Radio queue append tool result details used the wrong tool name.");
   }
@@ -106,10 +129,10 @@ function queueAppendOutputFromToolOutput(output: ToolCallOutput): MusicExperienc
     throw new Error("Radio queue append tool result payload was not an object.");
   }
 
-  const queueOutput = output.result as Partial<MusicExperienceQueueAppendOutput>;
+  const queueOutput = output.result as Partial<PlaybackQueueAppendOutput>;
   if (!Array.isArray(queueOutput.items) || typeof queueOutput.queueLength !== "number" || typeof queueOutput.queueRevision !== "number") {
     throw new Error("Radio queue append tool result payload had an invalid shape.");
   }
 
-  return queueOutput as MusicExperienceQueueAppendOutput;
+  return queueOutput as PlaybackQueueAppendOutput;
 }

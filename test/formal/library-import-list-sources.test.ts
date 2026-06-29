@@ -70,6 +70,13 @@ if (listed.ok) {
             assert.equal(kind.description.includes("NetEase"), false);
         }
     }
+    const agentText = registration.descriptor.agentResultText?.(listed.value.result) ?? "";
+    assert.match(agentText, /1 library import source\(s\) available\./u);
+    assert.match(agentText, /0\. "NetEase Cloud Music" providerId: netease accountRequired: true/u);
+    assert.match(agentText, /libraryKinds:/u);
+    assert.match(agentText, /saved_source_track "Saved recordings": Recordings saved in the connected source library\./u);
+    assert.match(agentText, /saved_source_album "Saved albums": Albums saved in the connected source library\./u);
+    assert.match(agentText, /followed_source_artist "Followed artists": Artists followed in the connected source library\./u);
 }
 const invalidPayload = await stageInterface.dispatch(testStageToolContext(), {
     toolName: "library.import.list_sources",

@@ -76,6 +76,7 @@ export function createMusicExperienceReadModel(
         queue: snapshot.queue.map((item) => ({
           ...requireProjectedSummary(item.materialRef, summaries),
           position: item.position,
+          provenance: item.provenance,
         })),
         ...nowPlayingSlice(snapshot.playback.materialRef, summaries),
         radio: {

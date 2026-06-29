@@ -411,6 +411,27 @@ async function runRadioSupervisorTests(): Promise<void> {
 {
   const clock = createFakeClock("2026-06-28T00:00:00.000Z");
   const harness = createHarness({ queueDepth: 4, clock, failedTerminalCooldownMs: 10_000 });
+  harness.runPort.nextResult = (input) => ({
+    runId: input.runId,
+    radioDirectionRevision: input.payload.radioDirectionRevision,
+    radioSessionRevision: input.payload.radioSessionRevision,
+    outcome: "queue_corrected",
+    appendedCount: 0,
+  });
+
+  await harness.supervisor.wake("low_watermark");
+  await harness.backgroundWork.runJob(harness.backgroundWork.submissions[0]!.jobId);
+  harness.backgroundWork.resolveTerminal(harness.backgroundWork.submissions[0]!.jobId, "succeeded");
+  await harness.supervisor.waitForTerminalObservation();
+
+  assert.equal(harness.backgroundWork.submissions.length, 2);
+  assert.equal(harness.backgroundWork.submissions[1]!.input.runAfter, undefined);
+  assert.equal(harness.supervisor.snapshot().cooldownUntil, undefined);
+}
+
+{
+  const clock = createFakeClock("2026-06-28T00:00:00.000Z");
+  const harness = createHarness({ queueDepth: 4, clock, failedTerminalCooldownMs: 10_000 });
 
   await harness.supervisor.wake("low_watermark");
   await harness.backgroundWork.runJob(harness.backgroundWork.submissions[0]!.jobId);

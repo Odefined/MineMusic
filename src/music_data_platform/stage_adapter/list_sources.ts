@@ -6,6 +6,8 @@ import {
 } from "../../contracts/generated/stage_interface_schemas.js";
 import type {
   InstrumentDescriptor,
+  LibraryImportLibraryKindDescription,
+  LibraryImportSource,
   LibraryImportLibraryKind,
   LibraryImportListSourcesOutput,
   StageToolContext,
@@ -86,6 +88,13 @@ export const libraryImportListSourcesDescriptor: ToolDeclaration = {
     const count = Array.isArray(output.sources) ? output.sources.length : 0;
     return `${count} library import source(s) available.`;
   },
+  agentResultText(result) {
+    const output = result as LibraryImportListSourcesOutput;
+    return [
+      `${output.sources.length} library import source(s) available.`,
+      ...output.sources.map((source, index) => libraryImportSourceLine(index, source)),
+    ].join("\n");
+  },
 };
 
 export function createLibraryImportListSourcesRegistration(
@@ -116,4 +125,16 @@ async function handleLibraryImportListSources(
       })),
     },
   };
+}
+
+function libraryImportSourceLine(index: number, source: LibraryImportSource): string {
+  return [
+    `${index}. ${JSON.stringify(source.label)} providerId: ${source.providerId}${source.accountRequired === true ? " accountRequired: true" : ""}`,
+    "   libraryKinds:",
+    ...source.libraryKinds.map((kind) => `   - ${libraryImportKindLine(kind)}`),
+  ].join("\n");
+}
+
+function libraryImportKindLine(kind: LibraryImportLibraryKindDescription): string {
+  return `${kind.kind} ${JSON.stringify(kind.label)}: ${kind.description}`;
 }

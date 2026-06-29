@@ -8,6 +8,7 @@ import {
 import type {
   EvolvedPostureSnapshot,
   MusicExperiencePlaybackStatus,
+  MusicExperienceQueueEditPermission,
   MusicExperienceQueueItemProvenance,
   MusicExperienceQueueItemSnapshot,
   MusicExperienceRadioTruthSnapshot,
@@ -41,6 +42,49 @@ export type MusicExperienceQueuePlaybackRecords = {
     now: string;
   }): Promise<{
     appended: readonly MusicExperienceQueueItemSnapshot[];
+    queueLength: number;
+    queueRevision: ConcernRevision;
+  }>;
+  remove(input: {
+    ownerScope: string;
+    index: number;
+    permission: MusicExperienceQueueEditPermission;
+    basis?: ConcernRevisionSet;
+    now: string;
+  }): Promise<{
+    queueLength: number;
+    queueRevision: ConcernRevision;
+  }>;
+  replace(input: {
+    ownerScope: string;
+    index: number;
+    materialRef: Ref;
+    permission: MusicExperienceQueueEditPermission;
+    basis?: ConcernRevisionSet;
+    now: string;
+  }): Promise<{
+    item: MusicExperienceQueueItemSnapshot;
+    index: number;
+    queueLength: number;
+    queueRevision: ConcernRevision;
+  }>;
+  move(input: {
+    ownerScope: string;
+    from: number;
+    to: number;
+    permission: MusicExperienceQueueEditPermission;
+    basis?: ConcernRevisionSet;
+    now: string;
+  }): Promise<{
+    queueLength: number;
+    queueRevision: ConcernRevision;
+  }>;
+  clear(input: {
+    ownerScope: string;
+    permission: MusicExperienceQueueEditPermission;
+    basis?: ConcernRevisionSet;
+    now: string;
+  }): Promise<{
     queueLength: number;
     queueRevision: ConcernRevision;
   }>;
@@ -224,6 +268,83 @@ export function createMusicExperienceQueuePlaybackRecords(
         queueRevision: state.queue_revision,
       };
     },
+    async remove(removeInput) {
+      return editQueue({
+        db,
+        workspaceId,
+        ownerScope: removeInput.ownerScope,
+        ...(removeInput.basis === undefined ? {} : { basis: removeInput.basis }),
+        now: removeInput.now,
+        edit(rows) {
+          assertEditableQueueItem(rows, removeInput.index, removeInput.permission);
+          return [
+            ...rows.slice(0, removeInput.index),
+            ...rows.slice(removeInput.index + 1),
+          ];
+        },
+      });
+    },
+    async replace(replaceInput) {
+      const edited = await editQueue({
+        db,
+        workspaceId,
+        ownerScope: replaceInput.ownerScope,
+        ...(replaceInput.basis === undefined ? {} : { basis: replaceInput.basis }),
+        now: replaceInput.now,
+        edit(rows) {
+          assertEditableQueueItem(rows, replaceInput.index, replaceInput.permission);
+          return rows.map((item, index) => index === replaceInput.index
+            ? {
+                ...item,
+                materialRef: replaceInput.materialRef,
+                provenance: replaceInput.permission.replacementProvenance,
+              }
+            : item);
+        },
+      });
+      const item = edited.queue[replaceInput.index];
+      if (item === undefined) {
+        throw new Error("Music Experience queue replace item disappeared after index validation.");
+      }
+      return {
+        item,
+        index: replaceInput.index,
+        queueLength: edited.queueLength,
+        queueRevision: edited.queueRevision,
+      };
+    },
+    async move(moveInput) {
+      return editQueue({
+        db,
+        workspaceId,
+        ownerScope: moveInput.ownerScope,
+        ...(moveInput.basis === undefined ? {} : { basis: moveInput.basis }),
+        now: moveInput.now,
+        edit(rows) {
+          assertEditableQueueItem(rows, moveInput.from, moveInput.permission);
+          assertExistingQueueIndex(moveInput.to, rows.length);
+          const next = rows.slice();
+          const [item] = next.splice(moveInput.from, 1);
+          if (item === undefined) {
+            throw new Error("Music Experience queue move source disappeared after index validation.");
+          }
+          next.splice(moveInput.to, 0, item);
+          return next;
+        },
+      });
+    },
+    async clear(clearInput) {
+      return editQueue({
+        db,
+        workspaceId,
+        ownerScope: clearInput.ownerScope,
+        ...(clearInput.basis === undefined ? {} : { basis: clearInput.basis }),
+        now: clearInput.now,
+        edit(rows) {
+          return rows.filter((row) => !canEditQueueItem(row, clearInput.permission));
+        },
+      });
+    },
     async playNow(playInput) {
       const key = workspaceKey(playInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: playInput.now });
@@ -389,6 +510,122 @@ async function insertQueueItems(input: {
     `,
     params,
   );
+}
+
+async function editQueue(input: {
+  db: MusicDatabaseContext;
+  workspaceId: string;
+  ownerScope: string;
+  basis?: ConcernRevisionSet;
+  now: string;
+  edit: (
+    rows: readonly MusicExperienceQueueItemSnapshot[],
+  ) => readonly MusicExperienceQueueItemSnapshot[];
+}): Promise<{
+  queue: readonly MusicExperienceQueueItemSnapshot[];
+  queueLength: number;
+  queueRevision: ConcernRevision;
+}> {
+  const key = workspaceKey(input.ownerScope, input.workspaceId);
+  await ensureState({ db: input.db, key, now: input.now });
+  await lockStateForUpdate({ db: input.db, key });
+  const rows = await readQueueItems({ db: input.db, key });
+  const nextRows = input.edit(rows).map((item, index) => ({
+    ...item,
+    position: index + 1,
+  }));
+
+  const state = await updateQueueRevision({
+    db: input.db,
+    key,
+    now: input.now,
+    ...(input.basis === undefined ? {} : { basis: input.basis }),
+  });
+
+  await replaceQueueItems({
+    db: input.db,
+    key,
+    items: nextRows,
+    now: input.now,
+  });
+
+  return {
+    queue: nextRows,
+    queueLength: nextRows.length,
+    queueRevision: state.queue_revision,
+  };
+}
+
+async function readQueueItems(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+}): Promise<readonly MusicExperienceQueueItemSnapshot[]> {
+  const rows = await input.db.all<QueueItemRow>(
+    `
+      SELECT position, material_ref_key, material_ref_json, provenance
+      FROM music_experience_queue_items
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+      ORDER BY position ASC
+    `,
+    [input.key.ownerScope, input.key.workspaceId],
+  );
+  return rows.map(queueItemFromRow);
+}
+
+async function replaceQueueItems(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  items: readonly MusicExperienceQueueItemSnapshot[];
+  now: string;
+}): Promise<void> {
+  await input.db.run(
+    `
+      DELETE FROM music_experience_queue_items
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+    `,
+    [input.key.ownerScope, input.key.workspaceId],
+  );
+
+  if (input.items.length === 0) {
+    return;
+  }
+
+  await insertQueueItems(input);
+}
+
+function assertEditableQueueItem(
+  rows: readonly MusicExperienceQueueItemSnapshot[],
+  index: number,
+  permission: MusicExperienceQueueEditPermission,
+): void {
+  assertExistingQueueIndex(index, rows.length);
+  const item = rows[index];
+  if (item === undefined) {
+    throw new Error("Music Experience queue item disappeared after index validation.");
+  }
+  if (!canEditQueueItem(item, permission)) {
+    throw new QueueEditPermissionError();
+  }
+}
+
+function assertExistingQueueIndex(index: number, length: number): void {
+  if (!Number.isSafeInteger(index) || index < 0 || index >= length) {
+    throw new QueueIndexError(`Queue index ${index} is outside 0..${Math.max(0, length - 1)}.`);
+  }
+}
+
+function canEditQueueItem(
+  item: MusicExperienceQueueItemSnapshot,
+  permission: MusicExperienceQueueEditPermission,
+): boolean {
+  switch (permission.kind) {
+    case "all_queued_items":
+      return true;
+    case "radio_owned_queued_items":
+      return item.provenance === "radio_agent";
+  }
 }
 
 async function ensureState(input: {
@@ -677,6 +914,20 @@ export class QueueFullError extends Error {
   constructor() {
     super("Music Experience queue is full.");
     this.name = "QueueFullError";
+  }
+}
+
+export class QueueIndexError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "QueueIndexError";
+  }
+}
+
+export class QueueEditPermissionError extends Error {
+  constructor() {
+    super("Music Experience queue item cannot be edited by this actor.");
+    this.name = "QueueEditPermissionError";
   }
 }
 

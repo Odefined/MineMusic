@@ -204,7 +204,7 @@ const radioDefinition: ActorDefinition = {
       "In the direction, the `motif` is the main theme and the active variations are layered on it — keep the motif primary; variations shade it, they don't compete with it or override it. " +
       "Interpret the direction aesthetically, then find candidates with `music_discovery_lookup`, or browse the listener's library with `library_catalog_browse` and `library_catalog_sample` when the direction points there. " +
       "Add roughly the run's `suggestedAppendCount`, then stop. " +
-      "Let `userTasteHint` guide toward the listener's taste, and append with `music_experience_queue_append`.",
+      "Let `userTasteHint` guide toward the listener's taste, append with `playback_queue_append`, and use `playback_queue_remove`, `playback_queue_replace`, `playback_queue_move`, or `playback_queue_clear` only to correct queue items you added.",
     prohibitions:
       "Don't repeat what's already queued or playing. " +
       "Don't search the direction literally — a motif like 'night' doesn't mean songs with 'night' in the title; think about what actually carries a night feeling or fits night listening, then look that up. " +
@@ -217,7 +217,8 @@ const radioDefinition: ActorDefinition = {
       "music.discovery.list_scopes", "music.discovery.lookup",
       "library.catalog.list_scopes", "library.catalog.browse",
       "library.catalog.sample", "library.catalog.summary",
-      "music.experience.queue.append",
+      "playback.queue.append", "playback.queue.remove", "playback.queue.replace",
+      "playback.queue.move", "playback.queue.clear",
     ],
   },
 };
@@ -238,6 +239,7 @@ const mainDefinition: ActorDefinition = {
       "Ground your suggestions: find real candidates with `music_discovery_lookup` or `library_catalog_browse`, and show a settled pick with `music_experience_present`. " +
       "Check `listening` for what's playing and queued before suggesting next steps. " +
       "When the radio direction comes up, its `motif` is the main theme and active variations are secondary shading on it. " +
+      "Use `playback_queue_append`, `playback_queue_remove`, `playback_queue_replace`, `playback_queue_move`, or `playback_queue_clear` to edit the current queue when the listener asks for queue changes. " +
       "Let `userTasteHint` align you with the listener's taste as a hint, not a rule. " +
       "Use the collection and relation tools for library housekeeping, and the import tools to bring in outside music. " +
       "Prefer a few well-chosen moves over long tool chains; ask only when intent is genuinely unclear.",
@@ -257,7 +259,9 @@ const mainDefinition: ActorDefinition = {
       "library.collection.move", "library.collection.rename", "library.collection.remove",
       "library.collection.delete", "library.relation.get",
       "library.import.list_sources", "library.import.start", "library.import.status",
-      "music.experience.present", "music.experience.queue.append", "music.experience.playback.play",
+      "music.experience.present", "playback.queue.append", "playback.queue.remove",
+      "playback.queue.replace", "playback.queue.move", "playback.queue.clear",
+      "music.experience.playback.play",
       "stage.runtime.status",
     ],
   },
@@ -338,7 +342,7 @@ is preferred where repeating object keys would add semantic noise.
 Current section vocabulary starts with:
 
 - `listening`: now-playing and queue facts visible in the listening workspace;
-- `radio`: current radio direction, posture, and relevant current revisions.
+- `radio`: current radio direction and posture.
 
 `listening` section shape:
 
@@ -378,8 +382,7 @@ Rules:
 {
   "radio": {
     "direction": "motif: ...\nactiveVariation: ...",
-    "posture": "lean: ...\nstale: false",
-    "directionRevision": 7
+    "posture": "lean: ...\nstale: false"
   }
 }
 ```
@@ -388,8 +391,6 @@ Rules:
 
 - `direction` is the current commanded radio direction.
 - `posture` is the current evolved radio posture as projected for the workspace.
-- `directionRevision` is the current workspace direction revision. Scalar values
-  remain scalar; do not wrap them in redundant metadata objects.
 - Runtime command basis is not an agent-facing Workspace Context field.
   AgentHarness reads harness-only `commandBasis` from the same workspace
   assembly and projects it into tool-call `preconditionBasis`.
@@ -436,12 +437,22 @@ Examples:
   count.
 
 Invocation Context may repeat identifiers that also appear in Workspace
-Context, but only with explicit semantics. For example, current
-`radio.directionRevision` is a Workspace Context fact. Runtime command basis is
-not Invocation Context; the AgentHarness adapter reads harness-only
+Context, but only with explicit semantics. Runtime command basis is not
+Invocation Context; the AgentHarness adapter reads harness-only
 `commandBasis` from the same workspace assembly, injects `preconditionBasis`
-before Stage tool calls, and absorbs internal `changedBasis` after successful
-tool results.
+before Stage tool calls, and absorbs internal runtime metadata
+`changedBasis` after successful tool results. `changedBasis` is not part of any
+tool's public output schema or model-facing result text. Pi tool-result
+`content` is the agent-facing public observation: Stage Interface renders it
+from `agentResultText` when a tool needs richer public facts for the next
+decision, falling back to `resultSummary` for compact tools. Structured
+`details` stay on the transcript/runtime side for UI, audit, tests, and harness
+metadata; MineMusic's pi adapter strips `details` before provider context is
+sent to the model. When a successful tool result carries `changedBasis`, Agent
+Runtime may append a local Workspace Context diff to the pi tool-result
+`content` for the agent's next decision. That diff is derived by re-assembling
+current Workspace Context through the owning projections; it is not the command
+output schema, not a transcript scrape, and not an exposure of command basis.
 
 Radio refill invocation shape:
 
@@ -487,6 +498,13 @@ Continuity Context records what happened before. It is not current workspace
 truth. If a tool result changed durable or runtime state, the next current fact
 must enter Workspace Context through owning facts/projections, not by scraping
 transcript messages.
+
+For same-run agent decision making, a successful state-mutating tool result can
+include an appended local Workspace Context diff. The diff is an explanatory
+view of the re-read Workspace Context before/after that tool call; it extends
+the model-visible public tool-result `content` and never makes runtime command
+basis an agent-visible concept. Structured `details` remain available to
+runtime/transcript consumers but are scrubbed from provider context.
 
 ### 7. Knowledge / Memory Context
 
@@ -620,7 +638,7 @@ state: it is derived from workspace assembly, projected into Stage tool
 The old pattern of a Radio-only `Radio Run Floor` carrying hand-written
 workspace facts is forbidden. Radio-specific run text may exist only as
 Invocation Context or `ActorDefinition.instruction`; it must not be the source
-of queue, now-playing, radio truth, or revision facts.
+of queue, now-playing, radio truth, or runtime command facts.
 
 ## Forbidden Patterns
 

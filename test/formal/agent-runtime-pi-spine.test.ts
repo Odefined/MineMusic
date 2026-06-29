@@ -165,6 +165,43 @@ assert.throws(
 );
 
 {
+  const writeDescriptor: ToolDeclaration = {
+    ...descriptor,
+    name: "agent.test.write",
+    sideEffect: {
+      durableUserStateWrite: false,
+      runtimeStateWrite: true,
+      externalCall: false,
+    },
+    invocationPolicy: {
+      ...descriptor.invocationPolicy,
+      readOnlyHint: false,
+    },
+  };
+  const tools = createStageToolBridge({
+    tools: [descriptor, writeDescriptor],
+    dispatch: {
+      async dispatch() {
+        throw new Error("Execution mode contract test must not dispatch.");
+      },
+    },
+    contextFactory: {
+      createToolContext(input: {
+        sessionId: string;
+        requestId: string;
+        abortSignal?: AbortSignal;
+      }) {
+        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
+      },
+    },
+    stageSessionId: "stage-session-execution-mode",
+  });
+
+  assert.equal(tools.find((tool) => tool.name === piToolName)?.executionMode, undefined);
+  assert.equal(tools.find((tool) => tool.name === toPiToolName(writeDescriptor.name))?.executionMode, "sequential");
+}
+
+{
   let dispatched:
     | {
       ctx: StageToolContext;
@@ -477,6 +514,7 @@ assert.throws(
           value: {
             toolName: input.toolName,
             result: { answer: "from-pi" },
+            runtime: { changedBasis: { queueRevision: 4 } },
           },
         };
       },
@@ -518,9 +556,12 @@ assert.throws(
   const toolResult = agent.state.messages.find((message) => message.role === "toolResult");
   assert.equal(toolResult?.toolName, piToolName);
   assert.equal(toolResult?.isError, false);
+  assert.equal(toolResult?.content[0]?.type, "text");
+  assert.equal(toolResult?.content[0]?.text.includes("changedBasis"), false);
   assert.deepEqual(toolResult?.details, {
     toolName: descriptor.name,
     result: { answer: "from-pi" },
+    runtime: { changedBasis: { queueRevision: 4 } },
   });
 }
 
@@ -648,6 +689,7 @@ assert.throws(
     ],
   });
   let streamCallCount = 0;
+  let secondProviderMessagesJson = "";
   const agent = createMineMusicPiAgentAdapter({
     systemPrompt: "You are a MineMusic test agent.",
     tools: [musicDiscoveryLookupDescriptor],
@@ -671,8 +713,11 @@ assert.throws(
     stageSessionId: "stage-session",
     llmProviderSessionId: "provider-session",
     agentOptions: {
-      streamFn() {
+      streamFn(_model, context) {
         streamCallCount += 1;
+        if (streamCallCount === 2) {
+          secondProviderMessagesJson = JSON.stringify(context.messages);
+        }
         const message = streamCallCount === 1
           ? assistantMessageWithToolCall("tool-call-real-lookup", lookupPiToolName, {
               lookupText: "whoo",
@@ -719,8 +764,12 @@ assert.throws(
   assert.equal(toolResult?.toolName, lookupPiToolName);
   assert.equal(toolResult?.isError, false);
   assert.equal(toolResult?.content[0]?.type, "text");
-  assert.equal(toolResult?.content[0]?.text, "1 item(s) returned; end of results.");
+  assert.match(toolResult?.content[0]?.text ?? "", /1 item\(s\) returned; end of results\./u);
+  assert.match(toolResult?.content[0]?.text ?? "", /0\. "whoo - Nemophila" \[material:public_material_1\]/u);
+  assert.match(toolResult?.content[0]?.text ?? "", /title: "whoo"; artists: "Nemophila"; album: "Seize the Fate"; version: "live"/u);
   assert.equal(toolResult?.details?.toolName, musicDiscoveryLookupDescriptor.name);
+  assert.equal(secondProviderMessagesJson.includes('"details"'), false);
+  assert.match(secondProviderMessagesJson, /whoo - Nemophila/u);
 
   const output = toolResult?.details?.result as MusicDiscoveryLookupOutput | undefined;
   assert.deepEqual(output, {

@@ -335,6 +335,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
 
   function isNonProgressSuccess(result: RadioRunResult): boolean {
     return result.appendedCount === 0 &&
+      result.outcome !== "queue_corrected" &&
       result.outcome !== "candidate_exhaustion_by_direction" &&
       result.outcome !== "voided_stale";
   }

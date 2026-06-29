@@ -152,6 +152,11 @@ if (lookupResult.ok) {
     });
     assert.equal(typeof output.nextCursor, "string");
     assert.equal(output.nextCursor?.startsWith("lc_"), true);
+    const agentText = musicDiscoveryLookupDescriptor.agentResultText?.(output) ?? "";
+    assert.match(agentText, /0\. "whoo - Nemophila" \[material:public_material_1\]/u);
+    assert.match(agentText, /1\. "Provider whoo - Provider Artist" \[candidate:public_candidate_2\]/u);
+    assert.match(agentText, /nextCursor: lc_/u);
+    assert.equal(agentText.includes("[cursor:"), false);
     assertPublicLookupOutputIsVeiled(output);
     const cursorPage = await stageInterface.dispatch(testStageToolContext({
         mintedAnchors,

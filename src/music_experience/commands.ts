@@ -14,13 +14,15 @@ import {
   MAX_RADIO_POSTURE_LEAN_ITEMS,
   MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
 } from "../contracts/music_experience.js";
-import type { MusicDatabase } from "../storage/database.js";
+import type { MusicDatabase, MusicDatabaseContext } from "../storage/database.js";
 import {
   assertMaterialRef,
   isMusicDataPlatformError,
 } from "../music_data_platform/index.js";
 import {
   QueueFullError,
+  QueueEditPermissionError,
+  QueueIndexError,
   createMusicExperienceQueuePlaybackRecords,
   createMusicExperienceRadioTruthRecords,
   RadioTruthValidationError,
@@ -40,41 +42,35 @@ export function createMusicExperienceQueuePlaybackCommand(
         assertMaterialRef(materialRef);
       }
 
-      try {
-        return await input.database.transaction(async (db) => {
-          const records = createMusicExperienceQueuePlaybackRecords({ db });
-          return {
-            ok: true,
-            value: await records.append(commandInput),
-          };
-        });
-      } catch (error) {
-        if (error instanceof StaleCommandPreconditionError) {
-          return {
-            ok: false,
-            error: {
-              code: "voided_stale",
-              message: "Music Experience command basis was stale at commit time.",
-              area: "music_experience",
-              retryable: true,
-              suggestedFix: "Refresh the current music experience basis and retry if the action is still desired.",
-            },
-          };
-        }
-        if (error instanceof QueueFullError) {
-          return {
-            ok: false,
-            error: {
-              code: "queue_full",
-              message: `MineMusic queue is full; maximum queue length is ${MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH}.`,
-              area: "music_experience",
-              retryable: false,
-              suggestedFix: "Play or remove queued items before adding more music.",
-            },
-          };
-        }
-        throw error;
-      }
+      return runQueuePlayback(input, async (db) => {
+        const records = createMusicExperienceQueuePlaybackRecords({ db });
+        return records.append(commandInput);
+      });
+    },
+    async remove(commandInput) {
+      return runQueuePlayback(input, async (db) => {
+        const records = createMusicExperienceQueuePlaybackRecords({ db });
+        return records.remove(commandInput);
+      });
+    },
+    async replace(commandInput) {
+      assertMaterialRef(commandInput.materialRef);
+      return runQueuePlayback(input, async (db) => {
+        const records = createMusicExperienceQueuePlaybackRecords({ db });
+        return records.replace(commandInput);
+      });
+    },
+    async move(commandInput) {
+      return runQueuePlayback(input, async (db) => {
+        const records = createMusicExperienceQueuePlaybackRecords({ db });
+        return records.move(commandInput);
+      });
+    },
+    async clear(commandInput) {
+      return runQueuePlayback(input, async (db) => {
+        const records = createMusicExperienceQueuePlaybackRecords({ db });
+        return records.clear(commandInput);
+      });
     },
     async playNow(commandInput) {
       assertMaterialRef(commandInput.materialRef);
@@ -88,6 +84,68 @@ export function createMusicExperienceQueuePlaybackCommand(
       });
     },
   };
+}
+
+async function runQueuePlayback<T>(
+  input: CreateMusicExperienceQueuePlaybackCommandInput,
+  operation: (db: MusicDatabaseContext) => Promise<T>,
+): Promise<Result<T>> {
+  try {
+    return await input.database.transaction(async (db) => ({
+      ok: true,
+      value: await operation(db),
+    }));
+  } catch (error) {
+    if (error instanceof StaleCommandPreconditionError) {
+      return {
+        ok: false,
+        error: {
+          code: "voided_stale",
+          message: "Music Experience command basis was stale at commit time.",
+          area: "music_experience",
+          retryable: true,
+          suggestedFix: "Refresh the current music experience state and retry if the action is still desired.",
+        },
+      };
+    }
+    if (error instanceof QueueFullError) {
+      return {
+        ok: false,
+        error: {
+          code: "queue_full",
+          message: `MineMusic queue is full; maximum queue length is ${MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH}.`,
+          area: "music_experience",
+          retryable: false,
+          suggestedFix: "Play or remove queued items before adding more music.",
+        },
+      };
+    }
+    if (error instanceof QueueIndexError) {
+      return {
+        ok: false,
+        error: {
+          code: "queue_index_invalid",
+          message: error.message,
+          area: "music_experience",
+          retryable: true,
+          suggestedFix: "Refresh the current queue and retry with one of the displayed queue indexes.",
+        },
+      };
+    }
+    if (error instanceof QueueEditPermissionError) {
+      return {
+        ok: false,
+        error: {
+          code: "queue_item_not_editable",
+          message: "That queue item cannot be edited by this actor.",
+          area: "music_experience",
+          retryable: false,
+          suggestedFix: "Choose a queue item this actor is allowed to edit.",
+        },
+      };
+    }
+    throw error;
+  }
 }
 
 export function createMusicExperienceRadioTruthCommand(

@@ -62,6 +62,7 @@ export type ToolAllowedAction = {
 };
 
 export type ToolResultSummary = (result: unknown) => string;
+export type ToolAgentResultText = (result: unknown) => string;
 
 export type ToolDeclaration = {
   name: string;
@@ -82,6 +83,11 @@ export type ToolDeclaration = {
   // result line. The renderer is co-located with the descriptor and must read
   // only public output fields; transports do not sanitize broken public text.
   resultSummary: ToolResultSummary;
+  // Model-facing observation text for pi tool results. This may be richer than
+  // `resultSummary` when the agent needs public output details to continue the
+  // task. It must read only public output fields; runtime metadata such as
+  // command basis is never an input to this renderer.
+  agentResultText?: ToolAgentResultText;
   allowedActions?: readonly ToolAllowedAction[];
   requiresProvider?: readonly string[];
 };
@@ -96,7 +102,31 @@ export type ToolCallInput = {
 export type ToolCallOutput = {
   toolName: string;
   result: unknown;
+  runtime?: StageToolRuntimeMetadata;
 };
+
+export type StageToolRuntimeMetadata = {
+  changedBasis?: ConcernRevisionSet;
+};
+
+export const stageToolHandlerOutputSymbol: unique symbol = Symbol("stageToolHandlerOutput");
+
+export type StageToolHandlerOutputEnvelope = {
+  readonly [stageToolHandlerOutputSymbol]: true;
+  output: unknown;
+  runtime?: StageToolRuntimeMetadata;
+};
+
+export function stageToolHandlerOutput(
+  output: unknown,
+  runtime?: StageToolRuntimeMetadata,
+): StageToolHandlerOutputEnvelope {
+  return {
+    [stageToolHandlerOutputSymbol]: true,
+    output,
+    ...(runtime === undefined ? {} : { runtime }),
+  };
+}
 
 export type StageToolContext = {
   ownerScope: string;
@@ -189,7 +219,7 @@ export type StageToolAuditPort = {
 export type StageToolHandler = (
   ctx: StageToolContext,
   input: unknown,
-) => Promise<Result<unknown>> | Result<unknown>;
+) => Promise<Result<unknown | StageToolHandlerOutputEnvelope>> | Result<unknown | StageToolHandlerOutputEnvelope>;
 
 export type ToolHandler = StageToolHandler;
 
@@ -707,21 +737,46 @@ export type MusicExperiencePresentOutput = {
   card: MusicCard;
 };
 
-export type MusicExperienceQueueAppendInput = {
+export type PlaybackQueueAppendInput = {
   /** Candidate or durable material items to append to the logical MineMusic queue in input order. */
   items: readonly [MusicItemHandle, ...MusicItemHandle[]];
 };
 
-export type MusicExperienceQueueAppendOutputItem = {
+export type PlaybackQueueAppendOutputItem = {
   item: MaterialMusicItemHandle;
-  position: number;
+  index: number;
 };
 
-export type MusicExperienceQueueAppendOutput = {
-  items: readonly MusicExperienceQueueAppendOutputItem[];
+export type PlaybackQueueAppendOutput = {
+  items: readonly PlaybackQueueAppendOutputItem[];
   queueLength: number;
   queueRevision: ConcernRevision;
-  changedBasis: ConcernRevisionSet;
+};
+
+export type PlaybackQueueRemoveInput = {
+  index: number;
+};
+
+export type PlaybackQueueReplaceInput = {
+  index: number;
+  item: MusicItemHandle;
+};
+
+export type PlaybackQueueMoveInput = {
+  from: number;
+  to: number;
+};
+
+export type PlaybackQueueClearInput = Record<string, never>;
+
+export type PlaybackQueueEditOutput = {
+  queueLength: number;
+  queueRevision: ConcernRevision;
+};
+
+export type PlaybackQueueReplaceOutput = PlaybackQueueEditOutput & {
+  item: MaterialMusicItemHandle;
+  index: number;
 };
 
 export type RadioTruthToolValue =
@@ -784,7 +839,6 @@ export type RadioLeanClearInput = Record<string, never>;
 
 export type RadioDirectionToolOutput = {
   radioDirectionRevision: ConcernRevision;
-  changedBasis: ConcernRevisionSet;
   direction: {
     motif?: RadioTruthToolValueOutput;
     activeVariations: readonly RadioTruthToolValueOutput[];
@@ -811,7 +865,6 @@ export type MusicExperiencePlaybackPlayOutput = {
   item: MaterialMusicItemHandle;
   status: Extract<MusicExperiencePlaybackStatus, "playing">;
   playbackRevision: ConcernRevision;
-  changedBasis: ConcernRevisionSet;
 };
 
 export type MusicDiscoveryLookupItemDescription = PublicHandleDescription & {
