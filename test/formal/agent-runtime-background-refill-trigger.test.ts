@@ -2,18 +2,19 @@ import assert from "node:assert/strict";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 
 import {
-  createStageToolBridge,
-  createInMemoryRadioTranscriptStore,
-  createMineMusicPiAgentAdapter,
-  createPiRadioRefillRunPort,
+  createAgentRuntimeBackgroundRefillPort as createProductionBackgroundRefillPort,
+  createActorRuntimeSession,
+  createInMemoryAgentRuntimeTranscriptStore,
   createRadioRunResultRecorder,
   createWorkspaceContextAssembler,
-  restoreRadioAgentTranscript,
   toPiToolName,
-  type RadioTranscriptStore,
+  type ActorRuntimeSession,
+  type AgentRuntimeTranscriptStore,
+  type StageToolDispatchPort,
+  type WorkspaceContextAssembler,
   type WorkspaceContextAssembly,
 } from "../../src/agent_runtime/index.js";
-import type { StageToolContext } from "../../src/contracts/stage_interface.js";
+import type { StageToolContext, ToolDeclaration } from "../../src/contracts/stage_interface.js";
 import type { MusicExperienceWorkspaceProjection } from "../../src/contracts/music_experience.js";
 import type { AgentActorKind, ConcernRevisionSet } from "../../src/contracts/kernel.js";
 import {
@@ -32,21 +33,75 @@ import type { RadioRefillRunJobPayload } from "../../src/contracts/agent_runtime
 const key = {
   ownerScope: "owner_radio_run",
   workspaceId: "default",
+  actor: "radio_agent" as const,
 };
 
+function createAgentRuntimeBackgroundRefillPort(input: {
+  session: ActorRuntimeSession;
+  ownerScope?: string;
+  workspaceId?: string;
+  actor?: AgentActorKind;
+  transcriptStore?: AgentRuntimeTranscriptStore;
+  clock?: () => string;
+  workspaceContext?: WorkspaceContextAssembler;
+  promptForPayload?: Parameters<typeof createProductionBackgroundRefillPort>[0]["promptForPayload"];
+  hooks?: Parameters<typeof createProductionBackgroundRefillPort>[0]["hooks"];
+  resultFromRun?: Parameters<typeof createProductionBackgroundRefillPort>[0]["resultFromRun"];
+}) {
+  return createProductionBackgroundRefillPort({
+    session: input.session,
+    ...(input.promptForPayload === undefined ? {} : { promptForPayload: input.promptForPayload }),
+    ...(input.hooks === undefined ? {} : { hooks: input.hooks }),
+    ...(input.resultFromRun === undefined ? {} : { resultFromRun: input.resultFromRun }),
+  });
+}
+
+function createCountingTranscriptStore(): {
+  store: AgentRuntimeTranscriptStore;
+  loadCount(): number;
+  saveCount(): number;
+  snapshot(): readonly Parameters<AgentRuntimeTranscriptStore["save"]>[0]["messages"][number][];
+} {
+  let loads = 0;
+  let saves = 0;
+  let messages: readonly Parameters<AgentRuntimeTranscriptStore["save"]>[0]["messages"][number][] = [];
+  return {
+    store: {
+      async load() {
+        loads += 1;
+        return messages.slice();
+      },
+      async save(input) {
+        saves += 1;
+        messages = input.messages.slice();
+      },
+    },
+    loadCount() {
+      return loads;
+    },
+    saveCount() {
+      return saves;
+    },
+    snapshot() {
+      return messages;
+    },
+  };
+}
+
 {
-  const transcriptStore = createInMemoryRadioTranscriptStore();
-  const firstAgent = createTestRadioAgent("first");
-  const runStarts: string[] = [];
-  const runPort = createPiRadioRefillRunPort({
-    ...key,
-    agent: firstAgent,
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
+  const firstSession = createTestActorRuntimeSession("first", {
     transcriptStore,
-    ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
+  });
+  const runStarts: string[] = [];
+  const runPort = createAgentRuntimeBackgroundRefillPort({
+    session: firstSession,
     resultFromRun: defaultRadioResult,
-    onRunStart(payload) {
-      runStarts.push(`${payload.wakeReason}:${payload.refillGeneration}`);
+    hooks: {
+      onRunStart(input) {
+        runStarts.push(input.runId);
+      },
     },
   });
 
@@ -56,7 +111,7 @@ const key = {
     signal: new AbortController().signal,
   });
 
-  assert.equal(firstAgent.state.messages.length, 2);
+  assert.equal(firstSession.agent.state.messages.length, 2);
   assert.equal(transcriptStore.snapshot(key).length, 2);
 
   await transcriptStore.save({
@@ -71,24 +126,19 @@ const key = {
     signal: new AbortController().signal,
   });
 
-  assert.equal(firstAgent.state.messages.length, 4);
+  assert.equal(firstSession.agent.state.messages.length, 4);
   assert.equal(transcriptStore.snapshot(key).length, 4);
-  assert.deepEqual(runStarts, ["low_watermark:1", "low_watermark:2"]);
+  assert.deepEqual(runStarts, ["radio-job-1", "radio-job-2"]);
 
-  const restartedAgent = createTestRadioAgent("restart");
-  await restoreRadioAgentTranscript({
-    ...key,
-    agent: restartedAgent,
+  const restartedSession = createTestActorRuntimeSession("restart", {
     transcriptStore,
-  });
-  assert.equal(restartedAgent.state.messages.length, 4);
-
-  const restartedRunPort = createPiRadioRefillRunPort({
-    ...key,
-    agent: restartedAgent,
-    transcriptStore,
-    ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:02.000Z",
+  });
+  await restartedSession.restoreTranscript();
+  assert.equal(restartedSession.agent.state.messages.length, 4);
+
+  const restartedRunPort = createAgentRuntimeBackgroundRefillPort({
+    session: restartedSession,
     resultFromRun: defaultRadioResult,
   });
   await restartedRunPort.runRadioRefill({
@@ -96,16 +146,53 @@ const key = {
     payload: payload(3),
     signal: new AbortController().signal,
   });
-  assert.equal(restartedAgent.state.messages.length, 6);
+  assert.equal(restartedSession.agent.state.messages.length, 6);
   assert.equal(transcriptStore.snapshot(key).length, 6);
 }
 
 {
-  const transcriptStore = createInMemoryRadioTranscriptStore();
+  const transcript = createCountingTranscriptStore();
+  const actorSession = createTestActorRuntimeSession("checkpoint", {
+    transcriptStore: transcript.store,
+    clock: () => "2026-06-28T00:00:00.000Z",
+  });
+  await actorSession.restoreTranscript();
+  const runPort = createAgentRuntimeBackgroundRefillPort({
+    session: actorSession,
+    resultFromRun: defaultRadioResult,
+  });
+
+  await runPort.runRadioRefill({
+    runId: "radio-job-checkpoint-1",
+    payload: payload(21),
+    signal: new AbortController().signal,
+  });
+  await runPort.runRadioRefill({
+    runId: "radio-job-checkpoint-2",
+    payload: payload(22),
+    signal: new AbortController().signal,
+  });
+
+  assert.equal(transcript.loadCount(), 1);
+  assert.equal(transcript.saveCount(), 2);
+  assert.equal(transcript.snapshot().length, 4);
+}
+
+{
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
   let observedSystemPrompt = "";
   let observedMessagesJson = "";
   let observedToolCount = 0;
-  const agent = createTestRadioAgent("floor", {
+  const actorSession = createTestActorRuntimeSession("floor", {
+    transcriptStore,
+    tools: [playbackQueueAppendDescriptor],
+    workspaceContext: createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return workspaceProjectionFixture();
+        },
+      },
+    }),
     streamFn(_model, context) {
       observedSystemPrompt = context.systemPrompt ?? "";
       observedMessagesJson = JSON.stringify(context.messages);
@@ -117,9 +204,9 @@ const key = {
       });
     },
   });
-  const runPort = createPiRadioRefillRunPort({
+  const runPort = createAgentRuntimeBackgroundRefillPort({
     ...key,
-    agent,
+    session: actorSession,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
     resultFromRun: defaultRadioResult,
@@ -130,9 +217,6 @@ const key = {
         },
       },
     }),
-    prepareRun() {
-      return [fakeRadioTool() as never];
-    },
   });
 
   await runPort.runRadioRefill({
@@ -165,7 +249,7 @@ const key = {
 }
 
 {
-  const transcriptStore = createInMemoryRadioTranscriptStore();
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
   let observedSystemPrompt = "";
   let projection = workspaceProjectionFixture({
     posture: {
@@ -174,7 +258,15 @@ const key = {
       stale: true,
     },
   });
-  const agent = createTestRadioAgent("stale-posture", {
+  const actorSession = createTestActorRuntimeSession("stale-posture", {
+    transcriptStore,
+    workspaceContext: createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return projection;
+        },
+      },
+    }),
     streamFn(_model, context) {
       observedSystemPrompt = context.systemPrompt ?? "";
       return fakeAssistantMessageEventStream({
@@ -185,24 +277,25 @@ const key = {
     },
   });
   let clearCalls = 0;
-  const runPort = createPiRadioRefillRunPort({
+  const runPort = createAgentRuntimeBackgroundRefillPort({
     ...key,
-    agent,
+    session: actorSession,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
     resultFromRun: defaultRadioResult,
-    async beforeWorkspaceContextAssemble(payload) {
-      assert.equal(payload.radioDirectionRevision, 7);
-      if (projection.radio.posture.stale) {
-        clearCalls += 1;
-        projection = workspaceProjectionFixture({
-          posture: {
-            lean: [],
-            commandedRevisionStamp: payload.radioDirectionRevision,
-            stale: false,
-          },
-        });
-      }
+    hooks: {
+      async beforeWorkspaceContextAssemble() {
+        if (projection.radio.posture.stale) {
+          clearCalls += 1;
+          projection = workspaceProjectionFixture({
+            posture: {
+              lean: [],
+              commandedRevisionStamp: 7,
+              stale: false,
+            },
+          });
+        }
+      },
     },
     workspaceContext: createWorkspaceContextAssembler({
       musicExperience: {
@@ -226,14 +319,77 @@ const key = {
 }
 
 {
-  const transcriptStore = createInMemoryRadioTranscriptStore();
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
   const observedContexts: {
     toolName: string;
     preconditionBasis: unknown;
     actor: unknown;
   }[] = [];
   let streamCallCount = 0;
-  const agent = createTestRadioAgent("basis-tracker", {
+  const actorSession = createTestActorRuntimeSession("basis-tracker", {
+    transcriptStore,
+    tools: [playbackQueueAppendDescriptor, playbackQueueMoveDescriptor, radioLeanAddDescriptor],
+    dispatch: {
+      async dispatch(input) {
+        observedContexts.push({
+          toolName: input.toolName,
+          preconditionBasis: input.ctx.preconditionBasis,
+          actor: input.ctx.actor,
+        });
+        if (input.toolName === playbackQueueAppendDescriptor.name) {
+          return {
+            ok: true,
+            value: {
+              toolName: input.toolName,
+              result: {
+                items: [],
+                queueLength: 0,
+              },
+              runtime: { changedBasis: { queueRevision: 12 } },
+            },
+          };
+        }
+        if (input.toolName === playbackQueueMoveDescriptor.name) {
+          return {
+            ok: true,
+            value: {
+              toolName: input.toolName,
+              result: {
+                queueLength: 0,
+              },
+              runtime: { changedBasis: { queueRevision: 13 } },
+            },
+          };
+        }
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: {
+              posture: {
+                lean: [],
+                stale: false,
+              },
+            },
+            runtime: { changedBasis: { radioDirectionRevision: 8 } },
+          },
+        };
+      },
+    },
+    workspaceContext: createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return workspaceProjectionFixture({
+            concernRevisions: {
+              queueRevision: 11,
+              radioDirectionRevision: 7,
+              radioSessionRevision: 3,
+              playbackRevision: 0,
+            },
+          });
+        },
+      },
+    }),
     streamFn() {
       streamCallCount += 1;
       if (streamCallCount === 1) {
@@ -287,9 +443,9 @@ const key = {
       });
     },
   });
-  const runPort = createPiRadioRefillRunPort({
+  const runPort = createAgentRuntimeBackgroundRefillPort({
     ...key,
-    agent,
+    session: actorSession,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
     resultFromRun: defaultRadioResult,
@@ -307,70 +463,6 @@ const key = {
         },
       },
     }),
-    prepareRun(_payload, _workspaceContext, _signal, harness) {
-      return createStageToolBridge({
-        tools: [playbackQueueAppendDescriptor, playbackQueueMoveDescriptor, radioLeanAddDescriptor],
-        dispatch: harness.wrapDispatch({
-          async dispatch(input) {
-            observedContexts.push({
-              toolName: input.toolName,
-              preconditionBasis: input.ctx.preconditionBasis,
-              actor: input.ctx.actor,
-            });
-            if (input.toolName === playbackQueueAppendDescriptor.name) {
-              return {
-                ok: true,
-                value: {
-                  toolName: input.toolName,
-                  result: {
-                    items: [],
-                    queueLength: 0,
-                  },
-                  runtime: { changedBasis: { queueRevision: 12 } },
-                },
-              };
-            }
-            if (input.toolName === playbackQueueMoveDescriptor.name) {
-              return {
-                ok: true,
-                value: {
-                  toolName: input.toolName,
-                  result: {
-                    queueLength: 0,
-                  },
-                  runtime: { changedBasis: { queueRevision: 13 } },
-                },
-              };
-            }
-            return {
-              ok: true,
-              value: {
-                toolName: input.toolName,
-                result: {
-                  posture: {
-                    lean: [],
-                    stale: false,
-                  },
-                },
-                runtime: { changedBasis: { radioDirectionRevision: 8 } },
-              },
-            };
-          },
-        }),
-        contextFactory: harness.createToolContextFactory({
-          createToolContext(input) {
-            return createMinimalContext(
-              input.sessionId,
-              input.requestId,
-              input.abortSignal,
-              input.preconditionBasis,
-              input.actor,
-            );
-          },
-        }),
-        stageSessionId: "radio-basis",
-      });
-    },
   });
 
   await runPort.runRadioRefill({
@@ -633,8 +725,8 @@ const key = {
 }
 
 {
-  const transcriptStore = createInMemoryRadioTranscriptStore();
-  const agent = createTestRadioAgent("error", {
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
+  const actorSession = createTestActorRuntimeSession("error", {
     streamFn() {
       return fakeAssistantMessageEventStream({
         type: "error",
@@ -643,9 +735,9 @@ const key = {
       });
     },
   });
-  const runPort = createPiRadioRefillRunPort({
+  const runPort = createAgentRuntimeBackgroundRefillPort({
     ...key,
-    agent,
+    session: actorSession,
     transcriptStore,
     ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
@@ -663,7 +755,7 @@ const key = {
 }
 
 {
-  const transcriptStore: RadioTranscriptStore = {
+  const transcriptStore: AgentRuntimeTranscriptStore = {
     async load() {
       return [];
     },
@@ -671,9 +763,12 @@ const key = {
       throw new Error("transcript save failed");
     },
   };
-  const runPort = createPiRadioRefillRunPort({
+  const saveFailedSession = createTestActorRuntimeSession("save-failed", {
+    transcriptStore,
+  });
+  const runPort = createAgentRuntimeBackgroundRefillPort({
     ...key,
-    agent: createTestRadioAgent("save-failed"),
+    session: saveFailedSession,
     transcriptStore,
     ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
@@ -691,9 +786,9 @@ const key = {
 }
 
 {
-  const transcriptStore = createInMemoryRadioTranscriptStore();
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
   const controller = new AbortController();
-  const agent = createTestRadioAgent("abort", {
+  const actorSession = createTestActorRuntimeSession("abort", {
     async streamFn(_model, _context, options) {
       const message = assistantErrorMessage("aborted", "background job aborted");
       setTimeout(() => controller.abort(), 0);
@@ -710,15 +805,15 @@ const key = {
       });
     },
   });
-  const originalAbort = agent.abort.bind(agent);
+  const originalAbort = actorSession.agent.abort.bind(actorSession.agent);
   let abortCalls = 0;
-  agent.abort = () => {
+  actorSession.agent.abort = () => {
     abortCalls += 1;
     originalAbort();
   };
-  const runPort = createPiRadioRefillRunPort({
+  const runPort = createAgentRuntimeBackgroundRefillPort({
     ...key,
-    agent,
+    session: actorSession,
     transcriptStore,
     ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
@@ -741,12 +836,12 @@ const key = {
 }
 
 {
-  const transcriptStore = createInMemoryRadioTranscriptStore();
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
   const controller = new AbortController();
   controller.abort();
-  const runPort = createPiRadioRefillRunPort({
+  const runPort = createAgentRuntimeBackgroundRefillPort({
     ...key,
-    agent: createTestRadioAgent("pre-abort"),
+    session: createTestActorRuntimeSession("pre-abort"),
     transcriptStore,
     ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
@@ -768,15 +863,10 @@ const key = {
 }
 
 {
-  const transcriptStore = createInMemoryRadioTranscriptStore();
-  const agent = createTestRadioAgent("concurrent");
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
   let resolveRead: ((value: WorkspaceContextAssembly | Promise<WorkspaceContextAssembly>) => void) | undefined;
-  const runPort = createPiRadioRefillRunPort({
-    ...key,
-    agent,
+  const actorSession = createTestActorRuntimeSession("concurrent", {
     transcriptStore,
-    clock: () => "2026-06-28T00:00:00.000Z",
-    resultFromRun: defaultRadioResult,
     workspaceContext: {
       assemble() {
         return new Promise((resolve) => {
@@ -784,6 +874,13 @@ const key = {
         });
       },
     },
+  });
+  const runPort = createAgentRuntimeBackgroundRefillPort({
+    ...key,
+    session: actorSession,
+    transcriptStore,
+    clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromRun: defaultRadioResult,
   });
   const firstRun = runPort.runRadioRefill({
     runId: "radio-job-concurrent-1",
@@ -797,7 +894,7 @@ const key = {
       payload: payload(10),
       signal: new AbortController().signal,
     }),
-    /cannot start while 'radio-job-concurrent-1' is active/,
+    /cannot start .* while 'radio-job-concurrent-1' is active/,
   );
   assert.ok(resolveRead !== undefined);
   resolveRead(createWorkspaceContextAssembler({
@@ -828,15 +925,15 @@ const key = {
 }
 
 {
-  const transcriptStore = createInMemoryRadioTranscriptStore();
-  const agent = createTestRadioAgent("async-result");
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
+  const actorSession = createTestActorRuntimeSession("async-result");
   let releaseResult: (() => void) | undefined;
   const resultWait = new Promise<void>((resolve) => {
     releaseResult = resolve;
   });
-  const runPort = createPiRadioRefillRunPort({
+  const runPort = createAgentRuntimeBackgroundRefillPort({
     ...key,
-    agent,
+    session: actorSession,
     transcriptStore,
     ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
@@ -858,7 +955,7 @@ const key = {
       payload: payload(16),
       signal: new AbortController().signal,
     }),
-    /cannot start while 'radio-job-result-held-1' is active/,
+    /cannot start .* while 'radio-job-result-held-1' is active/,
   );
 
   assert.ok(releaseResult !== undefined);
@@ -867,10 +964,10 @@ const key = {
 }
 
 {
-  const transcriptStore = createInMemoryRadioTranscriptStore();
-  const runPort = createPiRadioRefillRunPort({
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
+  const runPort = createAgentRuntimeBackgroundRefillPort({
     ...key,
-    agent: createTestRadioAgent("missing-result-extractor"),
+    session: createTestActorRuntimeSession("missing-result-extractor"),
     transcriptStore,
     ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
@@ -887,20 +984,19 @@ const key = {
 }
 
 {
-  const transcriptStore = createInMemoryRadioTranscriptStore();
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
   await transcriptStore.save({
     ...key,
     messages: [{ role: "assistant" } as never],
     now: "2026-06-28T00:00:00.000Z",
   });
 
+  const corruptSession = createTestActorRuntimeSession("corrupt", {
+    transcriptStore,
+  });
   await assert.rejects(
-    () => restoreRadioAgentTranscript({
-      ...key,
-      agent: createTestRadioAgent("corrupt"),
-      transcriptStore,
-    }),
-    /Stored Radio transcript message at index 0 is invalid/,
+    () => corruptSession.restoreTranscript(),
+    /Stored Agent Runtime transcript message at index 0 is invalid/,
   );
 }
 
@@ -941,22 +1037,54 @@ function defaultRadioResult(input: {
   };
 }
 
-function createTestRadioAgent(label: string, input: { streamFn?: StreamFn } = {}) {
+function createTestActorRuntimeSession(label: string, input: {
+  streamFn?: StreamFn;
+  transcriptStore?: AgentRuntimeTranscriptStore;
+  workspaceContext?: ReturnType<typeof emptyWorkspaceContext>;
+  tools?: readonly ToolDeclaration[];
+  dispatch?: StageToolDispatchPort;
+  clock?: () => string;
+} = {}): ActorRuntimeSession {
   let streamCallCount = 0;
-  return createMineMusicPiAgentAdapter({
-    systemPrompt: `You are Radio ${label}.`,
-    tools: [],
-    dispatch: {
+  return createActorRuntimeSession({
+    ownerScope: key.ownerScope,
+    workspaceId: key.workspaceId,
+    actor: {
+      name: "radio",
+      identity: {
+        role: `Radio test ${label}.`,
+        job: "Run background refill trigger tests.",
+        persona: "Precise.",
+      },
+      instruction: {
+        responsibilities: "Run.",
+        operatingRules: "Use tools when the test asks.",
+        prohibitions: "None.",
+      },
+      declaredWorkspaceSections: ["listening", "radio"],
+      toolPack: { stageToolNames: (input.tools ?? []).map((tool) => tool.name) },
+    },
+    workspaceContext: input.workspaceContext ?? emptyWorkspaceContext(),
+    tools: input.tools ?? [],
+    dispatch: input.dispatch ?? {
       async dispatch() {
-        throw new Error("Radio run transcript test has no tools.");
+        throw new Error("Background refill trigger test has no default tools.");
       },
     },
     contextFactory: {
       createToolContext(input) {
-        return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
+        return createMinimalContext(
+          input.sessionId,
+          input.requestId,
+          input.abortSignal,
+          input.preconditionBasis,
+          input.actor,
+        );
       },
     },
     stageSessionId: `stage-${label}`,
+    ...(input.transcriptStore === undefined ? {} : { transcriptStore: input.transcriptStore }),
+    clock: input.clock ?? (() => "2026-06-28T00:00:00.000Z"),
     agentOptions: {
       streamFn(...streamInput) {
         if (input.streamFn !== undefined) {
@@ -1024,25 +1152,6 @@ function createMinimalContext(
           auditLevel: "none",
         };
       },
-    },
-  };
-}
-
-function fakeRadioTool() {
-  return {
-    name: "radio_fake_tool",
-    label: "Radio fake tool",
-    description: "A fake Radio tool for provider context snapshot tests.",
-    parameters: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-    async execute() {
-      return {
-        content: [{ type: "text" as const, text: "ok" }],
-        details: { ok: true },
-      };
     },
   };
 }

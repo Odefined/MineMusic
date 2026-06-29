@@ -163,7 +163,7 @@ commands land in PR3.4 as structured actor-appropriate routes.
 - `test/formal/background-work-backend.test.ts` — extend `FakePgBossClient` to support `awaitTerminal` + fake-clock backoff.
 - `src/agent_runtime/` (new files):
   - `radio_supervisor.ts` — lifecycle enum, `refilling` single-flight flag, wake gate (depth < `low` AND not refilling AND `Running` AND not-exhausted-for-current-direction), `refillGeneration` counter, exhaustion record (the exhausted `radio_direction_revision`), submit-to-BW with idempotency key `{workspaceId, radioSessionRevision, radioDirectionRevision, wakeReason, refillGeneration}` (PB1 "Idempotency key"), release single-flight on `awaitTerminal`, inter-job failed-terminal cooldown via `runAfter` (PB1a "Hot-loop prevention is two non-overlapping layers").
-  - `radio_run.ts` — one bounded Radio turn on the supervisor's **long-lived**
+  - `agent_background_refill_trigger.ts` — one bounded Radio turn on the supervisor's **long-lived**
     `Agent`: call `agent.prompt(...)` (the transcript accumulates in
     `_state.messages` automatically — **no reload, no reconstruct**), select +
     batch-append (via `playback.queue.append`, provenance `radio_agent`) + emit
@@ -176,7 +176,7 @@ commands land in PR3.4 as structured actor-appropriate routes.
     check is a pre-assembly Music Experience domain hook; `agent_start` is only
     an observation hook because pi snapshots provider context before emitting it.
     Same-run context refresh after tool results uses pi `prepareNextTurn`.
-  - `radio_session_repo_facade.ts` + PG transcript store — the MineMusic-built durability layer, **root-export-helper-first** (ADR-0039 §3). PR3 ships **a real Postgres-backed Agent Runtime transcript repository for production** (PB2 "survives process restart") **plus an in-memory double for the deterministic harness** (PB8a — PG unneeded for that acceptance). **Writes only after each turn** (persist `agent.state.messages` to PG); **reads only at restart** — reconstruct via `new Agent({ initialState: { messages: store.load(...) } })` (low-level Agent path) or `repo.open`→`session.buildContext`→`state.messages` (harness-style session). `SessionRepo` exposes `create/open/list/delete/fork` — **no `reload`** (that was an invented method, now removed). **No per-run reload**: production reads come from the long-lived Agent's `_state.messages`. Compaction reuses pi's `prepareCompaction`/`compact`/`appendCompaction` helpers on the held Agent/session (ADR-0039). PG store is Phase B production scope, not deferred.
+  - `agent_transcript_store.ts` + PG transcript store — the MineMusic-built durability layer, **root-export-helper-first** (ADR-0039 §3). PR3 ships **a real Postgres-backed Agent Runtime transcript repository for production** (PB2 "survives process restart") **plus an in-memory double for the deterministic harness** (PB8a — PG unneeded for that acceptance). **Writes only after each turn** (persist `agent.state.messages` to PG); **reads only at restart** — reconstruct via `new Agent({ initialState: { messages: store.load(...) } })` (low-level Agent path) or `repo.open`→`session.buildContext`→`state.messages` (harness-style session). `SessionRepo` exposes `create/open/list/delete/fork` — **no `reload`** (that was an invented method, now removed). **No per-run reload**: production reads come from the long-lived Agent's `_state.messages`. Compaction reuses pi's `prepareCompaction`/`compact`/`appendCompaction` helpers on the held Agent/session (ADR-0039). PG store is Phase B production scope, not deferred.
   - `main_radio_channel.ts` — optional typed Main↔Radio channel shell only. Phase B does not require runtime bus delivery for PR6; do not add PB7 semantic forwarding here.
   - `speech_level.ts` — minimal `Silent | Notify` vocabulary shell. PB7 terminal declaration and derived notify intent land in PR6.
 - `src/contracts/agent_runtime.ts` — `RadioRunResult` envelope, `RadioLifecycleState`, and `SpeechLevel` shell. Do not add script-derived candidate-exhaustion semantics here; PR6 adds the structured Radio terminal declaration contract.
@@ -192,7 +192,7 @@ commands land in PR3.4 as structured actor-appropriate routes.
 5. Inter-job cooldown: failed terminal ⇒ next generation delayed via `runAfter`; succeeded ⇒ no delay.
 6. Idempotency key: retries of one job share the key (de-duplicated by the fake backend); next generation gets a new key.
 7. **`playback.queue.append` cross-context two-step (PB6 two-step + PB4 benign orphan, moved from PR1)** — candidate commit succeeds, the Music Experience append voids on a stale basis (`voided_stale`), retry resolves the **same** idempotent material ref and appends exactly once; a committed-but-not-appended material is a benign orphan (PB4). This is the MDP × Music Experience integration test that does not belong in PR1's pure command-layer suite.
-- Boundary guard: forbidden-import test — raw pi harness helper imports allowed only in `radio_session_repo_facade*.ts` and adapter tests (ADR-0039 Consequences).
+- Boundary guard: forbidden-import test — raw pi harness helper imports allowed only in `agent_transcript_store*.ts` and adapter tests (ADR-0039 Consequences).
 
 **Verification:** `npm run typecheck`; `npm run test:stage-core radio-supervisor`; `npm run test:stage-core background-work-backend`.
 
@@ -265,7 +265,7 @@ posture-stamp carry / clear, and Radio run result behavior.
   are scrubbed from provider context. Successful state-mutating tool results
   append a local Workspace Context diff through pi `afterToolCall`, extending
   the public observation with what changed for the next decision.
-- `src/agent_runtime/radio_run.ts` — delete `renderRadioRunSystemPrompt`; Radio
+- `src/agent_runtime/agent_background_refill_trigger.ts` — delete `renderRadioRunSystemPrompt`; Radio
   uses the same shared `AgentHarness` adapter as Main. Radio-specific Background
   Work, stale-posture clear, transcript persistence, and run result extraction
   stay outside the shared agent loop path.
@@ -287,7 +287,7 @@ posture-stamp carry / clear, and Radio run result behavior.
   because pi snapshots before `agent_start`; same-run refresh uses
   `prepareNextTurn`.
 
-**Verification:** `npm run typecheck`; `npm run test:stage-core radio-run radio-supervisor`.
+**Verification:** `npm run typecheck`; `npm run test:stage-core agent-runtime-background-refill-trigger radio-supervisor`.
 
 **Stopping condition:** no Radio-only Run Floor renderer remains; Radio behavior
 is unchanged except for the context source and JSON invocation shape.
@@ -302,7 +302,7 @@ is unchanged except for the context source and JSON invocation shape.
 delete the old agent composition seam once both actors have migrated.
 
 **Files touched:**
-- `src/agent_runtime/main_agent_session.ts` — per-turn refresh drives the shared
+- `src/agent_runtime/agent_user_turn_trigger.ts` — per-turn refresh drives the shared
   assembler plus `mainDefinition` into `state.systemPrompt`.
 - Delete `src/agent_runtime/session_context.ts`.
 - `src/workbench_interface/read_model.ts` and
@@ -310,7 +310,7 @@ delete the old agent composition seam once both actors have migrated.
   `WorkspaceReadModelReader`, `readWorkspace`, `createWorkspaceReadModelComposer`,
   and `WorkbenchMusicExperienceReadPort` in the agent-seam sense. Workbench keeps
   its own interaction-state read path for Web/future work.
-- `test/formal/agent-runtime-main-agent-session.test.ts` — update turn-start
+- `test/formal/agent-runtime-user-turn-trigger.test.ts` — update turn-start
   context assertions.
 
 **Dependencies:** PR3.1, PR3.2.
@@ -321,7 +321,7 @@ delete the old agent composition seam once both actors have migrated.
 - Main `systemPrompt` comes from the shared assembler.
 - Main turn behavior remains unchanged apart from context source.
 
-**Verification:** `npm run typecheck`; `npm run test:stage-core agent-runtime-main-agent-session agent-runtime-session-context`.
+**Verification:** `npm run typecheck`; `npm run test:stage-core agent-runtime-user-turn-trigger agent-runtime-session-context`.
 
 **Stopping condition:** Main and Radio both use one assembler path, and the old
 agent-facing Workbench seam/renderers are gone. Placing Main migration in Phase B
@@ -400,7 +400,7 @@ correctness dependent on a projection trick.
   runtime-only `preconditionBasis` for both Main and Radio according to the
   current actor definition and tool policy; Main and Radio do not carry parallel
   basis logic.
-- `src/agent_runtime/radio_run.ts` and shared context projection tests — run-start
+- `src/agent_runtime/agent_background_refill_trigger.ts` and shared context projection tests — run-start
   may observe stale posture, but the correction path is the Music
   Experience-owned posture command surface, not encoder suppression.
 - Boundary guards — prove tool routes call command ports and do not construct
@@ -549,7 +549,7 @@ too much queue.
   signals for one revision are idempotent; revisions arriving during an active
   run coalesce to the latest pending revision and are serviced before ordinary
   terminal-time pacing rechecks.
-- `src/agent_runtime/radio_run.ts` — keep direction-change reason and suggested
+- `src/agent_runtime/agent_background_refill_trigger.ts` — keep direction-change reason and suggested
   append count in Invocation Context. Direction/session revisions remain
   runtime-only job metadata and do not enter model context.
 - `src/agent_runtime/actor_definition.ts` — distinguish ordinary refill from a
@@ -612,7 +612,7 @@ incomplete for the active Radio feature set.
   queue, playback, and radio-session writers.
 - `src/agent_runtime/radio_supervisor.ts` — basis table and priority-directed
   abort verdict.
-- `src/agent_runtime/radio_run.ts` and Main-run equivalent — per-run
+- `src/agent_runtime/agent_background_refill_trigger.ts` and user-turn trigger — per-run
   `AbortController`, threaded through `StageToolContext.abortSignal`, and tied
   to pi `Agent.abort()` where needed.
 - `src/agent_runtime/pi_engine.ts` and `src/agent_runtime/stage_tool_bridge.ts`
@@ -720,7 +720,7 @@ Phase B does not smuggle in a half-designed agent-to-agent messaging layer.
 - Radio actor terminal declaration protocol — structured final assistant
   declaration or a generic finish-run tool, chosen from pi capabilities at
   implementation time. Do not create a narrow one-off "exhaustion only" surface.
-- `src/agent_runtime/radio_run.ts` — extract and validate the terminal
+- `src/agent_runtime/agent_background_refill_trigger.ts` — extract and validate the terminal
   declaration, then assemble `RadioRunResult` from declaration + runtime facts.
 - `src/agent_runtime/radio_run_result_recorder.ts` — keep or rename as a
   tool-fact recorder; it may report queue mutation facts (`appended` and

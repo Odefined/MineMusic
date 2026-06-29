@@ -200,7 +200,7 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   `src/workbench_interface` root, whose old composed agent seam has since been
   retired by Agent Context PR3.1/PR3.2/PR3.3; A3 added Music Experience
   queue/playback Postgres truth, owning commands, workspace projection, and
-  Stage tools; A4 added the long-lived pi Main Agent turn session with
+  Stage tools; A4 added the shared long-lived `ActorRuntimeSession` with
   turn-start shared Workspace Context refresh and harness-visible pi final
   assistant message/status/error/text. Memory, skill runtime, and Web remain out
   of scope.
@@ -521,25 +521,33 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/background_work/pg_boss_backend.ts`: concrete `pg-boss` adapter confined
   behind the Background Work port.
 - `src/background_work/index.ts`: Background Work public exports.
+- `src/agent_runtime/actor_runtime_session.ts`: shared long-lived
+  `ActorRuntimeSession` over one pi `Agent`; Main user turns and Radio
+  background refills both enter through `run()`, share pi transcript/tool/abort
+  lifecycle, may pass only generic run hooks, and checkpoint the capped
+  transcript tail after pi `agent_end`.
+- `src/agent_runtime/agent_user_turn_trigger.ts`: Main user-turn trigger over
+  shared `ActorRuntimeSession.run()`.
+- `src/agent_runtime/agent_background_refill_trigger.ts`: Radio low-watermark /
+  direction-change Background Work trigger over shared
+  `ActorRuntimeSession.run()`.
+- `src/agent_runtime/agent_transcript_store.ts`: generic Agent Runtime
+  transcript store keyed by owner/workspace/actor kind and backed by
+  `agent_runtime_transcripts`.
+- `src/agent_runtime/agent_run_cascade.ts`: shared concern-revision cascade
+  coordinator for aborting stale lower-priority actor runs.
 - `src/agent_runtime/radio_supervisor.ts`: Phase B Radio supervisor
   single-flight low-watermark wake gate, exhaustion suppression, terminal
   observation retry, run-epoch idempotency, failed/non-progress cooldown,
   terminal `voided_stale` no-rewake handling, post-commit direction-change
   correction scheduling/coalescing, and narrow Background Work handler
   registration.
-- `src/agent_runtime/radio_run.ts`: Phase B Radio run substrate over one
-  long-lived pi `Agent`, using `agent_start` / `agent_end` for run-start and
-  capped transcript persistence.
-- `src/agent_runtime/radio_tool_pack.ts`: Agent Runtime-owned Radio Stage tool
-  allow-list, selected declaration guard, and cached pi bridge construction.
 - `src/agent_runtime/radio_run_result_recorder.ts`: Agent Runtime-owned run-local
   observer that records Stage tool results as they return from dispatch and
   builds `RadioRunResult` from queue-append outcomes, stale/abort mapping, and
   non-progress no-action results.
-- `src/agent_runtime/radio_session_repo_facade.ts`: Agent Runtime-owned Radio
-  transcript store facade and in-memory harness double.
 - `src/agent_runtime/schema.ts`: Agent Runtime schema contributions, including
-  `agent_runtime_radio_transcripts`.
+  `agent_runtime_transcripts`.
 - `src/agent_runtime/main_radio_channel.ts` and
   `src/agent_runtime/speech_level.ts`: Phase B typed Radio→Main notify channel
   and minimal Speech Level vocabulary.

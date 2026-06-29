@@ -115,15 +115,15 @@ const musicExperienceRadioTruthTable = await context.get<{
 if (musicExperienceRadioTruthTable === undefined) {
     throw new Error("music_experience_radio_truth table was not initialized");
 }
-const agentRuntimeRadioTranscriptsTable = await context.get<{
+const agentRuntimeTranscriptsTable = await context.get<{
     table_name: string;
 }>(`
   SELECT table_name
   FROM information_schema.tables
   WHERE table_schema = 'public'
-    AND table_name = 'agent_runtime_radio_transcripts'
+    AND table_name = 'agent_runtime_transcripts'
 `);
-if (agentRuntimeRadioTranscriptsTable === undefined) {
-    throw new Error("agent_runtime_radio_transcripts table was not initialized");
+if (agentRuntimeTranscriptsTable === undefined) {
+    throw new Error("agent_runtime_transcripts table was not initialized");
 }
 await database.close();

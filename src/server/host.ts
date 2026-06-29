@@ -42,7 +42,9 @@ import {
 } from "../music_experience/index.js";
 import {
   agentRuntimeSchemas,
+  createAgentRunCascadeCoordinator,
   createInMemoryMainRadioNotifyChannel,
+  type AgentRunCascadeCoordinator,
   type MainRadioNotifyChannel,
   type MineMusicPiAgentAdapterOptions,
 } from "../agent_runtime/index.js";
@@ -132,6 +134,9 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
   let stageInterfaceRuntimePorts: StageInterfaceRuntimePorts | undefined;
   let musicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
   let runtime: StageRuntime;
+  const agentRunCascade: AgentRunCascadeCoordinator = createAgentRunCascadeCoordinator({
+    ownerScope: "local",
+  });
   const hostMusicDatabase = createHostManagedMusicDatabase(() => defaultMusicDatabase);
   const backgroundWork: BackgroundWorkBackend | undefined = usesDefaultRuntime
     ? input.backgroundWork ?? createDefaultBackgroundWorkBackend(input.config)
@@ -256,6 +261,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
             },
           }),
           contextFactory: () => stageToolContextFactory,
+          cascade: () => agentRunCascade,
         });
   runtime = input.runtime ?? createStageRuntime({
     modules: input.modules ?? [
@@ -297,6 +303,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       return initialized;
     },
     async stop() {
+      agentRunCascade.abortAll();
       const radioStopped = await stopDefaultRadio();
       const stopped = await runtime.stop();
       stageInterfaceRuntimePorts = undefined;
@@ -430,6 +437,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
   }
 
   function observeConcernRevisionChange(change: ConcernRevisionChange): void {
+    agentRunCascade.observeRevisionChange(change);
     agentRuntimeRadioModule?.observeRevisionChange(change);
   }
 

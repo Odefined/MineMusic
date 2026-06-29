@@ -51,20 +51,27 @@ export function createRadioRunResultRecorder(): RadioRunResultRecorder {
       }
     },
     result(input) {
-      if (appendedCount > 0) {
-        return radioAppendedResult(input, appendedCount);
-      }
-      if (queueChanged) {
-        return radioQueueCorrectedResult(input);
-      }
-      if (queueMutationFailure !== undefined) {
-        throw queueMutationFailure;
-      }
-      if (voidedStale) {
-        return radioVoidedStaleResult(input);
-      }
+      try {
+        if (appendedCount > 0) {
+          return radioAppendedResult(input, appendedCount);
+        }
+        if (queueChanged) {
+          return radioQueueCorrectedResult(input);
+        }
+        if (queueMutationFailure !== undefined) {
+          throw queueMutationFailure;
+        }
+        if (voidedStale) {
+          return radioVoidedStaleResult(input);
+        }
 
-      return radioNoActionResult(input);
+        return radioNoActionResult(input);
+      } finally {
+        appendedCount = 0;
+        queueChanged = false;
+        voidedStale = false;
+        queueMutationFailure = undefined;
+      }
     },
   };
 }

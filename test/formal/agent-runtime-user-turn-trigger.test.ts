@@ -3,10 +3,13 @@ import assert from "node:assert/strict";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 
 import {
+  createActorRuntimeSession,
   createWorkspaceContextAssembler,
-  createMineMusicMainAgentSession,
+  createAgentRuntimeUserTurnController,
   toPiToolName,
   type ActorDefinition,
+  type AgentRuntimeTranscriptStore,
+  type CreateActorRuntimeSessionInput,
   type WorkspaceContextAssembler,
 } from "../../src/agent_runtime/index.js";
 import { renderWorkspaceContextDiff } from "../../src/agent_runtime/workspace_context_diff.js";
@@ -76,6 +79,51 @@ import {
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 const ownerScope = "local";
+
+type TestUserTurnControllerInput = Omit<CreateActorRuntimeSessionInput, "workspaceId"> & {
+  workspaceId?: string;
+};
+
+function createTestUserTurnController(input: TestUserTurnControllerInput) {
+  const session = createActorRuntimeSession({
+    ...input,
+    workspaceId: input.workspaceId ?? "default",
+  });
+  return createAgentRuntimeUserTurnController({ session });
+}
+
+function createCountingTranscriptStore(): {
+  store: AgentRuntimeTranscriptStore;
+  loadCount(): number;
+  saveCount(): number;
+  snapshot(): readonly Parameters<AgentRuntimeTranscriptStore["save"]>[0]["messages"][number][];
+} {
+  let loads = 0;
+  let saves = 0;
+  let messages: readonly Parameters<AgentRuntimeTranscriptStore["save"]>[0]["messages"][number][] = [];
+  return {
+    store: {
+      async load() {
+        loads += 1;
+        return messages.slice();
+      },
+      async save(input) {
+        saves += 1;
+        messages = input.messages.slice();
+      },
+    },
+    loadCount() {
+      return loads;
+    },
+    saveCount() {
+      return saves;
+    },
+    snapshot() {
+      return messages;
+    },
+  };
+}
+
 function concernRevisions(input: {
   queueRevision?: number;
   radioDirectionRevision?: number;
@@ -115,7 +163,7 @@ const observedProviderContexts: {
   messagesJson: string;
 }[] = [];
 
-const session = createMineMusicMainAgentSession({
+const session = createTestUserTurnController({
   ownerScope,
   actor: testMainActor(),
   workspaceContext: {
@@ -207,6 +255,49 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /first turn/u);
 assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
 
 {
+  const transcript = createCountingTranscriptStore();
+  let turnCount = 0;
+  const actorSession = createActorRuntimeSession({
+    ownerScope,
+    workspaceId: "user-turn-checkpoint",
+    actor: testMainActor(),
+    workspaceContext: emptyWorkspaceContext(),
+    tools: [],
+    dispatch: {
+      async dispatch() {
+        throw new Error("No Stage dispatch is expected in the user-turn checkpoint test.");
+      },
+    },
+    contextFactory: {
+      createToolContext() {
+        throw new Error("No Stage tool context is expected in the user-turn checkpoint test.");
+      },
+    },
+    stageSessionId: "stage-session-user-turn-checkpoint",
+    transcriptStore: transcript.store,
+    agentOptions: {
+      streamFn() {
+        turnCount += 1;
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "stop",
+          message: assistantTextMessage(`checkpoint ${turnCount}`),
+        });
+      },
+    },
+  });
+  await actorSession.restoreTranscript();
+  const controller = createAgentRuntimeUserTurnController({ session: actorSession });
+
+  await controller.runUserTurn({ userMessage: "first checkpointed user turn" });
+  await controller.runUserTurn({ userMessage: "second checkpointed user turn" });
+
+  assert.equal(transcript.loadCount(), 1);
+  assert.equal(transcript.saveCount(), 2);
+  assert.equal(transcript.snapshot().length, 4);
+}
+
+{
   const before: MusicExperienceWorkspaceProjection = {
     concernRevisions: concernRevisions({ queueRevision: 7 }),
     revision: 7,
@@ -264,7 +355,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
   const streamReleased = new Promise<void>((resolve) => {
     releaseStream = resolve;
   });
-  const serialSession = createMineMusicMainAgentSession({
+  const serialSession = createTestUserTurnController({
     ownerScope,
     actor: testMainActor(),
     workspaceContext: emptyWorkspaceContext(),
@@ -310,7 +401,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
 
   await assert.rejects(
     () => serialSession.runUserTurn({ userMessage: "second" }),
-    /MineMusic AgentHarness for actor 'main' cannot start while a turn is active/u,
+    /MineMusic Agent Runtime session for actor 'main' cannot start/u,
   );
 
   releaseStream();
@@ -318,7 +409,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
 }
 
 {
-  const abortedSession = createMineMusicMainAgentSession({
+  const abortedSession = createTestUserTurnController({
     ownerScope,
     actor: testMainActor(),
     workspaceContext: emptyWorkspaceContext(),
@@ -365,7 +456,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
     actor: unknown;
   }[] = [];
   let streamCallCount = 0;
-  const session = createMineMusicMainAgentSession({
+  const session = createTestUserTurnController({
     ownerScope,
     actor: testMainActor([
       radioMotifSetDescriptor.name,
@@ -556,7 +647,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
     queue: [],
     radio: emptyRadioTruthSlice(),
   };
-  const session = createMineMusicMainAgentSession({
+  const session = createTestUserTurnController({
     ownerScope,
     actor: testMainActor([playbackQueueAppendDescriptor.name]),
     workspaceContext: createWorkspaceContextAssembler({
@@ -729,7 +820,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
       },
     }),
   });
-  const a4Session = createMineMusicMainAgentSession({
+  const a4Session = createTestUserTurnController({
     ownerScope,
     actor: testMainActor([
       musicDiscoveryLookupDescriptor.name,

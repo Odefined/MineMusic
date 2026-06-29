@@ -18,7 +18,7 @@ import {
     createMusicExperienceRadioTruthCommand,
     musicExperienceSchemas,
 } from "../../src/music_experience/index.js";
-import { RADIO_STAGE_TOOL_NAMES, selectRadioStageToolDeclarations, } from "../../src/agent_runtime/index.js";
+import { radioDefinition, selectActorStageToolDeclarations, } from "../../src/agent_runtime/index.js";
 import { createExtensionRuntimeRetrievalProviderSearchPort, createMusicDataPlatformRuntimeModule, createMusicExperienceServerRuntimeModule, createMineMusicExtensionRuntime, createServerHost, createStageToolContextAssembly, } from "../../src/server/index.js";
 import { createExtensionRuntimeModule, createStageRuntime, } from "../../src/stage_core/index.js";
 import { createStageInterfaceRuntimePorts, stageInterfaceSchemas, type StageInterfaceRuntimePorts } from "../../src/stage_interface/index.js";
@@ -98,11 +98,17 @@ const started = await host.start();
 assert.equal(started.ok, true);
 assert.equal(host.snapshot().status, "ready");
 assert.deepEqual(
-    selectRadioStageToolDeclarations(host.snapshot().interfaceContract.tools).map((tool) => tool.name),
-    RADIO_STAGE_TOOL_NAMES,
+    selectActorStageToolDeclarations({
+        actor: radioDefinition,
+        tools: host.snapshot().interfaceContract.tools,
+    }).map((tool) => tool.name),
+    radioDefinition.toolPack.stageToolNames,
 );
 assert.equal(
-    selectRadioStageToolDeclarations(host.snapshot().interfaceContract.tools).some((tool) =>
+    selectActorStageToolDeclarations({
+        actor: radioDefinition,
+        tools: host.snapshot().interfaceContract.tools,
+    }).some((tool) =>
         tool.name.startsWith("library.import.") ||
         tool.name.startsWith("library.relation.") ||
         tool.name.startsWith("library.collection.") ||

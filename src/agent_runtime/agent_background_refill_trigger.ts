@@ -1,0 +1,150 @@
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+
+import type {
+  RadioRefillRunJobPayload,
+  RadioRefillRunInvocation,
+  RadioRunResult,
+} from "../contracts/agent_runtime.js";
+import { finalAssistantMessage } from "./agent_message_helpers.js";
+import type {
+  ConcernRevisionSet,
+} from "../contracts/kernel.js";
+import type {
+  ActorRuntimeSession,
+  ActorRuntimeSessionRunHooks,
+} from "./actor_runtime_session.js";
+import type { AgentRunCascadeCoordinator } from "./agent_run_cascade.js";
+import type { RadioRefillRunPort } from "./radio_supervisor.js";
+import type { EncodedWorkspaceContext } from "./workspace_context_encoder.js";
+
+export type CreateAgentRuntimeBackgroundRefillPortInput = {
+  session: ActorRuntimeSession;
+  cascade?: AgentRunCascadeCoordinator;
+  hooks?: ActorRuntimeSessionRunHooks;
+  promptForPayload?: (input: {
+    runId: string;
+    payload: RadioRefillRunJobPayload;
+    workspaceContext: EncodedWorkspaceContext;
+  }) => string | Promise<string>;
+  resultFromRun?: (input: {
+    runId: string;
+    payload: RadioRefillRunJobPayload;
+  }) => RadioRunResult | Promise<RadioRunResult>;
+};
+
+export function createAgentRuntimeBackgroundRefillPort(
+  input: CreateAgentRuntimeBackgroundRefillPortInput,
+): RadioRefillRunPort {
+  return {
+    async runRadioRefill(runInput) {
+      if (runInput.signal.aborted) {
+        return voidedStaleResult(runInput.runId, runInput.payload);
+      }
+
+      let radioResult: RadioRunResult | undefined;
+      const runResult = await input.session.run({
+        runId: runInput.runId,
+        abortSignal: runInput.signal,
+        ...(input.cascade === undefined ? {} : {
+          cascade: input.cascade,
+          basis: radioRefillRunBasis(runInput.payload),
+        }),
+        prompt: ({ workspaceContext }) => promptForPayload(input, {
+          runId: runInput.runId,
+          payload: runInput.payload,
+          workspaceContext,
+        }),
+        hooks: {
+          ...input.hooks,
+          async afterRun(hookInput) {
+            await input.hooks?.afterRun?.(hookInput);
+            if (hookInput.signal.aborted || finalAssistantAborted(hookInput.newMessages)) {
+              return;
+            }
+            throwIfFinalAssistantFailed(runInput.runId, hookInput.newMessages);
+
+            if (input.resultFromRun === undefined) {
+              throw new Error(`Radio refill run '${runInput.runId}' has no result extractor.`);
+            }
+
+            radioResult = await input.resultFromRun({
+              runId: runInput.runId,
+              payload: runInput.payload,
+            });
+          },
+        },
+      });
+      const newMessages = runResult.newMessages;
+      if (runInput.signal.aborted || finalAssistantAborted(newMessages)) {
+        return voidedStaleResult(runInput.runId, runInput.payload);
+      }
+      if (radioResult === undefined) {
+        throw new Error(`Radio refill run '${runInput.runId}' produced no result.`);
+      }
+
+      if (radioResult.runId !== runInput.runId) {
+        throw new Error(`Radio refill run result '${radioResult.runId}' did not match Background Work job '${runInput.runId}'.`);
+      }
+
+      return radioResult;
+    },
+  };
+}
+
+function radioRefillRunBasis(payload: RadioRefillRunJobPayload): ConcernRevisionSet {
+  return {
+    radioDirectionRevision: payload.radioDirectionRevision,
+    radioSessionRevision: payload.radioSessionRevision,
+  };
+}
+
+async function promptForPayload(
+  input: Pick<CreateAgentRuntimeBackgroundRefillPortInput, "promptForPayload">,
+  promptInput: {
+    runId: string;
+    payload: RadioRefillRunJobPayload;
+    workspaceContext: EncodedWorkspaceContext;
+  },
+): Promise<string> {
+  return await input.promptForPayload?.(promptInput) ??
+    JSON.stringify(radioInvocationForPayload(promptInput), null, 2);
+}
+
+function radioInvocationForPayload(input: {
+  runId: string;
+  payload: RadioRefillRunJobPayload;
+}): RadioRefillRunInvocation {
+  return {
+    run: {
+      kind: "radio_refill",
+      runId: input.runId,
+      wakeReason: input.payload.wakeReason,
+      suggestedAppendCount: input.payload.suggestedAppendCount,
+    },
+  };
+}
+
+function throwIfFinalAssistantFailed(runId: string, messages: readonly AgentMessage[]): void {
+  const assistant = finalAssistantMessage(messages);
+  if (assistant?.stopReason === "error") {
+    const suffix = assistant.errorMessage === undefined ? "" : `: ${assistant.errorMessage}`;
+    throw new Error(`Radio refill run '${runId}' ended ${assistant.stopReason}${suffix}`);
+  }
+}
+
+function finalAssistantAborted(messages: readonly AgentMessage[]): boolean {
+  return finalAssistantMessage(messages)?.stopReason === "aborted";
+}
+
+function voidedStaleResult(
+  runId: string,
+  payload: RadioRefillRunJobPayload,
+): RadioRunResult {
+  return {
+    runId,
+    radioDirectionRevision: payload.radioDirectionRevision,
+    radioSessionRevision: payload.radioSessionRevision,
+    outcome: "voided_stale",
+    appendedCount: 0,
+  };
+}

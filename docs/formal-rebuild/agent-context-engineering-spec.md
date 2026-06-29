@@ -270,7 +270,9 @@ const mainDefinition: ActorDefinition = {
 
 Main declares every current workspace section and carries the full Stage tool
 surface — Main has no production wiring yet, so this defines its first allowed
-surface. Radio carries the Radio-owned tool subset (`RADIO_STAGE_TOOL_NAMES`).
+surface. Radio carries the Radio-owned subset declared directly by
+`radioDefinition.toolPack.stageToolNames`; there is no separate Radio tool-pack
+selection path outside ActorDefinition.
 
 ### 3. Capability Context
 
@@ -688,8 +690,8 @@ The active implementation should move toward these shapes:
 - Knowledge / Memory Context supplied only by Memory, Knowledge, Handbook, or
   retrieval boundaries when those are in scope.
 
-The Phase B repair is inserted after the landed PR3 Radio runtime substrate and
-before PR4 as PR3.1 / PR3.2 / PR3.3:
+The Phase B repair is inserted after the landed PR3 Radio supervisor/trigger
+work and before PR4 as PR3.1 / PR3.2 / PR3.3:
 
 1. PR3.1 builds the shared Agent Context core: `ActorDefinition`, the Workspace
    Context assembler, the Workspace Context encoder, and the first

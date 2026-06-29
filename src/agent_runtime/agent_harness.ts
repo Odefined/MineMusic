@@ -64,6 +64,7 @@ export function createMineMusicAgentHarness(input: {
   actor: ActorDefinition;
   ownerScope: string;
   workspaceContext: WorkspaceContextAssembler;
+  observeToolResult?: StageToolResultObserver;
 }): MineMusicAgentHarness {
   const actorKind = actorKindForDefinition(input.actor);
   let activeTurnState: MineMusicAgentHarnessTurnState | undefined;
@@ -161,6 +162,7 @@ export function createMineMusicAgentHarness(input: {
         async dispatch(dispatchInput) {
           const result = await dispatch.dispatch(dispatchInput);
           observeToolResult({ toolName: dispatchInput.toolName, result });
+          await input.observeToolResult?.({ toolName: dispatchInput.toolName, result });
           return result;
         },
       };

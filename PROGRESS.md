@@ -1521,14 +1521,14 @@ catalog integration. Design authority:
   instead of allowing unbounded prompt growth; ADR-0044 records this as an
   explicit Phase A4 decision replacing the earlier read-side-only bounded
   projection plan.
-- A4 adds `createMineMusicMainAgentSession`, a MineMusic-owned turn facade over
-  a long-lived pi `Agent`. Each `runUserTurn` now refreshes the pi
-  `state.systemPrompt` from the shared Agent Runtime Workspace Context assembler
-  at the user-turn boundary, then delegates loop control to pi `prompt()` /
-  `waitForIdle()` while preserving pi-owned transcript, lifecycle, queueing,
-  abort, and tool execution behavior. The facade returns the pi-produced turn
-  messages plus final assistant status/error/text. The formal A4 harness drives
-  `lookup -> present ->
+- A4 adds the shared long-lived `ActorRuntimeSession`, a MineMusic-owned actor
+  facade over a pi `Agent`. `runUserTurn` is now a Main trigger over the shared
+  session: it refreshes the pi `state.systemPrompt` from the Agent Runtime
+  Workspace Context assembler at the user-turn boundary, then delegates loop
+  control to pi `prompt()` / `waitForIdle()` while preserving pi-owned
+  transcript, lifecycle, queueing, abort, and tool execution behavior. The
+  facade returns the pi-produced turn messages plus final assistant
+  status/error/text. The formal A4 harness drives `lookup -> present ->
   queue.append -> playback.play` through the A1-bridged Stage tools and verifies
   the shared Workspace Context reflects the queue/now-playing outcome. Memory,
   skill runtime, and Web behavior are still unimplemented.
@@ -1557,11 +1557,12 @@ catalog integration. Design authority:
   observation before backend shutdown. The default Server Host mounts Radio only
   when explicit Radio agent stream options are supplied; startup does not wake
   Radio, leaving wake as an explicit seam for the later user-command lifecycle
-  path rather than a side effect of runtime config. When mounted, Radio sees only
-  its explicit discovery/catalog/queue-append Stage tool pack. Agent Runtime owns
-  the Radio tool-pack allow-list, selected declaration guard, cached pi bridge,
-  generic Stage-tool-result observation hook, and Radio run-local result
-  recorder; Server Host only wires those helpers into the composed module. Agent Runtime now owns the
+  path rather than a side effect of runtime config. When mounted, Radio receives
+  its tools through the same ActorDefinition tool-pack selection path used by
+  Main. Agent Runtime owns the shared long-lived `ActorRuntimeSession`, generic
+  Stage-tool-result observation, and Radio run-local result recorder; Server
+  Host wires one composed shared session instead of a Radio-specific tool bridge.
+  Agent Runtime now owns the
   `agent_runtime.radio_refill_run` job payload/result contracts,
   internal `Running` / `Paused` / `Shutdown` wake-gate state, minimal
   `Silent` / `Notify` speech level, Radio→Main notify channel, low-watermark
@@ -1573,10 +1574,10 @@ catalog integration. Design authority:
   `RadioRunResult.outcome = "voided_stale"` without Background Work failure,
   no automatic follow-up refill after a terminal `voided_stale` success,
   cooperative abort as `voided_stale`, public-handle shaped notify subjects, and
-  the Radio transcript store (`agent_runtime_radio_transcripts`). The run substrate
-  mirrors pi by keeping one long-lived `Agent`, using `agent_start` as the
-  run-start seam, persisting a capped transcript tail after `agent_end` with save
-  failures failing the run, and reloading transcript only on simulated
+  the generic actor transcript store (`agent_runtime_transcripts`). The shared
+  session mirrors pi by keeping one long-lived `Agent`, entering runs through
+  pi `prompt()`, persisting a capped transcript tail after pi `agent_end` with
+  save failures failing the run, and reloading transcript only on simulated
   restart/reconstruction.
 
 ## 2026-06-27: ADR-0045 Runtime Module Ownership Split
@@ -1681,6 +1682,36 @@ Agent Runtime context-engineering authority for embedded MineMusic agents:
 - Verification added observer-matrix coverage for queue/playback writers,
   no-event-on-stale coverage, and deterministic Radio cascade tests for
   Main-written direction abort, queue-only no-abort, and Radio-written no-abort.
+
+## 2026-06-30: Deep Code Audit (Full Codebase)
+
+A `/code-auditor` full-codebase pass (~90k LOC TS, 11 bounded contexts, branch
+`codex/phase-b-pr3.6`) gave Health 7.5/10: 0 Critical, 4 P1, 14 P2, 18 P3.
+Static baseline clean — `npm test` EXIT 0, `npm audit` 0 vulnerabilities, no
+eval/exec, SQL fully parameterized, 0 architecture boundary violations; the
+PR3.6 direction-correction design was confirmed sound.
+
+Findings are tracked in `docs/maintenance/full-codebase-audit-2026-06-30.md`
+(evidence), not inlined here. Headline gaps opened for later code-fix slices:
+
+- P1 testing: three assertion test modules never run (silent coverage gap in
+  `test/run-stage-core-tests.ts` testModules).
+- P1 Stage Interface: candidate handle bindings minted without `expiresAt` and
+  resolve never revalidates the backing cache (Public Handle Veil candidate-TTL
+  contract gap).
+- P1 Storage: schema contributions applied non-atomically; partial DDL failure
+  can leave drift.
+- P1 Concurrency: READ COMMITTED default + implicit single-instance assumption;
+  PR3.5 per-instance `transactionQueue` mitigates same-instance serialization
+  but leaves residual auto-commit/multi-instance lost-update surface (identity
+  merge, import dedup, queue append, playNow).
+
+No `AI-xxx` entries were opened in
+`docs/maintenance/architecture-inconsistency-log.md`: the findings are
+code-defect / coverage gaps, not doc-vs-code architecture disagreements. The
+one authority mismatch the audit exposed (`CURRENT_STATE.md` claimed
+`BEGIN IMMEDIATE`) was corrected in place; the broader Phase-4 SQLite-PRAGMA
+staleness in that section is flagged for a separate doc fix.
 
 ## Next Formal Milestones
 

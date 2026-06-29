@@ -126,28 +126,11 @@ export function createStageRuntime(input: CreateStageRuntimeInput = {}): StageRu
         moduleId: moduleState.module.descriptor.id,
         contribution: initialized.value,
       });
-    }
-
-    const merged = mergeRuntimeModuleContributions(contributions);
-
-    if (!merged.ok) {
-      return failInitialization(merged.error, initializedModuleStates);
-    }
-
-    try {
-      stageInterface = createStageInterface({
-        instruments: merged.value.instruments,
-        registrations: merged.value.registrations,
-        defaultToolTimeoutMs,
-      });
-    } catch (cause) {
-      return failInitialization({
-        code: "stage_core.stage_interface_creation_failed",
-        message: cause instanceof Error ? cause.message : "Stage Interface creation failed.",
-        area: "stage_core",
-        retryable: false,
-        cause,
-      }, initializedModuleStates);
+      const partialInterface = stageInterfaceFromContributions(contributions, defaultToolTimeoutMs);
+      if (!partialInterface.ok) {
+        return failInitialization(partialInterface.error, initializedModuleStates);
+      }
+      stageInterface = partialInterface.value;
     }
 
     runtimeStatus = "ready";
@@ -261,6 +244,39 @@ export function createStageRuntime(input: CreateStageRuntimeInput = {}): StageRu
     moduleState.status = "stopped";
     delete moduleState.error;
     return ok(undefined);
+  }
+}
+
+function stageInterfaceFromContributions(
+  contributions: readonly RuntimeModuleContributionEntry[],
+  defaultToolTimeoutMs: number,
+): Result<StageInterface> {
+  const merged = mergeRuntimeModuleContributions(contributions);
+
+  if (!merged.ok) {
+    return { ok: false, error: merged.error };
+  }
+
+  try {
+    return {
+      ok: true,
+      value: createStageInterface({
+        instruments: merged.value.instruments,
+        registrations: merged.value.registrations,
+        defaultToolTimeoutMs,
+      }),
+    };
+  } catch (cause) {
+    return {
+      ok: false,
+      error: {
+        code: "stage_core.stage_interface_creation_failed",
+        message: cause instanceof Error ? cause.message : "Stage Interface creation failed.",
+        area: "stage_core",
+        retryable: false,
+        cause,
+      },
+    };
   }
 }
 

@@ -290,8 +290,9 @@ Phase 4 Storage vocabulary includes:
   `close()` inside an active transaction or active initialization is forbidden;
 - low-level storage primitives throw rather than returning `Result<T>`;
 - storage-owned boundary violations use `MusicDatabaseError`;
-- `MusicDatabase.transaction(...)` is a write transaction using
-  `BEGIN IMMEDIATE`, with no read-only transaction API in Phase 4;
+- `MusicDatabase.transaction(...)` is a write transaction using a plain
+  `BEGIN` (READ COMMITTED isolation), with no read-only transaction API in
+  Phase 4;
 - transaction callback failure or unsupported async callback rolls back,
   rethrows the relevant error, blocks stale transaction-context use, and
   leaves the database usable after successful rollback without leaking
@@ -798,12 +799,13 @@ restored as compatibility layers.
   execution gate. The queue has a hard product/runtime cap of 100 items enforced
   by the owning command (`queue_full`); ADR-0044 records this as an explicit
   decision replacing Phase A's earlier read-side-only bounded projection plan.
-  A4 adds a MineMusic Main Agent turn session over a long-lived pi `Agent`.
+  A4 adds the shared long-lived `ActorRuntimeSession` over a pi `Agent`.
   Agent Context PR3.1/PR3.2/PR3.3 have now migrated Main and Radio onto shared
   `ActorDefinition` objects and the Agent Runtime Workspace Context assembler:
-  each Main user turn refreshes `state.systemPrompt` from `{ actor, ownerScope }`
-  before pi `prompt()` / `waitForIdle()`, returns the pi-produced turn messages
-  plus final assistant status/error/text, and observes queue/playback outcome
+  Main user turns and Radio background refills both refresh `state.systemPrompt`
+  from `{ actor, ownerScope }` before pi `prompt()` / `waitForIdle()` through the
+  same session spine; Main returns the pi-produced turn messages plus final
+  assistant status/error/text, and both actors observe queue/playback outcome
   through the same shared Workspace Context path.
 - Phase B PR1/PR2 Music Experience substrate has landed: `music_experience_state`
   now carries queue, playback, radio-direction, radio-session, and queue-tail
@@ -814,8 +816,9 @@ restored as compatibility layers.
   `radio_direction_revision`; posture writes are OCC-invisible and never bump
   revisions. The Music Experience read model now exposes radio truth and a
   current-queue material-ref read for Phase B queue-internal dedup.
-- Phase B PR3 Radio runtime substrate has landed on top of that Music Experience
-  floor: Agent Runtime now defines the internal Radio wake-gate state
+- Phase B PR3 Radio supervisor and trigger path have landed on top of that Music
+  Experience floor and now run through the shared Actor Runtime spine: Agent
+  Runtime defines the internal Radio wake-gate state
   (`Running` / `Paused` / `Shutdown`), Radio refill job payload/result types,
   minimal Speech Level (`Silent` / `Notify`), and a typed Radio→Main notify
   channel. `radio_supervisor` owns the low-watermark single-flight wake gate,
@@ -836,10 +839,13 @@ restored as compatibility layers.
   agent stream options are supplied, and startup does not wake Radio; wake
   remains an explicit seam for the later user-command lifecycle path rather than
   a side effect of runtime config. When mounted, Radio sees only its explicit
-  discovery/catalog/queue-append Stage tool pack. Agent Runtime owns the Radio
-  tool-pack allow-list, selected declaration guard, cached pi bridge, generic
-  Stage-tool-result observation hook, and Radio run-local result recorder; Server
-  Host only wires those helpers into the composed module. The run result is
+  discovery/catalog/queue-append Stage tool pack through the shared
+  ActorDefinition tool-pack selection path. Main user turns and Radio refills
+  both run through the same long-lived `ActorRuntimeSession.run()` spine; their
+  only runtime differences are the selected ActorDefinition and the trigger that
+  calls `run()`. Agent Runtime owns generic Stage-tool-result observation and the
+  Radio result recorder; Server Host wires those through the composed shared
+  session instead of constructing a Radio-specific tool bridge. The run result is
   recorded from Stage dispatch results, not scraped from pi transcript messages
   or fabricated as unconditional success; queue append `voided_stale` /
   `operation_aborted` command errors become
@@ -849,11 +855,12 @@ restored as compatibility layers.
   `voided_stale` success does not auto-submit a follow-up low-watermark refill.
   Radio cooperative aborts return `voided_stale` rather than failed terminal
   outcomes, and Radio→Main notify subjects use public handle-shaped objects, not
-  internal material refs. Radio transcript durability is Agent Runtime-owned
-  through `agent_runtime_radio_transcripts`; the run substrate writes a capped
-  tail of the long-lived pi `Agent.state.messages` after `agent_end`; save
-  failures fail the run instead of fabricating success. It reloads only on
-  explicit restart/reconstruction, not per run.
+  internal material refs. Transcript durability is Agent Runtime-owned through
+  the generic `agent_runtime_transcripts` table keyed by actor kind; the shared
+  session writes a capped tail of the long-lived pi `Agent.state.messages` after
+  pi `agent_end`; save failures fail the run instead of fabricating success.
+  Main and Radio reload only on explicit actor reconstruction, not before each
+  run.
 - Phase B PR3.4-PR3.6 now closes the callable steering/correction chain. Main
   has structural motif/active-variation tools, Radio has bounded lean tools,
   and user/Main/Radio queue edits share provenance-aware
@@ -1056,6 +1063,35 @@ Current formal state does not implement:
 
 Later phases rebuild those areas directly from formal architecture and
 contracts.
+
+## Known Active Gaps (Audit 2026-06-30)
+
+Deep-code audit on branch `codex/phase-b-pr3.6`. Full findings live in
+`docs/maintenance/full-codebase-audit-2026-06-30.md` (evidence only). The
+entries below are gaps that affect current implementation authority, not
+maintenance evidence.
+
+- Candidate handle bindings are minted without `expiresAt`
+  (`src/stage_interface/handle_minting.ts:104-110`), and `resolve`
+  revalidates only the registry binding's own (never-set) expiry, never the
+  backing material-candidate cache (`:117-131`): candidate handles never
+  expire and can dangle after a cache purge. The Public Handle Veil
+  candidate-TTL contract is silently broken.
+- Storage schema contributions are applied non-atomically
+  (`src/storage/postgres/schema.ts:13-17` runs each contribution on the raw
+  pool with no `BEGIN`/`COMMIT`): a partial DDL failure mid-`initialize`
+  leaves drifted views/constraints/indexes that idempotent contributions will
+  not reliably self-heal.
+- Postgres transactions use a plain `BEGIN` = READ COMMITTED
+  (`src/storage/postgres/database.ts:215`). PR3.5's per-instance
+  `transactionQueue` serializes same-process transactions but leaves residual
+  lost-update risk in auto-commit `context()` writes and across
+  multi-process/multi-instance deployments. Identity merge, import dedup,
+  queue append, and playNow are the live read-modify-write surfaces.
+- Three assertion test files are not registered in the stage-core test runner
+  manifest (`test/run-stage-core-tests.ts:4-63`): `command-basis-tracker`,
+  `download-command`, `library-import-job`. `npm test` reports green while
+  these suites never execute — a silent coverage gap.
 
 ## Verification Pointers
 

@@ -145,25 +145,26 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/agent_runtime
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
     "src/agent_runtime/actor_definition.ts",
+    "src/agent_runtime/actor_runtime_session.ts",
+    "src/agent_runtime/agent_background_refill_trigger.ts",
     "src/agent_runtime/agent_harness.ts",
     "src/agent_runtime/agent_message_helpers.ts",
+    "src/agent_runtime/agent_run_cascade.ts",
+    "src/agent_runtime/agent_transcript_store.ts",
+    "src/agent_runtime/agent_user_turn_trigger.ts",
     "src/agent_runtime/command_basis_tracker.ts",
     "src/agent_runtime/index.ts",
-    "src/agent_runtime/main_agent_session.ts",
     "src/agent_runtime/main_radio_channel.ts",
     "src/agent_runtime/pi_engine.ts",
-    "src/agent_runtime/radio_run.ts",
     "src/agent_runtime/radio_run_result_recorder.ts",
-    "src/agent_runtime/radio_session_repo_facade.ts",
     "src/agent_runtime/radio_supervisor.ts",
-    "src/agent_runtime/radio_tool_pack.ts",
     "src/agent_runtime/schema.ts",
     "src/agent_runtime/speech_level.ts",
     "src/agent_runtime/stage_tool_bridge.ts",
     "src/agent_runtime/workspace_context_assembler.ts",
     "src/agent_runtime/workspace_context_diff.ts",
     "src/agent_runtime/workspace_context_encoder.ts",
-], "formal Agent Runtime root must stay focused on actor definitions, shared Workspace Context assembly, the pi engine facade, Main Agent turn session, Stage tool bridge, and Phase B Radio runtime substrate");
+], "formal Agent Runtime root must stay focused on actor definitions, shared ActorRuntimeSession, shared Workspace Context assembly, the pi engine facade, Stage tool bridge, and Phase B trigger/runtime substrate");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/workbench_interface")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
@@ -368,9 +369,8 @@ function externalPackageBoundaryFailure(edge: ArchitectureImportEdge): string | 
     return undefined;
 }
 function isPiHarnessImportAllowed(file: string): boolean {
-    return file.startsWith("src/agent_runtime/radio_session_repo_facade") ||
+    return file.startsWith("src/agent_runtime/agent_transcript_store") ||
         file.startsWith("test/formal/agent-runtime-") ||
-        file === "test/formal/radio-run.test.ts" ||
         file === "test/formal/radio-endurance.test.ts";
 }
 function serverBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
@@ -420,7 +420,7 @@ function agentRuntimeBoundaryFailure(edge: ArchitectureImportEdge): string | und
     if (edge.toArea === "storage") {
         const storageTypeOnlyFiles = new Set([
             "src/agent_runtime/index.ts",
-            "src/agent_runtime/radio_session_repo_facade.ts",
+            "src/agent_runtime/agent_transcript_store.ts",
             "src/agent_runtime/schema.ts",
         ]);
         if (storageTypeOnlyFiles.has(edge.fromFile) && (
