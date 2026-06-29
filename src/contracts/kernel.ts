@@ -53,6 +53,9 @@ export type ConcernRevisionChange = {
   actor: ConcernRevisionChangeActor;
 };
 
+// Internal post-commit observer. Implementations must be synchronous and
+// non-throwing: a committed command must not be converted into a failed command
+// by a notification side effect.
 export type ConcernRevisionObserver = {
   observe(change: ConcernRevisionChange): void;
 };

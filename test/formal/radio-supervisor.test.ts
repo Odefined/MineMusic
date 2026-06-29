@@ -591,6 +591,52 @@ async function runRadioSupervisorTests(): Promise<void> {
 {
   const clock = createFakeClock("2026-06-28T00:00:00.000Z");
   const harness = createHarness({ queueDepth: 4, clock, failedTerminalCooldownMs: 10_000 });
+
+  await harness.supervisor.wake("low_watermark");
+  harness.backgroundWork.resolveTerminal(harness.backgroundWork.submissions[0]!.jobId, "failed");
+  await harness.supervisor.waitForTerminalObservation();
+
+  harness.runPort.nextResult = (input) => ({
+    runId: input.runId,
+    radioDirectionRevision: input.payload.radioDirectionRevision,
+    radioSessionRevision: input.payload.radioSessionRevision,
+    outcome: "voided_stale",
+    appendedCount: 0,
+  });
+  await harness.backgroundWork.runJob(harness.backgroundWork.submissions[1]!.jobId);
+  harness.backgroundWork.resolveTerminal(harness.backgroundWork.submissions[1]!.jobId, "succeeded");
+  await harness.supervisor.waitForTerminalObservation();
+
+  assert.equal(harness.supervisor.snapshot().refilling, false);
+  assert.equal(
+    harness.supervisor.snapshot().cooldownUntil?.toISOString(),
+    "2026-06-28T00:00:10.000Z",
+  );
+
+  harness.pacing.queueDepth = 10;
+  harness.pacing.radioDirectionRevision = 1;
+  harness.supervisor.observeRevisionChange({
+    ownerScope,
+    concern: "radio-direction",
+    newRevision: 1,
+    actor: "main_agent",
+  });
+  await harness.supervisor.waitForWakeScheduling();
+
+  assert.equal(harness.backgroundWork.submissions.length, 3);
+  assert.equal(
+    harness.backgroundWork.submissions[2]!.input.payload.wakeReason,
+    "direction_changed",
+  );
+  assert.equal(
+    harness.backgroundWork.submissions[2]!.input.runAfter?.toISOString(),
+    "2026-06-28T00:00:10.000Z",
+  );
+}
+
+{
+  const clock = createFakeClock("2026-06-28T00:00:00.000Z");
+  const harness = createHarness({ queueDepth: 4, clock, failedTerminalCooldownMs: 10_000 });
   harness.runPort.nextResult = (input) => ({
     runId: input.runId,
     radioDirectionRevision: input.payload.radioDirectionRevision,

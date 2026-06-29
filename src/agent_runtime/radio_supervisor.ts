@@ -156,6 +156,8 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   return {
     wake,
     observeRevisionChange(change) {
+      // `actor` is carried for PR4 basis-table cancellation. PR3.6 schedules
+      // every committed direction revision regardless of which actor wrote it.
       if (
         change.ownerScope !== input.ownerScope ||
         change.concern !== "radio-direction" ||
@@ -226,6 +228,8 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     },
   };
 
+  // The public supervisor port exposes only low-watermark wakes. Direction
+  // change wakes are internal work scheduled by observeRevisionChange.
   async function wake(reason: RadioWakeReason): Promise<RadioWakeDecision> {
     if (wakeGateState !== "Running") {
       return { kind: "not_running", wakeGateState };
@@ -464,6 +468,8 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
 
       const requestedRevision = pendingDirectionRevision;
       try {
+        // Expected scheduling failures are retained as supervisor state instead
+        // of rejecting the internal scheduling chain.
         const decision = await wake("direction_changed");
         if (decision.kind !== "submitted") {
           return;
