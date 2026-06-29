@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import type { Result, StageError } from "../../src/contracts/kernel.js";
 import type { JsonSchema, StageToolContext, ToolDeclaration } from "../../src/contracts/stage_interface.js";
 import { createStageToolContext } from "../../src/stage_interface/index.js";
-import { createExtensionRuntimeModule, createStageRuntime, isRuntimeModuleIdSafe, type RuntimeModule, type RuntimeModuleContribution, } from "../../src/stage_core/index.js";
+import { createExtensionRuntimeModule, createStageRuntime, DEFAULT_STAGE_TOOL_TIMEOUT_MS, isRuntimeModuleIdSafe, type RuntimeModule, type RuntimeModuleContribution, } from "../../src/stage_core/index.js";
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2 ? true : false;
 type Expect<Check extends true> = Check;
 export type _runtimeModuleContributionShape = Expect<Equal<keyof RuntimeModuleContribution, "instruments" | "tools">>;
+assert.equal(DEFAULT_STAGE_TOOL_TIMEOUT_MS, 60_000);
 const dispatchContext = testStageToolContext();
 const emptyObjectSchema = {
     type: "object",

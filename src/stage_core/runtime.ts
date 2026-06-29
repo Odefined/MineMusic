@@ -1,6 +1,10 @@
 import type { Result, StageError } from "../contracts/kernel.js";
 import type { RuntimeErrorSummary, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../contracts/stage_core.js";
-import { createStageInterface, type StageInterface } from "../stage_interface/index.js";
+import {
+  createStageInterface,
+  DEFAULT_STAGE_TOOL_TIMEOUT_MS,
+  type StageInterface,
+} from "../stage_interface/index.js";
 import {
   mergeRuntimeModuleContributions,
   validateRuntimeModules,
@@ -17,7 +21,7 @@ export type StageRuntime = {
   stop(): Promise<Result<StageRuntimeSnapshot>>;
 };
 
-export const DEFAULT_STAGE_TOOL_TIMEOUT_MS = 30_000;
+export { DEFAULT_STAGE_TOOL_TIMEOUT_MS } from "../stage_interface/index.js";
 
 export type CreateStageRuntimeInput = {
   modules?: readonly RuntimeModule[];

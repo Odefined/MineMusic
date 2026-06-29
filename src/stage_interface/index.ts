@@ -143,6 +143,8 @@ export type CreateStageInterfaceInput = {
   defaultToolTimeoutMs?: number;
 };
 
+export const DEFAULT_STAGE_TOOL_TIMEOUT_MS = 60_000;
+
 type ToolValidation = {
   input: ValidateFunction;
   output: ValidateFunction;
@@ -150,7 +152,7 @@ type ToolValidation = {
 
 export function createStageInterface(input: CreateStageInterfaceInput): StageInterface {
   const tools = input.registrations.map((registration) => registration.descriptor);
-  const defaultToolTimeoutMs = input.defaultToolTimeoutMs ?? 30_000;
+  const defaultToolTimeoutMs = input.defaultToolTimeoutMs ?? DEFAULT_STAGE_TOOL_TIMEOUT_MS;
 
   assertUnique(input.instruments.map((instrument) => instrument.id), "instrument id");
   assertUnique(tools.map((tool) => tool.name), "tool name");
