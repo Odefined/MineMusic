@@ -434,7 +434,9 @@ the same action vocabulary used for other agent-editable ordered collections.
   `radio.variations.add` / `radio.variations.remove` /
   `radio.variations.replace` / `radio.variations.move` /
   `radio.variations.clear`, addressed by the zero-based indexes shown in the
-  current Workspace Context projection.
+  current Workspace Context projection. The list is bounded at 10 entries.
+- `text` direction values are short steering tags, not prose blobs. Music
+  Experience rejects direction text longer than 100 characters.
 
 These are separate agent-facing action tools. The Stage tool `ownerArea` and
 instrument identify Music Experience ownership; the public tool names do not
@@ -649,7 +651,8 @@ Full rationale and OCC table in ADR-0037. In Phase B terms:
   main key). It is bounded by a small fixed cap (~3–5; forces crystallisation,
   MemGPT-style) and autonomously, incrementally edited — Radio decides each run
   whether to leave/add/replace/remove; **no forced full rewrite per run**. `text`
-  items are short tags, not prose; the deepening reasoning stays in the transcript
+  items are short tags, not prose and share the same 100-character cap as
+  commanded direction text; the deepening reasoning stays in the transcript
   (soul). This takes the LangGraph structured-state route over the MemGPT
   free-text route deliberately (anti-bloat by cap, anti-drift by anchors-not-prose
   + replace trade-off); see ADR-0037 Rejected Alternatives.

@@ -8,7 +8,11 @@ import type {
   MusicExperienceSetRadioDirectionCommandOutput,
   MusicExperienceWriteRadioPostureCommandOutput,
 } from "../../src/contracts/music_experience.js";
-import { MAX_RADIO_POSTURE_LEAN_ITEMS } from "../../src/contracts/music_experience.js";
+import {
+  MAX_RADIO_ACTIVE_VARIATION_ITEMS,
+  MAX_RADIO_DIRECTION_TEXT_LENGTH,
+  MAX_RADIO_POSTURE_LEAN_ITEMS,
+} from "../../src/contracts/music_experience.js";
 import {
   createMaterialProjection,
   musicDataPlatformIdentitySchema,
@@ -64,6 +68,22 @@ for (const [descriptor, propertyName] of [
 ] as const) {
   assert.equal(inputPropertySchemaType(descriptor.inputSchema, propertyName), "integer");
 }
+assert.equal(
+  definitionTextSchemaMaxLength(radioVariationsAddDescriptor.inputSchema, "RadioTruthToolValue"),
+  MAX_RADIO_DIRECTION_TEXT_LENGTH,
+);
+assert.equal(
+  definitionTextSchemaMaxLength(radioVariationsAddDescriptor.outputSchema, "RadioTruthToolValueOutput"),
+  MAX_RADIO_DIRECTION_TEXT_LENGTH,
+);
+assert.equal(
+  nestedSchemaNumber(radioVariationsAddDescriptor.outputSchema, ["properties", "direction", "properties", "activeVariations", "maxItems"]),
+  MAX_RADIO_ACTIVE_VARIATION_ITEMS,
+);
+assert.equal(
+  nestedSchemaNumber(radioLeanAddDescriptor.outputSchema, ["properties", "posture", "properties", "lean", "maxItems"]),
+  MAX_RADIO_POSTURE_LEAN_ITEMS,
+);
 
 {
   const database = await initializedMusicExperienceDatabase();
@@ -701,6 +721,48 @@ for (const [descriptor, propertyName] of [
 {
   const database = await initializedMusicExperienceDatabase();
   const command = createMusicExperienceRadioTruthCommand({ database });
+  const overCapDirection = await command.setRadioDirection({
+    ownerScope,
+    activeVariations: Array.from({ length: MAX_RADIO_ACTIVE_VARIATION_ITEMS + 1 }, (_, index) => ({
+      kind: "text",
+      text: `variation-${index}`,
+    })),
+    now,
+  });
+
+  assert.equal(overCapDirection.ok, false);
+  if (!overCapDirection.ok) {
+    assert.equal(overCapDirection.error.code, "radio_truth_invalid");
+    assert.equal(overCapDirection.error.area, "music_experience");
+  }
+
+  const overlongMotif = await command.setRadioMotif({
+    ownerScope,
+    value: {
+      kind: "text",
+      text: "x".repeat(MAX_RADIO_DIRECTION_TEXT_LENGTH + 1),
+    },
+    basis: { radioDirectionRevision: 0 },
+    now,
+  });
+
+  assert.equal(overlongMotif.ok, false);
+  if (!overlongMotif.ok) {
+    assert.equal(overlongMotif.error.code, "radio_truth_invalid");
+    assert.equal(overlongMotif.error.area, "music_experience");
+  }
+
+  const truth = await createMusicExperienceRadioTruthRecords({ db: database.context() }).read({ ownerScope });
+  assert.deepEqual(truth.direction, {
+    activeVariations: [],
+  });
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  const command = createMusicExperienceRadioTruthCommand({ database });
   const overCap = await command.writeRadioPosture({
     ownerScope,
     lean: Array.from({ length: MAX_RADIO_POSTURE_LEAN_ITEMS + 1 }, (_, index) => ({
@@ -854,6 +916,7 @@ for (const [descriptor, propertyName] of [
       motif: {
         kind: "material",
         item: "[material:mh_radio_truth_motif]",
+        materialKind: "recording",
         label: "Read Model Motif",
         artistsText: "Read Artist",
       },
@@ -951,8 +1014,11 @@ for (const [descriptor, propertyName] of [
     refKey(postureRef),
   ]]);
   assert.equal(slice.queue[0]?.item, `[material:mh_${queuedRef.id}]`);
+  assert.equal(slice.queue[0]?.materialKind, "recording");
   assert.equal(slice.radio.direction.motif?.kind, "material");
+  assert.equal(slice.radio.direction.motif?.kind === "material" ? slice.radio.direction.motif.materialKind : undefined, "recording");
   assert.equal(slice.radio.posture.lean[0]?.kind, "material");
+  assert.equal(slice.radio.posture.lean[0]?.kind === "material" ? slice.radio.posture.lean[0].materialKind : undefined, "recording");
 
   await database.close();
 }
@@ -1115,6 +1181,32 @@ function sleep(ms: number): Promise<void> {
 function inputPropertySchemaType(schema: object, propertyName: string): unknown {
   const property = (schema as { properties?: Record<string, { type?: unknown }> }).properties?.[propertyName];
   return property?.type;
+}
+
+function definitionTextSchemaMaxLength(schema: object, definitionName: string): unknown {
+  const definition = (schema as {
+    definitions?: Record<string, {
+      anyOf?: readonly {
+        properties?: {
+          kind?: { const?: unknown };
+          text?: { maxLength?: unknown };
+        };
+      }[];
+    }>;
+  }).definitions?.[definitionName];
+  const textVariant = definition?.anyOf?.find((variant) => variant.properties?.kind?.const === "text");
+  return textVariant?.properties?.text?.maxLength;
+}
+
+function nestedSchemaNumber(schema: object, path: readonly string[]): unknown {
+  let current: unknown = schema;
+  for (const key of path) {
+    if (current === null || typeof current !== "object") {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
 }
 
 async function seedRecording(

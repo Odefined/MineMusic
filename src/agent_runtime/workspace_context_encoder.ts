@@ -169,7 +169,7 @@ function formatRadioValue(value: MusicExperienceWorkspaceRadioDirectionValue): s
 
 function formatMusicItem(item: MusicExperienceWorkspaceItemSummary): string {
   const artists = item.artistsText === undefined ? "" : ` - ${quoteText(item.artistsText)}`;
-  return `${quoteText(item.label)}${artists} ${item.item}`;
+  return `${item.materialKind} ${quoteText(item.label)}${artists} ${item.item}`;
 }
 
 function quoteText(text: string): string {

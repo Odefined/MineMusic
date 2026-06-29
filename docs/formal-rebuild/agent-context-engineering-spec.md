@@ -346,7 +346,7 @@ Current section vocabulary starts with:
 {
   "listening": {
     "nowPlaying": null,
-    "queue": "0. <label> - <artistsText> [material:mh_...]\n1. <label> [material:mh_...]"
+    "queue": "0. <materialKind> <label> - <artistsText> [material:mh_...]\n1. <materialKind> <label> [material:mh_...]"
   }
 }
 ```
@@ -365,6 +365,9 @@ Rules:
   `[material:mh_<opaque>]` value is a pass-back handle, not an id, ref, or
   stable material identity claim.
 - `label` is required in each queue line.
+- `materialKind` is required in each material line and is one of `recording`,
+  `album`, or `artist`, so agents can tell whether a material handle refers to a
+  track-like recording, an album, or an artist without dereferencing it.
 - `artistsText` is optional and is omitted from the line when absent.
 - `queueLength` may exist only as an auxiliary compressed summary. It must never
   replace the queue lines when the actor needs current-queue identity.

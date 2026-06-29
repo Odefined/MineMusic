@@ -21,7 +21,7 @@ assert.equal(musicExperiencePresentDescriptor.name, "music.experience.present");
 assert.equal(musicExperiencePresentDescriptor.sideEffect.durableUserStateWrite, true);
 assert.equal(musicExperiencePresentDescriptor.invocationPolicy.defaultDecision, "auto");
 assert.equal(musicExperiencePresentDescriptor.invocationPolicy.admissionDrivenByPresentation, true);
-assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.code), ["candidate_expired", "candidate_not_found", "material_not_found", "invalid_input"]);
+assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.code), ["candidate_expired", "candidate_not_found", "material_not_found", "invalid_input", "operation_aborted"]);
 {
     const database = await initializedPresentDatabase();
     const source = sourceTrack("present-candidate", "Present Candidate Song", {
@@ -385,6 +385,60 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     expectToolError(result, "invalid_input");
 }
 {
+    const abortController = new AbortController();
+    abortController.abort();
+    let commitCalled = false;
+    const candidateRef = createProviderMaterialCandidateRef({
+        sourceRef: sourceTrack("entry-abort-present", "Entry Abort Present Song").sourceRef,
+    });
+    const result = await dispatchWithPorts({
+        item: "[candidate:entry_abort_candidate]",
+        candidateHandles: candidateHandlesFor({
+            publicId: "entry_abort_candidate",
+            materialCandidateRef: candidateRef,
+        }),
+        candidateCommit: {
+            async commitCandidate() {
+                commitCalled = true;
+                throw new Error("Candidate Commit should not run after entry abort.");
+            },
+        },
+        abortSignal: abortController.signal,
+    });
+    expectToolError(result, "operation_aborted");
+    assert.equal(commitCalled, false);
+}
+{
+    const abortController = new AbortController();
+    let commitCalled = false;
+    const candidateRef = createProviderMaterialCandidateRef({
+        sourceRef: sourceTrack("resolve-abort-present", "Resolve Abort Present Song").sourceRef,
+    });
+    const result = await dispatchWithPorts({
+        item: "[candidate:resolve_abort_candidate]",
+        candidateHandles: {
+            async mint() {
+                return "resolve_abort_candidate";
+            },
+            async resolve() {
+                abortController.abort();
+                return {
+                    materialCandidateRef: refKey(candidateRef),
+                };
+            },
+        },
+        candidateCommit: {
+            async commitCandidate() {
+                commitCalled = true;
+                throw new Error("Candidate Commit should not run after resolve-time abort.");
+            },
+        },
+        abortSignal: abortController.signal,
+    });
+    expectToolError(result, "operation_aborted");
+    assert.equal(commitCalled, false);
+}
+{
     const module = createMusicExperienceRuntimeModule({
         candidateCommit: stubCandidateCommit(),
         materialProjection: stubMaterialProjection(),
@@ -431,6 +485,7 @@ function createPresentContext(input: {
     requestId: string;
     handleMinting: NonNullable<Parameters<typeof createStageToolContext>[0]["handleMinting"]>;
     executionGate?: Parameters<typeof createStageToolContext>[0]["executionGate"];
+    abortSignal?: AbortSignal;
 }): ReturnType<typeof createStageToolContext> {
     return createStageToolContext({
         ownerScope: "owner-a",
@@ -439,6 +494,7 @@ function createPresentContext(input: {
         clock: () => now,
         handleMinting: input.handleMinting,
         ...(input.executionGate === undefined ? {} : { executionGate: input.executionGate }),
+        ...(input.abortSignal === undefined ? {} : { abortSignal: input.abortSignal }),
     });
 }
 async function dispatchWithPorts(input: {
@@ -448,6 +504,7 @@ async function dispatchWithPorts(input: {
     materialProjection?: MaterialProjection;
     handleMinting?: NonNullable<Parameters<typeof createStageToolContext>[0]["handleMinting"]>;
     db?: MusicDatabaseContext;
+    abortSignal?: AbortSignal;
 }): Promise<Result<ToolCallOutput>> {
     const ownedDatabase = input.db === undefined ? await initializedPresentDatabase() : undefined;
     const db = input.db ?? ownedDatabase!.context();
@@ -470,6 +527,7 @@ async function dispatchWithPorts(input: {
         return await stageInterface.dispatch(createPresentContext({
             requestId: "dispatch-with-ports",
             handleMinting,
+            ...(input.abortSignal === undefined ? {} : { abortSignal: input.abortSignal }),
         }), {
             toolName: musicExperiencePresentDescriptor.name,
             payload: {

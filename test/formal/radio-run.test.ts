@@ -144,7 +144,7 @@ const key = {
   assert.match(observedSystemPrompt, /Actor Identity:/);
   assert.match(observedSystemPrompt, /Workspace Context:/);
   assert.match(observedSystemPrompt, /radio:\ndirectionRevision: 7/);
-  assert.match(observedSystemPrompt, /0\. "Already Queued" \[material:material:already-queued\]/);
+  assert.match(observedSystemPrompt, /0\. recording "Already Queued" \[material:material:already-queued\]/);
   assert.equal(observedSystemPrompt.includes("Radio Run Floor:"), false);
   assert.match(observedMessagesJson, /radio_refill/);
   assert.match(observedMessagesJson, /suggestedAppendCount/);
@@ -978,6 +978,7 @@ function workspaceProjectionFixture(input: {
     queue: [{
       position: 0,
       item: "[material:material:already-queued]" as const,
+      materialKind: "recording",
       label: "Already Queued",
     }],
     radio: {

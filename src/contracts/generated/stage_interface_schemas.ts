@@ -566,7 +566,8 @@ export const radioMotifSetInputSchema = {
               "const": "text"
             },
             "text": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 100
             }
           },
           "required": [
@@ -698,7 +699,8 @@ export const radioVariationsAddInputSchema = {
               "const": "text"
             },
             "text": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 100
             }
           },
           "required": [
@@ -837,7 +839,8 @@ export const radioVariationsReplaceInputSchema = {
               "const": "text"
             },
             "text": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 100
             }
           },
           "required": [
@@ -987,7 +990,8 @@ export const radioLeanAddInputSchema = {
               "const": "text"
             },
             "text": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 100
             }
           },
           "required": [
@@ -1126,7 +1130,8 @@ export const radioLeanReplaceInputSchema = {
               "const": "text"
             },
             "text": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 100
             }
           },
           "required": [
@@ -1270,7 +1275,8 @@ export const radioDirectionToolOutputSchema = {
           "type": "array",
           "items": {
             "$ref": "#/definitions/RadioTruthToolValueOutput"
-          }
+          },
+          "maxItems": 10
         }
       },
       "required": [
@@ -1317,7 +1323,8 @@ export const radioDirectionToolOutputSchema = {
               "const": "text"
             },
             "text": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 100
             }
           },
           "required": [
@@ -1414,7 +1421,8 @@ export const radioLeanToolOutputSchema = {
           "type": "array",
           "items": {
             "$ref": "#/definitions/RadioTruthToolValueOutput"
-          }
+          },
+          "maxItems": 5
         },
         "commandedRevisionStamp": {
           "$ref": "#/definitions/ConcernRevision"
@@ -1450,7 +1458,8 @@ export const radioLeanToolOutputSchema = {
               "const": "text"
             },
             "text": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 100
             }
           },
           "required": [

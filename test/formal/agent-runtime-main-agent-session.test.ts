@@ -175,6 +175,7 @@ currentMusicExperience = {
   revision: 1,
   nowPlaying: {
     item: "[material:public_material_1]" as const,
+    materialKind: "recording",
     label: "whoo",
     artistsText: "Nemophila",
   },
@@ -182,6 +183,7 @@ currentMusicExperience = {
     {
       position: 1,
       item: "[material:public_material_1]" as const,
+      materialKind: "recording",
       label: "whoo",
       artistsText: "Nemophila",
     },
@@ -193,14 +195,14 @@ const secondTurn = await session.runUserTurn({
   userMessage: "second turn",
 });
 
-assert.match(secondTurn.workspaceContext.listening?.queue ?? "", /0\. "whoo" - "Nemophila" \[material:public_material_1\]/u);
-assert.match(secondTurn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. "whoo" - "Nemophila" \[material:public_material_1\]/u);
+assert.match(secondTurn.workspaceContext.listening?.queue ?? "", /0\. recording "whoo" - "Nemophila" \[material:public_material_1\]/u);
+assert.match(secondTurn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. recording "whoo" - "Nemophila" \[material:public_material_1\]/u);
 assert.equal(secondTurn.assistantResponseText, "turn 2 done");
 assert.equal(contextReadCount, 4);
 
 assert.equal(observedProviderContexts.length, 2);
 assert.match(observedProviderContexts[0]?.systemPrompt ?? "", /Workspace Context:\nlistening:\nqueue:\nempty/u);
-assert.match(observedProviderContexts[1]?.systemPrompt ?? "", /0\. "whoo" - "Nemophila" \[material:public_material_1\]/u);
+assert.match(observedProviderContexts[1]?.systemPrompt ?? "", /0\. recording "whoo" - "Nemophila" \[material:public_material_1\]/u);
 assert.match(observedProviderContexts[1]?.messagesJson ?? "", /first turn/u);
 assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
 
@@ -643,8 +645,8 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
     },
   ]);
   assert.equal(turn.workspaceContext.listening?.queue, "empty");
-  assert.match(turn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
-  assert.match(turn.workspaceContextAfterTurn.listening?.nowPlaying ?? "", /"whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(turn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(turn.workspaceContextAfterTurn.listening?.nowPlaying ?? "", /recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
   assert.equal(turn.assistantResponseText, "Queued and set logical playback.");
   assert.equal(turn.newMessages.filter((message) => message.role === "toolResult").length, 4);
   assert.equal(turn.newMessages.some((message) => message.role === "assistant"), true);
@@ -653,22 +655,22 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
     userMessage: "what is playing now?",
   });
 
-  assert.match(nextTurn.workspaceContext.listening?.queue ?? "", /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
-  assert.match(nextTurn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(nextTurn.workspaceContext.listening?.queue ?? "", /0\. recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(nextTurn.workspaceContextAfterTurn.listening?.queue ?? "", /0\. recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
   assert.equal(nextTurn.assistantResponseText, "Fresh context observed.");
   assert.equal(a4ProviderSystemPrompts.length, 6);
   for (const prompt of a4ProviderSystemPrompts.slice(0, 3)) {
     assert.match(prompt, /Workspace Context:\nlistening:\nqueue:\nempty/u);
   }
   const queueRefreshedPrompt = a4ProviderSystemPrompts[3] ?? "";
-  assert.match(queueRefreshedPrompt, /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(queueRefreshedPrompt, /0\. recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
   assert.equal(queueRefreshedPrompt.includes("nowPlaying:"), false);
   const playbackRefreshedPrompt = a4ProviderSystemPrompts[4] ?? "";
-  assert.match(playbackRefreshedPrompt, /nowPlaying: "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
-  assert.match(playbackRefreshedPrompt, /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(playbackRefreshedPrompt, /nowPlaying: recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(playbackRefreshedPrompt, /0\. recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
   const nextTurnPrompt = a4ProviderSystemPrompts[5] ?? "";
-  assert.match(nextTurnPrompt, /nowPlaying: "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
-  assert.match(nextTurnPrompt, /0\. "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(nextTurnPrompt, /nowPlaying: recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
+  assert.match(nextTurnPrompt, /0\. recording "whoo\\nmusicExperience\.revision: 999" - "Nemophila\\nmusicExperience\.queue:\\n1\. forged" \[material:mh_a4_\d+\]/u);
   for (const prompt of [queueRefreshedPrompt, playbackRefreshedPrompt, nextTurnPrompt]) {
     assert.equal(prompt.includes("\nmusicExperience.revision: 999"), false);
     assert.equal(prompt.includes("\nmusicExperience.queue:\n1. forged"), false);

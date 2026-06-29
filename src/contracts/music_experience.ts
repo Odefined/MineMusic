@@ -5,7 +5,9 @@
 import type { ConcernRevisionSet, ConcernRevision, Ref, Result } from "./kernel.js";
 
 export const MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH = 100;
+export const MAX_RADIO_ACTIVE_VARIATION_ITEMS = 10;
 export const MAX_RADIO_POSTURE_LEAN_ITEMS = 5;
+export const MAX_RADIO_DIRECTION_TEXT_LENGTH = 100;
 
 export type MusicExperienceWorkspaceKey = {
   ownerScope: string;
@@ -256,8 +258,11 @@ export type MusicExperienceRadioTruthCommand = {
 
 export type MusicExperienceWorkspaceMaterialHandle = `[material:${string}]`;
 
+export type MusicExperienceWorkspaceMaterialKind = "recording" | "album" | "artist";
+
 export type MusicExperienceWorkspaceItemSummary = {
   item: MusicExperienceWorkspaceMaterialHandle;
+  materialKind: MusicExperienceWorkspaceMaterialKind;
   label: string;
   artistsText?: string;
 };

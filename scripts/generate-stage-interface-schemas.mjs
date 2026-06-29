@@ -9,6 +9,18 @@ const outputPath = resolve(
   "src/contracts/generated/stage_interface_schemas.ts",
 );
 const checkMode = process.argv.includes("--check");
+const musicExperienceContractSource = await readFile(
+  resolve(repositoryRoot, "src/contracts/music_experience.ts"),
+  "utf8",
+);
+
+function readNumericExport(name) {
+  const match = new RegExp(`export const ${name} = (\\d+);`).exec(musicExperienceContractSource);
+  if (match === null) {
+    throw new Error(`Could not read numeric export ${name} from src/contracts/music_experience.ts.`);
+  }
+  return Number.parseInt(match[1], 10);
+}
 
 const schemaTargets = [
   {
@@ -295,6 +307,9 @@ function generatorFor(sourcePath) {
 
 const TOOL_LIMIT_CONSTRAINT = { type: "integer", minimum: 1, maximum: 100 };
 const NON_EMPTY_STRING_CONSTRAINT = { type: "string", minLength: 1 };
+const RADIO_ACTIVE_VARIATION_ITEMS_MAX = readNumericExport("MAX_RADIO_ACTIVE_VARIATION_ITEMS");
+const RADIO_POSTURE_LEAN_ITEMS_MAX = readNumericExport("MAX_RADIO_POSTURE_LEAN_ITEMS");
+const RADIO_DIRECTION_TEXT_MAX_LENGTH = readNumericExport("MAX_RADIO_DIRECTION_TEXT_LENGTH");
 const MATERIAL_MUSIC_ITEM_HANDLE_CONSTRAINT = {
   type: "string",
   pattern: "^\\[material:[^\\]\\r\\n]+\\]$",
@@ -384,6 +399,30 @@ function applyNonEmptyStringPropertyOverlay(schema, propertyName) {
     (node) => node.type === "string" && node.minLength === undefined,
     () => ({ ...NON_EMPTY_STRING_CONSTRAINT }),
   );
+}
+
+function applyMaxLengthStringPropertyOverlay(schema, propertyName, maxLength) {
+  overlayProperty(
+    schema,
+    propertyName,
+    (node) => node.type === "string",
+    (node) => ({ ...node, maxLength }),
+  );
+}
+
+function applyMaxItemsPropertyOverlay(schema, propertyName, maxItems) {
+  overlayProperty(
+    schema,
+    propertyName,
+    (node) => node.type === "array",
+    (node) => ({ ...node, maxItems }),
+  );
+}
+
+function applyRadioDirectionBoundOverlays(schema) {
+  applyMaxLengthStringPropertyOverlay(schema, "text", RADIO_DIRECTION_TEXT_MAX_LENGTH);
+  applyMaxItemsPropertyOverlay(schema, "activeVariations", RADIO_ACTIVE_VARIATION_ITEMS_MAX);
+  applyMaxItemsPropertyOverlay(schema, "lean", RADIO_POSTURE_LEAN_ITEMS_MAX);
 }
 
 const NON_EMPTY_LIBRARY_IMPORT_BATCH_ID_DEFINITIONS = new Set([
@@ -632,6 +671,15 @@ const generatedSchemas = schemaTargets.map((target) => {
     target.exportName.startsWith("radioLean")
   ) {
     applyRadioIndexIntegerOverlays(schema);
+  }
+  if (
+    target.exportName.startsWith("radioMotif") ||
+    target.exportName.startsWith("radioVariations") ||
+    target.exportName.startsWith("radioLean") ||
+    target.exportName === "radioDirectionToolOutputSchema" ||
+    target.exportName === "radioLeanToolOutputSchema"
+  ) {
+    applyRadioDirectionBoundOverlays(schema);
   }
   applyMusicItemHandlePatternOverlay(schema);
   applyMusicScopeHandlePatternOverlay(schema);

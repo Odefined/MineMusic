@@ -350,7 +350,9 @@ correctness dependent on a projection trick.
   command module — expose command-port methods for structural commanded-direction
   steering and Radio posture edits. Direction steering applies a batched change
   list and bumps `radio_direction_revision` once; posture edits do not bump any
-  revision and stamp the current direction revision.
+  revision and stamp the current direction revision. Commanded
+  `activeVariations` are capped at 10 entries; all radio direction/posture text
+  values are capped at 100 characters.
 - `src/contracts/stage_interface.ts`,
   `scripts/generate-stage-interface-schemas.mjs`, and
   `src/contracts/generated/stage_interface_schemas.ts` — add one small public
@@ -368,7 +370,9 @@ correctness dependent on a projection trick.
   - `radio.lean.move`: `{ from, to }`;
   - `radio.lean.clear`: `{}`.
   The public `value` shape is `text | material | scope`, where material uses
-  existing `MusicItemHandle` and scope uses existing `MusicScope`.
+  existing `MusicItemHandle` and scope uses existing `MusicScope`. The generated
+  schemas carry the same text/active-variation/lean bounds as the Music
+  Experience command contract.
 - `src/music_experience/read_model.ts`, workspace projection contracts, and
   `src/agent_runtime/workspace_context_encoder.ts` — render
   `activeVariations:` and `lean:` with the same numbered-list convention already

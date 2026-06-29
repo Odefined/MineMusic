@@ -122,6 +122,11 @@ async function resolveCandidate(
     return invalidInput("Candidate handle did not resolve to a valid material candidate.");
   }
 
+  const abortedBeforeCommit = failIfAborted(ctx.abortSignal);
+  if (abortedBeforeCommit !== undefined) {
+    return abortedBeforeCommit;
+  }
+
   const committed = await ports.candidateCommit.commitCandidate({
     materialCandidateRef,
   });

@@ -20,6 +20,7 @@ import type {
   MaterialProjection,
 } from "../../music_data_platform/index.js";
 import {
+  failIfAborted,
   mintMaterialItemHandle,
   resolveDurableMusicMaterial,
 } from "./durable_item_resolution.js";
@@ -117,6 +118,11 @@ export const musicExperiencePresentDescriptor: ToolDeclaration = {
       retryable: false,
       suggestedFixTemplate: "Call music.experience.present with item as a full [material:...] or [candidate:...] handle.",
     },
+    {
+      code: "operation_aborted",
+      retryable: true,
+      suggestedFixTemplate: "Retry the action if it is still desired.",
+    },
   ],
   resultSummary(result) {
     const output = result as MusicExperiencePresentOutput;
@@ -138,11 +144,21 @@ async function handleMusicExperiencePresent(
   payload: unknown,
   ports: CreateMusicExperiencePresentRegistrationInput,
 ): Promise<Result<MusicExperiencePresentOutput>> {
+  const abortedAtEntry = failIfAborted(ctx.abortSignal);
+  if (abortedAtEntry !== undefined) {
+    return abortedAtEntry;
+  }
+
   const input = payload as MusicExperiencePresentInput;
   const material = await resolveDurableMusicMaterial(ctx, input.item, ports);
 
   if (!material.ok) {
     return material;
+  }
+
+  const abortedAfterResolve = failIfAborted(ctx.abortSignal);
+  if (abortedAfterResolve !== undefined) {
+    return abortedAfterResolve;
   }
 
   return presentMaterial(ctx, material.value);

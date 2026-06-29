@@ -9,6 +9,8 @@ import type {
 } from "../contracts/music_experience.js";
 import type { ConcernRevisionSet, Ref, Result } from "../contracts/kernel.js";
 import {
+  MAX_RADIO_ACTIVE_VARIATION_ITEMS,
+  MAX_RADIO_DIRECTION_TEXT_LENGTH,
   MAX_RADIO_POSTURE_LEAN_ITEMS,
   MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
 } from "../contracts/music_experience.js";
@@ -249,6 +251,11 @@ function validateRadioDirection(input: RadioDirectionSnapshot): void {
   if (input.motif !== undefined) {
     validateVariationItem(input.motif);
   }
+  if (input.activeVariations.length > MAX_RADIO_ACTIVE_VARIATION_ITEMS) {
+    throw new RadioTruthValidationError(
+      `Radio active variations are capped at ${MAX_RADIO_ACTIVE_VARIATION_ITEMS} item(s).`,
+    );
+  }
   validateVariationItems(input.activeVariations);
 }
 
@@ -263,6 +270,11 @@ function validateVariationItem(item: VariationItem): void {
     case "text": {
       if (item.text.trim().length === 0) {
         throw new RadioTruthValidationError("Radio direction text must be non-empty.");
+      }
+      if (item.text.length > MAX_RADIO_DIRECTION_TEXT_LENGTH) {
+        throw new RadioTruthValidationError(
+          `Radio direction text is capped at ${MAX_RADIO_DIRECTION_TEXT_LENGTH} character(s).`,
+        );
       }
       return;
     }
@@ -387,7 +399,7 @@ function radioTruthInvalidResult(message: string) {
       message,
       area: "music_experience" as const,
       retryable: false,
-      suggestedFix: `Pass at most ${MAX_RADIO_POSTURE_LEAN_ITEMS} posture lean item(s) and valid radio direction anchors.`,
+      suggestedFix: `Pass at most ${MAX_RADIO_ACTIVE_VARIATION_ITEMS} active variation item(s), ${MAX_RADIO_POSTURE_LEAN_ITEMS} posture lean item(s), text up to ${MAX_RADIO_DIRECTION_TEXT_LENGTH} character(s), and valid radio direction anchors.`,
     },
   };
 }

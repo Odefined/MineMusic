@@ -390,12 +390,14 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
       {
         position: 1,
         item: `[material:${materialHandleId}]`,
+        materialKind: "recording",
         label: "A3 Dispatch Song",
         artistsText: "Dispatch Artist",
       },
     ],
     nowPlaying: {
       item: `[material:${materialHandleId}]`,
+      materialKind: "recording",
       label: "A3 Dispatch Song",
       artistsText: "Dispatch Artist",
     },

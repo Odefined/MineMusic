@@ -59,6 +59,7 @@ export function createMusicExperienceReadModel(
         const summary = musicItemSummaryFromMaterial(material);
         summaries.set(refKey(materialRef), {
           item: formatWorkspaceMaterialHandle(publicId),
+          materialKind: summary.materialKind,
           label: summary.label,
           ...(summary.artistsText === undefined ? {} : { artistsText: summary.artistsText }),
         });
@@ -193,6 +194,7 @@ function radioMaterialRefs(value: RadioDirectionValue | undefined): readonly Ref
 }
 
 function musicItemSummaryFromMaterial(material: MusicMaterial): {
+  materialKind: MusicExperienceWorkspaceItemSummary["materialKind"];
   label: string;
   artistsText?: string;
 } {
@@ -201,12 +203,14 @@ function musicItemSummaryFromMaterial(material: MusicMaterial): {
     case "album": {
       const artists = material.artistLabels ?? [];
       return {
+        materialKind: material.kind,
         label: material.title,
         ...(artists.length === 0 ? {} : { artistsText: artists.join(", ") }),
       };
     }
     case "artist":
       return {
+        materialKind: material.kind,
         label: material.name,
       };
   }
