@@ -59,6 +59,10 @@ export type MusicExperienceRadioTruthRecords = {
   read(input: {
     ownerScope: string;
   }): Promise<MusicExperienceRadioTruthSnapshot>;
+  readForPostureWrite(input: {
+    ownerScope: string;
+    now: string;
+  }): Promise<MusicExperienceRadioTruthSnapshot>;
   setDirection(input: {
     ownerScope: string;
     direction: RadioDirectionSnapshot;
@@ -259,6 +263,16 @@ export function createMusicExperienceRadioTruthRecords(
         radioDirectionRevision: state.radio_direction_revision,
       });
     },
+    async readForPostureWrite(readInput) {
+      const key = workspaceKey(readInput.ownerScope, workspaceId);
+      await ensureState({ db, key, now: readInput.now });
+      const state = await lockStateForUpdate({ db, key });
+      return readRadioTruth({
+        db,
+        key,
+        radioDirectionRevision: state.radio_direction_revision,
+      });
+    },
     async setDirection(setInput) {
       const key = workspaceKey(setInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: setInput.now });
@@ -289,10 +303,7 @@ export function createMusicExperienceRadioTruthRecords(
 
       const key = workspaceKey(writeInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: writeInput.now });
-      const state = await readState({ db, key });
-      if (state === undefined) {
-        throw new Error("Music Experience state row was not available after ensureState.");
-      }
+      const state = await lockStateForUpdate({ db, key });
 
       await writeRadioPosture({
         db,
@@ -420,6 +431,28 @@ async function readState(input: {
     `,
     [input.key.ownerScope, input.key.workspaceId],
   );
+}
+
+async function lockStateForUpdate(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+}): Promise<StateRow> {
+  const row = await input.db.get<StateRow>(
+    `
+      SELECT ${STATE_ROW_COLUMNS}
+      FROM music_experience_state
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+      FOR UPDATE
+    `,
+    [input.key.ownerScope, input.key.workspaceId],
+  );
+
+  if (row === undefined) {
+    throw new Error("Music Experience state row was not available for update after ensureState.");
+  }
+
+  return row;
 }
 
 async function countQueueRows(input: {

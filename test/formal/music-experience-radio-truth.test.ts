@@ -91,6 +91,38 @@ const ownerScope = "local";
 }
 
 {
+  const [primary, secondary] = await initializedSharedMusicExperienceDatabases("direction_cas");
+  const primaryCommand = createMusicExperienceRadioTruthCommand({ database: primary });
+  const secondaryCommand = createMusicExperienceRadioTruthCommand({ database: secondary });
+
+  const [firstWrite, secondWrite] = await Promise.all([
+    primaryCommand.setRadioMotif({
+      ownerScope,
+      value: { kind: "text", text: "first concurrent motif" },
+      basis: { radioDirectionRevision: 0 },
+      now,
+    }),
+    secondaryCommand.setRadioMotif({
+      ownerScope,
+      value: { kind: "text", text: "second concurrent motif" },
+      basis: { radioDirectionRevision: 0 },
+      now,
+    }),
+  ]);
+
+  const results = [firstWrite, secondWrite];
+  assert.equal(results.filter((result) => result.ok).length, 1);
+  assert.equal(results.filter((result) => !result.ok && result.error.code === "voided_stale").length, 1);
+  const truth = await createMusicExperienceRadioTruthRecords({ db: primary.context() }).read({ ownerScope });
+  assert.equal(truth.radioDirectionRevision, 1);
+  assert.equal(truth.direction.activeVariations.length, 0);
+  assert.equal(truth.direction.motif?.kind, "text");
+
+  await secondary.close();
+  await primary.close();
+}
+
+{
   const database = await initializedMusicExperienceDatabase();
   const command = createMusicExperienceRadioTruthCommand({ database });
   const material = materialRef("phase_b_radio_truth_action_material");
@@ -278,6 +310,54 @@ const ownerScope = "local";
   }
 
   await database.close();
+}
+
+{
+  const [primary, secondary] = await initializedSharedMusicExperienceDatabases("posture_lock");
+  const primaryCommand = createMusicExperienceRadioTruthCommand({ database: primary });
+  const secondaryCommand = createMusicExperienceRadioTruthCommand({ database: secondary });
+  const direction = expectDirectionOutput(await primaryCommand.setRadioDirection({
+    ownerScope,
+    motif: { kind: "text", text: "locked lean baseline" },
+    activeVariations: [],
+    now,
+  }));
+
+  let secondaryWrite: Promise<Awaited<ReturnType<MusicExperienceRadioTruthCommand["addRadioLean"]>>> | undefined;
+  await primary.transaction(async (db) => {
+    const records = createMusicExperienceRadioTruthRecords({ db });
+    const lockedTruth = await records.readForPostureWrite({ ownerScope, now });
+    assert.deepEqual(lockedTruth.posture.lean, []);
+
+    secondaryWrite = secondaryCommand.addRadioLean({
+      ownerScope,
+      value: { kind: "text", text: "second locked lean" },
+      commandedRevisionStamp: direction.radioDirectionRevision,
+      now,
+    });
+    await sleep(25);
+
+    await records.writePosture({
+      ownerScope,
+      lean: [{ kind: "text", text: "first locked lean" }],
+      commandedRevisionStamp: direction.radioDirectionRevision,
+      now,
+    });
+  });
+
+  assert.ok(secondaryWrite !== undefined);
+  const secondaryOutput = expectPostureOutput(await secondaryWrite);
+  assert.deepEqual(secondaryOutput.posture.lean, [
+    { kind: "text", text: "first locked lean" },
+    { kind: "text", text: "second locked lean" },
+  ]);
+
+  const truth = await createMusicExperienceRadioTruthRecords({ db: primary.context() }).read({ ownerScope });
+  assert.deepEqual(truth.posture.lean, secondaryOutput.posture.lean);
+  assert.equal(truth.posture.stale, false);
+
+  await secondary.close();
+  await primary.close();
 }
 
 {
@@ -929,6 +1009,35 @@ async function initializedMusicExperienceDatabase(): Promise<MusicDatabase> {
     ],
   });
   return database;
+}
+
+async function initializedSharedMusicExperienceDatabases(label: string): Promise<readonly [MusicDatabase, MusicDatabase]> {
+  const schema = `minemusic_test_${process.pid}_62001_${label}`;
+  const primary = await openUninitializedPostgresTestMusicDatabase({ schema });
+  await primary.initialize({
+    schemas: [
+      musicDataPlatformIdentitySchema,
+      stageInterfaceHandleRegistrySchema,
+      musicExperienceQueuePlaybackSchema,
+      musicExperienceRadioTruthSchema,
+    ],
+  });
+  const secondary = await openUninitializedPostgresTestMusicDatabase({ schema, reset: false });
+  await secondary.initialize({
+    schemas: [
+      musicDataPlatformIdentitySchema,
+      stageInterfaceHandleRegistrySchema,
+      musicExperienceQueuePlaybackSchema,
+      musicExperienceRadioTruthSchema,
+    ],
+  });
+  return [primary, secondary];
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 async function seedRecording(

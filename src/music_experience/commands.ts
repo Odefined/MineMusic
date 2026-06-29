@@ -225,7 +225,10 @@ async function editRadioPosture(
   return runRadioTruth(async () => {
     return input.database.transaction(async (db) => {
       const records = createMusicExperienceRadioTruthRecords({ db });
-      const current = await records.read({ ownerScope: commandInput.ownerScope });
+      const current = await records.readForPostureWrite({
+        ownerScope: commandInput.ownerScope,
+        now: commandInput.now,
+      });
       const baseLean = current.posture.stale ? [] : current.posture.lean;
       const lean = edit(baseLean);
       validateVariationItems(lean);
