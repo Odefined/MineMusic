@@ -40,12 +40,14 @@ export type MusicDatabase = {
 
 export type MusicDatabaseErrorCode =
   | "storage.invalid_database_url"
+  | "storage.invalid_transaction_timeout"
   | "storage.database_not_initialized"
   | "storage.database_already_initialized"
   | "storage.database_initialization_failed"
   | "storage.database_initialization_active"
   | "storage.database_closed"
   | "storage.transaction_already_active"
+  | "storage.transaction_timeout"
   | "storage.transaction_context_inactive";
 
 export type CreateMusicDatabaseErrorInput = {

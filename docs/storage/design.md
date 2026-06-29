@@ -68,6 +68,15 @@ Opening and initialization are separate. `open(...)` owns the database handle;
 `initialize(...)` applies ordered schema contributions. `context()` and
 `transaction(...)` reject use before successful initialization.
 
+`PostgresMusicDatabase` bounds every root transaction. The default deadline is
+60 seconds and composition roots/tests may override it with
+`transactionTimeoutMs`. The adapter passes the same limit to PostgreSQL as
+`statement_timeout` and to pool connection acquisition. If the local deadline
+expires first, Storage destroys the transaction client, returns
+`storage.transaction_timeout`, and releases the FIFO transaction queue slot.
+The timeout is a Storage system failure; higher command/tool layers must not
+translate it into stale-domain success or an empty result.
+
 Schema contribution SQL must be idempotent so the same Postgres database/schema
 can be initialized across process starts. A single `MusicDatabase` instance
 accepts one successful `initialize(...)`; repeated initialization throws
@@ -85,6 +94,8 @@ active initialization is forbidden.
 Transactions are root-only:
 
 - `MusicDatabase.transaction(...)` starts the transaction;
+- overlapping root transactions on one adapter instance execute FIFO;
+- a timed-out transaction is aborted before the next queued transaction starts;
 - the callback receives only a transaction-scoped
   `MusicDatabaseTransactionContext`;
 - `MusicDatabaseContext` has no `transaction(...)` method;
@@ -128,6 +139,8 @@ Use `MusicDatabaseError` for storage-owned boundary violations:
 - initialization-active lifecycle violation;
 - database use after close;
 - nested transaction attempt;
+- invalid transaction timeout configuration;
+- transaction deadline exceeded;
 - close attempt inside an active transaction;
 - use of a transaction-scoped context after the transaction ended.
 

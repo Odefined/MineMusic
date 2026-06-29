@@ -5,6 +5,8 @@ import { postgresTestDatabaseUrl, resetPostgresTestSchema, } from "../support/po
 const connectionString = postgresTestDatabaseUrl();
 assertDatabaseError(() => PostgresMusicDatabase.open({ connectionString: "" }), "storage.invalid_database_url");
 assertDatabaseError(() => PostgresMusicDatabase.open({ connectionString: "   " }), "storage.invalid_database_url");
+assertDatabaseError(() => PostgresMusicDatabase.open({ connectionString, transactionTimeoutMs: 0 }), "storage.invalid_transaction_timeout");
+assertDatabaseError(() => PostgresMusicDatabase.open({ connectionString, transactionTimeoutMs: 1.5 }), "storage.invalid_transaction_timeout");
 await resetPostgresTestSchema(connectionString);
 const preInitDatabase = PostgresMusicDatabase.open({ connectionString });
 assertDatabaseError(() => preInitDatabase.context(), "storage.database_not_initialized");
@@ -115,6 +117,35 @@ await orderedDatabase.close();
 assertDatabaseError(() => orderedDatabase.context(), "storage.database_closed");
 await assertDatabaseErrorAsync(() => orderedDatabase.transaction(async () => undefined), "storage.database_closed");
 await assertDatabaseErrorAsync(async () => await orderedDatabase.initialize(), "storage.database_closed");
+await resetPostgresTestSchema(connectionString);
+const timeoutDatabase = PostgresMusicDatabase.open({ connectionString, transactionTimeoutMs: 250 });
+await timeoutDatabase.initialize({
+    schemas: [
+        schema("transaction_timeout", [], async (timeoutContext) => {
+            await timeoutContext.run("CREATE TABLE transaction_timeout_fixture (label TEXT PRIMARY KEY)");
+        }),
+    ],
+});
+const timeoutContext = timeoutDatabase.context();
+assert.equal((await timeoutContext.get<{
+    statement_timeout: string;
+}>("SHOW statement_timeout"))?.statement_timeout, "250ms");
+let timeoutTransactionStarted = false;
+const timedOutTransaction = timeoutDatabase.transaction(async (tx) => {
+    await tx.run("INSERT INTO transaction_timeout_fixture (label) VALUES (?)", ["timed-out"]);
+    timeoutTransactionStarted = true;
+    await new Promise<never>(() => {});
+});
+await waitUntil(() => timeoutTransactionStarted);
+const queuedAfterTimeout = timeoutDatabase.transaction(async (tx) => {
+    await tx.run("INSERT INTO transaction_timeout_fixture (label) VALUES (?)", ["queued-after-timeout"]);
+});
+await assertDatabaseErrorAsync(() => timedOutTransaction, "storage.transaction_timeout");
+await queuedAfterTimeout;
+assert.deepEqual(await timeoutContext.all<{
+    label: string;
+}>("SELECT label FROM transaction_timeout_fixture ORDER BY label"), [{ label: "queued-after-timeout" }]);
+await timeoutDatabase.close();
 await resetPostgresTestSchema(connectionString);
 const failingDatabase = PostgresMusicDatabase.open({ connectionString });
 await assertDatabaseErrorAsync(async () => await failingDatabase.initialize({
