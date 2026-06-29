@@ -150,6 +150,7 @@ function queueEditDescriptor(input: {
   inputSchema: ToolDeclaration["inputSchema"];
   outputSchema: ToolDeclaration["outputSchema"];
   errors: ToolDeclaration["errors"];
+  examples: ToolDeclaration["examples"];
   resultSummary: ToolDeclaration["resultSummary"];
 }): ToolDeclaration {
   return {
@@ -163,17 +164,7 @@ function queueEditDescriptor(input: {
       doNotUseWhen: "Do not use for music lookup, recommendation presentation, or changing the current now-playing selection.",
       outputSemantics: "Returns the resulting queue length; it does not expose storage rows, material refs, or runtime metadata.",
     },
-    examples: [
-      {
-        prompt: "fix the queue order",
-        expects: "call",
-      },
-      {
-        prompt: "play this right now",
-        expects: "avoid",
-        note: "use music.experience.playback.play for logical now-playing selection",
-      },
-    ],
+    examples: input.examples,
     sideEffect: runtimeWriteSideEffect,
     invocationPolicy: runtimeWriteInvocationPolicy,
     inputSchema: input.inputSchema,
@@ -225,6 +216,17 @@ export const playbackQueueRemoveDescriptor: ToolDeclaration = queueEditDescripto
   inputSchema: playbackQueueRemoveInputSchema,
   outputSchema: playbackQueueEditOutputSchema,
   errors: queueIndexEditErrors,
+  examples: [
+    {
+      prompt: "remove the item at queue index 2",
+      expects: "call",
+    },
+    {
+      prompt: "replace the item at queue index 2 with this track",
+      expects: "avoid",
+      note: "use playback.queue.replace when another item should take its place",
+    },
+  ],
   resultSummary: (result) => {
     const output = result as PlaybackQueueEditOutput;
     return `Removed queue item; queue length is ${output.queueLength}.`;
@@ -239,6 +241,17 @@ export const playbackQueueReplaceDescriptor: ToolDeclaration = queueEditDescript
   inputSchema: playbackQueueReplaceInputSchema,
   outputSchema: playbackQueueReplaceOutputSchema,
   errors: queueReplaceErrors,
+  examples: [
+    {
+      prompt: "replace the item at queue index 2 with this track",
+      expects: "call",
+    },
+    {
+      prompt: "remove the item at queue index 2",
+      expects: "avoid",
+      note: "use playback.queue.remove when no replacement should be inserted",
+    },
+  ],
   resultSummary: (result) => {
     const output = result as PlaybackQueueReplaceOutput;
     return `Replaced queue index ${output.index} with ${output.item}; queue length is ${output.queueLength}.`;
@@ -253,6 +266,17 @@ export const playbackQueueMoveDescriptor: ToolDeclaration = queueEditDescriptor(
   inputSchema: playbackQueueMoveInputSchema,
   outputSchema: playbackQueueEditOutputSchema,
   errors: queueIndexEditErrors,
+  examples: [
+    {
+      prompt: "move the item at queue index 3 to index 0",
+      expects: "call",
+    },
+    {
+      prompt: "replace the item at queue index 3 with this track",
+      expects: "avoid",
+      note: "use playback.queue.replace when the queued item itself should change",
+    },
+  ],
   resultSummary: (result) => {
     const output = result as PlaybackQueueEditOutput;
     return `Moved queue item; queue length is ${output.queueLength}.`;
@@ -267,6 +291,17 @@ export const playbackQueueClearDescriptor: ToolDeclaration = queueEditDescriptor
   inputSchema: playbackQueueClearInputSchema,
   outputSchema: playbackQueueEditOutputSchema,
   errors: queueIndexEditErrors,
+  examples: [
+    {
+      prompt: "clear the queue",
+      expects: "call",
+    },
+    {
+      prompt: "remove the item at queue index 2",
+      expects: "avoid",
+      note: "use playback.queue.remove when only one queued item should be removed",
+    },
+  ],
   resultSummary: (result) => {
     const output = result as PlaybackQueueEditOutput;
     return `Cleared editable queued items; queue length is ${output.queueLength}.`;

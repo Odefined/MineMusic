@@ -95,6 +95,38 @@ assert.equal(playbackQueueRemoveDescriptor.name, "playback.queue.remove");
 assert.equal(playbackQueueReplaceDescriptor.name, "playback.queue.replace");
 assert.equal(playbackQueueMoveDescriptor.name, "playback.queue.move");
 assert.equal(playbackQueueClearDescriptor.name, "playback.queue.clear");
+assert.deepEqual(playbackQueueRemoveDescriptor.examples, [
+  { prompt: "remove the item at queue index 2", expects: "call" },
+  {
+    prompt: "replace the item at queue index 2 with this track",
+    expects: "avoid",
+    note: "use playback.queue.replace when another item should take its place",
+  },
+]);
+assert.deepEqual(playbackQueueReplaceDescriptor.examples, [
+  { prompt: "replace the item at queue index 2 with this track", expects: "call" },
+  {
+    prompt: "remove the item at queue index 2",
+    expects: "avoid",
+    note: "use playback.queue.remove when no replacement should be inserted",
+  },
+]);
+assert.deepEqual(playbackQueueMoveDescriptor.examples, [
+  { prompt: "move the item at queue index 3 to index 0", expects: "call" },
+  {
+    prompt: "replace the item at queue index 3 with this track",
+    expects: "avoid",
+    note: "use playback.queue.replace when the queued item itself should change",
+  },
+]);
+assert.deepEqual(playbackQueueClearDescriptor.examples, [
+  { prompt: "clear the queue", expects: "call" },
+  {
+    prompt: "remove the item at queue index 2",
+    expects: "avoid",
+    note: "use playback.queue.remove when only one queued item should be removed",
+  },
+]);
 assert.equal(playbackQueueRemoveDescriptor.errors.some((error) => error.code === "queue_item_not_editable"), true);
 assert.equal(playbackQueueRemoveDescriptor.errors.some((error) => error.code === "candidate_not_found"), false);
 assert.deepEqual(Object.keys(playbackQueueAppendOutputSchema.properties ?? {}).sort(), ["items", "queueLength"]);
