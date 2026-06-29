@@ -2,7 +2,7 @@
 // owning command/read projection shapes. Music facts remain in Music Data
 // Platform; agent-facing tool schemas live in Stage Interface.
 
-import type { CommandPreconditionSet, ConcernRevision, Ref, Result } from "./kernel.js";
+import type { ConcernRevisionSet, ConcernRevision, Ref, Result } from "./kernel.js";
 
 export const MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH = 100;
 export const MAX_RADIO_POSTURE_LEAN_ITEMS = 5;
@@ -76,7 +76,7 @@ export type MusicExperienceQueueAppendCommandInput = {
   ownerScope: string;
   materialRefs: readonly Ref[];
   provenance: MusicExperienceQueueItemProvenance;
-  basis?: CommandPreconditionSet;
+  basis?: ConcernRevisionSet;
   now: string;
 };
 
@@ -107,7 +107,7 @@ export type MusicExperienceSetRadioDirectionCommandInput = {
   ownerScope: string;
   motif?: RadioDirectionValue;
   activeVariations: readonly VariationItem[];
-  basis?: CommandPreconditionSet;
+  basis?: ConcernRevisionSet;
   now: string;
 };
 
@@ -131,7 +131,7 @@ export type MusicExperienceWriteRadioPostureCommandOutput = {
 export type MusicExperienceRadioValueCommandInput = {
   ownerScope: string;
   value: RadioDirectionValue;
-  basis?: CommandPreconditionSet;
+  basis?: ConcernRevisionSet;
   now: string;
 };
 
@@ -139,7 +139,7 @@ export type MusicExperienceRadioIndexedValueCommandInput = {
   ownerScope: string;
   index: number;
   value: RadioDirectionValue;
-  basis?: CommandPreconditionSet;
+  basis?: ConcernRevisionSet;
   now: string;
 };
 
@@ -147,14 +147,14 @@ export type MusicExperienceRadioInsertValueCommandInput = {
   ownerScope: string;
   value: RadioDirectionValue;
   at?: number;
-  basis?: CommandPreconditionSet;
+  basis?: ConcernRevisionSet;
   now: string;
 };
 
 export type MusicExperienceRadioIndexCommandInput = {
   ownerScope: string;
   index: number;
-  basis?: CommandPreconditionSet;
+  basis?: ConcernRevisionSet;
   now: string;
 };
 
@@ -162,13 +162,13 @@ export type MusicExperienceRadioMoveCommandInput = {
   ownerScope: string;
   from: number;
   to: number;
-  basis?: CommandPreconditionSet;
+  basis?: ConcernRevisionSet;
   now: string;
 };
 
 export type MusicExperienceRadioClearCommandInput = {
   ownerScope: string;
-  basis?: CommandPreconditionSet;
+  basis?: ConcernRevisionSet;
   now: string;
 };
 

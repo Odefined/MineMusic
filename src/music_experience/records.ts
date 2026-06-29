@@ -1,7 +1,7 @@
 import {
   parseRefKey,
   refKey,
-  type CommandPreconditionSet,
+  type ConcernRevisionSet,
   type ConcernRevision,
   type Ref,
 } from "../contracts/kernel.js";
@@ -37,7 +37,7 @@ export type MusicExperienceQueuePlaybackRecords = {
     ownerScope: string;
     materialRefs: readonly Ref[];
     provenance: MusicExperienceQueueItemProvenance;
-    basis?: CommandPreconditionSet;
+    basis?: ConcernRevisionSet;
     now: string;
   }): Promise<{
     appended: readonly MusicExperienceQueueItemSnapshot[];
@@ -66,7 +66,7 @@ export type MusicExperienceRadioTruthRecords = {
   setDirection(input: {
     ownerScope: string;
     direction: RadioDirectionSnapshot;
-    basis?: CommandPreconditionSet;
+    basis?: ConcernRevisionSet;
     now: string;
   }): Promise<{
     radioDirectionRevision: ConcernRevision;
@@ -474,7 +474,7 @@ async function countQueueRows(input: {
 async function updateQueueRevision(input: {
   db: MusicDatabaseContext;
   key: MusicExperienceWorkspaceKey;
-  basis?: CommandPreconditionSet;
+  basis?: ConcernRevisionSet;
   now: string;
 }): Promise<StateRow> {
   const conditions: string[] = [];
@@ -549,7 +549,7 @@ async function updatePlayback(input: {
 async function updateRadioDirectionRevision(input: {
   db: MusicDatabaseContext;
   key: MusicExperienceWorkspaceKey;
-  basis?: CommandPreconditionSet;
+  basis?: ConcernRevisionSet;
   now: string;
 }): Promise<StateRow> {
   const conditions: string[] = [];

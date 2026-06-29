@@ -353,6 +353,39 @@ function applyNumericPropertyOverlay(schema, propertyName) {
   }
 }
 
+function applyIntegerPropertyOverlay(schema, propertyName) {
+  if (schema === null || typeof schema !== "object") {
+    return;
+  }
+  if (Array.isArray(schema)) {
+    for (const node of schema) {
+      applyIntegerPropertyOverlay(node, propertyName);
+    }
+    return;
+  }
+  if (
+    schema.properties !== undefined &&
+    typeof schema.properties[propertyName] === "object" &&
+    schema.properties[propertyName] !== null &&
+    schema.properties[propertyName].type === "number"
+  ) {
+    schema.properties[propertyName] = {
+      ...schema.properties[propertyName],
+      type: "integer",
+    };
+  }
+  for (const child of Object.values(schema)) {
+    applyIntegerPropertyOverlay(child, propertyName);
+  }
+}
+
+function applyRadioIndexIntegerOverlays(schema) {
+  applyIntegerPropertyOverlay(schema, "at");
+  applyIntegerPropertyOverlay(schema, "index");
+  applyIntegerPropertyOverlay(schema, "from");
+  applyIntegerPropertyOverlay(schema, "to");
+}
+
 function applyNonEmptyStringPropertyOverlay(schema, propertyName) {
   if (schema === null || typeof schema !== "object") {
     return;
@@ -617,6 +650,12 @@ const generatedSchemas = schemaTargets.map((target) => {
     target.exportName === "libraryImportStatusInputSchema"
   ) {
     applyLibraryImportBatchIdNonEmptyOverlay(schema);
+  }
+  if (
+    target.exportName.startsWith("radioVariations") ||
+    target.exportName.startsWith("radioLean")
+  ) {
+    applyRadioIndexIntegerOverlays(schema);
   }
   applyMusicItemHandlePatternOverlay(schema);
   applyMusicScopeHandlePatternOverlay(schema);

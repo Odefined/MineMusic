@@ -5,7 +5,7 @@ import type {
 
 import type {
   AgentActorKind,
-  CommandPreconditionSet,
+  ConcernRevisionSet,
   Result,
   StageError,
 } from "../contracts/kernel.js";
@@ -41,7 +41,7 @@ export type AgentRuntimeStageToolContextFactoryPort = {
     requestId: string;
     toolName: string;
     actor?: AgentActorKind;
-    preconditionBasis?: CommandPreconditionSet;
+    preconditionBasis?: ConcernRevisionSet;
     abortSignal?: AbortSignal;
   }): StageToolContext;
 };

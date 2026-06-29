@@ -28,6 +28,14 @@ import {
 import {
   createMusicExperienceRadioTruthRegistrations,
   musicExperienceInstrument,
+  radioLeanAddDescriptor,
+  radioLeanMoveDescriptor,
+  radioLeanRemoveDescriptor,
+  radioLeanReplaceDescriptor,
+  radioVariationsAddDescriptor,
+  radioVariationsMoveDescriptor,
+  radioVariationsRemoveDescriptor,
+  radioVariationsReplaceDescriptor,
 } from "../../src/music_experience/stage_adapter/index.js";
 import {
   createStageInterface,
@@ -41,6 +49,21 @@ import { createRecordingProjectionInvalidationCommands } from "./helpers/project
 
 const now = "2026-06-28T00:00:00.000Z";
 const ownerScope = "local";
+
+for (const [descriptor, propertyName] of [
+  [radioVariationsAddDescriptor, "at"],
+  [radioVariationsRemoveDescriptor, "index"],
+  [radioVariationsReplaceDescriptor, "index"],
+  [radioVariationsMoveDescriptor, "from"],
+  [radioVariationsMoveDescriptor, "to"],
+  [radioLeanAddDescriptor, "at"],
+  [radioLeanRemoveDescriptor, "index"],
+  [radioLeanReplaceDescriptor, "index"],
+  [radioLeanMoveDescriptor, "from"],
+  [radioLeanMoveDescriptor, "to"],
+] as const) {
+  assert.equal(inputPropertySchemaType(descriptor.inputSchema, propertyName), "integer");
+}
 
 {
   const database = await initializedMusicExperienceDatabase();
@@ -309,6 +332,44 @@ const ownerScope = "local";
     });
   }
 
+  const abortedController = new AbortController();
+  abortedController.abort();
+  const abortedMotifSet = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "radio-truth-stage-session",
+    requestId: "radio-truth-stage-request-aborted",
+    actor: "main_agent",
+    preconditionBasis: { radioDirectionRevision: 2 },
+    abortSignal: abortedController.signal,
+    clock: () => now,
+  }), {
+    toolName: "radio.motif.set",
+    payload: {
+      value: { kind: "text", text: "aborted motif" },
+    },
+  });
+  assert.equal(abortedMotifSet.ok, false);
+  if (!abortedMotifSet.ok) {
+    assert.equal(abortedMotifSet.error.code, "operation_aborted");
+  }
+
+  const missingBasis = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "radio-truth-stage-session",
+    requestId: "radio-truth-stage-request-missing-basis",
+    actor: "main_agent",
+    clock: () => now,
+  }), {
+    toolName: "radio.motif.set",
+    payload: {
+      value: { kind: "text", text: "missing basis motif" },
+    },
+  });
+  assert.equal(missingBasis.ok, false);
+  if (!missingBasis.ok) {
+    assert.equal(missingBasis.error.code, "stage_interface.tool_handler_failed");
+  }
+
   await database.close();
 }
 
@@ -568,36 +629,34 @@ const ownerScope = "local";
 {
   const database = await initializedMusicExperienceDatabase();
   const command = createMusicExperienceRadioTruthCommand({ database });
-  const unknownValueKind = await command.setRadioDirection({
-    ownerScope,
-    activeVariations: [
-      {
-        kind: "bogus",
-      } as never,
-    ],
-    now,
-  });
-  assert.equal(unknownValueKind.ok, false);
-  if (!unknownValueKind.ok) {
-    assert.equal(unknownValueKind.error.code, "radio_truth_invalid");
-  }
-
-  const unknownScopeKind = await command.setRadioDirection({
-    ownerScope,
-    activeVariations: [
-      {
-        kind: "scope",
-        scope: {
+  await assert.rejects(
+    async () => await command.setRadioDirection({
+      ownerScope,
+      activeVariations: [
+        {
           kind: "bogus",
         } as never,
-      },
-    ],
-    now,
-  });
-  assert.equal(unknownScopeKind.ok, false);
-  if (!unknownScopeKind.ok) {
-    assert.equal(unknownScopeKind.error.code, "radio_truth_invalid");
-  }
+      ],
+      now,
+    }),
+    /Unexpected Radio truth variant/,
+  );
+
+  await assert.rejects(
+    async () => await command.setRadioDirection({
+      ownerScope,
+      activeVariations: [
+        {
+          kind: "scope",
+          scope: {
+            kind: "bogus",
+          } as never,
+        },
+      ],
+      now,
+    }),
+    /Unexpected Radio truth variant/,
+  );
 
   const malformedMaterialRef = await command.setRadioDirection({
     ownerScope,
@@ -1038,6 +1097,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function inputPropertySchemaType(schema: object, propertyName: string): unknown {
+  const property = (schema as { properties?: Record<string, { type?: unknown }> }).properties?.[propertyName];
+  return property?.type;
 }
 
 async function seedRecording(

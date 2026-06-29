@@ -26,6 +26,10 @@ export type CommandBasisTracker = {
   absorbToolResult(result: Result<ToolCallOutput>): void;
 };
 
+// Turn/run-local tracker for revision basis. Before a tool call it projects the
+// current revisions into that tool's `preconditionBasis`; after a successful
+// tool call it absorbs only the tool's explicit `changedBasis`. Failed calls and
+// ordinary result revision fields never advance the tracker.
 export function createCommandBasisTracker(input: {
   initialBasis?: ConcernRevisionSet;
 } = {}): CommandBasisTracker {

@@ -125,7 +125,9 @@ export function createAgentRuntimeRadioModule(
             now: new Date().toISOString(),
           });
           if (!cleared.ok) {
-            throw new Error(`Radio run-start failed to clear stale posture: ${cleared.error.code}`);
+            throw new Error(`Radio run-start failed to clear stale posture: ${cleared.error.code}`, {
+              cause: cleared.error,
+            });
           }
         },
         prepareRun(payload, _workspaceContext) {

@@ -13,7 +13,7 @@
 
 import type {
   AgentActorKind,
-  CommandPreconditionSet,
+  ConcernRevisionSet,
 } from "../contracts/kernel.js";
 import type {
   HandleMintingPort,
@@ -27,7 +27,7 @@ import { createStageToolContext } from "./context.js";
 export type CreateStageToolContextFactoryInput = {
   ownerScope: string;
   actor?: AgentActorKind;
-  preconditionBasis?: CommandPreconditionSet;
+  preconditionBasis?: ConcernRevisionSet;
   clock: () => string;
   handleMinting: HandleMintingPort;
   lookupCursors: LookupCursorStore;
@@ -39,7 +39,7 @@ export type CreateToolContextPerCallInput = {
   sessionId: string;
   requestId: string;
   actor?: AgentActorKind;
-  preconditionBasis?: CommandPreconditionSet;
+  preconditionBasis?: ConcernRevisionSet;
   abortSignal?: AbortSignal;
 };
 

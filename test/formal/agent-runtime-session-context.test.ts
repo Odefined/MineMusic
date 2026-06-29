@@ -4,6 +4,7 @@ import {
   createMineMusicPiAgentAdapter,
   createWorkspaceContextAssembler,
   mainDefinition,
+  radioDefinition,
   renderAgentRuntimeSystemPrompt,
   validateActorDefinition,
 } from "../../src/agent_runtime/index.js";
@@ -28,6 +29,29 @@ export type _workspaceContextAssemblerInputKeys = Expect<
 export type _piAgentAdapterHasNoSessionContextInput = Expect<
   Equal<Extract<keyof CreateMineMusicPiAgentAdapterInput, "sessionContext">, never>
 >;
+
+assert.deepEqual(
+  radioDefinition.toolPack.stageToolNames.filter((name) => name.startsWith("radio.")),
+  [
+    "radio.lean.add",
+    "radio.lean.remove",
+    "radio.lean.replace",
+    "radio.lean.move",
+    "radio.lean.clear",
+  ],
+);
+assert.deepEqual(
+  mainDefinition.toolPack.stageToolNames.filter((name) => name.startsWith("radio.")),
+  [
+    "radio.motif.set",
+    "radio.motif.clear",
+    "radio.variations.add",
+    "radio.variations.remove",
+    "radio.variations.replace",
+    "radio.variations.move",
+    "radio.variations.clear",
+  ],
+);
 
 const readCalls: unknown[] = [];
 const assembler = createWorkspaceContextAssembler({

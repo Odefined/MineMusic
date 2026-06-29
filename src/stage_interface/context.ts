@@ -4,7 +4,7 @@ import {
 } from "../effect_boundary/index.js";
 import type {
   AgentActorKind,
-  CommandPreconditionSet,
+  ConcernRevisionSet,
 } from "../contracts/kernel.js";
 import type {
   HandleMintingPort,
@@ -22,7 +22,7 @@ export type CreateStageToolContextInput = {
   sessionId: string;
   requestId: string;
   actor?: AgentActorKind;
-  preconditionBasis?: CommandPreconditionSet;
+  preconditionBasis?: ConcernRevisionSet;
   clock?: () => string;
   abortSignal?: AbortSignal;
   handleMinting?: HandleMintingPort;

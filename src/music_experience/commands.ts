@@ -7,7 +7,7 @@ import type {
   RadioDirectionSnapshot,
   VariationItem,
 } from "../contracts/music_experience.js";
-import type { CommandPreconditionSet, Ref, Result } from "../contracts/kernel.js";
+import type { ConcernRevisionSet, Ref, Result } from "../contracts/kernel.js";
 import {
   MAX_RADIO_POSTURE_LEAN_ITEMS,
   MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH,
@@ -189,7 +189,7 @@ async function editRadioDirection(
   input: CreateMusicExperienceQueuePlaybackCommandInput,
   commandInput: {
     ownerScope: string;
-    basis?: CommandPreconditionSet;
+    basis?: ConcernRevisionSet;
     now: string;
   },
   edit: (direction: RadioDirectionSnapshot) => RadioDirectionSnapshot,
@@ -272,9 +272,8 @@ function validateVariationItem(item: VariationItem): void {
     case "scope":
       validateScope(item.scope);
       return;
-    default:
-      throw new RadioTruthValidationError("Radio direction value kind must be text, material, or scope.");
   }
+  assertNever(item);
 }
 
 function validateMaterialRef(materialRef: Ref): void {
@@ -307,9 +306,8 @@ function validateScope(scope: RadioDirectionScopeValue): void {
       }
       return;
     }
-    default:
-      throw new RadioTruthValidationError("Radio direction scope kind is not supported.");
   }
+  assertNever(scope);
 }
 
 function insertAt<T>(
@@ -439,4 +437,8 @@ async function runRadioTruth<T>(
     }
     throw error;
   }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unexpected Radio truth variant: ${JSON.stringify(value)}`);
 }

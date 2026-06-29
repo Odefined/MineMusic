@@ -680,7 +680,7 @@ export const radioVariationsAddInputSchema = {
       "$ref": "#/definitions/RadioTruthToolValue"
     },
     "at": {
-      "type": "number"
+      "type": "integer"
     }
   },
   "required": [
@@ -801,7 +801,7 @@ export const radioVariationsRemoveInputSchema = {
   "type": "object",
   "properties": {
     "index": {
-      "type": "number"
+      "type": "integer"
     }
   },
   "required": [
@@ -815,7 +815,7 @@ export const radioVariationsReplaceInputSchema = {
   "type": "object",
   "properties": {
     "index": {
-      "type": "number"
+      "type": "integer"
     },
     "value": {
       "$ref": "#/definitions/RadioTruthToolValue"
@@ -940,10 +940,10 @@ export const radioVariationsMoveInputSchema = {
   "type": "object",
   "properties": {
     "from": {
-      "type": "number"
+      "type": "integer"
     },
     "to": {
-      "type": "number"
+      "type": "integer"
     }
   },
   "required": [
@@ -969,7 +969,7 @@ export const radioLeanAddInputSchema = {
       "$ref": "#/definitions/RadioTruthToolValue"
     },
     "at": {
-      "type": "number"
+      "type": "integer"
     }
   },
   "required": [
@@ -1090,7 +1090,7 @@ export const radioLeanRemoveInputSchema = {
   "type": "object",
   "properties": {
     "index": {
-      "type": "number"
+      "type": "integer"
     }
   },
   "required": [
@@ -1104,7 +1104,7 @@ export const radioLeanReplaceInputSchema = {
   "type": "object",
   "properties": {
     "index": {
-      "type": "number"
+      "type": "integer"
     },
     "value": {
       "$ref": "#/definitions/RadioTruthToolValue"
@@ -1229,10 +1229,10 @@ export const radioLeanMoveInputSchema = {
   "type": "object",
   "properties": {
     "from": {
-      "type": "number"
+      "type": "integer"
     },
     "to": {
-      "type": "number"
+      "type": "integer"
     }
   },
   "required": [
