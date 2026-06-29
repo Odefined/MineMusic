@@ -332,25 +332,38 @@ for (const [descriptor, propertyName] of [
     });
   }
 
-  const abortedController = new AbortController();
-  abortedController.abort();
-  const abortedMotifSet = await stageInterface.dispatch(createStageToolContext({
-    ownerScope,
-    sessionId: "radio-truth-stage-session",
-    requestId: "radio-truth-stage-request-aborted",
-    actor: "main_agent",
-    preconditionBasis: { radioDirectionRevision: 2 },
-    abortSignal: abortedController.signal,
-    clock: () => now,
-  }), {
-    toolName: "radio.motif.set",
-    payload: {
-      value: { kind: "text", text: "aborted motif" },
-    },
-  });
-  assert.equal(abortedMotifSet.ok, false);
-  if (!abortedMotifSet.ok) {
-    assert.equal(abortedMotifSet.error.code, "operation_aborted");
+  for (const [toolName, payload] of [
+    ["radio.motif.set", { value: { kind: "text", text: "aborted motif" } }],
+    ["radio.motif.clear", {}],
+    ["radio.variations.add", { value: { kind: "text", text: "aborted variation" } }],
+    ["radio.variations.remove", { index: 0 }],
+    ["radio.variations.replace", { index: 0, value: { kind: "text", text: "aborted replace" } }],
+    ["radio.variations.move", { from: 0, to: 0 }],
+    ["radio.variations.clear", {}],
+    ["radio.lean.add", { value: { kind: "text", text: "aborted lean" } }],
+    ["radio.lean.remove", { index: 0 }],
+    ["radio.lean.replace", { index: 0, value: { kind: "text", text: "aborted lean replace" } }],
+    ["radio.lean.move", { from: 0, to: 0 }],
+    ["radio.lean.clear", {}],
+  ] as const) {
+    const abortedController = new AbortController();
+    abortedController.abort();
+    const abortedResult = await stageInterface.dispatch(createStageToolContext({
+      ownerScope,
+      sessionId: "radio-truth-stage-session",
+      requestId: `radio-truth-stage-request-aborted-${toolName}`,
+      actor: toolName.startsWith("radio.lean.") ? "radio_agent" : "main_agent",
+      preconditionBasis: { radioDirectionRevision: 2 },
+      abortSignal: abortedController.signal,
+      clock: () => now,
+    }), {
+      toolName,
+      payload,
+    });
+    assert.equal(abortedResult.ok, false);
+    if (!abortedResult.ok) {
+      assert.equal(abortedResult.error.code, "operation_aborted");
+    }
   }
 
   const missingBasis = await stageInterface.dispatch(createStageToolContext({

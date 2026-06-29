@@ -368,6 +368,10 @@ async function handleVariationAdd(
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
 ): Promise<Result<RadioDirectionToolOutput>> {
+  const aborted = failIfAborted(ctx.abortSignal);
+  if (aborted !== undefined) {
+    return aborted;
+  }
   const input = payload as RadioVariationsAddInput;
   const value = await toCommandValue(ctx, input.value, ports);
   if (!value.ok) {
@@ -388,6 +392,10 @@ async function handleVariationRemove(
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
 ): Promise<Result<RadioDirectionToolOutput>> {
+  const aborted = failIfAborted(ctx.abortSignal);
+  if (aborted !== undefined) {
+    return aborted;
+  }
   const input = payload as RadioVariationsRemoveInput;
   const output = await ports.radioTruth.removeRadioVariation({
     ownerScope: ctx.ownerScope,
@@ -403,6 +411,10 @@ async function handleVariationReplace(
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
 ): Promise<Result<RadioDirectionToolOutput>> {
+  const aborted = failIfAborted(ctx.abortSignal);
+  if (aborted !== undefined) {
+    return aborted;
+  }
   const input = payload as RadioVariationsReplaceInput;
   const value = await toCommandValue(ctx, input.value, ports);
   if (!value.ok) {
@@ -423,6 +435,10 @@ async function handleVariationMove(
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
 ): Promise<Result<RadioDirectionToolOutput>> {
+  const aborted = failIfAborted(ctx.abortSignal);
+  if (aborted !== undefined) {
+    return aborted;
+  }
   const input = payload as RadioVariationsMoveInput;
   const output = await ports.radioTruth.moveRadioVariation({
     ownerScope: ctx.ownerScope,
@@ -438,6 +454,10 @@ async function handleVariationClear(
   ctx: StageToolContext,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
 ): Promise<Result<RadioDirectionToolOutput>> {
+  const aborted = failIfAborted(ctx.abortSignal);
+  if (aborted !== undefined) {
+    return aborted;
+  }
   const output = await ports.radioTruth.clearRadioVariations({
     ownerScope: ctx.ownerScope,
     basis: requireRadioDirectionBasis(ctx),
@@ -451,6 +471,10 @@ async function handleLeanAdd(
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
 ): Promise<Result<RadioLeanToolOutput>> {
+  const aborted = failIfAborted(ctx.abortSignal);
+  if (aborted !== undefined) {
+    return aborted;
+  }
   const input = payload as RadioLeanAddInput;
   const value = await toCommandValue(ctx, input.value, ports);
   if (!value.ok) {
@@ -471,6 +495,10 @@ async function handleLeanRemove(
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
 ): Promise<Result<RadioLeanToolOutput>> {
+  const aborted = failIfAborted(ctx.abortSignal);
+  if (aborted !== undefined) {
+    return aborted;
+  }
   const input = payload as RadioLeanRemoveInput;
   const output = await ports.radioTruth.removeRadioLean({
     ownerScope: ctx.ownerScope,
@@ -486,6 +514,10 @@ async function handleLeanReplace(
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
 ): Promise<Result<RadioLeanToolOutput>> {
+  const aborted = failIfAborted(ctx.abortSignal);
+  if (aborted !== undefined) {
+    return aborted;
+  }
   const input = payload as RadioLeanReplaceInput;
   const value = await toCommandValue(ctx, input.value, ports);
   if (!value.ok) {
@@ -506,6 +538,10 @@ async function handleLeanMove(
   payload: unknown,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
 ): Promise<Result<RadioLeanToolOutput>> {
+  const aborted = failIfAborted(ctx.abortSignal);
+  if (aborted !== undefined) {
+    return aborted;
+  }
   const input = payload as RadioLeanMoveInput;
   const output = await ports.radioTruth.moveRadioLean({
     ownerScope: ctx.ownerScope,
@@ -521,6 +557,10 @@ async function handleLeanClear(
   ctx: StageToolContext,
   ports: CreateMusicExperienceRadioTruthRegistrationInput,
 ): Promise<Result<RadioLeanToolOutput>> {
+  const aborted = failIfAborted(ctx.abortSignal);
+  if (aborted !== undefined) {
+    return aborted;
+  }
   const output = await ports.radioTruth.clearRadioLean({
     ownerScope: ctx.ownerScope,
     commandedRevisionStamp: requireRadioDirectionBasis(ctx).radioDirectionRevision,
