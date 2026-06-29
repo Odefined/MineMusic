@@ -85,6 +85,23 @@ export function musicExperienceFail(input: {
   };
 }
 
+// Shared abort guard for Music Experience stage tools: returns the public
+// operation_aborted Result when the call was aborted before it could safely
+// commit, otherwise undefined so the handler proceeds. Both the queue/playback
+// and radio-truth adapters honor this at their owned Stage Interface boundary.
+export function failIfAborted(signal: AbortSignal | undefined): Result<never> | undefined {
+  if (signal?.aborted !== true) {
+    return undefined;
+  }
+
+  return musicExperienceFail({
+    code: "operation_aborted",
+    message: "Music Experience operation was aborted before it could safely commit.",
+    retryable: true,
+    suggestedFix: "Retry the action if it is still desired.",
+  });
+}
+
 async function resolveCandidate(
   ctx: StageToolContext,
   publicId: string,

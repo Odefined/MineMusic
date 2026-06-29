@@ -330,53 +330,44 @@ function applyToolLimitOverlay(schema) {
   applyNumericPropertyOverlay(schema, "limit");
 }
 
-function applyNumericPropertyOverlay(schema, propertyName) {
+// Recurses every node in the schema and, where `properties[propertyName]`
+// matches, replaces it with `mutate(current)`. Shared by the numeric/integer/
+// non-empty-string overlays so the traversal cannot drift between them.
+function overlayProperty(schema, propertyName, matches, mutate) {
   if (schema === null || typeof schema !== "object") {
     return;
   }
   if (Array.isArray(schema)) {
     for (const node of schema) {
-      applyNumericPropertyOverlay(node, propertyName);
+      overlayProperty(node, propertyName, matches, mutate);
     }
     return;
   }
-  if (
-    schema.properties !== undefined &&
-    typeof schema.properties[propertyName] === "object" &&
-    schema.properties[propertyName] !== null &&
-    schema.properties[propertyName].type === "number"
-  ) {
-    schema.properties[propertyName] = { ...TOOL_LIMIT_CONSTRAINT };
+  const current = schema.properties === undefined ? undefined : schema.properties[propertyName];
+  if (current !== undefined && typeof current === "object" && current !== null && matches(current)) {
+    schema.properties[propertyName] = mutate(current);
   }
   for (const child of Object.values(schema)) {
-    applyNumericPropertyOverlay(child, propertyName);
+    overlayProperty(child, propertyName, matches, mutate);
   }
 }
 
+function applyNumericPropertyOverlay(schema, propertyName) {
+  overlayProperty(
+    schema,
+    propertyName,
+    (node) => node.type === "number",
+    () => ({ ...TOOL_LIMIT_CONSTRAINT }),
+  );
+}
+
 function applyIntegerPropertyOverlay(schema, propertyName) {
-  if (schema === null || typeof schema !== "object") {
-    return;
-  }
-  if (Array.isArray(schema)) {
-    for (const node of schema) {
-      applyIntegerPropertyOverlay(node, propertyName);
-    }
-    return;
-  }
-  if (
-    schema.properties !== undefined &&
-    typeof schema.properties[propertyName] === "object" &&
-    schema.properties[propertyName] !== null &&
-    schema.properties[propertyName].type === "number"
-  ) {
-    schema.properties[propertyName] = {
-      ...schema.properties[propertyName],
-      type: "integer",
-    };
-  }
-  for (const child of Object.values(schema)) {
-    applyIntegerPropertyOverlay(child, propertyName);
-  }
+  overlayProperty(
+    schema,
+    propertyName,
+    (node) => node.type === "number",
+    (node) => ({ ...node, type: "integer" }),
+  );
 }
 
 function applyRadioIndexIntegerOverlays(schema) {
@@ -387,27 +378,12 @@ function applyRadioIndexIntegerOverlays(schema) {
 }
 
 function applyNonEmptyStringPropertyOverlay(schema, propertyName) {
-  if (schema === null || typeof schema !== "object") {
-    return;
-  }
-  if (Array.isArray(schema)) {
-    for (const node of schema) {
-      applyNonEmptyStringPropertyOverlay(node, propertyName);
-    }
-    return;
-  }
-  if (
-    schema.properties !== undefined &&
-    typeof schema.properties[propertyName] === "object" &&
-    schema.properties[propertyName] !== null &&
-    schema.properties[propertyName].type === "string" &&
-    schema.properties[propertyName].minLength === undefined
-  ) {
-    schema.properties[propertyName] = { ...NON_EMPTY_STRING_CONSTRAINT };
-  }
-  for (const child of Object.values(schema)) {
-    applyNonEmptyStringPropertyOverlay(child, propertyName);
-  }
+  overlayProperty(
+    schema,
+    propertyName,
+    (node) => node.type === "string" && node.minLength === undefined,
+    () => ({ ...NON_EMPTY_STRING_CONSTRAINT }),
+  );
 }
 
 const NON_EMPTY_LIBRARY_IMPORT_BATCH_ID_DEFINITIONS = new Set([

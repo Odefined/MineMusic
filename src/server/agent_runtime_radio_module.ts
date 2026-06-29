@@ -31,6 +31,7 @@ import type {
 } from "../contracts/music_experience.js";
 import {
   createMusicExperienceQueuePlaybackRecords,
+  createMusicExperienceRadioTruthRecords,
   DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID,
 } from "../music_experience/index.js";
 import type { RuntimeModule } from "../stage_core/index.js";
@@ -81,9 +82,11 @@ export function createAgentRuntimeRadioModule(
       const notifyChannel = requirePort(input.notifyChannel(), "Main Radio notify channel");
       const agentOptions = requirePort(input.agentOptions(), "Radio Agent stream options");
       const transcriptStore = createPostgresRadioTranscriptStore({ db });
-      // The records object closes over only {db, workspaceId} (no per-read
-      // mutable state), so it is built once and shared by the pacing read.
+      // The records objects close over only {db, workspaceId} (no per-read
+      // mutable state), so they are built once and shared by the pacing read
+      // and the run-start stale-posture check.
       const queuePlaybackRecords = createMusicExperienceQueuePlaybackRecords({ db, workspaceId });
+      const radioTruthRecords = createMusicExperienceRadioTruthRecords({ db, workspaceId });
       const agent = createMineMusicPiAgentAdapter({
         systemPrompt: renderAgentRuntimeSystemPrompt({
           actor: radioDefinition,
@@ -114,8 +117,13 @@ export function createAgentRuntimeRadioModule(
         workspaceContext,
         clock: () => new Date().toISOString(),
         async beforeWorkspaceContextAssemble(payload) {
-          const projection = await musicExperienceRead.readWorkspaceProjection({ ownerScope });
-          if (!projection.radio.posture.stale) {
+          // Lean read: only the posture.stale flag is needed here, so read the
+          // radio truth snapshot directly instead of the full workspace
+          // projection (which projects every queued/playing material and mints
+          // a handle per item). The assembled context re-reads the projection
+          // next; this gate just decides whether to clear stale posture first.
+          const radioTruthSnapshot = await radioTruthRecords.read({ ownerScope });
+          if (!radioTruthSnapshot.posture.stale) {
             return;
           }
           const radioTruth = requirePort(input.radioTruth(), "Music Experience Radio Truth command");

@@ -35,6 +35,22 @@ export const musicExperienceInstrument: InstrumentDescriptor = {
   ownerArea: "music_experience",
 };
 
+// Shared ToolDeclaration metadata for runtime-state-write Music Experience stage
+// tools (queue/playback and radio truth). The present tool declares its own
+// durable-user-state-write metadata inline because it admits via presentation.
+export const runtimeWriteSideEffect = {
+  durableUserStateWrite: false,
+  runtimeStateWrite: true,
+  externalCall: false,
+} as const;
+
+export const runtimeWriteInvocationPolicy = {
+  defaultDecision: "auto",
+  dataEgress: "none",
+  readOnlyHint: false,
+  destructiveHint: false,
+} as const;
+
 export const musicExperiencePresentDescriptor: ToolDeclaration = {
   name: "music.experience.present",
   instrumentId: musicExperienceInstrument.id,

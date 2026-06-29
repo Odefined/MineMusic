@@ -48,30 +48,22 @@ import type {
   MaterialProjection,
 } from "../../music_data_platform/index.js";
 import {
+  failIfAborted,
   mintMaterialItemHandle,
   musicExperienceFail,
   resolveDurableMusicItem,
 } from "./durable_item_resolution.js";
-import { musicExperienceInstrument } from "./present.js";
+import {
+  musicExperienceInstrument,
+  runtimeWriteInvocationPolicy,
+  runtimeWriteSideEffect,
+} from "./present.js";
 
 export type CreateMusicExperienceRadioTruthRegistrationInput = {
   candidateCommit: CandidateCommitCommand;
   materialProjection: MaterialProjection;
   radioTruth: MusicExperienceRadioTruthCommand;
 };
-
-const runtimeWriteSideEffect = {
-  durableUserStateWrite: false,
-  runtimeStateWrite: true,
-  externalCall: false,
-} as const;
-
-const runtimeWriteInvocationPolicy = {
-  defaultDecision: "auto",
-  dataEgress: "none",
-  readOnlyHint: false,
-  destructiveHint: false,
-} as const;
 
 const radioTruthErrors = [
   {
@@ -696,17 +688,4 @@ function requireRadioDirectionBasis(ctx: StageToolContext): { radioDirectionRevi
   return {
     radioDirectionRevision,
   };
-}
-
-function failIfAborted(signal: AbortSignal | undefined): Result<never> | undefined {
-  if (signal?.aborted !== true) {
-    return undefined;
-  }
-
-  return musicExperienceFail({
-    code: "operation_aborted",
-    message: "Music Experience operation was aborted before it could safely commit.",
-    retryable: true,
-    suggestedFix: "Retry the action if it is still desired.",
-  });
 }

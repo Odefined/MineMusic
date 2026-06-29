@@ -471,11 +471,16 @@ async function countQueueRows(input: {
   return row?.queue_length ?? 0;
 }
 
-async function updateQueueRevision(input: {
+// Bumps a single revision column with optimistic-concurrency gating on the
+// supplied basis. A missing RETURNING row means the basis did not match the
+// current state, which is a stale precondition. Shared by queue and radio
+// direction revision advances so the CAS plumbing cannot drift between them.
+async function advanceRevision(input: {
   db: MusicDatabaseContext;
   key: MusicExperienceWorkspaceKey;
   basis?: ConcernRevisionSet;
   now: string;
+  setClause: string;
 }): Promise<StateRow> {
   const conditions: string[] = [];
   const params: (string | number)[] = [input.now, input.key.ownerScope, input.key.workspaceId];
@@ -495,7 +500,7 @@ async function updateQueueRevision(input: {
   const row = await input.db.get<StateRow>(
     `
       UPDATE music_experience_state
-      SET queue_revision = queue_revision + 1,
+      SET ${input.setClause},
         updated_at = ?
       WHERE owner_scope = ?
         AND workspace_id = ?
@@ -510,6 +515,15 @@ async function updateQueueRevision(input: {
   }
 
   return row;
+}
+
+async function updateQueueRevision(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  basis?: ConcernRevisionSet;
+  now: string;
+}): Promise<StateRow> {
+  return advanceRevision({ ...input, setClause: "queue_revision = queue_revision + 1" });
 }
 
 async function updatePlayback(input: {
@@ -552,39 +566,7 @@ async function updateRadioDirectionRevision(input: {
   basis?: ConcernRevisionSet;
   now: string;
 }): Promise<StateRow> {
-  const conditions: string[] = [];
-  const params: (string | number)[] = [input.now, input.key.ownerScope, input.key.workspaceId];
-  const basisConditions: Array<[fragment: string, revision: ConcernRevision | undefined]> = [
-    ["AND radio_direction_revision = ?", input.basis?.radioDirectionRevision],
-    ["AND queue_revision = ?", input.basis?.queueRevision],
-    ["AND radio_session_revision = ?", input.basis?.radioSessionRevision],
-    ["AND playback_revision = ?", input.basis?.playbackRevision],
-  ];
-  for (const [fragment, revision] of basisConditions) {
-    if (revision !== undefined) {
-      conditions.push(fragment);
-      params.push(revision);
-    }
-  }
-
-  const row = await input.db.get<StateRow>(
-    `
-      UPDATE music_experience_state
-      SET radio_direction_revision = radio_direction_revision + 1,
-        updated_at = ?
-      WHERE owner_scope = ?
-        AND workspace_id = ?
-        ${conditions.join("\n        ")}
-      RETURNING ${STATE_ROW_COLUMNS}
-    `,
-    params,
-  );
-
-  if (row === undefined) {
-    throw new StaleCommandPreconditionError();
-  }
-
-  return row;
+  return advanceRevision({ ...input, setClause: "radio_direction_revision = radio_direction_revision + 1" });
 }
 
 async function readRadioTruth(input: {
