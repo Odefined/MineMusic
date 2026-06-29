@@ -1,6 +1,4 @@
-import type {
-  MusicExperienceWorkspaceProjectionPort,
-} from "../contracts/music_experience.js";
+import type { MusicExperienceWorkspaceProjectionPort } from "../contracts/music_experience.js";
 import type {
   ActorDefinition,
 } from "./actor_definition.js";

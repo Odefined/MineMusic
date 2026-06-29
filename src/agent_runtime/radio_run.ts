@@ -30,20 +30,20 @@ export type CreatePiRadioRefillRunPortInput = RadioTranscriptKey & {
   clock: () => string;
   actor?: ActorDefinition;
   maxTranscriptMessages?: number;
-  workspaceContext?: WorkspaceContextAssembler;
+  workspaceContext: WorkspaceContextAssembler;
   promptForPayload?: (input: {
     runId: string;
     payload: RadioRefillRunJobPayload;
-    workspaceContext?: EncodedWorkspaceContext;
+    workspaceContext: EncodedWorkspaceContext;
   }) => string | Promise<string>;
   onRunStart?: (
     payload: RadioRefillRunJobPayload,
-    workspaceContext: EncodedWorkspaceContext | undefined,
+    workspaceContext: EncodedWorkspaceContext,
     signal: AbortSignal,
   ) => Promise<void> | void;
   prepareRun?: (
     payload: RadioRefillRunJobPayload,
-    workspaceContext: EncodedWorkspaceContext | undefined,
+    workspaceContext: EncodedWorkspaceContext,
     signal: AbortSignal,
   ) => Promise<void> | void;
   resultFromRun?: (input: {
@@ -72,6 +72,12 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
   if (!Number.isSafeInteger(maxTranscriptMessages) || maxTranscriptMessages <= 0) {
     throw new Error("Radio transcript message cap must be a positive safe integer.");
   }
+  const requireActiveWorkspaceContext = (): EncodedWorkspaceContext => {
+    if (activeWorkspaceContext === undefined) {
+      throw new Error("Radio run-start fired before Workspace Context was assembled.");
+    }
+    return activeWorkspaceContext;
+  };
 
   // pi @0.80.2 fidelity: agent.js:130-139 says listener promises are awaited
   // before idle; agent.js:261-276 snapshots state before runAgentLoop, and
@@ -80,17 +86,17 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
   // and provider failure as final assistant messages.
   input.agent.subscribe(async (event, signal) => {
     if (event.type === "agent_start" && activePayload !== undefined) {
-      await input.onRunStart?.(activePayload, activeWorkspaceContext, signal);
+      await input.onRunStart?.(activePayload, requireActiveWorkspaceContext(), signal);
     }
 
-      if (event.type === "agent_end") {
-        await input.transcriptStore.save({
-          ownerScope: input.ownerScope,
-          workspaceId: input.workspaceId,
-          messages: cappedTranscript(input.agent.state.messages, maxTranscriptMessages),
-          now: input.clock(),
-        });
-      }
+    if (event.type === "agent_end") {
+      await input.transcriptStore.save({
+        ownerScope: input.ownerScope,
+        workspaceId: input.workspaceId,
+        messages: cappedTranscript(input.agent.state.messages, maxTranscriptMessages),
+        now: input.clock(),
+      });
+    }
   });
 
   return {
@@ -111,22 +117,19 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
       };
       let firstNewMessageIndex = 0;
       try {
-        activeWorkspaceContext = await input.workspaceContext?.assemble({
+        activeWorkspaceContext = await input.workspaceContext.assemble({
           actor,
           ownerScope: input.ownerScope,
         });
         if (runInput.signal.aborted) {
           return voidedStaleResult(runInput.runId, runInput.payload);
         }
-        if (activeWorkspaceContext !== undefined) {
-          // The shared Workspace Context and tool bridge must be installed
-          // before prompt(), because pi snapshots provider context before
-          // agent_start.
-          input.agent.state.systemPrompt = renderAgentRuntimeSystemPrompt({
-            actor,
-            workspaceContext: activeWorkspaceContext,
-          });
-        }
+        // The shared Workspace Context and tool bridge must be installed before
+        // prompt(), because pi snapshots provider context before agent_start.
+        input.agent.state.systemPrompt = renderAgentRuntimeSystemPrompt({
+          actor,
+          workspaceContext: activeWorkspaceContext,
+        });
         await input.prepareRun?.(runInput.payload, activeWorkspaceContext, runInput.signal);
         if (runInput.signal.aborted) {
           return voidedStaleResult(runInput.runId, runInput.payload);
@@ -136,36 +139,36 @@ export function createPiRadioRefillRunPort(input: CreatePiRadioRefillRunPortInpu
         await input.agent.prompt(await promptForPayload(input, {
           runId: runInput.runId,
           payload: runInput.payload,
-          ...(activeWorkspaceContext === undefined ? {} : { workspaceContext: activeWorkspaceContext }),
+          workspaceContext: activeWorkspaceContext,
         }));
         await input.agent.waitForIdle();
+
+        const newMessages = input.agent.state.messages.slice(firstNewMessageIndex);
+        if (finalAssistantAborted(newMessages)) {
+          return voidedStaleResult(runInput.runId, runInput.payload);
+        }
+        throwIfFinalAssistantFailed(runInput.runId, newMessages);
+
+        if (input.resultFromRun === undefined) {
+          throw new Error(`Radio refill run '${runInput.runId}' has no result extractor.`);
+        }
+
+        const result = await input.resultFromRun({
+          runId: runInput.runId,
+          payload: runInput.payload,
+        });
+
+        if (result.runId !== runInput.runId) {
+          throw new Error(`Radio refill run result '${result.runId}' did not match Background Work job '${runInput.runId}'.`);
+        }
+
+        return result;
       } finally {
         runInput.signal.removeEventListener("abort", abortAgent);
         activeRunId = undefined;
         activePayload = undefined;
         activeWorkspaceContext = undefined;
       }
-
-      const newMessages = input.agent.state.messages.slice(firstNewMessageIndex);
-      if (finalAssistantAborted(newMessages)) {
-        return voidedStaleResult(runInput.runId, runInput.payload);
-      }
-      throwIfFinalAssistantFailed(runInput.runId, newMessages);
-
-      if (input.resultFromRun === undefined) {
-        throw new Error(`Radio refill run '${runInput.runId}' has no result extractor.`);
-      }
-
-      const result = await input.resultFromRun({
-        runId: runInput.runId,
-        payload: runInput.payload,
-      });
-
-      if (result.runId !== runInput.runId) {
-        throw new Error(`Radio refill run result '${result.runId}' did not match Background Work job '${runInput.runId}'.`);
-      }
-
-      return result;
     },
   };
 }
@@ -182,7 +185,7 @@ async function promptForPayload(
   promptInput: {
     runId: string;
     payload: RadioRefillRunJobPayload;
-    workspaceContext?: EncodedWorkspaceContext;
+    workspaceContext: EncodedWorkspaceContext;
   },
 ): Promise<string> {
   return await input.promptForPayload?.(promptInput) ??
