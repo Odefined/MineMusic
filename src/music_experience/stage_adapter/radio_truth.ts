@@ -575,6 +575,9 @@ async function directionCommandOutput(
     ok: true,
     value: {
       radioDirectionRevision: result.value.radioDirectionRevision,
+      changedBasis: {
+        radioDirectionRevision: result.value.radioDirectionRevision,
+      },
       direction: await directionOutput(ctx, result.value.direction),
     },
   };
@@ -646,7 +649,7 @@ async function valueOutput(
 }
 
 function requireRadioDirectionBasis(ctx: StageToolContext): { radioDirectionRevision: number } {
-  const radioDirectionRevision = ctx.commandBasis?.radioDirectionRevision;
+  const radioDirectionRevision = ctx.preconditionBasis?.radioDirectionRevision;
   if (radioDirectionRevision === undefined) {
     throw new Error("Radio truth stage tools require radioDirectionRevision command basis.");
   }

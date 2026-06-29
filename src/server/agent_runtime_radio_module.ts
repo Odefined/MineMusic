@@ -189,7 +189,7 @@ export function createAgentRuntimeRadioModule(
         return factory.createToolContext({
           ...perCall,
           actor: "radio_agent",
-          ...(currentRadioBasis === undefined ? {} : { commandBasis: currentRadioBasis }),
+          ...(currentRadioBasis === undefined ? {} : { preconditionBasis: currentRadioBasis }),
         });
       },
     };

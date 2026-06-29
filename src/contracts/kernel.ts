@@ -29,12 +29,14 @@ export type ConcernRevision = number;
 // Set of independent CAS preconditions checked by an owning command at commit
 // time. A failed equality check is reported by the command boundary as
 // `voided_stale`.
-export type CommandPreconditionSet = {
+export type ConcernRevisionSet = {
   radioDirectionRevision?: ConcernRevision;
   queueRevision?: ConcernRevision;
   radioSessionRevision?: ConcernRevision;
   playbackRevision?: ConcernRevision;
 };
+
+export type CommandPreconditionSet = ConcernRevisionSet;
 
 export type AgentActorKind = "main_agent" | "radio_agent";
 

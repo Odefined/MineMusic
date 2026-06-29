@@ -5,7 +5,7 @@
 
 import type {
   AgentActorKind,
-  CommandPreconditionSet,
+  ConcernRevisionSet,
   ConcernRevision,
   FormalArea,
   Result,
@@ -103,7 +103,7 @@ export type StageToolContext = {
   sessionId: string;
   requestId: string;
   actor?: AgentActorKind;
-  commandBasis?: CommandPreconditionSet;
+  preconditionBasis?: ConcernRevisionSet;
   clock: () => string;
   abortSignal?: AbortSignal;
   handleMinting: HandleMintingPort;
@@ -721,6 +721,7 @@ export type MusicExperienceQueueAppendOutput = {
   items: readonly MusicExperienceQueueAppendOutputItem[];
   queueLength: number;
   queueRevision: ConcernRevision;
+  changedBasis: ConcernRevisionSet;
 };
 
 export type RadioTruthToolValue =
@@ -783,6 +784,7 @@ export type RadioLeanClearInput = Record<string, never>;
 
 export type RadioDirectionToolOutput = {
   radioDirectionRevision: ConcernRevision;
+  changedBasis: ConcernRevisionSet;
   direction: {
     motif?: RadioTruthToolValueOutput;
     activeVariations: readonly RadioTruthToolValueOutput[];
@@ -809,6 +811,7 @@ export type MusicExperiencePlaybackPlayOutput = {
   item: MaterialMusicItemHandle;
   status: Extract<MusicExperiencePlaybackStatus, "playing">;
   playbackRevision: ConcernRevision;
+  changedBasis: ConcernRevisionSet;
 };
 
 export type MusicDiscoveryLookupItemDescription = PublicHandleDescription & {

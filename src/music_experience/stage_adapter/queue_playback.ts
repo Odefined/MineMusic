@@ -208,7 +208,7 @@ async function handleQueueAppend(
     ownerScope: ctx.ownerScope,
     materialRefs,
     provenance: ctx.actor === "radio_agent" ? "radio_agent" : "main_agent",
-    ...(ctx.commandBasis === undefined ? {} : { basis: ctx.commandBasis }),
+    ...(ctx.preconditionBasis === undefined ? {} : { basis: ctx.preconditionBasis }),
     now: ctx.clock(),
   });
   if (!appended.ok) {
@@ -224,6 +224,9 @@ async function handleQueueAppend(
       }))),
       queueLength: appended.value.queueLength,
       queueRevision: appended.value.queueRevision,
+      changedBasis: {
+        queueRevision: appended.value.queueRevision,
+      },
     },
   };
 }
@@ -264,6 +267,9 @@ async function handlePlaybackPlay(
       item: await mintMaterialItemHandle(ctx, played.value.materialRef),
       status: played.value.status,
       playbackRevision: played.value.playbackRevision,
+      changedBasis: {
+        playbackRevision: played.value.playbackRevision,
+      },
     },
   };
 }

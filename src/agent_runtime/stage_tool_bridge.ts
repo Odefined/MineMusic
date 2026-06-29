@@ -41,7 +41,7 @@ export type AgentRuntimeStageToolContextFactoryPort = {
     requestId: string;
     toolName: string;
     actor?: AgentActorKind;
-    commandBasis?: CommandPreconditionSet;
+    preconditionBasis?: CommandPreconditionSet;
     abortSignal?: AbortSignal;
   }): StageToolContext;
 };

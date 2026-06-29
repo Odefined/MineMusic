@@ -27,7 +27,7 @@ import { createStageToolContext } from "./context.js";
 export type CreateStageToolContextFactoryInput = {
   ownerScope: string;
   actor?: AgentActorKind;
-  commandBasis?: CommandPreconditionSet;
+  preconditionBasis?: CommandPreconditionSet;
   clock: () => string;
   handleMinting: HandleMintingPort;
   lookupCursors: LookupCursorStore;
@@ -39,7 +39,7 @@ export type CreateToolContextPerCallInput = {
   sessionId: string;
   requestId: string;
   actor?: AgentActorKind;
-  commandBasis?: CommandPreconditionSet;
+  preconditionBasis?: CommandPreconditionSet;
   abortSignal?: AbortSignal;
 };
 
@@ -53,13 +53,13 @@ export function createStageToolContextFactory(
   return {
     createToolContext(perCall) {
       const actor = perCall.actor ?? input.actor;
-      const commandBasis = perCall.commandBasis ?? input.commandBasis;
+      const preconditionBasis = perCall.preconditionBasis ?? input.preconditionBasis;
       return createStageToolContext({
         ownerScope: input.ownerScope,
         sessionId: perCall.sessionId,
         requestId: perCall.requestId,
         ...(actor === undefined ? {} : { actor }),
-        ...(commandBasis === undefined ? {} : { commandBasis }),
+        ...(preconditionBasis === undefined ? {} : { preconditionBasis }),
         clock: input.clock,
         handleMinting: input.handleMinting,
         lookupCursors: input.lookupCursors,

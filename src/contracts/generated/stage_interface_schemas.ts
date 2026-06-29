@@ -485,12 +485,16 @@ export const musicExperienceQueueAppendOutputSchema = {
     },
     "queueRevision": {
       "$ref": "#/definitions/ConcernRevision"
+    },
+    "changedBasis": {
+      "$ref": "#/definitions/ConcernRevisionSet"
     }
   },
   "required": [
     "items",
     "queueLength",
-    "queueRevision"
+    "queueRevision",
+    "changedBasis"
   ],
   "additionalProperties": false,
   "definitions": {
@@ -517,6 +521,24 @@ export const musicExperienceQueueAppendOutputSchema = {
     },
     "ConcernRevision": {
       "type": "number"
+    },
+    "ConcernRevisionSet": {
+      "type": "object",
+      "properties": {
+        "radioDirectionRevision": {
+          "$ref": "#/definitions/ConcernRevision"
+        },
+        "queueRevision": {
+          "$ref": "#/definitions/ConcernRevision"
+        },
+        "radioSessionRevision": {
+          "$ref": "#/definitions/ConcernRevision"
+        },
+        "playbackRevision": {
+          "$ref": "#/definitions/ConcernRevision"
+        }
+      },
+      "additionalProperties": false
     }
   }
 } as const satisfies JsonSchema;
@@ -1235,6 +1257,9 @@ export const radioDirectionToolOutputSchema = {
     "radioDirectionRevision": {
       "$ref": "#/definitions/ConcernRevision"
     },
+    "changedBasis": {
+      "$ref": "#/definitions/ConcernRevisionSet"
+    },
     "direction": {
       "type": "object",
       "properties": {
@@ -1256,12 +1281,31 @@ export const radioDirectionToolOutputSchema = {
   },
   "required": [
     "radioDirectionRevision",
+    "changedBasis",
     "direction"
   ],
   "additionalProperties": false,
   "definitions": {
     "ConcernRevision": {
       "type": "number"
+    },
+    "ConcernRevisionSet": {
+      "type": "object",
+      "properties": {
+        "radioDirectionRevision": {
+          "$ref": "#/definitions/ConcernRevision"
+        },
+        "queueRevision": {
+          "$ref": "#/definitions/ConcernRevision"
+        },
+        "radioSessionRevision": {
+          "$ref": "#/definitions/ConcernRevision"
+        },
+        "playbackRevision": {
+          "$ref": "#/definitions/ConcernRevision"
+        }
+      },
+      "additionalProperties": false
     },
     "RadioTruthToolValueOutput": {
       "anyOf": [
@@ -1539,12 +1583,16 @@ export const musicExperiencePlaybackPlayOutputSchema = {
     },
     "playbackRevision": {
       "$ref": "#/definitions/ConcernRevision"
+    },
+    "changedBasis": {
+      "$ref": "#/definitions/ConcernRevisionSet"
     }
   },
   "required": [
     "item",
     "status",
-    "playbackRevision"
+    "playbackRevision",
+    "changedBasis"
   ],
   "additionalProperties": false,
   "definitions": {
@@ -1555,6 +1603,24 @@ export const musicExperiencePlaybackPlayOutputSchema = {
     },
     "ConcernRevision": {
       "type": "number"
+    },
+    "ConcernRevisionSet": {
+      "type": "object",
+      "properties": {
+        "radioDirectionRevision": {
+          "$ref": "#/definitions/ConcernRevision"
+        },
+        "queueRevision": {
+          "$ref": "#/definitions/ConcernRevision"
+        },
+        "radioSessionRevision": {
+          "$ref": "#/definitions/ConcernRevision"
+        },
+        "playbackRevision": {
+          "$ref": "#/definitions/ConcernRevision"
+        }
+      },
+      "additionalProperties": false
     }
   }
 } as const satisfies JsonSchema;

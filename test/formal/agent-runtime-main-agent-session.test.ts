@@ -294,7 +294,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
 {
   const observedContexts: {
     toolName: string;
-    commandBasis: unknown;
+    preconditionBasis: unknown;
     actor: unknown;
   }[] = [];
   let streamCallCount = 0;
@@ -325,7 +325,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
       async dispatch(input) {
         observedContexts.push({
           toolName: input.toolName,
-          commandBasis: input.ctx.commandBasis,
+          preconditionBasis: input.ctx.preconditionBasis,
           actor: input.ctx.actor,
         });
         if (input.toolName === radioMotifSetDescriptor.name) {
@@ -335,6 +335,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
               toolName: input.toolName,
               result: {
                 radioDirectionRevision: 13,
+                changedBasis: { radioDirectionRevision: 13 },
                 direction: {
                   motif: { kind: "text", text: "basis motif" },
                   activeVariations: [],
@@ -350,6 +351,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
               toolName: input.toolName,
               result: {
                 radioDirectionRevision: 14,
+                changedBasis: { radioDirectionRevision: 14 },
                 direction: {
                   motif: { kind: "text", text: "basis motif" },
                   activeVariations: [{ kind: "text", text: "basis variation" }],
@@ -366,6 +368,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
               items: [{ item: "[material:basis_queue]", position: 0 }],
               queueLength: 1,
               queueRevision: 1,
+              changedBasis: { queueRevision: 1 },
             },
           },
         };
@@ -379,7 +382,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
           requestId: input.requestId,
           clock: () => "2026-06-27T01:00:00.000Z",
           ...(input.actor === undefined ? {} : { actor: input.actor }),
-          ...(input.commandBasis === undefined ? {} : { commandBasis: input.commandBasis }),
+          ...(input.preconditionBasis === undefined ? {} : { preconditionBasis: input.preconditionBasis }),
         });
       },
     },
@@ -435,17 +438,17 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
   assert.deepEqual(observedContexts, [
     {
       toolName: "radio.motif.set",
-      commandBasis: { radioDirectionRevision: 12 },
+      preconditionBasis: { radioDirectionRevision: 12 },
       actor: "main_agent",
     },
     {
       toolName: "radio.variations.add",
-      commandBasis: { radioDirectionRevision: 13 },
+      preconditionBasis: { radioDirectionRevision: 13 },
       actor: "main_agent",
     },
     {
       toolName: "music.experience.queue.append",
-      commandBasis: undefined,
+      preconditionBasis: undefined,
       actor: "main_agent",
     },
   ]);

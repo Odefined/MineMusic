@@ -22,7 +22,7 @@ export type CreateStageToolContextInput = {
   sessionId: string;
   requestId: string;
   actor?: AgentActorKind;
-  commandBasis?: CommandPreconditionSet;
+  preconditionBasis?: CommandPreconditionSet;
   clock?: () => string;
   abortSignal?: AbortSignal;
   handleMinting?: HandleMintingPort;
@@ -40,7 +40,7 @@ export function createStageToolContext(input: CreateStageToolContextInput): Stag
     sessionId: input.sessionId,
     requestId: input.requestId,
     ...(input.actor === undefined ? {} : { actor: input.actor }),
-    ...(input.commandBasis === undefined ? {} : { commandBasis: input.commandBasis }),
+    ...(input.preconditionBasis === undefined ? {} : { preconditionBasis: input.preconditionBasis }),
     clock: input.clock ?? (() => new Date().toISOString()),
     ...(input.abortSignal === undefined ? {} : { abortSignal: input.abortSignal }),
     handleMinting: input.handleMinting ?? createUnavailableHandleMintingPort(),

@@ -11,6 +11,10 @@ import {
   type CreateMineMusicPiAgentAdapterInput,
 } from "./pi_engine.js";
 import {
+  createCommandBasisTracker,
+  type CommandBasisTracker,
+} from "./command_basis_tracker.js";
+import {
   renderAgentRuntimeSystemPrompt,
   type EncodedWorkspaceContext,
 } from "./workspace_context_encoder.js";
@@ -57,26 +61,23 @@ export function createMineMusicMainAgentSession(
   input: CreateMineMusicMainAgentSessionInput,
 ): MineMusicMainAgentSession {
   const actor = input.actor ?? mainDefinition;
-  let currentTurnRadioDirectionRevision: number | undefined;
+  let currentTurnBasisTracker: CommandBasisTracker | undefined;
   const agent = createMineMusicPiAgentAdapter({
     ...input,
     dispatch: {
       async dispatch(dispatchInput) {
         const result = await input.dispatch.dispatch(dispatchInput);
-        if (isRadioDirectionToolName(dispatchInput.toolName) && result.ok) {
-          currentTurnRadioDirectionRevision = radioDirectionRevisionFromToolResult(result.value.result);
-        }
+        currentTurnBasisTracker?.absorbToolResult(result);
         return result;
       },
     },
     contextFactory: {
       createToolContext(perCall) {
+        const preconditionBasis = currentTurnBasisTracker?.preconditionBasisForTool(perCall.toolName);
         return input.contextFactory.createToolContext({
           ...perCall,
           actor: "main_agent",
-          ...(isRadioDirectionToolName(perCall.toolName) && currentTurnRadioDirectionRevision !== undefined
-            ? { commandBasis: { radioDirectionRevision: currentTurnRadioDirectionRevision } }
-            : {}),
+          ...(preconditionBasis === undefined ? {} : { preconditionBasis }),
         });
       },
     },
@@ -95,11 +96,17 @@ export function createMineMusicMainAgentSession(
     actor,
     ownerScope: input.ownerScope,
     workspaceContext: input.workspaceContext,
-    setCurrentTurnRadioDirectionRevision(revision) {
-      currentTurnRadioDirectionRevision = revision;
+    seedCurrentTurnBasisTracker(workspaceContext) {
+      currentTurnBasisTracker = createCommandBasisTracker({
+        initialBasis: {
+          ...(workspaceContext.radio === undefined
+            ? {}
+            : { radioDirectionRevision: workspaceContext.radio.directionRevision }),
+        },
+      });
     },
-    clearCurrentTurnRadioDirectionRevision() {
-      currentTurnRadioDirectionRevision = undefined;
+    clearCurrentTurnBasisTracker() {
+      currentTurnBasisTracker = undefined;
     },
   });
 }
@@ -109,8 +116,8 @@ function createMainAgentSessionController(input: {
   actor: ActorDefinition;
   ownerScope: string;
   workspaceContext: WorkspaceContextAssembler;
-  setCurrentTurnRadioDirectionRevision(revision: number | undefined): void;
-  clearCurrentTurnRadioDirectionRevision(): void;
+  seedCurrentTurnBasisTracker(workspaceContext: EncodedWorkspaceContext): void;
+  clearCurrentTurnBasisTracker(): void;
 }): MineMusicMainAgentSession {
   let activeTurn = false;
 
@@ -128,7 +135,7 @@ function createMainAgentSessionController(input: {
           actor: input.actor,
           ownerScope: input.ownerScope,
         });
-        input.setCurrentTurnRadioDirectionRevision(workspaceContext.radio?.directionRevision);
+        input.seedCurrentTurnBasisTracker(workspaceContext);
 
         input.agent.state.systemPrompt = renderAgentRuntimeSystemPrompt({
           actor: input.actor,
@@ -155,7 +162,7 @@ function createMainAgentSessionController(input: {
           }),
         };
       } finally {
-        input.clearCurrentTurnRadioDirectionRevision();
+        input.clearCurrentTurnBasisTracker();
         activeTurn = false;
       }
     },
@@ -166,27 +173,6 @@ function createMainAgentSessionController(input: {
       return input.agent.waitForIdle();
     },
   };
-}
-
-function isRadioDirectionToolName(toolName: string): boolean {
-  return toolName === "radio.motif.set" ||
-    toolName === "radio.motif.clear" ||
-    toolName === "radio.variations.add" ||
-    toolName === "radio.variations.remove" ||
-    toolName === "radio.variations.replace" ||
-    toolName === "radio.variations.move" ||
-    toolName === "radio.variations.clear";
-}
-
-function radioDirectionRevisionFromToolResult(result: unknown): number {
-  if (result === null || typeof result !== "object") {
-    throw new Error("Radio direction tool returned non-object result.");
-  }
-  const revision = (result as { radioDirectionRevision?: unknown }).radioDirectionRevision;
-  if (typeof revision !== "number" || !Number.isSafeInteger(revision)) {
-    throw new Error("Radio direction tool result did not include a safe integer radioDirectionRevision.");
-  }
-  return revision;
 }
 
 function assistantResponseText(assistant: MineMusicMainAgentAssistantMessage): string | undefined {

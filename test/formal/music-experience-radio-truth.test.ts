@@ -205,7 +205,7 @@ const ownerScope = "local";
     sessionId: "radio-truth-stage-session",
     requestId: "radio-truth-stage-request",
     actor: "main_agent",
-    commandBasis: { radioDirectionRevision: 0 },
+    preconditionBasis: { radioDirectionRevision: 0 },
     clock: () => now,
   });
 
@@ -219,6 +219,7 @@ const ownerScope = "local";
   if (motifSet.ok) {
     assert.deepEqual(motifSet.value.result, {
       radioDirectionRevision: 1,
+      changedBasis: { radioDirectionRevision: 1 },
       direction: {
         motif: { kind: "text", text: "stage motif" },
         activeVariations: [],
@@ -231,7 +232,7 @@ const ownerScope = "local";
     sessionId: "radio-truth-stage-session",
     requestId: "radio-truth-stage-request-2",
     actor: "main_agent",
-    commandBasis: { radioDirectionRevision: 1 },
+    preconditionBasis: { radioDirectionRevision: 1 },
     clock: () => now,
   }), {
     toolName: "radio.variations.add",
@@ -243,6 +244,7 @@ const ownerScope = "local";
   if (variationAdd.ok) {
     assert.deepEqual(variationAdd.value.result, {
       radioDirectionRevision: 2,
+      changedBasis: { radioDirectionRevision: 2 },
       direction: {
         motif: { kind: "text", text: "stage motif" },
         activeVariations: [{ kind: "scope", scope: "[library]" }],
@@ -255,7 +257,7 @@ const ownerScope = "local";
     sessionId: "radio-truth-stage-session",
     requestId: "radio-truth-stage-request-3",
     actor: "radio_agent",
-    commandBasis: { radioDirectionRevision: 2 },
+    preconditionBasis: { radioDirectionRevision: 2 },
     clock: () => now,
   }), {
     toolName: "radio.lean.add",
