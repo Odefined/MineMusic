@@ -23,21 +23,53 @@ export type RadioNotifyRequest = {
   summary: string;
 };
 
+export const RADIO_TERMINAL_DECLARATION_TEXT_MAX_LENGTH = 500;
+
+export type RadioTerminalJudgement =
+  | "refill_complete"
+  | "no_action"
+  | "candidate_exhaustion_by_direction";
+
+export type RadioRunFinishInput = {
+  judgement: RadioTerminalJudgement;
+  summary?: string;
+  rationale?: string;
+};
+
+export type RadioTerminalDeclaration = RadioRunFinishInput;
+
+export type RadioRunFinishOutput = {
+  declaration: RadioTerminalDeclaration;
+};
+
 export type RadioRunOutcome =
   | "appended"
   | "queue_corrected"
   | "no_action"
-  | "candidate_exhaustion_by_direction"
   | "voided_stale";
 
-export type RadioRunResult = {
+export type RadioCompletedRunOutcome = Exclude<RadioRunOutcome, "voided_stale">;
+
+export type RadioCompletedRunResult = {
   runId: string;
   radioDirectionRevision: ConcernRevision;
   radioSessionRevision: ConcernRevision;
-  outcome: RadioRunOutcome;
+  outcome: RadioCompletedRunOutcome;
   appendedCount: number;
+  declaration: RadioTerminalDeclaration;
   notify?: RadioNotifyRequest;
 };
+
+export type RadioVoidedStaleRunResult = {
+  runId: string;
+  radioDirectionRevision: ConcernRevision;
+  radioSessionRevision: ConcernRevision;
+  outcome: "voided_stale";
+  appendedCount: 0;
+  notify?: RadioNotifyRequest;
+};
+
+export type RadioRunResult = RadioCompletedRunResult | RadioVoidedStaleRunResult;
 
 export type RadioRefillRunJobPayload = {
   workspaceId: string;

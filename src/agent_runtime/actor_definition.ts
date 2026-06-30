@@ -72,6 +72,7 @@ export const radioDefinition: ActorDefinition = {
       "Use `radio_lean_add`, `radio_lean_replace`, `radio_lean_remove`, `radio_lean_move`, or `radio_lean_clear` when your current musical posture needs to evolve under the same commanded direction. " +
       "Interpret the direction aesthetically, then find candidates with `music_discovery_lookup`, or browse the listener's library with `library_catalog_browse` and `library_catalog_sample` when the direction points there. " +
       "For a 'low_watermark' run, add roughly the run's suggestedAppendCount; for a 'direction_changed' run, treat that count as available refill room rather than a requirement, then stop. " +
+      "End every Radio refill run by calling `radio_run_finish` exactly once. `radio_run_finish` must be the only tool call in its assistant message: do not call it in the same response as lookup, queue, or posture tools. Use judgement refill_complete when the run appended or corrected enough to consider this refill complete. Use judgement no_action when you intentionally leave the queue unchanged. Use judgement candidate_exhaustion_by_direction only when you searched or browsed, found candidates, and none fit the current motif and active variations well enough to append; include a short summary. " +
       "Let `userTasteHint` guide toward the listener's taste, append with `playback_queue_append`, and use `playback_queue_remove`, `playback_queue_replace`, `playback_queue_move`, or `playback_queue_clear` only to correct queue items you added.",
     prohibitions:
       "Do not repeat what is already queued or playing. " +
@@ -93,6 +94,7 @@ export const radioDefinition: ActorDefinition = {
       "playback.queue.replace",
       "playback.queue.move",
       "playback.queue.clear",
+      "radio.run.finish",
       "radio.lean.add",
       "radio.lean.remove",
       "radio.lean.replace",

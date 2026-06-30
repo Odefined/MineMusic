@@ -369,6 +369,7 @@ async function runRadioSupervisorTests(): Promise<void> {
     radioSessionRevision: input.payload.radioSessionRevision,
     outcome: "appended",
     appendedCount: 1,
+    declaration: { judgement: "refill_complete" },
   });
 
   const first = await harness.supervisor.wake("low_watermark");
@@ -393,8 +394,12 @@ async function runRadioSupervisorTests(): Promise<void> {
     runId: input.runId,
     radioDirectionRevision: input.payload.radioDirectionRevision,
     radioSessionRevision: input.payload.radioSessionRevision,
-    outcome: "candidate_exhaustion_by_direction",
+    outcome: "no_action",
     appendedCount: 0,
+    declaration: {
+      judgement: "candidate_exhaustion_by_direction",
+      summary: "No candidates fit the current radio direction.",
+    },
     notify: candidateExhaustionNotify({
       runId: input.runId,
       radioDirectionRevision: input.payload.radioDirectionRevision,
@@ -442,6 +447,7 @@ async function runRadioSupervisorTests(): Promise<void> {
     radioSessionRevision: input.payload.radioSessionRevision,
     outcome: "no_action",
     appendedCount: 0,
+    declaration: { judgement: "no_action" },
   });
 
   await harness.supervisor.wake("low_watermark");
@@ -457,8 +463,12 @@ async function runRadioSupervisorTests(): Promise<void> {
     runId: input.runId,
     radioDirectionRevision: input.payload.radioDirectionRevision,
     radioSessionRevision: input.payload.radioSessionRevision,
-    outcome: "candidate_exhaustion_by_direction",
+    outcome: "no_action",
     appendedCount: 0,
+    declaration: {
+      judgement: "candidate_exhaustion_by_direction",
+      summary: "Wrong run correlation.",
+    },
     notify: candidateExhaustionNotify({
       runId: `wrong-${input.runId}`,
       radioDirectionRevision: input.payload.radioDirectionRevision,
@@ -531,8 +541,12 @@ async function runRadioSupervisorTests(): Promise<void> {
     runId: input.runId,
     radioDirectionRevision: input.payload.radioDirectionRevision,
     radioSessionRevision: input.payload.radioSessionRevision,
-    outcome: "candidate_exhaustion_by_direction",
+    outcome: "no_action",
     appendedCount: 0,
+    declaration: {
+      judgement: "candidate_exhaustion_by_direction",
+      summary: "Notify channel should fail before exhaustion state mutates.",
+    },
     notify: candidateExhaustionNotify({
       runId: input.runId,
       radioDirectionRevision: input.payload.radioDirectionRevision,
@@ -643,6 +657,7 @@ async function runRadioSupervisorTests(): Promise<void> {
     radioSessionRevision: input.payload.radioSessionRevision,
     outcome: "queue_corrected",
     appendedCount: 0,
+    declaration: { judgement: "refill_complete" },
   });
 
   await harness.supervisor.wake("low_watermark");
@@ -679,6 +694,7 @@ async function runRadioSupervisorTests(): Promise<void> {
     radioSessionRevision: input.payload.radioSessionRevision,
     outcome: "appended",
     appendedCount: 1,
+    declaration: { judgement: "refill_complete" },
   });
   await harness.supervisor.wake("low_watermark");
   await harness.backgroundWork.runJob(harness.backgroundWork.submissions[0]!.jobId);
@@ -784,6 +800,7 @@ class FakeRadioRunPort implements RadioRefillRunPort {
       radioSessionRevision: input.payload.radioSessionRevision,
       outcome: "no_action",
       appendedCount: 0,
+      declaration: { judgement: "no_action" },
     };
   }
 

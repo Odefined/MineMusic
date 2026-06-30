@@ -48,6 +48,7 @@ export type _actorRuntimePolicyKeys = Expect<
 assert.deepEqual(
   radioDefinition.toolPack.stageToolNames.filter((name) => name.startsWith("radio.")),
   [
+    "radio.run.finish",
     "radio.lean.add",
     "radio.lean.remove",
     "radio.lean.replace",

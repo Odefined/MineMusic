@@ -236,6 +236,7 @@ assert.deepEqual(host.snapshot().interfaceContract.tools.map((tool) => tool.name
     "radio.session.pause",
     "radio.session.shutdown",
     "radio.session.resume",
+    "radio.run.finish",
     "stage.runtime.status",
 ]);
 const listedImportSources = await host.dispatch(testStageToolContext(), {

@@ -136,3 +136,11 @@ export type {
   RadioSessionControlPort,
   RadioSessionControlResult,
 } from "./radio_session_tools.js";
+export {
+  createRadioRunFinishToolRegistration,
+  isRadioRunFinishOutput,
+  radioRunFinishDescriptor,
+  radioRunFinishPiToolName,
+  radioRunFinishToolName,
+  withRadioRunFinishGuards,
+} from "./radio_run_finish_tool.js";

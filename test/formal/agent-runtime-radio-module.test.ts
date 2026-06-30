@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 
 import type { BackgroundWorkBackend, BackgroundWorkSubmitInput, BackgroundWorkTerminalState } from "../../src/background_work/index.js";
-import { agentRuntimeSchemas, createAgentRunCascadeCoordinator, createInMemoryMainRadioNotifyChannel, radioDefinition, type AgentRuntimeStageToolContextFactoryPort, type MineMusicPiAgentAdapterOptions, type StageToolDispatchPort } from "../../src/agent_runtime/index.js";
+import { agentRuntimeSchemas, createAgentRunCascadeCoordinator, createInMemoryMainRadioNotifyChannel, radioDefinition, radioRunFinishDescriptor, toPiToolName, type AgentRuntimeStageToolContextFactoryPort, type MineMusicPiAgentAdapterOptions, type StageToolDispatchPort } from "../../src/agent_runtime/index.js";
+import { RADIO_TERMINAL_DECLARATION_TEXT_MAX_LENGTH } from "../../src/contracts/agent_runtime.js";
 import type { Result } from "../../src/contracts/kernel.js";
 import type { MusicExperienceRadioSessionCommand, MusicExperienceRadioTruthCommand, MusicExperienceWorkspaceProjection, MusicExperienceWorkspaceProjectionPort } from "../../src/contracts/music_experience.js";
 import type { StageToolContext, ToolCallOutput, ToolDeclaration } from "../../src/contracts/stage_interface.js";
@@ -10,7 +11,7 @@ import { createAgentRuntimeRadioModule, type AgentRuntimeRadioModule } from "../
 import type { MusicDatabase, MusicDatabaseContext } from "../../src/storage/index.js";
 import { createStageInterface, createStageToolContext } from "../../src/stage_interface/index.js";
 import { openPostgresTestMusicDatabase } from "../support/postgres.js";
-import { assistantTextMessage, fakeAssistantMessageEventStream } from "./helpers/pi-agent-message-fixtures.js";
+import { assistantMessageWithToolCall, assistantTextMessage, fakeAssistantMessageEventStream } from "./helpers/pi-agent-message-fixtures.js";
 
 const FIXED_NOW = "2026-06-30T00:00:00.000Z";
 
@@ -225,12 +226,40 @@ const FIXED_NOW = "2026-06-30T00:00:00.000Z";
 }
 
 {
+  const harness = await createHarness();
+  try {
+    const mainDenied = await harness.stageInterface.dispatch(
+      testStageToolContext("radio.run.finish", "main_agent"),
+      {
+        toolName: "radio.run.finish",
+        payload: { judgement: "no_action" },
+      },
+    );
+    assertStageError(mainDenied, "radio_run_finish_actor_not_allowed");
+
+    const longSummaryRejected = await harness.stageInterface.dispatch(
+      testStageToolContext("radio.run.finish", "radio_agent"),
+      {
+        toolName: "radio.run.finish",
+        payload: {
+          judgement: "no_action",
+          summary: "x".repeat(RADIO_TERMINAL_DECLARATION_TEXT_MAX_LENGTH + 1),
+        },
+      },
+    );
+    assertStageError(longSummaryRejected, "stage_interface.invalid_input");
+  } finally {
+    await closeHarness(harness);
+  }
+}
+
+{
   let activeTranscriptLoads = 0;
   let radioRuns = 0;
   const handlerErrors: unknown[] = [];
   let runHandlerOnSubmit = false;
   const backgroundWork = createFakeBackgroundWorkBackend({
-    runHandlerOnSubmit: () => runHandlerOnSubmit,
+    runHandlerOnSubmit: () => runHandlerOnSubmit && radioRuns === 0,
     handlerErrors,
     async awaitTerminal({ jobId }) {
       return { jobId, state: "cancelled" };
@@ -263,8 +292,12 @@ const FIXED_NOW = "2026-06-30T00:00:00.000Z";
         radioRuns += 1;
         return fakeAssistantMessageEventStream({
           type: "done",
-          reason: "stop",
-          message: assistantTextMessage(`radio run ${radioRuns}`),
+          reason: "toolUse",
+          message: assistantMessageWithToolCall(
+            `radio-run-${radioRuns}-finish`,
+            toPiToolName(radioRunFinishDescriptor.name),
+            { judgement: "no_action", summary: `radio run ${radioRuns}` },
+          ),
         });
       },
     },
@@ -342,24 +375,31 @@ async function closeHarness(harness: Harness): Promise<void> {
   await harness.database.close();
 }
 
+function testStageToolContext(
+  toolName: string,
+  actor: StageToolContext["actor"],
+): StageToolContext {
+  return createStageToolContext({
+    ownerScope: "local",
+    sessionId: "radio-module-test-session",
+    requestId: `${toolName}-request`,
+    ...(actor === undefined ? {} : { actor }),
+    clock: () => FIXED_NOW,
+    executionGate: {
+      async preflight() {
+        return { decision: "allow", auditLevel: "none" };
+      },
+    },
+  });
+}
+
 async function dispatchRadioTool(
   harness: Harness,
   toolName: "radio.session.start" | "radio.session.pause" | "radio.session.shutdown" | "radio.session.resume",
   actor: StageToolContext["actor"] = "main_agent",
 ): Promise<Result<ToolCallOutput>> {
   return await harness.stageInterface.dispatch(
-    createStageToolContext({
-      ownerScope: "local",
-      sessionId: "radio-module-test-session",
-      requestId: `${toolName}-request`,
-      ...(actor === undefined ? {} : { actor }),
-      clock: () => FIXED_NOW,
-      executionGate: {
-        async preflight() {
-          return { decision: "allow", auditLevel: "none" };
-        },
-      },
-    }),
+    testStageToolContext(toolName, actor),
     {
       toolName,
       payload: {},
@@ -433,50 +473,66 @@ function fakeRadioAgentOptions(): MineMusicPiAgentAdapterOptions {
 function createStubToolDeclarations(
   names: readonly string[],
 ): readonly ToolDeclaration[] {
-  return names.map((name) => ({
-    name,
-    instrumentId: "test.radio.required",
-    label: name,
-    ownerArea: "agent_runtime",
-    description: `Stub tool for ${name}.`,
-    usage: {
-      useWhen: "Used only to satisfy Actor Runtime tool-pack requirements in lifecycle tests.",
-      doNotUseWhen: "Do not use outside lifecycle tests.",
-      outputSemantics: "Returns a compact stub result.",
-    },
-    examples: [
-      { prompt: `call ${name}`, expects: "call" },
-      { prompt: `avoid ${name}`, expects: "avoid" },
-    ],
-    sideEffect: {
-      durableUserStateWrite: false,
-      runtimeStateWrite: false,
-      externalCall: false,
-    },
-    invocationPolicy: {
-      defaultDecision: "auto",
-      dataEgress: "none",
-      readOnlyHint: true,
-      destructiveHint: false,
-    },
-    inputSchema: {
-      type: "object",
-      additionalProperties: false,
-    },
-    outputSchema: {
-      type: "object",
-      additionalProperties: true,
-    },
-    errors: [],
-    resultSummary() {
-      return `${name} stub`;
-    },
-  }));
+  return names.map((name) => {
+    if (name === radioRunFinishDescriptor.name) {
+      return radioRunFinishDescriptor;
+    }
+    return {
+      name,
+      instrumentId: "test.radio.required",
+      label: name,
+      ownerArea: "agent_runtime",
+      description: `Stub tool for ${name}.`,
+      usage: {
+        useWhen: "Used only to satisfy Actor Runtime tool-pack requirements in lifecycle tests.",
+        doNotUseWhen: "Do not use outside lifecycle tests.",
+        outputSemantics: "Returns a compact stub result.",
+      },
+      examples: [
+        { prompt: `call ${name}`, expects: "call" },
+        { prompt: `avoid ${name}`, expects: "avoid" },
+      ],
+      sideEffect: {
+        durableUserStateWrite: false,
+        runtimeStateWrite: false,
+        externalCall: false,
+      },
+      invocationPolicy: {
+        defaultDecision: "auto",
+        dataEgress: "none",
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+      },
+      outputSchema: {
+        type: "object",
+        additionalProperties: true,
+      },
+      errors: [],
+      resultSummary() {
+        return `${name} stub`;
+      },
+    };
+  });
 }
 
 function unusedStageDispatch(): StageToolDispatchPort {
   return {
-    async dispatch() {
+    async dispatch(input) {
+      if (input.toolName === radioRunFinishDescriptor.name) {
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: {
+              declaration: input.payload,
+            },
+          },
+        };
+      }
       throw new Error("Radio module test dispatch should not be called during lifecycle controls.");
     },
   };
@@ -484,8 +540,20 @@ function unusedStageDispatch(): StageToolDispatchPort {
 
 function unusedContextFactory(): AgentRuntimeStageToolContextFactoryPort {
   return {
-    createToolContext() {
-      throw new Error("Radio module test context factory should not be called during lifecycle controls.");
+    createToolContext(input) {
+      return createStageToolContext({
+        ownerScope: "local",
+        sessionId: input.sessionId,
+        requestId: input.requestId,
+        ...(input.actor === undefined ? {} : { actor: input.actor }),
+        ...(input.abortSignal === undefined ? {} : { abortSignal: input.abortSignal }),
+        clock: () => FIXED_NOW,
+        executionGate: {
+          async preflight() {
+            return { decision: "allow", auditLevel: "none" };
+          },
+        },
+      });
     },
   };
 }
@@ -609,7 +677,7 @@ function createFakeBackgroundWorkBackend(input: {
       }
       return {
         jobId: awaitInput.jobId,
-        state: "succeeded",
+        state: "cancelled",
         output: null,
       };
     },

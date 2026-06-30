@@ -11,11 +11,13 @@ import {
   createActorRuntimeSession,
   createPostgresAgentRuntimeTranscriptStore,
   createRadioSessionToolRegistrations,
+  createRadioRunFinishToolRegistration,
   createRadioSupervisor,
   createRadioRunResultRecorder,
   createWorkspaceContextAssembler,
   radioDefinition,
   radioSessionInstrument,
+  withRadioRunFinishGuards,
   type MineMusicPiAgentAdapterOptions,
   type RadioWakeDecision,
   type RadioSupervisor,
@@ -156,12 +158,15 @@ export function createAgentRuntimeRadioModule(
         ok: true,
         value: {
           instruments: [radioSessionInstrument],
-          tools: createRadioSessionToolRegistrations({
-            start: () => startRadioSession(),
-            pause: () => pauseRadioSession(),
-            shutdown: () => shutdownRadioSession(),
-            resume: () => resumeRadioSession(),
-          }),
+          tools: [
+            ...createRadioSessionToolRegistrations({
+              start: () => startRadioSession(),
+              pause: () => pauseRadioSession(),
+              shutdown: () => shutdownRadioSession(),
+              resume: () => resumeRadioSession(),
+            }),
+            createRadioRunFinishToolRegistration(),
+          ],
         },
       };
 
@@ -176,7 +181,7 @@ export function createAgentRuntimeRadioModule(
           contextFactory,
           transcriptStore,
           clock: () => new Date().toISOString(),
-          agentOptions,
+          agentOptions: withRadioRunFinishGuards(agentOptions),
         });
       }
 

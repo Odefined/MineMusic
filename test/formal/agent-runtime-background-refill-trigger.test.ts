@@ -8,9 +8,12 @@ import {
   createInMemoryAgentRuntimeTranscriptStore,
   createRadioRunResultRecorder,
   createWorkspaceContextAssembler,
+  radioRunFinishDescriptor,
   toPiToolName,
+  withRadioRunFinishGuards,
   type ActorRuntimeSession,
   type AgentRuntimeTranscriptStore,
+  type RadioRunResultRecorder,
   type StageToolDispatchPort,
   type WorkspaceContextAssembler,
   type WorkspaceContextAssembly,
@@ -31,11 +34,60 @@ import {
 } from "./helpers/pi-agent-message-fixtures.js";
 import type { RadioRefillRunJobPayload } from "../../src/contracts/agent_runtime.js";
 
+const fakeUsage = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
+
 const key = {
   ownerScope: "owner_radio_run",
   workspaceId: "default",
   actor: "radio_agent" as const,
 };
+
+function observeFinish(
+  recorder: RadioRunResultRecorder,
+  declaration: {
+    judgement: "refill_complete" | "no_action" | "candidate_exhaustion_by_direction";
+    summary?: string;
+    rationale?: string;
+  } = { judgement: "refill_complete" },
+): void {
+  recorder.observeToolResult({
+    toolName: radioRunFinishDescriptor.name,
+    result: {
+      ok: true,
+      value: {
+        toolName: radioRunFinishDescriptor.name,
+        result: { declaration },
+      },
+    },
+  });
+}
+
+function assistantMessageWithToolCalls(
+  calls: readonly { id: string; name: string; arguments: Record<string, unknown> }[],
+) {
+  return {
+    role: "assistant" as const,
+    content: calls.map((call) => ({
+      type: "toolCall" as const,
+      id: call.id,
+      name: call.name,
+      arguments: call.arguments,
+    })),
+    api: "openai" as const,
+    provider: "openai" as const,
+    model: "fake",
+    usage: fakeUsage,
+    stopReason: "toolUse" as const,
+    timestamp: 0,
+  };
+}
 
 function createAgentRuntimeBackgroundRefillPort(input: {
   session: ActorRuntimeSession;
@@ -330,7 +382,7 @@ function createCountingTranscriptStore(): {
   let streamCallCount = 0;
   const actorSession = await createTestActorRuntimeSession("basis-tracker", {
     transcriptStore,
-    tools: [playbackQueueAppendDescriptor, playbackQueueMoveDescriptor, radioLeanAddDescriptor],
+    tools: [playbackQueueAppendDescriptor, playbackQueueMoveDescriptor, radioLeanAddDescriptor, radioRunFinishDescriptor],
     dispatch: {
       async dispatch(input) {
         observedContexts.push({
@@ -360,6 +412,19 @@ function createCountingTranscriptStore(): {
                 queueLength: 0,
               },
               runtime: { changedBasis: { queueRevision: 13 } },
+            },
+          };
+        }
+        if (input.toolName === radioRunFinishDescriptor.name) {
+          return {
+            ok: true,
+            value: {
+              toolName: input.toolName,
+              result: {
+                declaration: {
+                  judgement: "refill_complete",
+                },
+              },
             },
           };
         }
@@ -438,6 +503,17 @@ function createCountingTranscriptStore(): {
           ),
         });
       }
+      if (streamCallCount === 5) {
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "toolUse",
+          message: assistantMessageWithToolCall(
+            "radio-basis-finish",
+            toPiToolName(radioRunFinishDescriptor.name),
+            { judgement: "refill_complete" },
+          ),
+        });
+      }
       return fakeAssistantMessageEventStream({
         type: "done",
         reason: "stop",
@@ -496,6 +572,11 @@ function createCountingTranscriptStore(): {
       preconditionBasis: { radioDirectionRevision: 8 },
       actor: "radio_agent",
     },
+    {
+      toolName: "radio.run.finish",
+      preconditionBasis: undefined,
+      actor: "radio_agent",
+    },
   ]);
 }
 
@@ -551,6 +632,162 @@ function createCountingTranscriptStore(): {
 }
 
 {
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
+  const actorSession = await createTestActorRuntimeSession("terminal-candidate-exhaustion", {
+    transcriptStore,
+    tools: [radioRunFinishDescriptor],
+    dispatch: {
+      async dispatch(input) {
+        assert.equal(input.toolName, radioRunFinishDescriptor.name);
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: {
+              declaration: input.payload,
+            },
+          },
+        };
+      },
+    },
+    streamFn() {
+      return fakeAssistantMessageEventStream({
+        type: "done",
+        reason: "toolUse",
+        message: assistantMessageWithToolCall(
+          "radio-finish-candidate-exhaustion",
+          toPiToolName(radioRunFinishDescriptor.name),
+          {
+            judgement: "candidate_exhaustion_by_direction",
+            summary: "Found candidates, but none fit the current motif and variations.",
+          },
+        ),
+      });
+    },
+  });
+  const runPort = createAgentRuntimeBackgroundRefillPort({
+    ...key,
+    session: actorSession,
+    transcriptStore,
+    createResultRecorder: createRadioRunResultRecorder,
+  });
+
+  assert.deepEqual(await runPort.runRadioRefill({
+    runId: "radio-job-terminal-candidate-exhaustion",
+    payload: payloadWithRevisions({ refillGeneration: 20, radioSessionRevision: 0, radioDirectionRevision: 7 }),
+    signal: new AbortController().signal,
+  }), {
+    runId: "radio-job-terminal-candidate-exhaustion",
+    radioDirectionRevision: 7,
+    radioSessionRevision: 0,
+    outcome: "no_action",
+    appendedCount: 0,
+    declaration: {
+      judgement: "candidate_exhaustion_by_direction",
+      summary: "Found candidates, but none fit the current motif and variations.",
+    },
+    notify: {
+      speechLevel: "Notify",
+      severity: "low",
+      eventKind: "candidate_exhaustion_by_direction",
+      runId: "radio-job-terminal-candidate-exhaustion",
+      radioDirectionRevision: 7,
+      summary: "Found candidates, but none fit the current motif and variations.",
+    },
+  });
+}
+
+{
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
+  let appendDispatchCount = 0;
+  let finishDispatchCount = 0;
+  let streamCallCount = 0;
+  const actorSession = await createTestActorRuntimeSession("terminal-sole-call", {
+    transcriptStore,
+    tools: [playbackQueueAppendDescriptor, radioRunFinishDescriptor],
+    dispatch: {
+      async dispatch(input) {
+        if (input.toolName === playbackQueueAppendDescriptor.name) {
+          appendDispatchCount += 1;
+          return {
+            ok: true,
+            value: {
+              toolName: input.toolName,
+              result: {
+                items: [
+                  { item: "[material:material:blocked]", index: 0 },
+                ],
+                queueLength: 1,
+              },
+            },
+          };
+        }
+        finishDispatchCount += 1;
+        return {
+          ok: true,
+          value: {
+            toolName: input.toolName,
+            result: {
+              declaration: input.payload,
+            },
+          },
+        };
+      },
+    },
+    streamFn() {
+      streamCallCount += 1;
+      if (streamCallCount === 1) {
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "toolUse",
+          message: assistantMessageWithToolCalls([
+            {
+              id: "mixed-append",
+              name: toPiToolName(playbackQueueAppendDescriptor.name),
+              arguments: { items: ["[material:mixed]"] },
+            },
+            {
+              id: "mixed-finish",
+              name: toPiToolName(radioRunFinishDescriptor.name),
+              arguments: { judgement: "refill_complete" },
+            },
+          ]),
+        });
+      }
+      return fakeAssistantMessageEventStream({
+        type: "done",
+        reason: "toolUse",
+        message: assistantMessageWithToolCall(
+          "radio-finish-only",
+          toPiToolName(radioRunFinishDescriptor.name),
+          { judgement: "no_action", summary: "The mixed finish was retried as a sole call." },
+        ),
+      });
+    },
+  });
+  const runPort = createAgentRuntimeBackgroundRefillPort({
+    ...key,
+    session: actorSession,
+    transcriptStore,
+    createResultRecorder: createRadioRunResultRecorder,
+  });
+
+  const result = await runPort.runRadioRefill({
+    runId: "radio-job-terminal-sole-call",
+    payload: payloadWithRevisions({ refillGeneration: 21, radioSessionRevision: 0, radioDirectionRevision: 7 }),
+    signal: new AbortController().signal,
+  });
+
+  assert.equal(appendDispatchCount, 0);
+  assert.equal(finishDispatchCount, 1);
+  assert.equal(result.outcome, "no_action");
+  assert.deepEqual(result.declaration, {
+    judgement: "no_action",
+    summary: "The mixed finish was retried as a sole call.",
+  });
+}
+
+{
   const appendedRecorder = createRadioRunResultRecorder();
   appendedRecorder.observeToolResult({
     toolName: "playback.queue.append",
@@ -569,6 +806,7 @@ function createCountingTranscriptStore(): {
       },
     },
   });
+  observeFinish(appendedRecorder);
   assert.deepEqual(appendedRecorder.result({
     runId: "radio-result-test",
     payload: payloadWithRevisions({ refillGeneration: 11, radioSessionRevision: 3, radioDirectionRevision: 5 }),
@@ -578,7 +816,31 @@ function createCountingTranscriptStore(): {
     radioSessionRevision: 3,
     outcome: "appended",
     appendedCount: 2,
+    declaration: { judgement: "refill_complete" },
   });
+
+  const missingDeclarationRecorder = createRadioRunResultRecorder();
+  assert.throws(() => missingDeclarationRecorder.result({
+    runId: "radio-result-missing-declaration-test",
+    payload: payloadWithRevisions({ refillGeneration: 22, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+  }), /produced no terminal declaration/);
+
+  const invalidFinishRecorder = createRadioRunResultRecorder();
+  assert.throws(() => invalidFinishRecorder.observeToolResult({
+    toolName: radioRunFinishDescriptor.name,
+    result: {
+      ok: true,
+      value: {
+        toolName: radioRunFinishDescriptor.name,
+        result: {
+          declaration: {
+            judgement: "candidate_exhaustion_by_direction",
+            summary: 123,
+          },
+        },
+      },
+    },
+  }), /invalid shape/);
 
   const failedRecorder = createRadioRunResultRecorder();
   failedRecorder.observeToolResult({
@@ -614,6 +876,7 @@ function createCountingTranscriptStore(): {
       },
     },
   });
+  observeFinish(correctedRecorder);
   assert.deepEqual(correctedRecorder.result({
     runId: "radio-result-corrected-test",
     payload: payloadWithRevisions({ refillGeneration: 17, radioSessionRevision: 3, radioDirectionRevision: 5 }),
@@ -623,7 +886,58 @@ function createCountingTranscriptStore(): {
     radioSessionRevision: 3,
     outcome: "queue_corrected",
     appendedCount: 0,
+    declaration: { judgement: "refill_complete" },
   });
+
+  const appendedContradictionRecorder = createRadioRunResultRecorder();
+  appendedContradictionRecorder.observeToolResult({
+    toolName: "playback.queue.append",
+    result: {
+      ok: true,
+      value: {
+        toolName: "playback.queue.append",
+        result: {
+          items: [
+            { item: "[material:material:one]", index: 0 },
+          ],
+          queueLength: 1,
+        },
+      },
+    },
+  });
+  observeFinish(appendedContradictionRecorder, {
+    judgement: "candidate_exhaustion_by_direction",
+    summary: "Contradicts append facts.",
+  });
+  assert.throws(() => appendedContradictionRecorder.result({
+    runId: "radio-result-appended-contradiction-test",
+    payload: payloadWithRevisions({ refillGeneration: 23, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+  }), /declared candidate exhaustion after appending queue items/);
+
+  const correctedContradictionRecorder = createRadioRunResultRecorder();
+  correctedContradictionRecorder.observeToolResult({
+    toolName: "playback.queue.move",
+    result: {
+      ok: true,
+      value: {
+        toolName: "playback.queue.move",
+        result: {
+          from: 2,
+          to: 1,
+          queueLength: 3,
+        },
+        runtime: { changedBasis: { queueRevision: 12 } },
+      },
+    },
+  });
+  observeFinish(correctedContradictionRecorder, {
+    judgement: "candidate_exhaustion_by_direction",
+    summary: "Contradicts correction facts.",
+  });
+  assert.throws(() => correctedContradictionRecorder.result({
+    runId: "radio-result-corrected-contradiction-test",
+    payload: payloadWithRevisions({ refillGeneration: 24, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+  }), /declared candidate exhaustion after correcting the queue/);
 
   const correctedThenFailedRecorder = createRadioRunResultRecorder();
   correctedThenFailedRecorder.observeToolResult({
@@ -653,6 +967,7 @@ function createCountingTranscriptStore(): {
       },
     },
   });
+  observeFinish(correctedThenFailedRecorder);
   assert.deepEqual(correctedThenFailedRecorder.result({
     runId: "radio-result-corrected-then-failed-test",
     payload: payloadWithRevisions({ refillGeneration: 18, radioSessionRevision: 3, radioDirectionRevision: 5 }),
@@ -662,6 +977,7 @@ function createCountingTranscriptStore(): {
     radioSessionRevision: 3,
     outcome: "queue_corrected",
     appendedCount: 0,
+    declaration: { judgement: "refill_complete" },
   });
 
   const staleRecorder = createRadioRunResultRecorder();
@@ -716,6 +1032,7 @@ function createCountingTranscriptStore(): {
       },
     },
   });
+  observeFinish(appendedThenStaleRecorder);
   assert.deepEqual(appendedThenStaleRecorder.result({
     runId: "radio-result-appended-then-stale-test",
     payload: payloadWithRevisions({ refillGeneration: 15, radioSessionRevision: 3, radioDirectionRevision: 5 }),
@@ -725,6 +1042,7 @@ function createCountingTranscriptStore(): {
     radioSessionRevision: 3,
     outcome: "appended",
     appendedCount: 1,
+    declaration: { judgement: "refill_complete" },
   });
 
   const appendedThenAbortRecorder = createRadioRunResultRecorder();
@@ -755,6 +1073,7 @@ function createCountingTranscriptStore(): {
       },
     },
   });
+  observeFinish(appendedThenAbortRecorder);
   assert.deepEqual(appendedThenAbortRecorder.result({
     runId: "radio-result-appended-then-abort-test",
     payload: payloadWithRevisions({ refillGeneration: 16, radioSessionRevision: 3, radioDirectionRevision: 5 }),
@@ -764,9 +1083,11 @@ function createCountingTranscriptStore(): {
     radioSessionRevision: 3,
     outcome: "appended",
     appendedCount: 1,
+    declaration: { judgement: "refill_complete" },
   });
 
   const idleRecorder = createRadioRunResultRecorder();
+  observeFinish(idleRecorder, { judgement: "no_action", summary: "Queue already fits." });
   assert.deepEqual(idleRecorder.result({
     runId: "radio-result-idle-test",
     payload: payloadWithRevisions({ refillGeneration: 14, radioSessionRevision: 3, radioDirectionRevision: 5 }),
@@ -776,7 +1097,15 @@ function createCountingTranscriptStore(): {
     radioSessionRevision: 3,
     outcome: "no_action",
     appendedCount: 0,
+    declaration: { judgement: "no_action", summary: "Queue already fits." },
   });
+
+  const noProgressCompleteRecorder = createRadioRunResultRecorder();
+  observeFinish(noProgressCompleteRecorder, { judgement: "refill_complete" });
+  assert.throws(() => noProgressCompleteRecorder.result({
+    runId: "radio-result-no-progress-complete-test",
+    payload: payloadWithRevisions({ refillGeneration: 25, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+  }), /declared refill complete without appending or correcting the queue/);
 }
 
 {
@@ -1179,6 +1508,7 @@ function defaultRadioResult(input: {
     radioSessionRevision: input.payload.radioSessionRevision,
     outcome: "no_action" as const,
     appendedCount: 0,
+    declaration: { judgement: "no_action" as const },
   };
 }
 
@@ -1247,7 +1577,7 @@ async function createTestActorRuntimeSession(label: string, input: {
     },
     transcriptStore: input.transcriptStore ?? createInMemoryAgentRuntimeTranscriptStore(),
     clock: input.clock ?? (() => "2026-06-28T00:00:00.000Z"),
-    agentOptions: {
+    agentOptions: withRadioRunFinishGuards({
       streamFn(...streamInput) {
         if (input.streamFn !== undefined) {
           return input.streamFn(...streamInput);
@@ -1259,7 +1589,7 @@ async function createTestActorRuntimeSession(label: string, input: {
           message: assistantTextMessage(`${label}-${streamCallCount}`),
         });
       },
-    },
+    }),
   });
 }
 

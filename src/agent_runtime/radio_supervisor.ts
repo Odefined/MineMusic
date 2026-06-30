@@ -450,8 +450,8 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   function isNonProgressSuccess(result: RadioRunResult): boolean {
     return result.appendedCount === 0 &&
       result.outcome !== "queue_corrected" &&
-      result.outcome !== "candidate_exhaustion_by_direction" &&
-      result.outcome !== "voided_stale";
+      result.outcome !== "voided_stale" &&
+      result.declaration.judgement !== "candidate_exhaustion_by_direction";
   }
 
   async function handleRunResult(result: RadioRunResult): Promise<void> {
@@ -462,7 +462,10 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       await input.notifyChannel.notify(result.notify);
     }
 
-    if (result.outcome === "candidate_exhaustion_by_direction") {
+    if (
+      result.outcome !== "voided_stale" &&
+      result.declaration.judgement === "candidate_exhaustion_by_direction"
+    ) {
       exhaustedRadioDirectionRevision = result.radioDirectionRevision;
     }
   }

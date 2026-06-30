@@ -1747,6 +1747,85 @@ export const radioSessionToolOutputSchema = {
   }
 } as const satisfies JsonSchema;
 
+export const radioRunFinishInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "judgement": {
+      "$ref": "#/definitions/RadioTerminalJudgement"
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "rationale": {
+      "type": "string",
+      "maxLength": 500
+    }
+  },
+  "required": [
+    "judgement"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "RadioTerminalJudgement": {
+      "type": "string",
+      "enum": [
+        "refill_complete",
+        "no_action",
+        "candidate_exhaustion_by_direction"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const radioRunFinishOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "declaration": {
+      "$ref": "#/definitions/RadioTerminalDeclaration"
+    }
+  },
+  "required": [
+    "declaration"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "RadioTerminalDeclaration": {
+      "$ref": "#/definitions/RadioRunFinishInput"
+    },
+    "RadioRunFinishInput": {
+      "type": "object",
+      "properties": {
+        "judgement": {
+          "$ref": "#/definitions/RadioTerminalJudgement"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "judgement"
+      ],
+      "additionalProperties": false
+    },
+    "RadioTerminalJudgement": {
+      "type": "string",
+      "enum": [
+        "refill_complete",
+        "no_action",
+        "candidate_exhaustion_by_direction"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
 export const musicDiscoveryLookupInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",

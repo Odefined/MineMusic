@@ -13,11 +13,15 @@ const musicExperienceContractSource = await readFile(
   resolve(repositoryRoot, "src/contracts/music_experience.ts"),
   "utf8",
 );
+const agentRuntimeContractSource = await readFile(
+  resolve(repositoryRoot, "src/contracts/agent_runtime.ts"),
+  "utf8",
+);
 
-function readNumericExport(name) {
-  const match = new RegExp(`export const ${name} = (\\d+);`).exec(musicExperienceContractSource);
+function readNumericExport(source, sourcePath, name) {
+  const match = new RegExp(`export const ${name} = (\\d+);`).exec(source);
   if (match === null) {
-    throw new Error(`Could not read numeric export ${name} from src/contracts/music_experience.ts.`);
+    throw new Error(`Could not read numeric export ${name} from ${sourcePath}.`);
   }
   return Number.parseInt(match[1], 10);
 }
@@ -204,6 +208,16 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
+    exportName: "radioRunFinishInputSchema",
+    typeName: "RadioRunFinishInput",
+    sourcePath: "src/contracts/agent_runtime.ts",
+  },
+  {
+    exportName: "radioRunFinishOutputSchema",
+    typeName: "RadioRunFinishOutput",
+    sourcePath: "src/contracts/agent_runtime.ts",
+  },
+  {
     exportName: "musicDiscoveryLookupInputSchema",
     typeName: "MusicDiscoveryLookupInput",
     sourcePath: "src/contracts/stage_interface.ts",
@@ -362,10 +376,31 @@ function generatorFor(sourcePath) {
 
 const TOOL_LIMIT_CONSTRAINT = { type: "integer", minimum: 1, maximum: 100 };
 const NON_EMPTY_STRING_CONSTRAINT = { type: "string", minLength: 1 };
-const RADIO_ACTIVE_VARIATION_ITEMS_MAX = readNumericExport("MAX_RADIO_ACTIVE_VARIATION_ITEMS");
-const RADIO_POSTURE_LEAN_ITEMS_MAX = readNumericExport("MAX_RADIO_POSTURE_LEAN_ITEMS");
-const RADIO_DIRECTION_TEXT_MAX_LENGTH = readNumericExport("MAX_RADIO_DIRECTION_TEXT_LENGTH");
-const MUSIC_EXPERIENCE_QUEUE_LENGTH_MAX = readNumericExport("MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH");
+const RADIO_ACTIVE_VARIATION_ITEMS_MAX = readNumericExport(
+  musicExperienceContractSource,
+  "src/contracts/music_experience.ts",
+  "MAX_RADIO_ACTIVE_VARIATION_ITEMS",
+);
+const RADIO_POSTURE_LEAN_ITEMS_MAX = readNumericExport(
+  musicExperienceContractSource,
+  "src/contracts/music_experience.ts",
+  "MAX_RADIO_POSTURE_LEAN_ITEMS",
+);
+const RADIO_DIRECTION_TEXT_MAX_LENGTH = readNumericExport(
+  musicExperienceContractSource,
+  "src/contracts/music_experience.ts",
+  "MAX_RADIO_DIRECTION_TEXT_LENGTH",
+);
+const MUSIC_EXPERIENCE_QUEUE_LENGTH_MAX = readNumericExport(
+  musicExperienceContractSource,
+  "src/contracts/music_experience.ts",
+  "MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH",
+);
+const RADIO_TERMINAL_DECLARATION_TEXT_MAX_LENGTH = readNumericExport(
+  agentRuntimeContractSource,
+  "src/contracts/agent_runtime.ts",
+  "RADIO_TERMINAL_DECLARATION_TEXT_MAX_LENGTH",
+);
 const MATERIAL_MUSIC_ITEM_HANDLE_CONSTRAINT = {
   type: "string",
   pattern: "^\\[material:[^\\]\\r\\n]+\\]$",
@@ -499,6 +534,11 @@ function applyRadioDirectionBoundOverlays(schema) {
   applyMaxLengthStringPropertyOverlay(schema, "text", RADIO_DIRECTION_TEXT_MAX_LENGTH);
   applyMaxItemsPropertyOverlay(schema, "activeVariations", RADIO_ACTIVE_VARIATION_ITEMS_MAX);
   applyMaxItemsPropertyOverlay(schema, "lean", RADIO_POSTURE_LEAN_ITEMS_MAX);
+}
+
+function applyRadioRunFinishBoundOverlays(schema) {
+  applyMaxLengthStringPropertyOverlay(schema, "summary", RADIO_TERMINAL_DECLARATION_TEXT_MAX_LENGTH);
+  applyMaxLengthStringPropertyOverlay(schema, "rationale", RADIO_TERMINAL_DECLARATION_TEXT_MAX_LENGTH);
 }
 
 const NON_EMPTY_LIBRARY_IMPORT_BATCH_ID_DEFINITIONS = new Set([
@@ -763,6 +803,12 @@ const generatedSchemas = schemaTargets.map((target) => {
     target.exportName === "radioLeanToolOutputSchema"
   ) {
     applyRadioDirectionBoundOverlays(schema);
+  }
+  if (
+    target.exportName === "radioRunFinishInputSchema" ||
+    target.exportName === "radioRunFinishOutputSchema"
+  ) {
+    applyRadioRunFinishBoundOverlays(schema);
   }
   applyMusicItemHandlePatternOverlay(schema);
   applyMusicScopeHandlePatternOverlay(schema);
