@@ -164,13 +164,13 @@ export function createMusicExperienceRadioSessionCommand(
           ownerScope: commandInput.ownerScope,
           concern: "radio-session",
           newRevision: result.value.radioSessionRevision,
-          actor: "main_agent",
+          actor: commandInput.actor,
         });
         if (result.value.playbackEffect !== "unchanged") {
           observePlaybackRevision(input, {
             ownerScope: commandInput.ownerScope,
             playbackRevision: result.value.playbackRevision,
-            actor: "main_agent",
+            actor: commandInput.actor,
           });
         }
       }

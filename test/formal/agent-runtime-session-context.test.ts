@@ -70,6 +70,7 @@ assert.deepEqual(
     "radio.session.pause",
     "radio.session.shutdown",
     "radio.session.resume",
+    "radio.session.status",
   ],
 );
 

@@ -37,6 +37,31 @@ Seam Resolutions"; this spec does not restate them. In build terms:
   delta-replay buffer in v1); multi-tab equal-writer serialization, de-conflated
   from playback output-device authority (ADR-0036).
 
+### C2a — Radio Lifecycle Buttons Are Direct User Actions
+
+Phase C owns the real user-button / user-command entry for Radio lifecycle.
+Phase B defined the lifecycle semantics and exposed them through Main-only
+`radio.session.*` Stage tools so the in-process agent loop could be tested before
+the Web boundary existed. Phase C adds the direct human surface:
+
+- **Surface.** The Web Radio controls expose `start`, `resume`, `pause`, and
+  `shutdown` according to the current Radio lifecycle state from Workspace
+  Snapshot. Invalid controls are disabled or rejected by the Workbench surface;
+  the server remains authoritative on rejection.
+- **Upstream path.** A button press sends a typed `WorkbenchActionEnvelope` to the
+  Workbench Action Adapter. The adapter routes the action to the Agent Runtime
+  Radio lifecycle control / Music Experience lifecycle command boundary used by
+  Phase B semantics. It does not mutate AG-UI state, Radio tables, queue rows, or
+  playback rows directly.
+- **No agent loop.** These direct user controls do not ask Main or Radio to call a
+  tool on the user's behalf. Main's `radio.session.*` tools remain a Phase B /
+  conversational entry for interpreted listener intent; the Web buttons are
+  direct user actions with `actor = user` for PB9 priority and stale-run cascade.
+- **Same semantics.** The Phase C buttons do not define a second lifecycle state
+  machine. Queue retention, playback co-pause/co-start, transcript fate,
+  session-revision bumps, wake-gate behavior, and abort cascade are inherited from
+  Phase B PB10.
+
 ### C3a — Workspace Presence And Playback Controller Leases
 
 Phase C must introduce explicit liveness leases at the Web boundary. This is the

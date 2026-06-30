@@ -93,6 +93,8 @@ type ActiveRefillRun = {
   completion: Promise<void>;
 };
 
+class RadioSupervisorInvariantError extends Error {}
+
 const defaultClock: RadioSupervisorClock = {
   now() {
     return new Date();
@@ -341,13 +343,18 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
         signal: run.abortController.signal,
       });
       if (result.runId !== run.runId) {
-        throw new Error(`Radio refill run result '${result.runId}' did not match run '${run.runId}'.`);
+        throw new RadioSupervisorInvariantError(
+          `Radio refill run result '${result.runId}' did not match run '${run.runId}'.`,
+        );
       }
-      await handleRunResult(result);
+      await handleRunResult({ result, signal: run.abortController.signal });
       if (run.abortController.signal.aborted) {
         aborted = true;
       }
     } catch (error) {
+      if (error instanceof RadioSupervisorInvariantError) {
+        throw error;
+      }
       if (!run.abortController.signal.aborted) {
         cooldownUntil = new Date(clock.now().getTime() + failedTerminalCooldownMs);
         scheduleCooldownWake(cooldownUntil);
@@ -372,10 +379,8 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       }
       return;
     }
-    if (result === undefined) {
-      throw new Error(`Radio refill run '${run.runId}' produced no result.`);
-    }
-    if (result.outcome === "voided_stale") {
+    const completedResult = result!;
+    if (completedResult.outcome === "voided_stale") {
       if (pendingDirectionRevision !== undefined && wakeGateState === "Running") {
         await enqueuePendingDirectionWake();
       }
@@ -384,7 +389,7 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     if (run.payload.wakeReason === "direction_changed") {
       markDirectionRevisionCompleted(run.payload.radioDirectionRevision);
     }
-    if (isNonProgressSuccess(result)) {
+    if (isNonProgressSuccess(completedResult)) {
       cooldownUntil = new Date(clock.now().getTime() + failedTerminalCooldownMs);
       scheduleCooldownWake(cooldownUntil);
       return;
@@ -412,9 +417,18 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       result.declaration.judgement !== "candidate_exhaustion_by_direction";
   }
 
-  async function handleRunResult(result: RadioRunResult): Promise<void> {
+  async function handleRunResult(inputHandle: {
+    result: RadioRunResult;
+    signal: AbortSignal;
+  }): Promise<void> {
+    const { result, signal } = inputHandle;
+    if (signal.aborted) {
+      return;
+    }
     if (result.notify !== undefined && result.notify.runId !== result.runId) {
-      throw new Error(`Radio notify run '${result.notify.runId}' did not match run result '${result.runId}'.`);
+      throw new RadioSupervisorInvariantError(
+        `Radio notify run '${result.notify.runId}' did not match run result '${result.runId}'.`,
+      );
     }
     if (result.notify !== undefined) {
       await input.notifyChannel.notify(result.notify);

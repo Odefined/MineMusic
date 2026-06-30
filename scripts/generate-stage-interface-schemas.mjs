@@ -203,8 +203,18 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
+    exportName: "radioSessionStatusInputSchema",
+    typeName: "RadioSessionStatusInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
     exportName: "radioSessionToolOutputSchema",
     typeName: "RadioSessionToolOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioSessionStatusOutputSchema",
+    typeName: "RadioSessionStatusOutput",
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {

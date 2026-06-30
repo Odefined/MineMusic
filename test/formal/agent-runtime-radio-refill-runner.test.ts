@@ -297,6 +297,8 @@ function createCountingTranscriptStore(): {
     true,
   );
   assert.equal(observedMessagesJson.includes("\\\"suggestedAppendCount\\\": 0"), true);
+  assert.equal(observedMessagesJson.includes("\\\"runId\\\""), false);
+  assert.equal(observedMessagesJson.includes("radio-job-floor"), false);
   assert.equal(observedMessagesJson.includes("radioDirectionRevision"), false);
   assert.equal(observedMessagesJson.includes("radioSessionRevision"), false);
   assert.equal(observedToolCount, 1);
@@ -396,10 +398,9 @@ function createCountingTranscriptStore(): {
             value: {
               toolName: input.toolName,
               result: {
-                items: [],
                 queueLength: 0,
               },
-              runtime: { changedBasis: { queueRevision: 12 } },
+              runtime: { changedBasis: { queueRevision: 12 }, queueItems: [] },
             },
           };
         }
@@ -714,10 +715,10 @@ function createCountingTranscriptStore(): {
             value: {
               toolName: input.toolName,
               result: {
-                items: [
-                  { item: "[material:material:blocked]", index: 0 },
-                ],
                 queueLength: 1,
+              },
+              runtime: {
+                queueItems: [{ item: "[material:material:blocked]", index: 0, provenance: "radio_agent" }],
               },
             },
           };
@@ -796,13 +797,15 @@ function createCountingTranscriptStore(): {
       value: {
         toolName: "playback.queue.append",
         result: {
-          items: [
-            { item: "[material:material:one]", index: 0 },
-            { item: "[material:material:two]", index: 1 },
-          ],
           queueLength: 2,
         },
-        runtime: { changedBasis: { queueRevision: 9 } },
+        runtime: {
+          changedBasis: { queueRevision: 9 },
+          queueItems: [
+            { item: "[material:material:one]", index: 0, provenance: "radio_agent" },
+            { item: "[material:material:two]", index: 1, provenance: "radio_agent" },
+          ],
+        },
       },
     },
   });
@@ -868,11 +871,12 @@ function createCountingTranscriptStore(): {
       value: {
         toolName: "playback.queue.replace",
         result: {
-          item: "[material:material:replacement]",
-          index: 1,
           queueLength: 2,
         },
-        runtime: { changedBasis: { queueRevision: 10 } },
+        runtime: {
+          changedBasis: { queueRevision: 10 },
+          queueItems: [{ item: "[material:material:replacement]", index: 1, provenance: "radio_agent" }],
+        },
       },
     },
   });
@@ -897,10 +901,10 @@ function createCountingTranscriptStore(): {
       value: {
         toolName: "playback.queue.append",
         result: {
-          items: [
-            { item: "[material:material:one]", index: 0 },
-          ],
           queueLength: 1,
+        },
+        runtime: {
+          queueItems: [{ item: "[material:material:one]", index: 0, provenance: "radio_agent" }],
         },
       },
     },
@@ -947,11 +951,12 @@ function createCountingTranscriptStore(): {
       value: {
         toolName: "playback.queue.replace",
         result: {
-          item: "[material:material:replacement]",
-          index: 1,
           queueLength: 2,
         },
-        runtime: { changedBasis: { queueRevision: 11 } },
+        runtime: {
+          changedBasis: { queueRevision: 11 },
+          queueItems: [{ item: "[material:material:replacement]", index: 1, provenance: "radio_agent" }],
+        },
       },
     },
   });
@@ -1012,10 +1017,10 @@ function createCountingTranscriptStore(): {
       value: {
         toolName: "playback.queue.append",
         result: {
-          items: [
-            { item: "[material:material:one]", index: 0 },
-          ],
           queueLength: 1,
+        },
+        runtime: {
+          queueItems: [{ item: "[material:material:one]", index: 0, provenance: "radio_agent" }],
         },
       },
     },
@@ -1053,10 +1058,10 @@ function createCountingTranscriptStore(): {
       value: {
         toolName: "playback.queue.append",
         result: {
-          items: [
-            { item: "[material:material:one]", index: 0 },
-          ],
           queueLength: 1,
+        },
+        runtime: {
+          queueItems: [{ item: "[material:material:one]", index: 0, provenance: "radio_agent" }],
         },
       },
     },

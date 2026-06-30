@@ -74,7 +74,7 @@ export const radioDefinition: ActorDefinition = {
       "For example, a neon late-night synth direction should make you think of reference anchors such as Kavinsky, Nightcall, College & Electric Youth, A Real Hero, Com Truise, The Midnight, Timecop1983, or similar concrete music before you search. " +
       "Browse the listener's library with `library_catalog_browse` and `library_catalog_sample` when the direction points there. " +
       "Search in small batches: prefer specific lookupText and low limits, stop searching once you have enough fitting candidates to satisfy the current run, and do not keep broadening searches after you already have enough. " +
-      "For a 'low_watermark' run, append no more than the run's suggestedAppendCount unless there is a strong reason to append fewer; after append results show that the run has reached that count, call `radio_run_finish` instead of searching or appending more. For a 'direction_changed' run, treat that count as available refill room rather than a requirement, then stop. " +
+      "For a 'low_watermark' run, append no more than the run's suggestedAppendCount unless there is a strong reason to append fewer; after you have successfully appended that many items for the run, call `radio_run_finish` instead of searching or appending more. For a 'direction_changed' run, treat that count as available refill room rather than a requirement, then stop. " +
       "When a queue tool result includes a Workspace Context diff, read it as before-vs-after for the tool that just ran; plus lines are newly visible after that tool result, not evidence that those items were already queued before your call. " +
       "End every Radio refill run by calling `radio_run_finish` exactly once. `radio_run_finish` must be the only tool call in its assistant message: do not call it in the same response as lookup, queue, or posture tools. Use judgement refill_complete when the run appended or corrected enough to consider this refill complete. Use judgement no_action when you intentionally leave the queue unchanged. Use judgement candidate_exhaustion_by_direction only when you searched or browsed, found candidates, and none fit the current motif and active variations well enough to append; include a short summary. " +
       "Let `userTasteHint` guide toward the listener's taste, append with `playback_queue_append`, and use `playback_queue_remove`, `playback_queue_replace`, `playback_queue_move`, or `playback_queue_clear` only to correct queue items you added.",
@@ -132,7 +132,7 @@ export const mainDefinition: ActorDefinition = {
       "When the radio direction comes up, its `motif` is the main theme and active variations are secondary shading on it. " +
       "Use `radio_motif_set` or `radio_motif_clear` for the single motif slot, and `radio_variations_add`, `radio_variations_remove`, `radio_variations_replace`, `radio_variations_move`, or `radio_variations_clear` for the ordered active-variation list. " +
       "When the listener asks you to take over the continuing listening flow, keep the vibe going, play onward for a while, or stop making them choose one track at a time, treat that as Radio-session intent: set or adjust the radio direction first when needed, then use `radio_session_start` if Radio is shut down or `radio_session_resume` if it is paused. " +
-      "Use `radio_session_start`, `radio_session_pause`, `radio_session_shutdown`, or `radio_session_resume` when the listener asks to start, pause, shut down, or resume Radio; do not satisfy continuous-flow intent by manually appending a finite queue yourself unless the listener specifically asks for a finite queue edit. " +
+      "Use `radio_session_status` when you need to check whether Radio is running, paused, or shut down. Use `radio_session_start`, `radio_session_pause`, `radio_session_shutdown`, or `radio_session_resume` when the listener asks to start, pause, shut down, or resume Radio; do not satisfy continuous-flow intent by manually appending a finite queue yourself unless the listener specifically asks for a finite queue edit. " +
       "Use `playback_queue_append`, `playback_queue_remove`, `playback_queue_replace`, `playback_queue_move`, or `playback_queue_clear` to edit the current queue when the listener asks for queue changes. " +
       "Let `userTasteHint` align you with the listener's taste as a hint, not a rule. " +
       "Use the collection and relation tools for library housekeeping, and the import tools to bring in outside music. " +
@@ -181,6 +181,7 @@ export const mainDefinition: ActorDefinition = {
       "radio.session.pause",
       "radio.session.shutdown",
       "radio.session.resume",
+      "radio.session.status",
       "stage.runtime.status",
     ],
   },

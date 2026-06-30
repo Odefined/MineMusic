@@ -233,21 +233,7 @@ export function createMusicExperienceQueuePlaybackRecords(
 
       const key = workspaceKey(appendInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: appendInput.now });
-
-      const mintRow = await db.get<{ base_position: number }>(
-        `
-          UPDATE music_experience_state
-          SET queue_next_position = queue_next_position + ?
-          WHERE owner_scope = ?
-            AND workspace_id = ?
-          RETURNING queue_next_position - ? AS base_position
-        `,
-        [appendInput.materialRefs.length, key.ownerScope, key.workspaceId, appendInput.materialRefs.length],
-      );
-
-      if (mintRow === undefined) {
-        throw new Error("Music Experience queue position mint did not return a state row.");
-      }
+      await lockStateForUpdate({ db, key });
 
       const state = await updateQueueRevision({
         db,
@@ -261,7 +247,7 @@ export function createMusicExperienceQueuePlaybackRecords(
         throw new QueueFullError();
       }
 
-      const firstPosition = mintRow.base_position;
+      const firstPosition = countBeforeInsert + 1;
       const appended = appendInput.materialRefs.map((materialRef, index) => ({
         position: firstPosition + index,
         materialRef,
@@ -274,6 +260,12 @@ export function createMusicExperienceQueuePlaybackRecords(
         items: appended,
         now: appendInput.now,
       });
+      await updateQueueNextPosition({
+        db,
+        key,
+        nextPosition: countBeforeInsert + appended.length + 1,
+        now: appendInput.now,
+      });
 
       return {
         appended,
@@ -282,81 +274,150 @@ export function createMusicExperienceQueuePlaybackRecords(
       };
     },
     async remove(removeInput) {
-      return editQueue({
+      const key = workspaceKey(removeInput.ownerScope, workspaceId);
+      await ensureState({ db, key, now: removeInput.now });
+      await lockStateForUpdate({ db, key });
+      const rows = await readQueueItems({ db, key });
+      assertEditableQueueItem(rows, removeInput.index, removeInput.permission);
+
+      const removed = rows[removeInput.index];
+      if (removed === undefined) {
+        throw new Error("Music Experience queue remove item disappeared after index validation.");
+      }
+      const nextRows = rows
+        .filter((_row, index) => index !== removeInput.index)
+        .map((item, index) => ({ ...item, position: index + 1 }));
+
+      const state = await updateQueueRevision({
         db,
-        workspaceId,
-        ownerScope: removeInput.ownerScope,
-        ...(removeInput.basis === undefined ? {} : { basis: removeInput.basis }),
+        key,
         now: removeInput.now,
-        edit(rows) {
-          assertEditableQueueItem(rows, removeInput.index, removeInput.permission);
-          return [
-            ...rows.slice(0, removeInput.index),
-            ...rows.slice(removeInput.index + 1),
-          ];
-        },
+        ...(removeInput.basis === undefined ? {} : { basis: removeInput.basis }),
       });
+      await deleteQueueItemsAtPositions({ db, key, positions: [removed.position] });
+      await shiftQueuePositions({
+        db,
+        key,
+        start: removed.position + 1,
+        end: rows.length,
+        delta: -1,
+        now: removeInput.now,
+      });
+      await updateQueueNextPosition({ db, key, nextPosition: nextRows.length + 1, now: removeInput.now });
+
+      return {
+        queueLength: nextRows.length,
+        queueRevision: state.queue_revision,
+      };
     },
     async replace(replaceInput) {
-      const edited = await editQueue({
-        db,
-        workspaceId,
-        ownerScope: replaceInput.ownerScope,
-        ...(replaceInput.basis === undefined ? {} : { basis: replaceInput.basis }),
-        now: replaceInput.now,
-        edit(rows) {
-          assertEditableQueueItem(rows, replaceInput.index, replaceInput.permission);
-          return rows.map((item, index) => index === replaceInput.index
-            ? {
-                ...item,
-                materialRef: replaceInput.materialRef,
-                provenance: replaceInput.permission.replacementProvenance,
-              }
-            : item);
-        },
-      });
-      const item = edited.queue[replaceInput.index];
-      if (item === undefined) {
+      const key = workspaceKey(replaceInput.ownerScope, workspaceId);
+      await ensureState({ db, key, now: replaceInput.now });
+      await lockStateForUpdate({ db, key });
+      const rows = await readQueueItems({ db, key });
+      assertEditableQueueItem(rows, replaceInput.index, replaceInput.permission);
+
+      const target = rows[replaceInput.index];
+      if (target === undefined) {
         throw new Error("Music Experience queue replace item disappeared after index validation.");
       }
+      const item = {
+        position: target.position,
+        materialRef: replaceInput.materialRef,
+        provenance: replaceInput.permission.replacementProvenance,
+      };
+
+      const state = await updateQueueRevision({
+        db,
+        key,
+        now: replaceInput.now,
+        ...(replaceInput.basis === undefined ? {} : { basis: replaceInput.basis }),
+      });
+      await updateQueueItemMaterial({
+        db,
+        key,
+        position: target.position,
+        materialRef: replaceInput.materialRef,
+        provenance: replaceInput.permission.replacementProvenance,
+        now: replaceInput.now,
+      });
+
       return {
         item,
         index: replaceInput.index,
-        queueLength: edited.queueLength,
-        queueRevision: edited.queueRevision,
+        queueLength: rows.length,
+        queueRevision: state.queue_revision,
       };
     },
     async move(moveInput) {
-      return editQueue({
+      const key = workspaceKey(moveInput.ownerScope, workspaceId);
+      await ensureState({ db, key, now: moveInput.now });
+      await lockStateForUpdate({ db, key });
+      const rows = await readQueueItems({ db, key });
+      assertEditableQueueItem(rows, moveInput.from, moveInput.permission);
+      assertExistingQueueIndex(moveInput.to, rows.length);
+
+      const nextRows = rows.slice();
+      const [item] = nextRows.splice(moveInput.from, 1);
+      if (item === undefined) {
+        throw new Error("Music Experience queue move source disappeared after index validation.");
+      }
+      nextRows.splice(moveInput.to, 0, item);
+      const positionedRows = nextRows.map((row, index) => ({ ...row, position: index + 1 }));
+
+      const state = await updateQueueRevision({
         db,
-        workspaceId,
-        ownerScope: moveInput.ownerScope,
-        ...(moveInput.basis === undefined ? {} : { basis: moveInput.basis }),
+        key,
         now: moveInput.now,
-        edit(rows) {
-          assertEditableQueueItem(rows, moveInput.from, moveInput.permission);
-          assertExistingQueueIndex(moveInput.to, rows.length);
-          const next = rows.slice();
-          const [item] = next.splice(moveInput.from, 1);
-          if (item === undefined) {
-            throw new Error("Music Experience queue move source disappeared after index validation.");
-          }
-          next.splice(moveInput.to, 0, item);
-          return next;
-        },
+        ...(moveInput.basis === undefined ? {} : { basis: moveInput.basis }),
       });
+      if (moveInput.from !== moveInput.to) {
+        await moveQueueItem({
+          db,
+          key,
+          from: rows[moveInput.from]!.position,
+          to: moveInput.to + 1,
+          now: moveInput.now,
+        });
+      }
+      await updateQueueNextPosition({ db, key, nextPosition: positionedRows.length + 1, now: moveInput.now });
+
+      return {
+        queueLength: positionedRows.length,
+        queueRevision: state.queue_revision,
+      };
     },
     async clear(clearInput) {
-      return editQueue({
+      const key = workspaceKey(clearInput.ownerScope, workspaceId);
+      await ensureState({ db, key, now: clearInput.now });
+      await lockStateForUpdate({ db, key });
+      const rows = await readQueueItems({ db, key });
+      const removedRows = rows.filter((row) => canEditQueueItem(row, clearInput.permission));
+      const nextRows = rows
+        .filter((row) => !canEditQueueItem(row, clearInput.permission))
+        .map((item, index) => ({ ...item, position: index + 1 }));
+      const positionUpdates = rows
+        .filter((row) => !canEditQueueItem(row, clearInput.permission))
+        .map((item, index) => ({ from: item.position, to: index + 1 }));
+
+      const state = await updateQueueRevision({
         db,
-        workspaceId,
-        ownerScope: clearInput.ownerScope,
-        ...(clearInput.basis === undefined ? {} : { basis: clearInput.basis }),
+        key,
         now: clearInput.now,
-        edit(rows) {
-          return rows.filter((row) => !canEditQueueItem(row, clearInput.permission));
-        },
+        ...(clearInput.basis === undefined ? {} : { basis: clearInput.basis }),
       });
+      await deleteQueueItemsAtPositions({
+        db,
+        key,
+        positions: removedRows.map((row) => row.position),
+      });
+      await updateQueueItemPositions({ db, key, moves: positionUpdates, now: clearInput.now });
+      await updateQueueNextPosition({ db, key, nextPosition: nextRows.length + 1, now: clearInput.now });
+
+      return {
+        queueLength: nextRows.length,
+        queueRevision: state.queue_revision,
+      };
     },
     async playNow(playInput) {
       const key = workspaceKey(playInput.ownerScope, workspaceId);
@@ -549,48 +610,234 @@ async function insertQueueItems(input: {
   );
 }
 
-async function editQueue(input: {
+async function deleteQueueItemsAtPositions(input: {
   db: MusicDatabaseContext;
-  workspaceId: string;
-  ownerScope: string;
-  basis?: ConcernRevisionSet;
+  key: MusicExperienceWorkspaceKey;
+  positions: readonly number[];
+}): Promise<void> {
+  if (input.positions.length === 0) {
+    return;
+  }
+
+  await input.db.run(
+    `
+      DELETE FROM music_experience_queue_items
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+        AND position IN (${input.positions.map(() => "?").join(", ")})
+    `,
+    [input.key.ownerScope, input.key.workspaceId, ...input.positions],
+  );
+}
+
+async function updateQueueItemMaterial(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  position: number;
+  materialRef: Ref;
+  provenance: MusicExperienceQueueItemProvenance;
   now: string;
-  edit: (
-    rows: readonly MusicExperienceQueueItemSnapshot[],
-  ) => readonly MusicExperienceQueueItemSnapshot[];
-}): Promise<{
-  queue: readonly MusicExperienceQueueItemSnapshot[];
-  queueLength: number;
-  queueRevision: ConcernRevision;
-}> {
-  const key = workspaceKey(input.ownerScope, input.workspaceId);
-  await ensureState({ db: input.db, key, now: input.now });
-  await lockStateForUpdate({ db: input.db, key });
-  const rows = await readQueueItems({ db: input.db, key });
-  const nextRows = input.edit(rows).map((item, index) => ({
-    ...item,
-    position: index + 1,
-  }));
+}): Promise<void> {
+  await input.db.run(
+    `
+      UPDATE music_experience_queue_items
+      SET material_ref_key = ?,
+          material_ref_json = ?::jsonb,
+          provenance = ?,
+          updated_at = ?
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+        AND position = ?
+    `,
+    [
+      refKey(input.materialRef),
+      JSON.stringify(input.materialRef),
+      input.provenance,
+      input.now,
+      input.key.ownerScope,
+      input.key.workspaceId,
+      input.position,
+    ],
+  );
+}
 
-  const state = await updateQueueRevision({
-    db: input.db,
-    key,
-    now: input.now,
-    ...(input.basis === undefined ? {} : { basis: input.basis }),
-  });
+async function updateQueueNextPosition(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  nextPosition: number;
+  now: string;
+}): Promise<void> {
+  await input.db.run(
+    `
+      UPDATE music_experience_state
+      SET queue_next_position = ?,
+          updated_at = ?
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+    `,
+    [input.nextPosition, input.now, input.key.ownerScope, input.key.workspaceId],
+  );
+}
 
-  await replaceQueueItems({
-    db: input.db,
-    key,
-    items: nextRows,
-    now: input.now,
-  });
+async function moveQueueItem(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  from: number;
+  to: number;
+  now: string;
+}): Promise<void> {
+  if (input.from === input.to) {
+    return;
+  }
 
-  return {
-    queue: nextRows,
-    queueLength: nextRows.length,
-    queueRevision: state.queue_revision,
-  };
+  const offset = await temporaryQueuePositionOffset({ db: input.db, key: input.key });
+  const temporaryPosition = input.from + offset;
+  await input.db.run(
+    `
+      UPDATE music_experience_queue_items
+      SET position = ?,
+          updated_at = ?
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+        AND position = ?
+    `,
+    [temporaryPosition, input.now, input.key.ownerScope, input.key.workspaceId, input.from],
+  );
+
+  if (input.from < input.to) {
+    await shiftQueuePositions({
+      db: input.db,
+      key: input.key,
+      start: input.from + 1,
+      end: input.to,
+      delta: -1,
+      now: input.now,
+    });
+  } else {
+    await shiftQueuePositions({
+      db: input.db,
+      key: input.key,
+      start: input.to,
+      end: input.from - 1,
+      delta: 1,
+      now: input.now,
+    });
+  }
+
+  await input.db.run(
+    `
+      UPDATE music_experience_queue_items
+      SET position = ?,
+          updated_at = ?
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+        AND position = ?
+    `,
+    [input.to, input.now, input.key.ownerScope, input.key.workspaceId, temporaryPosition],
+  );
+}
+
+async function shiftQueuePositions(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  start: number;
+  end: number;
+  delta: -1 | 1;
+  now: string;
+}): Promise<void> {
+  if (input.start > input.end) {
+    return;
+  }
+
+  const offset = await temporaryQueuePositionOffset({ db: input.db, key: input.key });
+  await input.db.run(
+    `
+      UPDATE music_experience_queue_items
+      SET position = position + ?,
+          updated_at = ?
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+        AND position BETWEEN ? AND ?
+    `,
+    [offset, input.now, input.key.ownerScope, input.key.workspaceId, input.start, input.end],
+  );
+  await input.db.run(
+    `
+      UPDATE music_experience_queue_items
+      SET position = position - ? + ?,
+          updated_at = ?
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+        AND position BETWEEN ? AND ?
+    `,
+    [
+      offset,
+      input.delta,
+      input.now,
+      input.key.ownerScope,
+      input.key.workspaceId,
+      input.start + offset,
+      input.end + offset,
+    ],
+  );
+}
+
+async function updateQueueItemPositions(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  moves: readonly { from: number; to: number }[];
+  now: string;
+}): Promise<void> {
+  const moves = input.moves.filter((move) => move.from !== move.to);
+  if (moves.length === 0) {
+    return;
+  }
+
+  const offset = await temporaryQueuePositionOffset({ db: input.db, key: input.key });
+  await input.db.run(
+    `
+      UPDATE music_experience_queue_items
+      SET position = position + ?,
+          updated_at = ?
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+        AND position IN (${moves.map(() => "?").join(", ")})
+    `,
+    [offset, input.now, input.key.ownerScope, input.key.workspaceId, ...moves.map((move) => move.from)],
+  );
+
+  for (const move of moves) {
+    await input.db.run(
+      `
+        UPDATE music_experience_queue_items
+        SET position = ?,
+            updated_at = ?
+        WHERE owner_scope = ?
+          AND workspace_id = ?
+          AND position = ?
+      `,
+      [move.to, input.now, input.key.ownerScope, input.key.workspaceId, move.from + offset],
+    );
+  }
+}
+
+async function temporaryQueuePositionOffset(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+}): Promise<number> {
+  const row = await input.db.get<{ queue_next_position: number }>(
+    `
+      SELECT queue_next_position
+      FROM music_experience_state
+      WHERE owner_scope = ?
+        AND workspace_id = ?
+    `,
+    [input.key.ownerScope, input.key.workspaceId],
+  );
+  if (row === undefined) {
+    throw new Error("Music Experience state row disappeared before queue position update.");
+  }
+  return row.queue_next_position + MAX_MUSIC_EXPERIENCE_QUEUE_LENGTH + 1;
 }
 
 async function readQueueItems(input: {
@@ -608,28 +855,6 @@ async function readQueueItems(input: {
     [input.key.ownerScope, input.key.workspaceId],
   );
   return rows.map(queueItemFromRow);
-}
-
-async function replaceQueueItems(input: {
-  db: MusicDatabaseContext;
-  key: MusicExperienceWorkspaceKey;
-  items: readonly MusicExperienceQueueItemSnapshot[];
-  now: string;
-}): Promise<void> {
-  await input.db.run(
-    `
-      DELETE FROM music_experience_queue_items
-      WHERE owner_scope = ?
-        AND workspace_id = ?
-    `,
-    [input.key.ownerScope, input.key.workspaceId],
-  );
-
-  if (input.items.length === 0) {
-    return;
-  }
-
-  await insertQueueItems(input);
 }
 
 function assertEditableQueueItem(

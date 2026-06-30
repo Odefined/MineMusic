@@ -167,7 +167,7 @@ function queueEditDescriptor(input: {
     usage: {
       useWhen: input.useWhen,
       doNotUseWhen: "Do not use for music lookup, recommendation presentation, or changing the current now-playing selection.",
-      outputSemantics: "Returns the resulting queue length; it does not expose storage rows, material refs, or runtime metadata.",
+      outputSemantics: "Returns the resulting queue length; use the refreshed Workspace Context diff for updated queue after-state.",
     },
     examples: input.examples,
     sideEffect: runtimeWriteSideEffect,
@@ -188,7 +188,7 @@ export const playbackQueueAppendDescriptor: ToolDeclaration = {
   usage: {
     useWhen: "Use after choosing one or more concrete music items that should be placed in the current logical queue.",
     doNotUseWhen: "Do not use for lookup, presentation cards, library saving, or making an item the current now-playing selection.",
-    outputSemantics: "Returns compact public [material:...] handles, appended indexes, and the queue length after this append; it does not expose storage rows, material refs, or runtime metadata.",
+    outputSemantics: "Returns the queue length after this append; use the refreshed Workspace Context diff for updated queue after-state.",
   },
   examples: [
     {
@@ -208,8 +208,7 @@ export const playbackQueueAppendDescriptor: ToolDeclaration = {
   errors: queueAppendErrors,
   resultSummary(result) {
     const output = result as PlaybackQueueAppendOutput;
-    const indexes = output.items.map((item) => item.index).join(", ");
-    return `Appended ${output.items.length} item(s) to queue index(es) ${indexes}; queue length after this append is ${output.queueLength}.`;
+    return `Appended item(s) to the queue; queue length after this append is ${output.queueLength}.`;
   },
 };
 
@@ -259,7 +258,7 @@ export const playbackQueueReplaceDescriptor: ToolDeclaration = queueEditDescript
   ],
   resultSummary: (result) => {
     const output = result as PlaybackQueueReplaceOutput;
-    return `Replaced queue index ${output.index} with ${output.item}; queue length is ${output.queueLength}.`;
+    return `Replaced queue item; queue length is ${output.queueLength}.`;
   },
 });
 
@@ -448,11 +447,11 @@ async function handleQueueAppend(
   }
 
   const firstAppendedIndex = appended.value.queueLength - appended.value.appended.length;
-  const output: PlaybackQueueAppendOutput = {
-    items: await Promise.all(appended.value.appended.map(async (item, index) => ({
+  const outputItems = await Promise.all(appended.value.appended.map(async (item, index) => ({
       item: await mintMaterialItemHandle(ctx, item.materialRef),
       index: firstAppendedIndex + index,
-    }))),
+    })));
+  const output: PlaybackQueueAppendOutput = {
     queueLength: appended.value.queueLength,
   };
 
@@ -462,6 +461,10 @@ async function handleQueueAppend(
       changedBasis: {
         queueRevision: appended.value.queueRevision,
       },
+      queueItems: outputItems.map((item, index) => ({
+        ...item,
+        provenance: appended.value.appended[index]!.provenance,
+      })),
     }),
   };
 }
@@ -567,9 +570,8 @@ async function handleQueueReplace(
     return replaced;
   }
 
+  const item = await mintMaterialItemHandle(ctx, replaced.value.item.materialRef);
   const output: PlaybackQueueReplaceOutput = {
-    item: await mintMaterialItemHandle(ctx, replaced.value.item.materialRef),
-    index: replaced.value.index,
     queueLength: replaced.value.queueLength,
   };
   return {
@@ -578,6 +580,11 @@ async function handleQueueReplace(
       changedBasis: {
         queueRevision: replaced.value.queueRevision,
       },
+      queueItems: [{
+        item,
+        index: replaced.value.index,
+        provenance: replaced.value.item.provenance,
+      }],
     }),
   };
 }

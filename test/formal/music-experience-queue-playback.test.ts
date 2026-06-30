@@ -130,9 +130,9 @@ assert.deepEqual(playbackQueueClearDescriptor.examples, [
 ]);
 assert.equal(playbackQueueRemoveDescriptor.errors.some((error) => error.code === "queue_item_not_editable"), true);
 assert.equal(playbackQueueRemoveDescriptor.errors.some((error) => error.code === "candidate_not_found"), false);
-assert.deepEqual(Object.keys(playbackQueueAppendOutputSchema.properties ?? {}).sort(), ["items", "queueLength"]);
+assert.deepEqual(Object.keys(playbackQueueAppendOutputSchema.properties ?? {}).sort(), ["queueLength"]);
 assert.deepEqual(Object.keys(playbackQueueEditOutputSchema.properties ?? {}).sort(), ["queueLength"]);
-assert.deepEqual(Object.keys(playbackQueueReplaceOutputSchema.properties ?? {}).sort(), ["index", "item", "queueLength"]);
+assert.deepEqual(Object.keys(playbackQueueReplaceOutputSchema.properties ?? {}).sort(), ["queueLength"]);
 assert.deepEqual(Object.keys(musicExperiencePlaybackPlayOutputSchema.properties ?? {}).sort(), ["item", "status"]);
 assert.equal(playbackQueueMoveDescriptor.errors.some((error) => error.code === "queue_full"), false);
 assert.equal(playbackQueueClearDescriptor.errors.some((error) => error.code === "material_not_found"), false);
@@ -183,6 +183,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   const started = await radioSession.transitionRadioSession({
     ownerScope,
     operation: "start",
+    actor: "main_agent",
     now,
   });
   assert.equal(started.ok, true);
@@ -195,6 +196,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   const paused = await radioSession.transitionRadioSession({
     ownerScope,
     operation: "pause",
+    actor: "user",
     now,
   });
   assert.equal(paused.ok, true);
@@ -207,6 +209,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   const resumed = await radioSession.transitionRadioSession({
     ownerScope,
     operation: "resume",
+    actor: "user",
     now,
   });
   assert.equal(resumed.ok, true);
@@ -219,6 +222,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   const shutDown = await radioSession.transitionRadioSession({
     ownerScope,
     operation: "shutdown",
+    actor: "main_agent",
     now,
   });
   assert.equal(shutDown.ok, true);
@@ -240,7 +244,43 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     3,
     4,
   ]);
+  assert.deepEqual(observedChanges.filter((change) => change.concern === "radio-session").map((change) => change.actor), [
+    "main_agent",
+    "user",
+    "user",
+    "main_agent",
+  ]);
+  assert.deepEqual(observedChanges.filter((change) => change.concern === "playback").map((change) => change.actor), [
+    "main_agent",
+    "user",
+    "user",
+    "main_agent",
+  ]);
   assert.deepEqual(observedChanges.filter((change) => change.concern === "queue").map((change) => change.newRevision), [1]);
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
+
+  await assert.rejects(
+    async () => {
+      await database.context().run(
+        `
+          INSERT INTO music_experience_state (
+            owner_scope, workspace_id, queue_revision, radio_direction_revision,
+            radio_session_revision, playback_revision, queue_next_position,
+            now_playing_material_ref_key, now_playing_material_ref_json,
+            playback_status, created_at, updated_at
+          )
+          VALUES (?, 'playing_without_material', 0, 0, 0, 0, 1, NULL, NULL, 'playing', ?, ?)
+        `,
+        [ownerScope, now, now],
+      );
+    },
+    /check constraint|violates check constraint|CHECK constraint failed/u,
+  );
 
   await database.close();
 }
@@ -596,6 +636,106 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 
 {
   const database = await initializedMusicExperienceDatabase();
+  const refs = [
+    { namespace: "material", kind: "recording", id: "queue_local_edit_first" },
+    { namespace: "material", kind: "recording", id: "queue_local_edit_removed" },
+    { namespace: "material", kind: "recording", id: "queue_local_edit_shifted" },
+    { namespace: "material", kind: "recording", id: "queue_local_edit_tail" },
+    { namespace: "material", kind: "recording", id: "queue_local_edit_appended" },
+    { namespace: "material", kind: "recording", id: "queue_local_edit_replacement" },
+  ] satisfies Ref[];
+  for (const [index, ref] of refs.entries()) {
+    await seedRecording(database, ref, `Queue Local Edit ${index}`, ["Queue Local Artist"]);
+  }
+
+  const command = createMusicExperienceQueuePlaybackCommand({ database });
+  expectAppendOutput(await command.append({
+    ownerScope,
+    materialRefs: refs.slice(0, 4),
+    provenance: "user",
+    now: "2026-06-27T00:00:00.000Z",
+  }));
+  await database.context().run(
+    `
+      UPDATE music_experience_queue_items
+      SET created_at = '2026-06-27T00:00:01.000Z',
+          updated_at = '2026-06-27T00:00:01.000Z'
+      WHERE owner_scope = ?
+        AND workspace_id = 'default'
+        AND position = 1
+    `,
+    [ownerScope],
+  );
+
+  const removed = await command.remove({
+    ownerScope,
+    index: 1,
+    permission: { kind: "all_queued_items", replacementProvenance: "user" },
+    basis: { queueRevision: 1 },
+    now: "2026-06-27T00:00:02.000Z",
+  });
+  assert.equal(removed.ok, true);
+  assert.equal(removed.value.queueLength, 3);
+
+  const afterRemove = await readQueueStorageRows(database);
+  assert.deepEqual(afterRemove.map((row) => row.position), [1, 2, 3]);
+  assert.deepEqual(afterRemove.map((row) => row.material_ref_key), [
+    refKey(refs[0]!),
+    refKey(refs[2]!),
+    refKey(refs[3]!),
+  ]);
+  assert.equal(afterRemove[0]?.created_at, "2026-06-27T00:00:01.000Z");
+  assert.equal(afterRemove[0]?.updated_at, "2026-06-27T00:00:01.000Z");
+
+  const appended = expectAppendOutput(await command.append({
+    ownerScope,
+    materialRefs: [refs[4]!],
+    provenance: "user",
+    basis: { queueRevision: 2 },
+    now: "2026-06-27T00:00:03.000Z",
+  }));
+  assert.deepEqual(appended.appended.map((item) => item.position), [4]);
+  const nextPositionAfterAppend = await database.context().get<{ queue_next_position: number }>(
+    `
+      SELECT queue_next_position
+      FROM music_experience_state
+      WHERE owner_scope = ?
+        AND workspace_id = 'default'
+    `,
+    [ownerScope],
+  );
+  assert.equal(nextPositionAfterAppend?.queue_next_position, 5);
+
+  const beforeReplace = await readQueueStorageRows(database);
+  const replaced = await command.replace({
+    ownerScope,
+    index: 3,
+    materialRef: refs[5]!,
+    permission: { kind: "all_queued_items", replacementProvenance: "main_agent" },
+    basis: { queueRevision: 3 },
+    now: "2026-06-27T00:00:04.000Z",
+  });
+  assert.equal(replaced.ok, true);
+  const afterReplace = await readQueueStorageRows(database);
+  assert.deepEqual(afterReplace.slice(0, 3), beforeReplace.slice(0, 3));
+  assert.equal(afterReplace[3]?.position, 4);
+  assert.equal(afterReplace[3]?.material_ref_key, refKey(refs[5]!));
+  assert.equal(afterReplace[3]?.updated_at, "2026-06-27T00:00:04.000Z");
+
+  const clearNoop = await command.clear({
+    ownerScope,
+    permission: { kind: "radio_owned_queued_items", replacementProvenance: "radio_agent" },
+    basis: { queueRevision: 4, radioDirectionRevision: 0, radioSessionRevision: 0 },
+    now: "2026-06-27T00:00:05.000Z",
+  });
+  assert.equal(clearNoop.ok, true);
+  assert.deepEqual(await readQueueStorageRows(database), afterReplace);
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
   const firstRef: Ref = { namespace: "material", kind: "recording", id: "pr35_stage_first" };
   const secondRef: Ref = { namespace: "material", kind: "recording", id: "pr35_stage_second" };
   const replacementRef: Ref = { namespace: "material", kind: "recording", id: "pr35_stage_replacement" };
@@ -684,9 +824,12 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   });
   assert.equal(replaced.ok, true);
   assert.deepEqual(replaced.value.runtime?.changedBasis, { queueRevision: 3 });
-  assert.deepEqual(output<PlaybackQueueReplaceOutput>(replaced), {
+  assert.deepEqual(replaced.value.runtime?.queueItems, [{
     item: `[material:${replacementHandle}]`,
     index: 1,
+    provenance: "user",
+  }]);
+  assert.deepEqual(output<PlaybackQueueReplaceOutput>(replaced), {
     queueLength: 2,
   });
 
@@ -891,12 +1034,12 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   const appendOutput = output<PlaybackQueueAppendOutput>(appendResult);
   assert.equal(appendOutput.queueLength, 1);
   assert.deepEqual(appendResult.value.runtime?.changedBasis, { queueRevision: 1 });
-  assert.deepEqual(appendOutput.items, [
-    {
-      item: `[material:${materialHandleId}]`,
-      index: 0,
-    },
-  ]);
+  assert.deepEqual(appendResult.value.runtime?.queueItems, [{
+    item: `[material:${materialHandleId}]`,
+    index: 0,
+    provenance: "user",
+  }]);
+  assert.deepEqual(appendOutput, { queueLength: 1 });
   assertPublicToolOutput(appendOutput);
 
   const playResult = await stageInterface.dispatch(ctx, {
@@ -1040,13 +1183,14 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(appendResult.ok, true);
   assert.deepEqual(committedCandidateRef, materialCandidateRef);
   const appendOutput = output<PlaybackQueueAppendOutput>(appendResult);
+  const appendedQueueItems = appendResult.value.runtime?.queueItems ?? [];
   assert.equal(appendOutput.queueLength, 1);
-  assert.equal(appendOutput.items[0]?.index, 0);
+  assert.equal(appendedQueueItems[0]?.index, 0);
   assertPublicToolOutput(appendOutput);
   const resolvedOutput = await handleMinting.resolve({
     ownerScope,
     handleKind: "material",
-    publicId: parseMusicItemHandle(appendOutput.items[0]!.item).id,
+    publicId: parseMusicItemHandle(appendedQueueItems[0]!.item).id,
   }) as { materialRef: string };
   assert.equal(resolvedOutput.materialRef, refKey(candidateMaterialRef));
 
@@ -1146,7 +1290,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(appendResult.ok, true);
   assert.deepEqual(committedCandidateRefs, [materialCandidateRef]);
   const appendOutput = output<PlaybackQueueAppendOutput>(appendResult);
-  assert.deepEqual(appendOutput.items.map((item) => item.index), [0, 1]);
+  assert.deepEqual(appendResult.value.runtime?.queueItems?.map((item) => item.index), [0, 1]);
   assert.equal(appendOutput.queueLength, 2);
   assertPublicToolOutput(appendOutput);
   const snapshot = await createMusicExperienceQueuePlaybackRecords({
@@ -1467,10 +1611,11 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   });
   assert.equal(appendResult.ok, true);
   const appendOutput = output<PlaybackQueueAppendOutput>(appendResult);
+  const appendedQueueItems = appendResult.value.runtime?.queueItems ?? [];
   const appendHandleAnchor = await handleMinting.resolve({
     ownerScope,
     handleKind: "material",
-    publicId: parseMusicItemHandle(appendOutput.items[0]!.item).id,
+    publicId: parseMusicItemHandle(appendedQueueItems[0]!.item).id,
   }) as { materialRef: string };
   assert.equal(appendHandleAnchor.materialRef, refKey(winnerRef));
 
@@ -1600,7 +1745,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 
   assert.equal(appendResult.ok, true);
   const appendOutput = output<PlaybackQueueAppendOutput>(appendResult);
-  assert.deepEqual(appendOutput.items.map((item) => item.index), [0, 1]);
+  assert.deepEqual(appendResult.value.runtime?.queueItems?.map((item) => item.index), [0, 1]);
   assert.equal(appendOutput.queueLength, 2);
   assertPublicToolOutput(appendOutput);
 
@@ -1798,10 +1943,11 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 
   assert.equal(appendResult.ok, true);
   const appendOutput = output<PlaybackQueueAppendOutput>(appendResult);
+  const appendedQueueItems = appendResult.value.runtime?.queueItems ?? [];
   const resolvedOutput = await handleMinting.resolve({
     ownerScope,
     handleKind: "material",
-    publicId: parseMusicItemHandle(appendOutput.items[0]!.item).id,
+    publicId: parseMusicItemHandle(appendedQueueItems[0]!.item).id,
   }) as { materialRef: string };
   assert.equal(resolvedOutput.materialRef, refKey(winnerRef));
 
@@ -2022,6 +2168,27 @@ function unusedCandidateCommit(): CandidateCommitCommand {
       throw new Error("Candidate Commit should not be called by the material-handle A3 test.");
     },
   };
+}
+
+type QueueStorageRow = {
+  position: number;
+  material_ref_key: string;
+  provenance: string;
+  created_at: string;
+  updated_at: string;
+};
+
+async function readQueueStorageRows(database: MusicDatabase): Promise<readonly QueueStorageRow[]> {
+  return database.context().all<QueueStorageRow>(
+    `
+      SELECT position, material_ref_key, provenance, created_at, updated_at
+      FROM music_experience_queue_items
+      WHERE owner_scope = ?
+        AND workspace_id = 'default'
+      ORDER BY position ASC
+    `,
+    [ownerScope],
+  );
 }
 
 function sourceTrack(

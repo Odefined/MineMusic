@@ -7,11 +7,14 @@ import {
   radioSessionResumeInputSchema,
   radioSessionShutdownInputSchema,
   radioSessionStartInputSchema,
+  radioSessionStatusInputSchema,
+  radioSessionStatusOutputSchema,
   radioSessionToolOutputSchema,
 } from "../contracts/generated/stage_interface_schemas.js";
 import type {
   InstrumentDescriptor,
   StageToolContext,
+  RadioSessionStatusOutput,
   RadioSessionToolOutput,
   StageToolRegistration,
   ToolDeclaration,
@@ -27,6 +30,7 @@ export type RadioSessionControlPort = {
   pause(): Promise<Result<RadioSessionControlResult>>;
   shutdown(): Promise<Result<RadioSessionControlResult>>;
   resume(): Promise<Result<RadioSessionControlResult>>;
+  status(): Promise<Result<RadioSessionStatusOutput>>;
 };
 
 export const radioSessionInstrument: InstrumentDescriptor = {
@@ -51,15 +55,13 @@ const radioSessionErrors = [
     retryable: true,
     suggestedFixTemplate: "Retry the Radio session control if it is still desired.",
   },
+] as const;
+
+const radioSessionReadErrors = [
   {
-    code: "radio_session_wake_failed",
-    retryable: true,
-    suggestedFixTemplate: "Radio is already Running; do not retry radio.session.start or radio.session.resume (both will be rejected). The queue refill is retried automatically on the next low-watermark wake.",
-  },
-  {
-    code: "radio_session_cleanup_failed",
+    code: "radio_session_actor_not_allowed",
     retryable: false,
-    suggestedFixTemplate: "No retry is needed: Radio is already shut down. Any leftover transcript row is superseded when Radio is next started.",
+    suggestedFixTemplate: "Call Radio session controls only from the Main agent.",
   },
 ] as const;
 
@@ -164,11 +166,55 @@ export const radioSessionResumeDescriptor = radioSessionDescriptor({
   inputSchema: radioSessionResumeInputSchema,
 });
 
+export const radioSessionStatusDescriptor: ToolDeclaration = {
+  name: "radio.session.status",
+  instrumentId: radioSessionInstrument.id,
+  label: "Radio Session Status",
+  ownerArea: "agent_runtime",
+  description: "Read the current Radio agent session lifecycle state.",
+  usage: {
+    useWhen: "Use when you need to know whether Radio is running, paused, or shut down before choosing a Radio lifecycle control.",
+    doNotUseWhen: "Do not use to change Radio state, pick music, edit the queue, or change the radio direction.",
+    outputSemantics: "Returns the compact current Radio lifecycle state and no command-basis changes.",
+  },
+  examples: [
+    {
+      prompt: "is Radio already running?",
+      expects: "call",
+    },
+    {
+      prompt: "start Radio for this mood",
+      expects: "avoid",
+      note: "Use a lifecycle control after setting the direction when the listener wants Radio to change state.",
+    },
+  ],
+  sideEffect: {
+    durableUserStateWrite: false,
+    runtimeStateWrite: false,
+    externalCall: false,
+  },
+  invocationPolicy: {
+    defaultDecision: "auto",
+    dataEgress: "none",
+    readOnlyHint: true,
+    destructiveHint: false,
+    maxCallsPerTurn: 1,
+  },
+  inputSchema: radioSessionStatusInputSchema,
+  outputSchema: radioSessionStatusOutputSchema,
+  errors: radioSessionReadErrors,
+  resultSummary(result) {
+    const output = result as RadioSessionStatusOutput;
+    return `Radio session is ${output.state}.`;
+  },
+};
+
 export const radioSessionToolNames = [
   radioSessionStartDescriptor.name,
   radioSessionPauseDescriptor.name,
   radioSessionShutdownDescriptor.name,
   radioSessionResumeDescriptor.name,
+  radioSessionStatusDescriptor.name,
 ] as const;
 
 export function createRadioSessionToolRegistrations(
@@ -191,6 +237,10 @@ export function createRadioSessionToolRegistrations(
       descriptor: radioSessionResumeDescriptor,
       handler: (ctx) => handleRadioSessionControl(ctx, () => control.resume()),
     },
+    {
+      descriptor: radioSessionStatusDescriptor,
+      handler: (ctx) => handleRadioSessionStatus(ctx, () => control.status()),
+    },
   ];
 }
 
@@ -199,16 +249,7 @@ async function handleRadioSessionControl(
   run: () => Promise<Result<RadioSessionControlResult>>,
 ): Promise<Result<unknown>> {
   if (ctx.actor !== "main_agent") {
-    return {
-      ok: false,
-      error: {
-        code: "radio_session_actor_not_allowed",
-        message: "Only the Main agent may change the Radio session lifecycle.",
-        area: "agent_runtime",
-        retryable: false,
-        suggestedFix: "Call Radio session controls only from the Main agent.",
-      },
-    };
+    return radioSessionActorNotAllowed();
   }
   const result = await run();
   if (!result.ok) {
@@ -218,5 +259,29 @@ async function handleRadioSessionControl(
   return {
     ok: true,
     value: stageToolHandlerOutput(output, { changedBasis }),
+    ...(result.warnings === undefined ? {} : { warnings: result.warnings }),
+  };
+}
+
+async function handleRadioSessionStatus(
+  ctx: StageToolContext,
+  run: () => Promise<Result<RadioSessionStatusOutput>>,
+): Promise<Result<unknown>> {
+  if (ctx.actor !== "main_agent") {
+    return radioSessionActorNotAllowed();
+  }
+  return await run();
+}
+
+function radioSessionActorNotAllowed(): Result<never> {
+  return {
+    ok: false,
+    error: {
+      code: "radio_session_actor_not_allowed",
+      message: "Only the Main agent may change or read the Radio session lifecycle.",
+      area: "agent_runtime",
+      retryable: false,
+      suggestedFix: "Call Radio session controls only from the Main agent.",
+    },
   };
 }

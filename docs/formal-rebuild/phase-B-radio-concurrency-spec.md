@@ -282,7 +282,8 @@ neither queue ordering — PB3's reorder exemption — nor anything else). Turni
 Radio off — whether **pause** or **shutdown** (PB10) — bumps `radio-session` →
 the in-flight refill voids (and the cascade, PB9, aborts it, since abort-set =
 void-set); both off kinds are OCC-equivalent on `radio-session`, and the
-pause-vs-shutdown difference is lifecycle/queue fate (PB10), not OCC. Clearing
+pause-vs-shutdown difference is agent instance/transcript fate (PB10), not OCC.
+Clearing
 the queue bumps **only**
 the queue revision, which a refill's basis ignores, so clearing-and-refilling is
 the natural "wipe these, give me fresh ones" gesture — clear does **not** mean
@@ -463,16 +464,18 @@ older Music Experience queue naming, as candidate-or-material, batch-of-1, with
 `ResolveDurableMusicItem` extracted (ADR-0040); Phase B widens that capability to
 batch-of-N for Radio refill and PR3.5 aligns queue tools under the
 `playback.queue.*` family — not a replace, not a second append capability. No raw
-agent-facing commit primitive is exposed; the append result reports the **minted
-public `material` handles** (per ADR-0040's unified item-handle currency) and
-their provenance — **never raw material refs** (returning an internal storage ref
-would violate the Public Handle Veil / Agent-Facing Output rule). Per-item
-handles (not just a count) are returned because a caller may later need to
-reference an appended item (Main's "move the third one I just added"); an unused
-handle costs nothing, a handle never returned cannot be recovered. Rationale:
-matches present's existing encapsulation; "several per turn, not one per
-inference" wants minimal calls per refill; agency lives in selection, not in
-commit/append plumbing.
+agent-facing commit primitive is exposed; the public append result reports only
+the resulting queue length. The post-commit tool result carries internal runtime
+metadata for appended or replaced queue items: minted public `material` handles
+(per ADR-0040's unified item-handle currency), queue indexes, and provenance —
+**never raw material refs** (returning an internal storage ref would violate the
+Public Handle Veil / Agent-Facing Output rule). The Agent Runtime's refreshed
+Workspace Context diff exposes the queue after-state the model needs for future
+correction decisions, including item identity and provenance. Rationale: the
+agent-facing public result stays compact, while runtime metadata and Workspace
+Context preserve referenceability without duplicating the queue diff in every
+write result; "several per turn, not one per inference" wants minimal calls per
+refill; agency lives in selection, not in commit/append plumbing.
 
 **Cross-context write boundary is two-step and non-atomic — by design, not a
 saga.** `playback.queue.append` performs two writes in different owners: a Music Data
@@ -506,26 +509,28 @@ concurrency mechanism, so under two concurrent writers the queue must allocate
 positions atomically. The current Phase A append is `SELECT MAX(position)` then
 `INSERT` (`records.ts:117`) — a read-modify-write race: a Radio append and a Main
 append can both read the same tail and collide on the `position` primary key
-(`schema.ts:42`). Phase B replaces it with a monotonic tail counter.
+(`schema.ts:42`). Phase B replaces it with a dense queue invariant protected by
+the `music_experience_state` row lock.
 
-- **Counter column.** `music_experience_state` gains
-  `queue_next_position INTEGER NOT NULL DEFAULT 1` (schema contribution bumped).
-  The counter is append-only and never recycled; positions are an ordering key,
-  not a dense array, so gaps from voided appends are harmless.
-- **Atomic mint (all appenders uniform).** Position allocation is one atomic
-  statement, shared by every writer (Radio / Main / user):
-  ```sql
-  UPDATE music_experience_state
-     SET queue_next_position = queue_next_position + :N
-   WHERE owner_scope = :o AND workspace_id = :w
-  RETURNING queue_next_position - :N AS base_position;
-  ```
-  Batch items take `position = base_position + index`. `SELECT MAX(position)` is
-  forbidden. Two concurrent mints serialize on the `music_experience_state` row
-  lock ⇒ unique, contiguous, input-ordered positions.
+- **Dense position invariant.** Queue `position` is the durable ordering key and
+  must remain `1..queue_length` without gaps. This matches the model/user-facing
+  queue indexes and avoids stale gaps after remove/clear/move.
+- **State-row lock (all appenders uniform).** Every queue writer first locks the
+  workspace's `music_experience_state` row. Append reads the current queue length
+  inside that lock and inserts batch items at `queue_length + 1 ... queue_length +
+  batch_size`; two concurrent appenders serialize on the state row, so positions
+  are unique, contiguous, and input-ordered. `queue_next_position`, while present
+  in the schema, is only a cache of `queue_length + 1` / temporary-position basis,
+  not an append-only allocator.
+- **Local edit maintenance.** Queue edits maintain the dense invariant without
+  deleting/reinserting the whole queue: replace updates one row; remove shifts the
+  tail down; move shifts only the affected interval; clear deletes editable rows
+  and compacts the remaining rows. Untouched items keep their row identity and
+  timestamps.
 - **Decoupled from the basis CAS (PB3 "checked set ≠ bumped set").** Position
-  mint is a third, mechanical concern — neither checked nor bumped. Radio layers
-  its basis CAS on top as a separate statement in the same transaction:
+  allocation is a mechanical consequence of the queue lock — neither checked nor
+  bumped. Radio layers its basis CAS on top as a separate statement in the same
+  transaction:
   ```sql
   UPDATE music_experience_state
      SET queue_revision = queue_revision + 1
@@ -533,15 +538,16 @@ append can both read the same tail and collide on the `position` primary key
      AND radio_direction_revision = :basis_dir
      AND radio_session_revision = :basis_session;
   ```
-  Zero rows ⇒ `voided_stale` ⇒ the whole append transaction rolls back, including
-  the counter increment (no position gap, no residual insert). Main/user append
-  has no basis and bumps `queue_revision` unconditionally. (Prerequisite: PB3's
-  radio concern columns `radio_direction_revision` / `radio_session_revision`
-  must be added to `music_experience_state`, which today carries only
-  `queue_revision` + `playback_revision`.)
+  Zero rows ⇒ `voided_stale` ⇒ the whole append transaction rolls back, with no
+  residual insert and no position gap. Main/user append has no basis and bumps
+  `queue_revision` unconditionally. (Prerequisite: PB3's radio concern columns
+  `radio_direction_revision` / `radio_session_revision` must be added to
+  `music_experience_state`, which today carries only `queue_revision` +
+  `playback_revision`.)
 - **Scope of PB6: append allocation only.** The generalized
-  `playback.queue.append` path remains the batch append path and owns monotonic
-  tail-position minting. `playback.queue.remove` / `playback.queue.replace` /
+  `playback.queue.append` path remains the batch append path and owns tail
+  allocation under the dense queue invariant. `playback.queue.remove` /
+  `playback.queue.replace` /
   `playback.queue.move` / `playback.queue.clear` are separate Music
   Experience queue-edit capabilities in the post-PR3.3 plan, using the same
   action vocabulary as `activeVariations` and `lean` where queue semantics allow
@@ -857,14 +863,17 @@ one `Agent`; Agent Runtime owns the cascade across actors.
   This closes the Open item "concrete routing from a revision bump to which
   in-flight runs depend on this concern + how AbortSignals are held per run."
 
-### PB10 — Radio lifecycle is three user controls (start / pause / shutdown); user-button, not agent-driven
+### PB10 — Radio lifecycle is Main-controlled in Phase B; user buttons land in Phase C
 
-Radio is driven by three **user button controls** — `start`, `pause`, `shutdown`
-— that govern the Radio **agent instance lifecycle**. They are user actions on a
-par with playback play/pause: they travel the user-command path and **do not go
-through any agent loop**. ("Agent calls a tool" like `playback.queue.append` is a
-separate, normal mechanism; the lifecycle buttons are not that.) The Radio agent
-has three lifecycle states:
+Radio is driven by four Phase B mutating lifecycle commands — `start`, `resume`,
+`pause`, `shutdown` — over three Radio **agent instance lifecycle** states, plus a
+read-only `status` command for Main to inspect that state. In Phase B, the entry
+surface is Main's `radio.session.*` Stage tools: the Main agent may interpret
+listener intent and call them, while the Radio agent cannot call its own lifecycle
+tools. The controls still execute through the Agent Runtime / Music Experience
+lifecycle command boundary described below. Phase C attaches the real user-button
+/ user-command path to the same lifecycle semantics instead of defining a second
+state machine. The Radio agent has three lifecycle states:
 
 - **Running** — instantiated, pacing-triggered (PB1a). The only state in which
   the pacing watcher may wake a run.
@@ -873,30 +882,31 @@ has three lifecycle states:
 - **Shutdown** — agent instance **killed**; the workspace has no Radio agent
   until the next `start` instantiates a fresh one.
 
-Transitions and their side effects — each control is a user button whose
-command-layer handling touches the listed owners (Agent Runtime owns the agent
-instance; Music Experience owns queue + playback + radio truth); none of this is
-agent tool use:
+Transitions and their side effects — each control's command-layer handling
+touches the listed owners (Agent Runtime owns the agent instance; Music
+Experience owns queue + playback + radio truth). In Phase B these controls are
+Main-agent tool calls; in Phase C they become direct user-button/user-command
+entries to the same boundary:
 
-- **`start` → Running** (from Paused: resume the same agent; from Shutdown:
-  instantiate a fresh one):
+- **`start` / `resume` → Running** (`resume` from Paused resumes the same agent;
+  `start` from Shutdown instantiates a fresh one):
   - agent instance: resume (Paused) or instantiate fresh (Shutdown);
   - transcript: retained (Paused) or new/empty (Shutdown);
   - evolved posture: read from the floor at first run start — kept iff commanded
     direction (motif/variation) is unchanged (PB8 stamp);
   - commanded direction: unchanged;
-  - queue: Shutdown left it empty; Paused left it full, **retained only if the
-    commanded direction (motif/variation) is unchanged since pause** — if it
-    changed while Radio was off, the retained queue is stale and is cleared
-    (refresh) so Radio refills with the new direction before playing. (Detection:
-    snapshot the radio-direction revision at pause; on start, mismatch ⇒ clear.)
-    This refresh is **start-only**; a direction change *while Running* does not
-    clear the queue (Radio refills on top — a gradual mix — and the now-playing
-    track is untouched);
+  - queue: retained. Start/resume does not clear, replace, append, or remove queue
+    material as a lifecycle side effect; direction mismatch while Radio was off is
+    handled by the next Radio run's ordinary queue-correction tools, not by a
+    lifecycle clear. There is no pause-time direction snapshot whose mismatch
+    clears retained queue material on resume/start. A direction change *while
+    Running* likewise does not clear the queue (Radio corrects its own future
+    items gradually, and the now-playing track is untouched);
   - playback: co-start **only if a track is playable** (side effect). From Paused
-    with an unchanged direction, playback resumes; from Shutdown (empty), or after
-    a start refresh, playback starts when the first appended track becomes
-    `nowPlaying`. (Schema guard: `playback_status = 'playing'` requires a non-null
+    with a current material, playback resumes; from Shutdown with a retained
+    current material, playback can likewise resume on start. If there is no
+    current material, playback starts only when a later queue/playback command
+    selects one. (Schema guard: `playback_status = 'playing'` requires a non-null
     `now_playing_material_ref`, forbidding the incoherent "playing nothing"
     state.);
   - radio-session: bump (on generation).
@@ -913,34 +923,33 @@ agent tool use:
   - evolved posture: left on the floor; the next `start` keeps it iff commanded
     direction is unchanged (PB8 stamp);
   - commanded direction: unchanged (durable);
-  - queue: **cleared**;
-  - playback: co-stop (side effect);
+  - queue: retained; shutdown kills the agent instance, not the listener's queue;
+  - playback: co-pause (side effect; the current material remains addressable);
   - in-flight refill: abort — shutdown is "off", bumps `radio-session`, PB9 cascade;
   - radio-session: bump (off generation).
 
 Key clarifications:
 
-- **Playback is an independent controller that Radio buttons *co-drive*, not
-  own.** Music playback play/pause is a separate user control over Music
-  Experience's existing `playing | paused` status (PB3 playback concern). The
-  Radio buttons co-drive it as a side effect (`pause`/`shutdown` co-stop, `start`
-  co-starts), but the user may always operate playback independently — Radio
-  `pause` co-stops playback, the user can then press playback `play` to keep
-  listening; the two never conflict. Radio refills the queue; it does not own
-  playback.
-- **`pause` vs `shutdown` differ only in instance/transcript/queue fate.** Both
+- **Playback is an independent controller that Radio lifecycle controls
+  *co-drive*, not own.** Music playback play/pause is a separate user control
+  over Music Experience's existing `playing | paused` status (PB3 playback
+  concern). The Radio lifecycle controls co-drive it as a side effect
+  (`pause`/`shutdown` co-pause, `start` co-starts), but the user may always
+  operate playback independently — Radio `pause` co-pauses playback, the user can
+  then press playback `play` to keep listening; the two never conflict. Radio
+  refills the queue; it does not own playback.
+- **`pause` vs `shutdown` differ only in instance/transcript fate.** Both
   are "Radio off" → both bump `radio-session` (PB3) → both abort the in-flight
-  refill (PB9). What differs: `pause` retains agent instance + transcript +
-  queue (resume is the same agent); `shutdown` kills the instance, drops the
-  transcript, clears the queue (next `start` is a fresh agent). Both retain the
-  durable floor.
+  refill (PB9). What differs: `pause` retains agent instance + transcript (resume
+  is the same agent); `shutdown` kills the instance and drops the transcript
+  (next `start` is a fresh agent). Both retain the durable floor and queue.
 - **`shutdown` is PB8 layered-continuity's first real use case.** The floor
   (commanded direction + evolved posture) was designed so direction survives
   transcript loss; `shutdown` deliberately drops the transcript (soul) while the
   floor endures, and `pause` keeps both. This is why the control is named
   `shutdown` and not `stop`: media `stop` means "stop-and-reset-to-head", whereas
-  this kills the agent, clears the queue, and forces a fresh soul — a heavier
-  reset. (CONTEXT.md's "Server shutdown" is server teardown — same word,
+  this kills the agent and forces a fresh soul without deleting the listener's
+  queued material. (CONTEXT.md's "Server shutdown" is server teardown — same word,
   different context; this spec writes "Radio shutdown" in full to avoid
   ambiguity.)
 - **Posture fate reuses PB8's stamp — no new rule.** `shutdown` does not clear
@@ -951,15 +960,18 @@ Key clarifications:
   "stamp matches → carry".
 - **In-flight refill fate reuses PB9 + PB3 — no new rule.** `pause`/`shutdown`
   are "off" → bump `radio-session` → the in-flight refill's basis (which includes
-  `radio-session`, PB3) is voided → the PB9 cascade aborts it. `shutdown`'s queue
-  clear is therefore abort-safe three ways: (1) abort usually lands first → the
-  append never commits; (2) if the append is mid-commit → the PB3 CAS fails on
-  the just-bumped `radio-session` → `voided_stale`; (3) if it already landed →
-  the clear removes it. No new state operation.
+  `radio-session`, PB3) is voided → the PB9 cascade aborts it. Shutdown does not
+  add a queue operation: (1) abort usually lands first → the append never commits;
+  (2) if the append is mid-commit → the PB3 CAS fails on the just-bumped
+  `radio-session` → `voided_stale`; (3) if it already landed before the session
+  bump, it remains ordinary queue material for the listener or future Radio runs
+  to judge. No new state operation.
 
-These are **user-button** controls; in Phase B (in-process, no Web) their entry
-is the user-command path (Phase C attaches the real UI button). The
-OCC/lifecycle semantics above are defined now; the UI surface is Phase C.
+These are lifecycle controls with Phase B semantics defined now. Phase B exposes
+the mutating controls plus read-only `radio.session.status` through Main-only
+`radio.session.*` tools for in-process testing and agent judgement. Phase C adds
+the real UI button / user-command entry and should route it to the same command
+boundary.
 
 ## Cross-Cutting: Harness — Two Layers
 

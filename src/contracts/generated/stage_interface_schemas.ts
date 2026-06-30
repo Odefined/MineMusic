@@ -474,44 +474,14 @@ export const playbackQueueAppendOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "items": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/PlaybackQueueAppendOutputItem"
-      }
-    },
     "queueLength": {
       "type": "number"
     }
   },
   "required": [
-    "items",
     "queueLength"
   ],
-  "additionalProperties": false,
-  "definitions": {
-    "PlaybackQueueAppendOutputItem": {
-      "type": "object",
-      "properties": {
-        "item": {
-          "$ref": "#/definitions/MaterialMusicItemHandle"
-        },
-        "index": {
-          "type": "number"
-        }
-      },
-      "required": [
-        "item",
-        "index"
-      ],
-      "additionalProperties": false
-    },
-    "MaterialMusicItemHandle": {
-      "type": "string",
-      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
-      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
-    }
-  }
+  "additionalProperties": false
 } as const satisfies JsonSchema;
 
 export const playbackQueueRemoveInputSchema = {
@@ -619,30 +589,15 @@ export const playbackQueueEditOutputSchema = {
 export const playbackQueueReplaceOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "additionalProperties": false,
   "properties": {
-    "item": {
-      "$ref": "#/definitions/MaterialMusicItemHandle"
-    },
-    "index": {
-      "type": "number"
-    },
     "queueLength": {
       "type": "number"
     }
   },
   "required": [
-    "index",
-    "item",
     "queueLength"
   ],
-  "definitions": {
-    "MaterialMusicItemHandle": {
-      "type": "string",
-      "pattern": "^\\[material:[^\\]\\r\\n]+\\]$",
-      "description": "Durable material item handle. Pass the whole bracket string unchanged, e.g. \"[material:mh_...]\"."
-    }
-  }
+  "additionalProperties": false
 } as const satisfies JsonSchema;
 
 export const radioMotifSetInputSchema = {
@@ -1699,6 +1654,14 @@ export const radioSessionResumeInputSchema = {
   }
 } as const satisfies JsonSchema;
 
+export const radioSessionStatusInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": {
+    "not": {}
+  }
+} as const satisfies JsonSchema;
+
 export const radioSessionToolOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
@@ -1742,6 +1705,30 @@ export const radioSessionToolOutputSchema = {
         "unchanged",
         "paused_existing",
         "resumed_existing"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const radioSessionStatusOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "state": {
+      "$ref": "#/definitions/RadioSessionState"
+    }
+  },
+  "required": [
+    "state"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "RadioSessionState": {
+      "type": "string",
+      "enum": [
+        "Running",
+        "Paused",
+        "Shutdown"
       ]
     }
   }

@@ -143,13 +143,11 @@ async function promptForPayload(
 }
 
 function radioInvocationForPayload(input: {
-  runId: string;
   payload: RadioRefillRunJobPayload;
 }): RadioRefillRunInvocation {
   return {
     run: {
       kind: "radio_refill",
-      runId: input.runId,
       wakeReason: input.payload.wakeReason,
       suggestedAppendCount: input.payload.suggestedAppendCount,
     },

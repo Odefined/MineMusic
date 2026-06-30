@@ -525,10 +525,12 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
             value: {
               toolName: input.toolName,
               result: {
-                items: [{ item: "[material:basis_queue]", index: 0 }],
                 queueLength: 1,
               },
-              runtime: { changedBasis: { queueRevision: 1 } },
+              runtime: {
+                changedBasis: { queueRevision: 1 },
+                queueItems: [{ item: "[material:basis_queue]", index: 0, provenance: "main_agent" }],
+              },
             },
           };
         }
@@ -681,10 +683,12 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
           value: {
             toolName: input.toolName,
             result: {
-              items: [{ item: "[material:diff_track]", index: 0 }],
               queueLength: 1,
             },
-            runtime: { changedBasis: { queueRevision: 1 } },
+            runtime: {
+              changedBasis: { queueRevision: 1 },
+              queueItems: [{ item: "[material:diff_track]", index: 0, provenance: "main_agent" }],
+            },
           },
         };
       },
@@ -729,7 +733,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
   const toolResult = turn.newMessages.find((message) => message.role === "toolResult");
   assert.ok(toolResult !== undefined);
   const text = toolResultText(toolResult);
-  assert.match(text, /Appended 1 item\(s\) to queue index\(es\) 0; queue length after this append is 1\./u);
+  assert.match(text, /Appended item\(s\) to the queue; queue length after this append is 1\./u);
   assert.match(text, /Workspace Context diff after this tool result:/u);
   assert.match(text, /^-empty$/mu);
   assert.match(text, /^\+0\. recording "Diff Track" - "Diff Artist" \[material:diff_track\] added by main$/mu);

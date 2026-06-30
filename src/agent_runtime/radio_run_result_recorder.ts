@@ -5,7 +5,7 @@ import type {
 } from "../contracts/agent_runtime.js";
 import type { Result } from "../contracts/kernel.js";
 import type {
-  PlaybackQueueAppendOutput,
+  StageToolRuntimeQueueItemMetadata,
   ToolCallOutput,
 } from "../contracts/stage_interface.js";
 import {
@@ -65,8 +65,7 @@ export function createRadioRunResultRecorder(): RadioRunResultRecorder {
         queueChanged = true;
       }
       if (input.toolName === radioQueueAppendToolName) {
-        const output = queueAppendOutputFromToolOutput(input.result.value);
-        appendedCount += output.items.length;
+        appendedCount += queueAppendMetadataFromToolOutput(input.result.value).length;
       }
     },
     result(input) {
@@ -200,18 +199,15 @@ function requireTerminalDeclaration(
   return declaration;
 }
 
-function queueAppendOutputFromToolOutput(output: ToolCallOutput): PlaybackQueueAppendOutput {
+function queueAppendMetadataFromToolOutput(output: ToolCallOutput): readonly StageToolRuntimeQueueItemMetadata[] {
   if (output.toolName !== radioQueueAppendToolName) {
     throw new Error("Radio queue append tool result details used the wrong tool name.");
   }
-  if (output.result === null || typeof output.result !== "object") {
-    throw new Error("Radio queue append tool result payload was not an object.");
+
+  const queueItems = output.runtime?.queueItems;
+  if (!Array.isArray(queueItems)) {
+    throw new Error("Radio queue append tool result runtime metadata had no queueItems.");
   }
 
-  const queueOutput = output.result as Partial<PlaybackQueueAppendOutput>;
-  if (!Array.isArray(queueOutput.items) || typeof queueOutput.queueLength !== "number") {
-    throw new Error("Radio queue append tool result payload had an invalid shape.");
-  }
-
-  return queueOutput as PlaybackQueueAppendOutput;
+  return queueItems;
 }

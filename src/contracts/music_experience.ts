@@ -175,6 +175,7 @@ export type MusicExperienceRadioSessionPlaybackEffect =
 export type MusicExperienceRadioSessionCommandInput = {
   ownerScope: string;
   operation: MusicExperienceRadioSessionOperation;
+  actor: ConcernRevisionChangeActor;
   now: string;
 };
 

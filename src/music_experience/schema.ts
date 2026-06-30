@@ -3,7 +3,7 @@ import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 export const DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID = "default";
 
 export const musicExperienceQueuePlaybackSchema: MusicDatabaseSchemaContribution = {
-  id: "music_experience.queue_playback_v2",
+  id: "music_experience.queue_playback_v3",
   async apply(context) {
     await context.run(`
       CREATE TABLE IF NOT EXISTS music_experience_state (
@@ -26,6 +26,10 @@ export const musicExperienceQueuePlaybackSchema: MusicDatabaseSchemaContribution
         CHECK (playback_revision >= 0),
         CHECK (queue_next_position >= 1),
         CHECK (playback_status IN ('playing', 'paused')),
+        CHECK (
+          playback_status != 'playing'
+          OR now_playing_material_ref_key IS NOT NULL
+        ),
         CHECK (
           (now_playing_material_ref_key IS NULL AND now_playing_material_ref_json IS NULL)
           OR
@@ -60,16 +64,38 @@ export const musicExperienceQueuePlaybackSchema: MusicDatabaseSchemaContribution
     `);
 
     await context.run(`
-      UPDATE music_experience_state s
-      SET queue_next_position = GREATEST(
-        s.queue_next_position,
-        COALESCE((
-          SELECT MAX(q.position) + 1
-          FROM music_experience_queue_items q
-          WHERE q.owner_scope = s.owner_scope
-            AND q.workspace_id = s.workspace_id
-        ), 1)
+      UPDATE music_experience_queue_items
+      SET position = position + 1000000
+    `);
+
+    await context.run(`
+      WITH dense_queue AS (
+        SELECT
+          owner_scope,
+          workspace_id,
+          position,
+          ROW_NUMBER() OVER (
+            PARTITION BY owner_scope, workspace_id
+            ORDER BY position ASC
+          ) AS dense_position
+        FROM music_experience_queue_items
       )
+      UPDATE music_experience_queue_items q
+      SET position = dense_queue.dense_position
+      FROM dense_queue
+      WHERE q.owner_scope = dense_queue.owner_scope
+        AND q.workspace_id = dense_queue.workspace_id
+        AND q.position = dense_queue.position
+    `);
+
+    await context.run(`
+      UPDATE music_experience_state s
+      SET queue_next_position = COALESCE((
+        SELECT COUNT(*)::int + 1
+        FROM music_experience_queue_items q
+        WHERE q.owner_scope = s.owner_scope
+          AND q.workspace_id = s.workspace_id
+      ), 1)
     `);
   },
 };

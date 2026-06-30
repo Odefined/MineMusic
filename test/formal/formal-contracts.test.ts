@@ -5,7 +5,7 @@ import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceReco
 import type { ConcernRevision, Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { EvolvedPostureSnapshot, MusicExperiencePlaybackPlayCommandOutput, MusicExperiencePlaybackSnapshot, MusicExperiencePlaybackStatus, MusicExperienceQueueAppendCommandOutput, MusicExperienceQueueEditCommandOutput, MusicExperienceQueueItemProvenance, MusicExperienceQueueItemSnapshot, MusicExperienceQueuePlaybackCommand, MusicExperienceQueueReplaceCommandOutput, MusicExperienceRadioTruthCommand, MusicExperienceRadioTruthSnapshot, MusicExperienceSetRadioDirectionCommandOutput, MusicExperienceSnapshot, MusicExperienceWorkspaceProjection, MusicExperienceWorkspaceProjectionPort, MusicExperienceWriteRadioPostureCommandOutput, RadioDirectionSnapshot, RadioDirectionValue } from "../../src/contracts/music_experience.js";
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
-import type { LibraryImportLibraryKind, LibraryImportListSourcesInput, LibraryImportListSourcesOutput, LibraryRelationItemInput, LibraryRelationStateOutput, MaterialMusicItemHandle, MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePlaybackPlayOutput, MusicExperiencePresentInput, MusicExperiencePresentOutput, MusicItemHandle, PlaybackQueueAppendOutput, PlaybackQueueEditOutput, PlaybackQueueReplaceOutput, PublicDisplayLink, RadioDirectionToolOutput, RadioLeanToolOutput, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
+import type { LibraryImportLibraryKind, LibraryImportListSourcesInput, LibraryImportListSourcesOutput, LibraryRelationItemInput, LibraryRelationStateOutput, MaterialMusicItemHandle, MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePlaybackPlayOutput, MusicExperiencePresentInput, MusicExperiencePresentOutput, MusicItemHandle, PlaybackQueueAppendOutput, PlaybackQueueEditOutput, PlaybackQueueReplaceOutput, PublicDisplayLink, RadioDirectionToolOutput, RadioLeanToolOutput, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, StageToolRuntimeMetadata, StageToolRuntimeQueueItemMetadata, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
 import { assertRefSafe, refKey } from "../../src/contracts/kernel.js";
 import { hasPrefixToken, tokenizePrefixText } from "../../src/contracts/music_data_platform.js";
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2 ? true : false;
@@ -82,13 +82,18 @@ export type _publicDisplayLinkShape = Expect<Equal<keyof PublicDisplayLink, "url
 export type _musicCardShape = Expect<Equal<PublicMusicAvailability, "playable" | "restricted" | "unavailable" | "unknown"> & Equal<keyof MusicCard, "kind" | "label" | "artistsText" | "albumLabel" | "displayLinks" | "availability" | "versionLabel"> & Equal<ForbiddenKeys<MusicCard, "materialRef" | "primarySourceRef" | "trackPosition" | "durationMs">, never>>;
 export type _musicExperiencePresentShapes = Expect<Equal<keyof MusicExperiencePresentInput, "item"> & Equal<keyof MusicExperiencePresentOutput, "item" | "card"> & Equal<MusicExperiencePresentOutput["item"], MaterialMusicItemHandle>>;
 export type _musicExperienceStagePublicMutationOutputs = Expect<
-    Equal<keyof PlaybackQueueAppendOutput, "items" | "queueLength"> &
+    Equal<keyof PlaybackQueueAppendOutput, "queueLength"> &
     Equal<keyof PlaybackQueueEditOutput, "queueLength"> &
-    Equal<keyof PlaybackQueueReplaceOutput, "item" | "index" | "queueLength"> &
+    Equal<keyof PlaybackQueueReplaceOutput, "queueLength"> &
     Equal<keyof MusicExperiencePlaybackPlayOutput, "item" | "status"> &
     Equal<keyof RadioDirectionToolOutput, "direction"> &
     Equal<keyof RadioLeanToolOutput, "posture"> &
     Equal<keyof RadioLeanToolOutput["posture"], "lean" | "stale">
+>;
+export type _stageToolRuntimeMetadataShape = Expect<
+    Equal<keyof StageToolRuntimeMetadata, "changedBasis" | "queueItems"> &
+    Equal<keyof StageToolRuntimeQueueItemMetadata, "item" | "index" | "provenance"> &
+    Equal<StageToolRuntimeQueueItemMetadata["item"], MaterialMusicItemHandle>
 >;
 export type _concernRevisionShape = Expect<Equal<ConcernRevision, number>>;
 export type _musicExperienceTruthShapes = Expect<Equal<MusicExperiencePlaybackStatus, "playing" | "paused"> & Equal<MusicExperienceQueueItemProvenance, "main_agent" | "user" | "radio_agent"> & Equal<keyof MusicExperienceQueueItemSnapshot, "position" | "materialRef" | "provenance"> & Equal<keyof MusicExperiencePlaybackSnapshot, "status" | "materialRef"> & Equal<keyof RadioDirectionSnapshot, "motif" | "activeVariations"> & Equal<RadioDirectionValue["kind"], "text" | "material" | "scope"> & Equal<keyof EvolvedPostureSnapshot, "lean" | "commandedRevisionStamp" | "stale"> & Equal<keyof MusicExperienceRadioTruthSnapshot, "radioDirectionRevision" | "direction" | "posture"> & Equal<keyof MusicExperienceSnapshot, "queueRevision" | "radioDirectionRevision" | "radioSessionRevision" | "playbackRevision" | "queue" | "playback" | "radio">>;

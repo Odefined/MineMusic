@@ -22,7 +22,7 @@ import {
   type RadioSupervisor,
 } from "../agent_runtime/index.js";
 import type { RadioWakeReason } from "../contracts/agent_runtime.js";
-import type { ConcernRevisionChange } from "../contracts/kernel.js";
+import type { ConcernRevisionChange, StageWarning } from "../contracts/kernel.js";
 import type {
   ToolDeclaration,
 } from "../contracts/stage_interface.js";
@@ -160,6 +160,7 @@ export function createAgentRuntimeRadioModule(
               pause: () => pauseRadioSession(),
               shutdown: () => shutdownRadioSession(),
               resume: () => resumeRadioSession(),
+              status: () => Promise.resolve({ ok: true, value: { state: lifecycleState } }),
             }),
             createRadioRunFinishToolRegistration(),
           ],
@@ -201,6 +202,7 @@ export function createAgentRuntimeRadioModule(
             const transitioned = await radioSession.transitionRadioSession({
               ownerScope,
               operation: "start",
+              actor: "main_agent",
               now,
             });
             if (!transitioned.ok) {
@@ -213,7 +215,13 @@ export function createAgentRuntimeRadioModule(
             try {
               await supervisor?.wake("low_watermark");
             } catch {
-              return wakeFailure("radio.session.start");
+              return radioSessionControlOutput({
+                previousState,
+                state: lifecycleState,
+                wakeRequested: true,
+                transitioned: transitioned.value,
+                warnings: [wakeWarning("radio.session.start")],
+              });
             }
             return radioSessionControlOutput({
               previousState,
@@ -241,6 +249,7 @@ export function createAgentRuntimeRadioModule(
             const transitioned = await radioSession.transitionRadioSession({
               ownerScope,
               operation: "pause",
+              actor: "main_agent",
               now: new Date().toISOString(),
             });
             if (!transitioned.ok) {
@@ -272,6 +281,7 @@ export function createAgentRuntimeRadioModule(
             const transitioned = await radioSession.transitionRadioSession({
               ownerScope,
               operation: "shutdown",
+              actor: "main_agent",
               now,
             });
             if (!transitioned.ok) {
@@ -292,7 +302,13 @@ export function createAgentRuntimeRadioModule(
                 now,
               });
             } catch {
-              return cleanupFailure();
+              return radioSessionControlOutput({
+                previousState,
+                state: lifecycleState,
+                wakeRequested: false,
+                transitioned: transitioned.value,
+                warnings: [cleanupWarning()],
+              });
             }
             return radioSessionControlOutput({
               previousState,
@@ -321,6 +337,7 @@ export function createAgentRuntimeRadioModule(
             const transitioned = await radioSession.transitionRadioSession({
               ownerScope,
               operation: "resume",
+              actor: "main_agent",
               now: new Date().toISOString(),
             });
             if (!transitioned.ok) {
@@ -332,7 +349,13 @@ export function createAgentRuntimeRadioModule(
             try {
               await supervisor?.wake("low_watermark");
             } catch {
-              return wakeFailure("radio.session.resume");
+              return radioSessionControlOutput({
+                previousState,
+                state: lifecycleState,
+                wakeRequested: true,
+                transitioned: transitioned.value,
+                warnings: [wakeWarning("radio.session.resume")],
+              });
             }
             return radioSessionControlOutput({
               previousState,
@@ -396,47 +419,19 @@ function runtimeFailure(toolName: string): {
   };
 }
 
-function wakeFailure(toolName: "radio.session.start" | "radio.session.resume"): {
-  ok: false;
-  error: {
-    code: "radio_session_wake_failed";
-    message: string;
-    area: "agent_runtime";
-    retryable: true;
-    suggestedFix: string;
-  };
-} {
+function wakeWarning(toolName: "radio.session.start" | "radio.session.resume"): StageWarning {
   return {
-    ok: false,
-    error: {
-      code: "radio_session_wake_failed",
-      message: `${toolName} set Radio running, but the refill wake request failed.`,
-      area: "agent_runtime",
-      retryable: true,
-      suggestedFix: "Radio is already Running; do not retry radio.session.start or radio.session.resume (both will be rejected). The queue refill is retried automatically on the next low-watermark wake.",
-    },
+    code: "radio_session_wake_failed",
+    message: `${toolName} set Radio running, but the refill wake request failed. Radio remains Running; the queue refill is retried automatically on the next low-watermark wake.`,
+    area: "agent_runtime",
   };
 }
 
-function cleanupFailure(): {
-  ok: false;
-  error: {
-    code: "radio_session_cleanup_failed";
-    message: string;
-    area: "agent_runtime";
-    retryable: false;
-    suggestedFix: string;
-  };
-} {
+function cleanupWarning(): StageWarning {
   return {
-    ok: false,
-    error: {
-      code: "radio_session_cleanup_failed",
-      message: "radio.session.shutdown set Radio to Shutdown, but transcript cleanup did not finish; the leftover transcript row will be superseded on the next radio.session.start.",
-      area: "agent_runtime",
-      retryable: false,
-      suggestedFix: "No retry is needed: Radio is already shut down. Any leftover transcript row is superseded when Radio is next started.",
-    },
+    code: "radio_session_cleanup_failed",
+    message: "radio.session.shutdown set Radio to Shutdown, but transcript cleanup did not finish; the leftover transcript row is superseded when Radio is next started.",
+    area: "agent_runtime",
   };
 }
 
@@ -470,12 +465,13 @@ function radioSessionControlOutput(input: {
   previousState: "Running" | "Paused" | "Shutdown";
   state: "Running" | "Paused" | "Shutdown";
   wakeRequested: boolean;
+  warnings?: readonly StageWarning[];
   transitioned: {
     radioSessionRevision: number;
     playbackRevision: number;
     playbackEffect: "unchanged" | "paused_existing" | "resumed_existing";
   };
-}): { ok: true; value: RadioSessionControlResult } {
+}): { ok: true; value: RadioSessionControlResult; warnings?: readonly StageWarning[] } {
   return {
     ok: true,
     value: {
@@ -491,6 +487,7 @@ function radioSessionControlOutput(input: {
           : { playbackRevision: input.transitioned.playbackRevision }),
       },
     },
+    ...(input.warnings === undefined ? {} : { warnings: input.warnings }),
   };
 }
 

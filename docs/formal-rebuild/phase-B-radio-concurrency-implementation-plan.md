@@ -75,19 +75,19 @@ PR7 (PB8a)                 endurance acceptance: transcript erosion + floor/cont
 
 **Covers:** PB3, PB6. (PB4's three-layer model already shipped in ADR-0040 — no build here. Its cross-context retry/idempotency confirmation is a `playback.queue.append` integration test, **moved to PR3** to keep PR1 a pure Music Experience command layer.)
 
-**Goal:** Make the Music Experience append transaction correct under two concurrent writers — per-concern revision columns, single-statement CAS (`voided_stale`), monotonic atomic position mint, batch-of-N widening. Pure command layer, no pi.
+**Goal:** Make the Music Experience append transaction correct under two concurrent writers — per-concern revision columns, single-statement CAS (`voided_stale`), dense queue position allocation, batch-of-N widening. Pure command layer, no pi.
 
-**Why one merge unit:** These are **one transaction body** (spec PB6, "Concurrent-append position allocation"): counter mint + basis CAS + INSERT loop layered in one transaction. Splitting would re-edit the same `append` handler twice. The CAS columns are the read/write prerequisite for every later Radio/OCC behavior; the atomic mint is the prerequisite for Radio's batch append; the batch widening is the same append tool. All verified by the two-layer harness's **command layer** (no pi, no async).
+**Why one merge unit:** These are **one transaction body** (spec PB6, "Concurrent-append position allocation"): state-row lock + basis CAS + dense tail append layered in one transaction. Splitting would re-edit the same `append` handler twice. The CAS columns are the read/write prerequisite for every later Radio/OCC behavior; dense allocation is the prerequisite for Radio's batch append; the batch widening is the same append tool. All verified by the two-layer harness's **command layer** (no pi, no async).
 
 **Files touched:**
 - `src/music_experience/schema.ts` — add `radio_direction_revision`, `radio_session_revision`, `queue_next_position` to `music_experience_state` (bump schema contribution id; the `ensureState` seed path in `records.ts` must seed the new columns to defaults `0`/`1`).
-- `src/music_experience/records.ts` — replace `SELECT MAX(position)` with `UPDATE … SET queue_next_position = queue_next_position + :N RETURNING queue_next_position - :N AS base_position` (PB6 "Atomic mint"); add the optional basis CAS as a second statement in the same transaction (PB6 "Decoupled from the basis CAS"); zero rows ⇒ `voided_stale` (the counter increment rolls back with the transaction — no position gap).
+- `src/music_experience/records.ts` — replace `SELECT MAX(position)` with state-row locking and dense `COUNT(*) + 1` tail allocation; add the optional basis CAS as a statement in the same transaction (PB6 "Decoupled from the basis CAS"); zero rows ⇒ `voided_stale` (no insert and no position gap). Queue edits maintain dense positions with local row/interval updates instead of deleting and reinserting the whole queue.
 - `src/music_experience/commands.ts` — `append` accepts an optional `ConcernRevisionSet` as `basis`; propagate `voided_stale`.
 - `src/contracts/kernel.ts` — add `ConcernRevisionSet = { radioDirectionRevision?, queueRevision?, radioSessionRevision?, playbackRevision? }` (built on the existing `ConcernRevision`); document the `voided_stale` error code.
 - `src/contracts/music_experience.ts` — `append` input gains optional `basis?`; error vocabulary gains `voided_stale`.
 - `src/music_experience/stage_adapter/queue_playback.ts` — remove the batch-of-1 length check (`:177-184`); `provenance` is currently hardcoded `"main_agent"` (`:214`) and must accept `"radio_agent"` (Radio's use).
 - `src/contracts/generated/stage_interface_schemas.ts` — regenerate: `maxItems: 1` → N.
-- **Migration note:** `queue_next_position` must be seeded from `MAX(position)` of existing rows per workspace (not a constant), else the first Radio append after upgrade collides with legacy positions.
+- **Migration note:** existing queue rows must be normalized to dense `1..N` positions per workspace before `queue_next_position` is treated as `N + 1`; otherwise dense append could collide with legacy gaps.
 
 **Dependencies:** none (Phase A shipped).
 
@@ -96,12 +96,12 @@ PR7 (PB8a)                 endurance acceptance: transcript erosion + floor/cont
 2. Batch-of-N ⇒ positions contiguous, input-ordered, single `queue_revision` bump.
 3. Append with `basis.radioSessionRevision = N` racing a `radio_session` bump to N+1 ⇒ `voided_stale`, zero rows, **no position gap**.
 4. PB3 "checked ≠ bumped": append with basis `{radio-direction, radio-session}` while a **queue-only** revision bump happens (concurrent user append) ⇒ append **succeeds** (queue not in its checked set) — PB3 reorder exemption.
-- Boundary guard: a grep-style test asserting `SELECT MAX(position)` no longer appears in `records.ts`.
+- Boundary guard: tests assert append/edit keep dense positions and that queue edits do not perform whole-queue delete/reinsert rewrites.
 - (Moved to PR3: the PB6 cross-context two-step + PB4 benign-orphan confirm — candidate commit succeeds, append voids, retry resolves the same material and appends once — is a Music Data Platform × Music Experience integration, not a pure command-layer test, so it does not belong in this suite; PR1 must not import/mock `CandidateCommitCommand`.)
 
 **Verification:** `npm run typecheck`; `npm run test:stage-core music-experience-queue-occ`; `npm run test:stage-core music-experience-queue-playback` (regression).
 
-**Stopping condition:** all 4 tests pass; `SELECT MAX(position)` is gone; CAS failure returns `voided_stale` with no position gap; Phase A single-item append behavior unchanged for callers passing no basis; PR1 does not import or mock `CandidateCommitCommand` (cross-context two-step is in PR3).
+**Stopping condition:** all 4 tests pass; append/edit keep dense positions; CAS failure returns `voided_stale` with no position gap; queue edits preserve untouched row timestamps; Phase A single-item append behavior unchanged for callers passing no basis; PR1 does not import or mock `CandidateCommitCommand` (cross-context two-step is in PR3).
 
 ---
 
@@ -642,24 +642,29 @@ the observer matrix.
 
 **Covers:** PB10 full.
 
-**Goal:** Add user-button lifecycle commands for start/pause/shutdown and their
-side effects: radio-session bump, in-flight refill abort via PR4 cascade,
-start-only refresh when the paused direction differs, playback co-drive, and the
-schema guard preventing "playing nothing." This PR also extends PR4's observer
-matrix for lifecycle/playback writers.
+**Goal:** Add Phase B Main-agent lifecycle tools for start/resume/pause/shutdown,
+plus read-only status, and their side effects: radio-session bump, in-flight
+refill abort via PR4 cascade, playback co-drive, and the schema guard preventing
+"playing nothing." Lifecycle transitions retain queue material; direction changes
+while Radio is paused or shut down are handled by the next Radio run's ordinary
+queue-correction tools, not by pause-time direction snapshots or start/resume
+queue clears. Phase C later adds the real user-button/user-command entry to the
+same lifecycle boundary. This PR also extends PR4's observer matrix for
+lifecycle/playback writers.
 
-**Why one merge unit:** the three lifecycle commands are one user decision
-family. Their queue, playback, transcript, posture, and supervisor effects only
-make sense when reviewed as one state machine.
+**Why one merge unit:** the lifecycle commands are one user decision family over
+three lifecycle states. Their queue, playback, transcript, posture, and
+supervisor effects only make sense when reviewed as one state machine.
 
 **Files touched:**
-- Music Experience lifecycle command module — `startRadio`, `pauseRadio`,
-  `shutdownRadio` user-command path only.
+- Music Experience lifecycle command module and Main-facing Stage tools —
+  `startRadio`, `pauseRadio`, `shutdownRadio`, `resumeRadio`, and read-only
+  `status` exposed to Main only in Phase B.
 - `src/agent_runtime/radio_supervisor.ts` — lifecycle transitions over
   Running/Paused/Shutdown.
-- Queue command integration — shutdown clears queue; start from paused with a
-  changed direction uses PR3.6 correction/refresh semantics rather than hiding
-  stale state.
+- Queue command integration — lifecycle commands do not clear queue material;
+  changed direction uses PR3.6 correction semantics in the next Radio run rather
+  than hiding stale state behind lifecycle deletion.
 - Playback command/schema path — pause/stop/co-start behavior and a schema guard
   that forbids `playing` with no current material.
 - Observer matrix tests from PR4 — add lifecycle/playback writers.
@@ -669,21 +674,23 @@ make sense when reviewed as one state machine.
 **Guards / tests:**
 1. Pause retains queue/transcript/posture, co-pauses playback, bumps
    radio-session, and aborts in-flight refill.
-2. Shutdown clears queue, drops transcript, retains stamped posture if still
-   valid, co-stops playback, bumps radio-session, and aborts in-flight refill.
-3. Start from Paused with unchanged direction resumes retained state.
-4. Start from Paused with changed direction schedules correction/refresh under
-   the new direction.
+2. Shutdown retains queue, drops transcript, retains stamped posture if still
+   valid, co-pauses playback, bumps radio-session, and aborts in-flight refill.
+3. Resume from Paused with unchanged direction resumes retained state.
+4. Resume from Paused with changed direction lets the next Radio run correct
+   Radio-owned future queue items under the new direction.
 5. Start from Shutdown creates a fresh agent/transcript.
-6. Lifecycle commands are user-command-path only and are not agent tools.
+6. Lifecycle tools, including read-only status, are available only to Main in
+   Phase B; Radio cannot call its own lifecycle controls. Real user
+   buttons/user-command path are Phase C.
 7. Observer matrix guard includes lifecycle/playback writers.
 
 **Verification:** `npm run typecheck`; `npm run test:stage-core radio-lifecycle`;
 regression tests for radio-supervisor and radio-cascade.
 
 **Stopping condition:** lifecycle behavior is coherent across supervisor,
-playback, queue, transcript, posture, and cascade, with no agent-facing lifecycle
-tools.
+playback, queue, transcript, posture, and cascade, with Main-only agent-facing
+lifecycle tools and no Radio-facing lifecycle tools.
 
 ---
 

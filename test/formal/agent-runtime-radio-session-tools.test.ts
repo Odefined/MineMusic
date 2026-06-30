@@ -82,6 +82,18 @@ if (paused.ok) {
   });
 }
 
+const status = await stageInterface.dispatch(testStageToolContext(), {
+  toolName: "radio.session.status",
+  payload: {},
+});
+assert.equal(status.ok, true);
+if (status.ok) {
+  assert.deepEqual(status.value.result, {
+    state: "Paused",
+  });
+  assert.equal(status.value.runtime?.changedBasis, undefined);
+}
+
 const invalidPayload = await stageInterface.dispatch(testStageToolContext(), {
   toolName: "radio.session.resume",
   payload: { queueCleared: true },
@@ -135,10 +147,13 @@ function createFakeRadioSessionControl(): RadioSessionControlPort {
       radioSessionRevision: ++revision,
       changedBasis: { radioSessionRevision: revision, playbackRevision: 10 },
     }),
+    status: () => ok({
+      state: "Paused",
+    }),
   };
 }
 
-function ok(value: RadioSessionControlResult): Promise<Result<RadioSessionControlResult>> {
+function ok<T extends RadioSessionControlResult | { state: "Running" | "Paused" | "Shutdown" }>(value: T): Promise<Result<T>> {
   return Promise.resolve({ ok: true, value });
 }
 

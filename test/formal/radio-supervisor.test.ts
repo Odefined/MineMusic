@@ -398,6 +398,53 @@ async function runRadioSupervisorTests(): Promise<void> {
   {
     const harness = createHarness({ queueDepth: 4 });
     harness.runPort.nextResult = (run) => ({
+      runId: `wrong-${run.runId}`,
+      radioDirectionRevision: run.payload.radioDirectionRevision,
+      radioSessionRevision: run.payload.radioSessionRevision,
+      outcome: "no_action",
+      appendedCount: 0,
+      declaration: { judgement: "no_action" },
+    });
+
+    await harness.supervisor.wake("low_watermark");
+    await assert.rejects(
+      () => harness.supervisor.waitForActiveRun(),
+      /Radio refill run result 'wrong-radio-run/,
+    );
+
+    assert.equal(harness.supervisor.snapshot().cooldownUntil, undefined);
+  }
+
+  {
+    const harness = createHarness({ queueDepth: 4 });
+    harness.runPort.deferNext();
+    await harness.supervisor.wake("low_watermark");
+    harness.supervisor.abortActiveRefill();
+    harness.runPort.resolveRun(0, {
+      runId: harness.runPort.runs[0]!.runId,
+      radioDirectionRevision: harness.runPort.runs[0]!.payload.radioDirectionRevision,
+      radioSessionRevision: harness.runPort.runs[0]!.payload.radioSessionRevision,
+      outcome: "no_action",
+      appendedCount: 0,
+      declaration: {
+        judgement: "candidate_exhaustion_by_direction",
+        summary: "Stale exhaustion.",
+      },
+      notify: candidateExhaustionNotify({
+        runId: harness.runPort.runs[0]!.runId,
+        radioDirectionRevision: harness.runPort.runs[0]!.payload.radioDirectionRevision,
+        summary: "Stale exhaustion.",
+      }),
+    });
+    await harness.supervisor.waitForActiveRun();
+
+    assert.equal(harness.notifyChannel.notifications.length, 0);
+    assert.equal(harness.supervisor.snapshot().exhaustedRadioDirectionRevision, undefined);
+  }
+
+  {
+    const harness = createHarness({ queueDepth: 4 });
+    harness.runPort.nextResult = (run) => ({
       runId: run.runId,
       radioDirectionRevision: run.payload.radioDirectionRevision,
       radioSessionRevision: run.payload.radioSessionRevision,
@@ -503,6 +550,7 @@ async function runRadioSupervisorTests(): Promise<void> {
       () => harness.supervisor.waitForActiveRun(),
       /Radio notify run 'wrong-radio-run/,
     );
+    assert.equal(harness.supervisor.snapshot().cooldownUntil, undefined);
     assert.equal(harness.supervisor.snapshot().exhaustedRadioDirectionRevision, undefined);
   }
 }

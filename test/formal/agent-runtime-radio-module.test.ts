@@ -134,6 +134,27 @@ const FIXED_NOW = "2026-06-30T00:00:00.000Z";
 }
 
 {
+  const harness = await createHarness();
+  try {
+    const initial = await dispatchRadioTool(harness, "radio.session.status");
+    assert.ok(initial.ok);
+    assert.equal(readState(initial), "Shutdown");
+
+    assert.ok((await dispatchRadioTool(harness, "radio.session.start")).ok);
+    const running = await dispatchRadioTool(harness, "radio.session.status");
+    assert.ok(running.ok);
+    assert.equal(readState(running), "Running");
+
+    assert.ok((await dispatchRadioTool(harness, "radio.session.pause")).ok);
+    const paused = await dispatchRadioTool(harness, "radio.session.status");
+    assert.ok(paused.ok);
+    assert.equal(readState(paused), "Paused");
+  } finally {
+    await closeHarness(harness);
+  }
+}
+
+{
   const harness = await createHarness({
     radioSession: createScriptedRadioSessionCommand({
       async transition({ operation, next }) {
@@ -152,6 +173,43 @@ const FIXED_NOW = "2026-06-30T00:00:00.000Z";
 
     const wakeDecision = await harness.module.wake("low_watermark");
     assert.notEqual(wakeDecision.kind, "not_running", "failed pause must not preemptively close the running wake gate");
+  } finally {
+    await closeHarness(harness);
+  }
+}
+
+{
+  let failedWakeRead = false;
+  const harness = await createHarness({
+    databaseContextFactory(database) {
+      const base = database.context();
+      return {
+        run(sql, params) {
+          return base.run(sql, params);
+        },
+        all(sql, params) {
+          return base.all(sql, params);
+        },
+        get(sql, params) {
+          if (!failedWakeRead && sql.includes("FROM music_experience_state")) {
+            failedWakeRead = true;
+            throw new Error("pacing read failed");
+          }
+          return base.get(sql, params);
+        },
+      };
+    },
+    radioSession: createScriptedRadioSessionCommand(),
+  });
+  try {
+    const started = await dispatchRadioTool(harness, "radio.session.start");
+    assert.ok(started.ok);
+    assert.equal(readState(started), "Running");
+    assert.deepEqual(started.value.runtime?.changedBasis, { radioSessionRevision: 1 });
+    assert.equal(started.warnings?.[0]?.code, "radio_session_wake_failed");
+
+    const duplicateStart = await dispatchRadioTool(harness, "radio.session.start");
+    assertStageError(duplicateStart, "radio_session_invalid_transition");
   } finally {
     await closeHarness(harness);
   }
@@ -189,7 +247,10 @@ const FIXED_NOW = "2026-06-30T00:00:00.000Z";
     assert.ok((await dispatchRadioTool(harness, "radio.session.start")).ok);
 
     const shutDown = await dispatchRadioTool(harness, "radio.session.shutdown");
-    assertStageError(shutDown, "radio_session_cleanup_failed");
+    assert.ok(shutDown.ok);
+    assert.equal(readState(shutDown), "Shutdown");
+    assert.deepEqual(shutDown.value.runtime?.changedBasis, { radioSessionRevision: 2 });
+    assert.equal(shutDown.warnings?.[0]?.code, "radio_session_cleanup_failed");
 
     const restarted = await dispatchRadioTool(harness, "radio.session.start");
     assert.ok(restarted.ok, "cleanup failure must still leave the lifecycle in Shutdown for a fresh start");
@@ -353,7 +414,7 @@ function testStageToolContext(
 
 async function dispatchRadioTool(
   harness: Harness,
-  toolName: "radio.session.start" | "radio.session.pause" | "radio.session.shutdown" | "radio.session.resume",
+  toolName: "radio.session.start" | "radio.session.pause" | "radio.session.shutdown" | "radio.session.resume" | "radio.session.status",
   actor: StageToolContext["actor"] = "main_agent",
 ): Promise<Result<ToolCallOutput>> {
   return await harness.stageInterface.dispatch(

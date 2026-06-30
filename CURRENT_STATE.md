@@ -806,14 +806,17 @@ restored as runtime bridges.
   assistant status/error/text, and both actors observe queue/playback outcome
   through the same shared Workspace Context path.
 - Phase B PR1/PR2 Music Experience substrate has landed: `music_experience_state`
-  now carries queue, playback, radio-direction, radio-session, and queue-tail
-  revisions/counters for commit-time OCC, and `music_experience_radio_truth`
-  persists commanded radio direction (motif + ordered active variations) plus
-  Radio-owned evolved posture (`lean` list) stamped with the commanded
-  direction revision it was evolved under. Commanded direction writes bump only
-  `radio_direction_revision`; posture writes are OCC-invisible and never bump
-  revisions. The Music Experience read model now exposes radio truth and a
-  current-queue material-ref read for Phase B queue-internal dedup.
+  now carries queue, playback, radio-direction, and radio-session revisions for
+  commit-time OCC, and `music_experience_radio_truth` persists commanded radio
+  direction (motif + ordered active variations) plus Radio-owned evolved posture
+  (`lean` list) stamped with the commanded direction revision it was evolved
+  under. Queue positions are dense under the `music_experience_state` row lock:
+  append allocates at the current tail, and remove/replace/move/clear use local
+  row or interval updates instead of whole-queue delete/reinsert rewrites.
+  Commanded direction writes bump only `radio_direction_revision`; posture
+  writes are OCC-invisible and never bump revisions. The Music Experience read
+  model now exposes radio truth and a current-queue material-ref read for Phase B
+  queue-internal dedup.
 - Phase B PR3 Radio supervisor and trigger path have landed on top of that Music
   Experience floor and now run through the shared Actor Runtime spine: Agent
   Runtime defines the internal Radio wake-gate state
@@ -830,10 +833,11 @@ restored as runtime bridges.
   pause and shutdown abort active turns and cancel scheduled wakes. The default
   Server Host mounts Radio only when explicit Radio agent stream options are
   supplied, and startup does not wake Radio. Main owns
-  explicit `radio.session.start` / `pause` / `shutdown` / `resume` Stage tools:
-  start opens the wake gate and requests a low-watermark refill, pause and
-  shutdown abort active refills, shutdown deactivates the active Radio actor
-  session, and resume reopens the wake gate. These lifecycle tools never clear,
+  explicit `radio.session.start` / `pause` / `shutdown` / `resume` / `status`
+  Stage tools: start opens the wake gate and requests a low-watermark refill,
+  pause and shutdown abort active refills, shutdown deactivates the active Radio
+  actor session, resume reopens the wake gate, and status reads the current Radio
+  lifecycle state. These lifecycle tools never clear,
   replace, append, select, or start queue material; those choices stay with the
   existing queue/playback tools after agent judgement. When mounted, Radio sees
   only its explicit discovery/catalog/queue-append Stage tool pack through the
@@ -884,6 +888,17 @@ restored as runtime bridges.
   Queue-only bumps are not global aborts, and Radio's own writes do not abort
   Main/Radio; commit-time CAS remains the correctness boundary if an abort loses
   the race.
+- Workbench Phase B is complete for the in-process embedded-agent runtime. Main
+  and Radio share the long-lived `ActorRuntimeSession` / pi spine, Workspace
+  Context assembler, Stage dispatch observation path, and transcript durability;
+  Radio-specific behavior is selected by `ActorDefinition` and the supervisor
+  trigger, not by a separate Radio loop. Radio is supervisor-owned in-process
+  work, not Background Work. Phase B lifecycle is exposed through Main-only
+  `radio.session.*` Stage tools; Phase C owns real user-button/user-command
+  controls and the AG-UI/Web boundary. Phase B deliberately does not ship the
+  general Main↔Radio bus, Workbench event-log surfacing, proposal
+  parking/confirmation, Music Experience listening history, durable Memory, or
+  taste learning.
 - `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection

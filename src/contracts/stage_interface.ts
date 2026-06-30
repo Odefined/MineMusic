@@ -106,6 +106,13 @@ export type ToolCallOutput = {
 
 export type StageToolRuntimeMetadata = {
   changedBasis?: ConcernRevisionSet;
+  queueItems?: readonly StageToolRuntimeQueueItemMetadata[];
+};
+
+export type StageToolRuntimeQueueItemMetadata = {
+  item: MaterialMusicItemHandle;
+  index: number;
+  provenance: "main_agent" | "user" | "radio_agent";
 };
 
 export const stageToolHandlerOutputSymbol: unique symbol = Symbol("stageToolHandlerOutput");
@@ -741,13 +748,7 @@ export type PlaybackQueueAppendInput = {
   items: readonly [MusicItemHandle, ...MusicItemHandle[]];
 };
 
-export type PlaybackQueueAppendOutputItem = {
-  item: MaterialMusicItemHandle;
-  index: number;
-};
-
 export type PlaybackQueueAppendOutput = {
-  items: readonly PlaybackQueueAppendOutputItem[];
   queueLength: number;
 };
 
@@ -771,9 +772,8 @@ export type PlaybackQueueEditOutput = {
   queueLength: number;
 };
 
-export type PlaybackQueueReplaceOutput = PlaybackQueueEditOutput & {
-  item: MaterialMusicItemHandle;
-  index: number;
+export type PlaybackQueueReplaceOutput = {
+  queueLength: number;
 };
 
 export type RadioTruthToolValue =
@@ -864,6 +864,7 @@ export type RadioSessionStartInput = Record<string, never>;
 export type RadioSessionPauseInput = Record<string, never>;
 export type RadioSessionShutdownInput = Record<string, never>;
 export type RadioSessionResumeInput = Record<string, never>;
+export type RadioSessionStatusInput = Record<string, never>;
 
 export type RadioSessionState = "Running" | "Paused" | "Shutdown";
 
@@ -878,6 +879,10 @@ export type RadioSessionToolOutput = {
   radioSessionRevision: number;
   playbackEffect: RadioSessionPlaybackEffect;
   wakeRequested: boolean;
+};
+
+export type RadioSessionStatusOutput = {
+  state: RadioSessionState;
 };
 
 export type MusicDiscoveryLookupItemDescription = PublicHandleDescription & {

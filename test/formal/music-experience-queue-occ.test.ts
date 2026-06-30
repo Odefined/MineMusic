@@ -253,6 +253,8 @@ const ownerScope = "local";
 {
   const recordsSource = await readFile("src/music_experience/records.ts", "utf8");
   assert.equal(recordsSource.includes("SELECT MAX(position)"), false);
+  assert.equal(recordsSource.includes("queue_next_position = queue_next_position +"), false);
+  assert.equal(recordsSource.includes("replaceQueueItems"), false);
 }
 
 async function initializedMusicExperienceDatabase(): Promise<MusicDatabase> {

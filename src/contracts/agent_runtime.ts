@@ -84,7 +84,6 @@ export type RadioRefillRunJobPayload = {
 export type RadioRefillRunInvocation = {
   run: {
     kind: "radio_refill";
-    runId: string;
     wakeReason: RadioWakeReason;
     suggestedAppendCount: number;
   };

@@ -1,6 +1,6 @@
 # Formal Rebuild Progress
 
-> Status: Formal rebuild milestone index
+> Status: Formal rebuild milestone index and completion ledger
 > Scope: Project-level milestones only
 > Not a task ledger: Detailed execution belongs to phase specs or future
 > area-local progress documents.
@@ -1525,8 +1525,9 @@ catalog integration. Design authority:
   skill runtime, and Web behavior are still unimplemented.
 - Phase B PR1/PR2 adds the Music Experience command/read substrate for Radio +
   concurrency without adding the Radio actor runtime yet. Queue append now has
-  per-concern OCC basis support, atomic tail-position minting, batch append, and
-  radio-agent provenance; radio truth is persisted as commanded direction
+  per-concern OCC basis support, dense tail-position allocation under the
+  Music Experience state-row lock, batch append, and radio-agent provenance;
+  radio truth is persisted as commanded direction
   (single motif plus ordered active variations) and evolved posture (bounded
   `lean` list stamped with the commanded-direction revision). Steering writes
   bump `radio_direction_revision`; posture writes remain OCC-invisible and are
@@ -1677,13 +1678,16 @@ Agent Runtime context-engineering authority for embedded MineMusic agents:
 ## 2026-06-30: Phase B PR5 Radio Session Tools
 
 - Main now receives explicit `radio.session.start`, `radio.session.pause`,
-  `radio.session.shutdown`, and `radio.session.resume` Stage tools. Radio does
-  not receive these tools.
+  `radio.session.shutdown`, `radio.session.resume`, and `radio.session.status`
+  Stage tools. Radio does not receive these tools.
 - Session transitions bump `radio_session_revision` through the Music
   Experience Radio Session command. Start only opens the wake gate and requests
   a low-watermark refill; resume only resumes existing paused now-playing
   material when such material exists. Pause and shutdown pause existing playback
   but never select, clear, append, replace, or remove queue material.
+- Wake or transcript-cleanup failures after a lifecycle transition has committed
+  are returned as successful tool results with warnings and changed command
+  basis, not as failed tools.
 - Agent Runtime now lazily constructs the Radio actor session on start/resume,
   deactivates the active session on shutdown, and stores active/inactive actor
   session transcript rows in `agent_runtime_actor_sessions`.
@@ -1691,6 +1695,65 @@ Agent Runtime context-engineering authority for embedded MineMusic agents:
   lifecycle dispatch output, strict empty-input validation, queue-preserving
   playback effects, Server Host wake submission, active actor-session schema,
   and the full project test suite.
+
+## 2026-07-01: Workbench Phase B Completion Ledger
+
+Workbench Phase B (Radio + concurrency) is complete in the in-process
+embedded-agent runtime. The owning authority is
+`docs/formal-rebuild/phase-B-radio-concurrency-spec.md`; this ledger records the
+implemented boundary so later Phase C/Web work does not rediscover Phase B from
+old PR slices.
+
+Completed:
+
+- Music Experience queue/playback/radio truth now share per-concern revisions
+  and commit-time OCC. Queue positions are dense (`1..N`) under the
+  `music_experience_state` row lock; append allocates at the current tail, and
+  remove/replace/move/clear maintain queue rows with local row/interval updates
+  rather than deleting and reinserting the whole queue.
+- Main and Radio both run through the shared long-lived
+  `ActorRuntimeSession`/pi spine and shared Workspace Context assembler. Actor
+  identity, tool pack selection, cascade priority, and concern-basis additions
+  live in `ActorDefinition`.
+- Radio refill is supervisor-owned in-process work, not a Background Work job.
+  The supervisor owns low-watermark pacing, direction-change correction,
+  single-flight/coalescing, lifecycle gates, failure cooldown, candidate
+  exhaustion suppression, and active-run cancellation.
+- Main owns Phase B lifecycle tools:
+  `radio.session.start` / `pause` / `shutdown` / `resume` / `status`. Radio
+  cannot call its own lifecycle tools. Lifecycle transitions bump
+  `radio_session_revision`, abort or gate Radio work as appropriate, and never
+  clear, append, replace, remove, select, or start queue material.
+- Queue/playback/radio-direction writes emit post-commit concern-revision
+  events only after successful transactions. Server Host routes those events to
+  Radio; PB9 cancellation is priority- and basis-filtered (`user > main_agent >
+  radio_agent`) with commit-time CAS as the final correctness boundary.
+- Public queue write results are compact. `playback.queue.append` and
+  `playback.queue.replace` public outputs expose queue length only; internal
+  runtime metadata and the refreshed Workspace Context diff carry queue item
+  handles, indexes, and provenance for runtime accounting and model-visible
+  after-state.
+- Radio terminal results are recorded from Stage dispatch facts and structured
+  `radio_run_finish` declarations. `voided_stale` / `operation_aborted` queue
+  command results become `RadioRunResult.outcome = "voided_stale"` instead of
+  runtime failures; successful append/correction cannot be fabricated from
+  transcript scraping.
+
+Deferred out of Phase B:
+
+- Phase C attaches real user-button/user-command lifecycle controls to the same
+  lifecycle boundary and builds the AG-UI/Web surface. Phase B exposes lifecycle
+  through Main-only Stage tools for in-process judgement and testing.
+- General Main↔Radio runtime bus/topic delivery, Workbench event-log surfacing,
+  user-facing candidate-exhaustion UI copy, proposal parking/confirmation,
+  Music Experience listening history, durable Memory, and taste learning remain
+  later work.
+
+Verification for the completion ledger: `npm test` passes with 67/67
+stage-core modules; targeted coverage includes queue OCC/playback, Radio
+supervisor/module/refill runner/session tools, Server Host event routing,
+formal contract shape, schema contribution checks, and Agent Runtime user-turn
+Workspace Context diff behavior.
 
 ## 2026-06-30: Deep Code Audit (Full Codebase)
 

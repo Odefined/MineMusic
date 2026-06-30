@@ -241,6 +241,7 @@ assert.deepEqual(host.snapshot().interfaceContract.tools.map((tool) => tool.name
     "radio.session.pause",
     "radio.session.shutdown",
     "radio.session.resume",
+    "radio.session.status",
     "radio.run.finish",
     "stage.runtime.status",
 ]);
