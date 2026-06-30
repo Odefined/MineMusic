@@ -6,6 +6,40 @@ import { stageInterfaceSchemas } from "../../src/stage_interface/index.js";
 import { postgresTestDatabaseUrl, resetPostgresTestSchema, } from "../support/postgres.js";
 const connectionString = postgresTestDatabaseUrl();
 await resetPostgresTestSchema(connectionString);
+const legacyDatabase = await createMusicDatabase({
+    connectionString,
+    schemas: [{
+        id: "test.agent_runtime_radio_transcript_v1",
+        async apply(context) {
+            await context.run(`
+              CREATE TABLE agent_runtime_radio_transcripts (
+                owner_scope TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                messages_json JSONB NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(owner_scope, workspace_id)
+              )
+            `);
+            await context.run(`
+              INSERT INTO agent_runtime_radio_transcripts (
+                owner_scope,
+                workspace_id,
+                messages_json,
+                created_at,
+                updated_at
+              ) VALUES (
+                'legacy-owner',
+                'legacy-workspace',
+                '[{"role":"assistant","content":[]}]'::jsonb,
+                '2026-06-30T00:00:00.000Z',
+                '2026-06-30T00:00:00.000Z'
+              )
+            `);
+        },
+    }],
+});
+await legacyDatabase.close();
 const database = await createMusicDatabase({
     connectionString,
     schemas: [
@@ -125,5 +159,26 @@ const agentRuntimeTranscriptsTable = await context.get<{
 `);
 if (agentRuntimeTranscriptsTable === undefined) {
     throw new Error("agent_runtime_transcripts table was not initialized");
+}
+const migratedRadioTranscript = await context.get<{
+    actor_kind: string;
+    messages_json: unknown;
+}>(`
+  SELECT actor_kind, messages_json
+  FROM agent_runtime_transcripts
+  WHERE owner_scope = 'legacy-owner'
+    AND workspace_id = 'legacy-workspace'
+`);
+if (migratedRadioTranscript?.actor_kind !== "radio_agent") {
+    throw new Error("legacy Radio transcript was not migrated into the shared actor transcript store");
+}
+const retiredRadioTranscriptsTable = await context.get<{ table_name: string }>(`
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name = 'agent_runtime_radio_transcripts'
+`);
+if (retiredRadioTranscriptsTable !== undefined) {
+    throw new Error("legacy Radio-only transcript table remained after shared-store migration");
 }
 await database.close();

@@ -141,6 +141,13 @@ Shape:
 ```ts
 type ActorDefinition = {
   name: "main" | "radio";
+  runtimePolicy: {
+    actorKind: "main_agent" | "radio_agent";
+    cascadePriority: number;
+    additionalToolPreconditionBasis: Readonly<
+      Partial<Record<StageToolName, readonly ConcernRevisionKey[]>>
+    >;
+  };
   identity: ActorIdentity;
   instruction: ActorInstruction;
   declaredWorkspaceSections: readonly WorkspaceContextSectionName[];
@@ -153,6 +160,13 @@ type ActorDefinition = {
 One actor has one `ActorDefinition`. Main and Radio must not keep actor identity,
 instruction text, workspace-section declarations, and tool-pack selection in
 separate server-module strings or per-run glue.
+
+`runtimePolicy` contains the remaining non-model actor policy that execution
+must consume generically: contract actor kind, cascade priority, and any
+additional command-basis concerns required by a selected tool. Shared session,
+harness, cascade, and command-basis code must not branch on Main versus Radio;
+all such differences belong here. A policy entry may reference only a tool in
+the same definition's `toolPack.stageToolNames`.
 
 `name` identifies the actor for runtime selection and diagnostics. It is not
 part of Actor Identity and is not rendered into the LLM context by default.
@@ -190,6 +204,17 @@ rule above.
 ```ts
 const radioDefinition: ActorDefinition = {
   name: "radio",
+  runtimePolicy: {
+    actorKind: "radio_agent",
+    cascadePriority: 1,
+    additionalToolPreconditionBasis: {
+      "playback.queue.append": ["radioDirectionRevision", "radioSessionRevision"],
+      "playback.queue.remove": ["radioDirectionRevision", "radioSessionRevision"],
+      "playback.queue.replace": ["radioDirectionRevision", "radioSessionRevision"],
+      "playback.queue.move": ["radioDirectionRevision", "radioSessionRevision"],
+      "playback.queue.clear": ["radioDirectionRevision", "radioSessionRevision"],
+    },
+  },
   identity: {
     role: "Radio presence for the current listening direction.",
     job: "Keep the listening flow alive — choices that feel intentional, fresh, and connected, never on autopilot.",
@@ -225,6 +250,11 @@ const radioDefinition: ActorDefinition = {
 
 const mainDefinition: ActorDefinition = {
   name: "main",
+  runtimePolicy: {
+    actorKind: "main_agent",
+    cascadePriority: 2,
+    additionalToolPreconditionBasis: {},
+  },
   identity: {
     role: "Music partner inside the MineMusic workspace.",
     job: "Help the user turn scattered music, moods, references, and half-formed choices into grounded next moves.",
@@ -675,8 +705,8 @@ The active implementation should move toward these shapes:
 - a shared Agent Runtime context placement/rendering boundary for MineMusic-owned
   prompt rails and Workspace Context;
 - an `ActorDefinition` module shared by Main and Radio, with one object per
-  actor containing `{ identity, instruction, declaredWorkspaceSections,
-  toolPack: { stageToolNames } }`;
+  actor containing `{ runtimePolicy, identity, instruction,
+  declaredWorkspaceSections, toolPack: { stageToolNames } }`;
 - a Workspace Context assembler that reads from area-owned projections and
   Workbench, chooses the actor's declared workspace-visible section names, applies
   shared compression rules, and emits compact encoded context with shared section

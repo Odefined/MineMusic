@@ -398,8 +398,8 @@ correctness dependent on a projection trick.
   `src/agent_runtime/agent_harness.ts` — let the bridge pass the current Stage
   tool name into context creation. The shared AgentHarness adapter injects
   runtime-only `preconditionBasis` for both Main and Radio according to the
-  current actor definition and tool policy; Main and Radio do not carry parallel
-  basis logic.
+  current `ActorDefinition.runtimePolicy` and shared base tool policy; Main and
+  Radio do not carry parallel basis logic or actor-kind branches in the tracker.
 - `src/agent_runtime/agent_background_refill_trigger.ts` and shared context projection tests — run-start
   may observe stale posture, but the correction path is the Music
   Experience-owned posture command surface, not encoder suppression.

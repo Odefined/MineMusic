@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 
-import { createAgentRunCascadeCoordinator } from "../../src/agent_runtime/index.js";
+import {
+  createAgentRunCascadeCoordinator,
+  mainDefinition,
+  radioDefinition,
+} from "../../src/agent_runtime/index.js";
 
 const ownerScope = "owner_agent_runtime_cascade";
 
@@ -8,7 +12,7 @@ const ownerScope = "owner_agent_runtime_cascade";
   const cascade = createAgentRunCascadeCoordinator({ ownerScope });
   const radioLease = cascade.register({
     runId: "radio-dependent-run",
-    actor: "radio_agent",
+    priority: radioDefinition.runtimePolicy.cascadePriority,
     basis: {
       radioDirectionRevision: 1,
       radioSessionRevision: 1,
@@ -30,7 +34,7 @@ const ownerScope = "owner_agent_runtime_cascade";
   const cascade = createAgentRunCascadeCoordinator({ ownerScope });
   const radioLease = cascade.register({
     runId: "radio-queue-independent-run",
-    actor: "radio_agent",
+    priority: radioDefinition.runtimePolicy.cascadePriority,
     basis: {
       radioDirectionRevision: 1,
       radioSessionRevision: 1,
@@ -52,14 +56,14 @@ const ownerScope = "owner_agent_runtime_cascade";
   const cascade = createAgentRunCascadeCoordinator({ ownerScope });
   const mainLease = cascade.register({
     runId: "main-dependent-run",
-    actor: "main_agent",
+    priority: mainDefinition.runtimePolicy.cascadePriority,
     basis: {
       radioDirectionRevision: 1,
     },
   });
   const radioLease = cascade.register({
     runId: "radio-dependent-run",
-    actor: "radio_agent",
+    priority: radioDefinition.runtimePolicy.cascadePriority,
     basis: {
       radioDirectionRevision: 1,
     },
@@ -82,14 +86,14 @@ const ownerScope = "owner_agent_runtime_cascade";
   const cascade = createAgentRunCascadeCoordinator({ ownerScope });
   const mainLease = cascade.register({
     runId: "main-dependent-run",
-    actor: "main_agent",
+    priority: mainDefinition.runtimePolicy.cascadePriority,
     basis: {
       radioDirectionRevision: 1,
     },
   });
   const radioLease = cascade.register({
     runId: "radio-dependent-run",
-    actor: "radio_agent",
+    priority: radioDefinition.runtimePolicy.cascadePriority,
     basis: {
       radioDirectionRevision: 1,
     },
@@ -112,7 +116,7 @@ const ownerScope = "owner_agent_runtime_cascade";
   const cascade = createAgentRunCascadeCoordinator({ ownerScope });
   const radioLease = cascade.register({
     runId: "foreign-owner-run",
-    actor: "radio_agent",
+    priority: radioDefinition.runtimePolicy.cascadePriority,
     basis: {
       radioDirectionRevision: 1,
     },

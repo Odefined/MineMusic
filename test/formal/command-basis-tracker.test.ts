@@ -4,6 +4,7 @@ import {
   changedBasisFromRuntimeMetadata,
   createCommandBasisTracker,
 } from "../../src/agent_runtime/command_basis_tracker.js";
+import { mainDefinition, radioDefinition } from "../../src/agent_runtime/index.js";
 import type { ToolCallOutput } from "../../src/contracts/stage_interface.js";
 import type { Result } from "../../src/contracts/kernel.js";
 
@@ -16,7 +17,7 @@ const fullBasis = {
 
 {
   const tracker = createCommandBasisTracker({
-    owner: "main_agent",
+    actor: mainDefinition,
     initialBasis: fullBasis,
   });
 
@@ -29,7 +30,7 @@ const fullBasis = {
 
 {
   const tracker = createCommandBasisTracker({
-    owner: "radio_agent",
+    actor: radioDefinition,
     initialBasis: fullBasis,
   });
 
@@ -51,7 +52,7 @@ const fullBasis = {
 
 {
   const tracker = createCommandBasisTracker({
-    owner: "main_agent",
+    actor: mainDefinition,
     initialBasis: { queueRevision: 1 },
   });
 

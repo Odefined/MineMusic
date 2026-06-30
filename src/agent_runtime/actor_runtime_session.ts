@@ -10,14 +10,15 @@ import type {
 import type { ToolDeclaration } from "../contracts/stage_interface.js";
 import {
   createMineMusicAgentHarness,
-  type MineMusicAgentHarness,
   type MineMusicAgentHarnessPromptInput,
   type MineMusicAgentHarnessRunResult,
   type MineMusicAgentHarnessTurnState,
 } from "./agent_harness.js";
 import {
+  actorKindForDefinition,
   selectActorStageToolDeclarations,
   type ActorDefinition,
+  validateActorDefinition,
 } from "./actor_definition.js";
 import {
   createMineMusicPiAgentAdapter,
@@ -55,6 +56,11 @@ export type ActorRuntimeSessionRunHooks = {
     workspaceContext: EncodedWorkspaceContext;
     signal: AbortSignal;
   }) => Promise<void> | void;
+  onToolResult?: (input: {
+    runId: string;
+    toolName: string;
+    result: Parameters<StageToolResultObserver>[0]["result"];
+  }) => Promise<void> | void;
   afterRun?: (input: {
     runId: string;
     workspaceContext: EncodedWorkspaceContext;
@@ -65,10 +71,7 @@ export type ActorRuntimeSessionRunHooks = {
 
 export type ActorRuntimeSession = {
   actorKind: AgentActorKind;
-  agent: Agent;
-  harness: MineMusicAgentHarness;
-  restoreTranscript(): Promise<void>;
-  createTurnState(): Promise<MineMusicAgentHarnessTurnState>;
+  readWorkspaceContext(): Promise<EncodedWorkspaceContext>;
   run(input: {
     runId: string;
     prompt: MineMusicAgentHarnessPromptInput | ((input: {
@@ -85,17 +88,16 @@ export type ActorRuntimeSession = {
 
 export type CreateActorRuntimeSessionInput = Omit<
   CreateMineMusicPiAgentAdapterInput,
-  "systemPrompt" | "tools"
+  "systemPrompt" | "tools" | "stageSessionId" | "initialMessages"
 > & {
   ownerScope: string;
   workspaceId: string;
   actor: ActorDefinition;
   workspaceContext: WorkspaceContextAssembler;
   tools: readonly ToolDeclaration[];
-  transcriptStore?: AgentRuntimeTranscriptStore;
+  transcriptStore: AgentRuntimeTranscriptStore;
   clock?: () => string;
   maxTranscriptMessages?: number;
-  observeToolResult?: StageToolResultObserver;
 };
 
 type ActiveRun = {
@@ -103,7 +105,10 @@ type ActiveRun = {
   hooks?: ActorRuntimeSessionRunHooks;
 };
 
-export function createActorRuntimeSession(input: CreateActorRuntimeSessionInput): ActorRuntimeSession {
+export async function createActorRuntimeSession(
+  input: CreateActorRuntimeSessionInput,
+): Promise<ActorRuntimeSession> {
+  validateActorDefinition(input.actor);
   const actorKind = actorKindForDefinition(input.actor);
   const maxTranscriptMessages = input.maxTranscriptMessages ?? 200;
   cappedAgentTranscript([], maxTranscriptMessages);
@@ -119,11 +124,18 @@ export function createActorRuntimeSession(input: CreateActorRuntimeSessionInput)
     actor: input.actor,
     ownerScope: input.ownerScope,
     workspaceContext: input.workspaceContext,
-    ...(input.observeToolResult === undefined ? {} : { observeToolResult: input.observeToolResult }),
+    async observeToolResult(result) {
+      if (activeRun === undefined) {
+        throw new Error(`MineMusic Agent Runtime observed a tool result outside an active actor run.`);
+      }
+      await activeRun.hooks?.onToolResult?.({
+        runId: activeRun.runId,
+        ...result,
+      });
+    },
   });
 
   agent = createMineMusicPiAgentAdapter({
-    ...input,
     dispatch: harness.wrapDispatch(input.dispatch),
     contextFactory: harness.createToolContextFactory(input.contextFactory),
     tools: selectActorStageToolDeclarations({
@@ -131,11 +143,15 @@ export function createActorRuntimeSession(input: CreateActorRuntimeSessionInput)
       tools: input.tools,
     }),
     systemPrompt: "",
+    stageSessionId: `${input.workspaceId}:${input.actor.name}`,
+    ...(input.llmProviderSessionId === undefined
+      ? {}
+      : { llmProviderSessionId: input.llmProviderSessionId }),
     agentOptions: input.agentOptions,
   });
 
   agent.subscribe(async (event, signal) => {
-    if (event.type === "agent_end" && input.transcriptStore !== undefined) {
+    if (event.type === "agent_end") {
       await input.transcriptStore.save({
         ownerScope: input.ownerScope,
         workspaceId: input.workspaceId,
@@ -146,24 +162,18 @@ export function createActorRuntimeSession(input: CreateActorRuntimeSessionInput)
     }
   });
 
+  agent.state.messages = (await input.transcriptStore.load({
+    ownerScope: input.ownerScope,
+    workspaceId: input.workspaceId,
+    actor: actorKind,
+  })).slice();
+
   return {
     actorKind,
-    agent,
-    harness,
-    async restoreTranscript() {
-      if (input.transcriptStore === undefined) {
-        return;
-      }
-      agent.state.messages = (await input.transcriptStore.load({
-        ownerScope: input.ownerScope,
-        workspaceId: input.workspaceId,
-        actor: actorKind,
-      })).slice();
-    },
-    createTurnState() {
-      return harness.createTurnState({
+    async readWorkspaceContext() {
+      return (await harness.createTurnState({
         tools: agent.state.tools,
-      });
+      })).workspaceContext;
     },
     async run(runInput) {
       if (activeRun !== undefined) {
@@ -175,14 +185,12 @@ export function createActorRuntimeSession(input: CreateActorRuntimeSessionInput)
         ? undefined
         : runInput.cascade.register({
           runId: runInput.runId,
-          actor: actorKind,
+          priority: input.actor.runtimePolicy.cascadePriority,
           basis: runInput.basis,
         });
       let signal = combinedAbortSignal(runInput.abortSignal, cascadeLease?.abortSignal);
       if (signal.aborted) {
-        return abortedBeforeStartResult({
-          runInput,
-        });
+        return abortedBeforeStartResult();
       }
 
       activeRun = {
@@ -195,9 +203,7 @@ export function createActorRuntimeSession(input: CreateActorRuntimeSessionInput)
           signal,
         });
         if (signal.aborted) {
-          return abortedBeforeStartResult({
-            runInput,
-          });
+          return abortedBeforeStartResult();
         }
         const initialTurnState = await harness.createTurnState({
           tools: agent.state.tools,
@@ -214,7 +220,7 @@ export function createActorRuntimeSession(input: CreateActorRuntimeSessionInput)
           if (basis !== undefined) {
             cascadeLease = runInput.cascade.register({
               runId: runInput.runId,
-              actor: actorKind,
+              priority: input.actor.runtimePolicy.cascadePriority,
               basis,
             });
             signal = combinedAbortSignal(runInput.abortSignal, cascadeLease.abortSignal);
@@ -275,15 +281,6 @@ export function createActorRuntimeSession(input: CreateActorRuntimeSessionInput)
   };
 }
 
-function actorKindForDefinition(actor: ActorDefinition): AgentActorKind {
-  switch (actor.name) {
-    case "main":
-      return "main_agent";
-    case "radio":
-      return "radio_agent";
-  }
-}
-
 function combinedAbortSignal(
   externalSignal: AbortSignal | undefined,
   cascadeSignal: AbortSignal | undefined,
@@ -300,9 +297,7 @@ function combinedAbortSignal(
   return AbortSignal.any([externalSignal, cascadeSignal]);
 }
 
-async function abortedBeforeStartResult(input: {
-  runInput: object;
-}): Promise<ActorRuntimeSessionRunResult> {
+async function abortedBeforeStartResult(): Promise<ActorRuntimeSessionRunResult> {
   const turnState: MineMusicAgentHarnessTurnState = {
     workspaceContext: {},
     commandBasis: {},

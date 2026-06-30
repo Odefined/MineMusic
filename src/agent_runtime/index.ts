@@ -32,22 +32,11 @@ export type {
   AgentRunCascadeCoordinator,
   AgentRunCascadeLease,
 } from "./agent_run_cascade.js";
-export {
-  createMineMusicAgentHarness,
-} from "./agent_harness.js";
 export type {
-  MineMusicAgentHarness,
-  MineMusicAgentHarnessRunResult,
-  MineMusicAgentHarnessTurnState,
-} from "./agent_harness.js";
-export {
-  createMineMusicPiAgentAdapter,
-} from "./pi_engine.js";
-export type {
-  CreateMineMusicPiAgentAdapterInput,
   MineMusicPiAgentAdapterOptions,
 } from "./pi_engine.js";
 export {
+  actorKindForDefinition,
   mainDefinition,
   radioDefinition,
   selectActorStageToolDeclarations,
@@ -79,16 +68,11 @@ export type {
   RadioWorkspaceContextSection,
 } from "./workspace_context_encoder.js";
 export {
-  createStageToolBridge,
-  isStageToolErrorDetails,
   toPiToolName,
 } from "./stage_tool_bridge.js";
 export type {
   AgentRuntimeStageToolContextFactoryPort,
-  CreateStageToolBridgeInput,
   StageToolDispatchPort,
-  StageToolBridgeDetails,
-  StageToolErrorDetails,
   StageToolResultObserver,
 } from "./stage_tool_bridge.js";
 export {

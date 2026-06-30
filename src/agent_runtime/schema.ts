@@ -19,7 +19,7 @@ export const agentRuntimeTranscriptSchema: MusicDatabaseSchemaContribution = {
     await context.run(`
       DO $$
       BEGIN
-        IF to_regclass('public.agent_runtime_transcripts') IS NOT NULL THEN
+        IF to_regclass('public.agent_runtime_radio_transcripts') IS NOT NULL THEN
           INSERT INTO agent_runtime_transcripts (
             owner_scope,
             workspace_id,
@@ -35,8 +35,10 @@ export const agentRuntimeTranscriptSchema: MusicDatabaseSchemaContribution = {
             messages_json,
             created_at,
             updated_at
-          FROM agent_runtime_transcripts
+          FROM agent_runtime_radio_transcripts
           ON CONFLICT(owner_scope, workspace_id, actor_kind) DO NOTHING;
+
+          DROP TABLE agent_runtime_radio_transcripts;
         END IF;
       END
       $$;

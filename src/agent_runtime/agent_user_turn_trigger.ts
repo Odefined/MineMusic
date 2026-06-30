@@ -43,16 +43,6 @@ export type AgentRuntimeUserTurnController = {
 export function createAgentRuntimeUserTurnController(
   input: CreateAgentRuntimeUserTurnControllerInput,
 ): AgentRuntimeUserTurnController {
-  return createUserTurnController({
-    session: input.session,
-    ...(input.cascade === undefined ? {} : { cascade: input.cascade }),
-  });
-}
-
-function createUserTurnController(input: {
-  session: ActorRuntimeSession;
-  cascade?: AgentRunCascadeCoordinator;
-}): AgentRuntimeUserTurnController {
   return {
     async runUserTurn(turnInput) {
       const runResult = await input.session.run({
@@ -71,7 +61,7 @@ function createUserTurnController(input: {
         stopReason: finalAssistant?.stopReason,
         errorMessage: finalAssistant?.errorMessage,
         assistantResponseText: responseText,
-        workspaceContextAfterTurn: (await input.session.createTurnState()).workspaceContext,
+        workspaceContextAfterTurn: await input.session.readWorkspaceContext(),
       };
     },
     abort() {

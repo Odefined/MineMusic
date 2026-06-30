@@ -1,5 +1,6 @@
 import type { ConcernRevisionSet, Result } from "../contracts/kernel.js";
 import type { ToolCallOutput } from "../contracts/stage_interface.js";
+import type { ActorDefinition } from "./actor_definition.js";
 
 type ConcernRevisionKey = keyof ConcernRevisionSet;
 
@@ -33,8 +34,6 @@ export type CommandBasisTracker = {
   absorbToolResult(result: Result<ToolCallOutput>): boolean;
 };
 
-export type CommandBasisTrackerOwner = "main_agent" | "radio_agent";
-
 // Turn/run-local tracker for revision basis. Before a tool call it projects the
 // current revisions into that tool's `preconditionBasis`; after a successful
 // tool call it absorbs only the tool's internal runtime `changedBasis`
@@ -42,16 +41,14 @@ export type CommandBasisTrackerOwner = "main_agent" | "radio_agent";
 // advance the tracker.
 export function createCommandBasisTracker(input: {
   initialBasis?: ConcernRevisionSet;
-  owner?: CommandBasisTrackerOwner;
-} = {}): CommandBasisTracker {
+  actor: ActorDefinition;
+}): CommandBasisTracker {
   let currentBasis: ConcernRevisionSet = {
     ...(input.initialBasis ?? {}),
   };
-  const owner = input.owner ?? "main_agent";
-
   return {
     preconditionBasisForTool(toolName) {
-      const keys = preconditionKeysForTool(owner, toolName);
+      const keys = preconditionKeysForTool(input.actor, toolName);
       if (keys.length === 0) {
         return undefined;
       }
@@ -76,19 +73,19 @@ export function createCommandBasisTracker(input: {
 }
 
 function preconditionKeysForTool(
-  owner: CommandBasisTrackerOwner,
+  actor: ActorDefinition,
   toolName: string,
 ): readonly ConcernRevisionKey[] {
+  const baseKeys: readonly ConcernRevisionKey[] = basePreconditionKeysForTool(toolName);
+  const additionalKeys = actor.runtimePolicy.additionalToolPreconditionBasis[toolName] ?? [];
+  return [...new Set([...baseKeys, ...additionalKeys])];
+}
+
+function basePreconditionKeysForTool(toolName: string): readonly ConcernRevisionKey[] {
   if (radioDirectionTools.has(toolName) || radioLeanTools.has(toolName)) {
     return ["radioDirectionRevision"];
   }
-  if (owner === "radio_agent" && toolName === "playback.queue.append") {
-    return ["radioDirectionRevision", "radioSessionRevision"];
-  }
   if (queueIndexEditTools.has(toolName)) {
-    if (owner === "radio_agent") {
-      return ["queueRevision", "radioDirectionRevision", "radioSessionRevision"];
-    }
     return ["queueRevision"];
   }
   return [];

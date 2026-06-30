@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 
 import {
-  createMineMusicPiAgentAdapter,
   createWorkspaceContextAssembler,
   mainDefinition,
   radioDefinition,
@@ -9,9 +8,13 @@ import {
   validateActorDefinition,
 } from "../../src/agent_runtime/index.js";
 import type {
-  CreateMineMusicPiAgentAdapterInput,
+  ActorDefinition,
   CreateWorkspaceContextAssemblerInput,
 } from "../../src/agent_runtime/index.js";
+import {
+  createMineMusicPiAgentAdapter,
+  type CreateMineMusicPiAgentAdapterInput,
+} from "../../src/agent_runtime/pi_engine.js";
 import type {
   MusicExperienceWorkspaceProjection,
   MusicExperienceWorkspaceProjectionPort,
@@ -28,6 +31,18 @@ export type _workspaceContextAssemblerInputKeys = Expect<
 >;
 export type _piAgentAdapterHasNoSessionContextInput = Expect<
   Equal<Extract<keyof CreateMineMusicPiAgentAdapterInput, "sessionContext">, never>
+>;
+export type _actorDefinitionKeys = Expect<
+  Equal<
+    keyof ActorDefinition,
+    "name" | "runtimePolicy" | "identity" | "instruction" | "declaredWorkspaceSections" | "toolPack"
+  >
+>;
+export type _actorRuntimePolicyKeys = Expect<
+  Equal<
+    keyof ActorDefinition["runtimePolicy"],
+    "actorKind" | "cascadePriority" | "additionalToolPreconditionBasis"
+  >
 >;
 
 assert.deepEqual(
@@ -185,6 +200,18 @@ assert.throws(
     },
   }),
   /outside its ActorDefinition tool pack/u,
+);
+assert.throws(
+  () => validateActorDefinition({
+    ...mainDefinition,
+    runtimePolicy: {
+      ...mainDefinition.runtimePolicy,
+      additionalToolPreconditionBasis: {
+        "radio.lean.add": ["radioDirectionRevision"],
+      },
+    },
+  }),
+  /runtime policy references tool 'radio\.lean\.add' outside its tool pack/u,
 );
 
 function projectionFixture(): MusicExperienceWorkspaceProjection {

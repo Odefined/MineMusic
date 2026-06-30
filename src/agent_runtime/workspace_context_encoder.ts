@@ -173,16 +173,15 @@ function formatQueueItem(item: MusicExperienceWorkspaceQueueEntry): string {
 }
 
 function formatQueueContributor(provenance: MusicExperienceQueueItemProvenance): string {
-  switch (provenance) {
-    case "radio_agent":
-      return "radio";
-    case "main_agent":
-      return "main";
-    case "user":
-      return "user";
-  }
+  return queueContributorLabels[provenance];
 }
 
 function quoteText(text: string): string {
   return JSON.stringify(text);
 }
+
+const queueContributorLabels: Readonly<Record<MusicExperienceQueueItemProvenance, string>> = {
+  user: "user",
+  main_agent: "main",
+  radio_agent: "radio",
+};

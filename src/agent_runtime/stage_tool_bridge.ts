@@ -64,7 +64,6 @@ export type CreateStageToolBridgeInput = {
   dispatch: StageToolDispatchPort;
   contextFactory: AgentRuntimeStageToolContextFactoryPort;
   stageSessionId: string;
-  observeToolResult?: StageToolResultObserver;
   requestIdForToolCall?: (input: {
     internalToolName: string;
     piToolName: string;
@@ -111,10 +110,6 @@ function createPiToolForStageTool(input: CreateStageToolBridgeInput & {
         ctx,
         toolName: descriptor.name,
         payload: params,
-      });
-      await input.observeToolResult?.({
-        toolName: descriptor.name,
-        result,
       });
 
       if (!result.ok) {

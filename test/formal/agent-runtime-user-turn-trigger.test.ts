@@ -4,6 +4,7 @@ import type { StreamFn } from "@earendil-works/pi-agent-core";
 
 import {
   createActorRuntimeSession,
+  createInMemoryAgentRuntimeTranscriptStore,
   createWorkspaceContextAssembler,
   createAgentRuntimeUserTurnController,
   toPiToolName,
@@ -80,14 +81,19 @@ import { createRecordingProjectionInvalidationCommands } from "./helpers/project
 
 const ownerScope = "local";
 
-type TestUserTurnControllerInput = Omit<CreateActorRuntimeSessionInput, "workspaceId"> & {
+type TestUserTurnControllerInput = Omit<
+  CreateActorRuntimeSessionInput,
+  "workspaceId" | "transcriptStore"
+> & {
   workspaceId?: string;
+  transcriptStore?: AgentRuntimeTranscriptStore;
 };
 
-function createTestUserTurnController(input: TestUserTurnControllerInput) {
-  const session = createActorRuntimeSession({
+async function createTestUserTurnController(input: TestUserTurnControllerInput) {
+  const session = await createActorRuntimeSession({
     ...input,
     workspaceId: input.workspaceId ?? "default",
+    transcriptStore: input.transcriptStore ?? createInMemoryAgentRuntimeTranscriptStore(),
   });
   return createAgentRuntimeUserTurnController({ session });
 }
@@ -163,7 +169,7 @@ const observedProviderContexts: {
   messagesJson: string;
 }[] = [];
 
-const session = createTestUserTurnController({
+const session = await createTestUserTurnController({
   ownerScope,
   actor: testMainActor(),
   workspaceContext: {
@@ -190,7 +196,6 @@ const session = createTestUserTurnController({
       throw new Error("No Stage tool context is expected in the session-refresh contract test.");
     },
   },
-  stageSessionId: "stage-session",
   llmProviderSessionId: "provider-session",
   agentOptions: {
     streamFn(_model, context) {
@@ -257,7 +262,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
 {
   const transcript = createCountingTranscriptStore();
   let turnCount = 0;
-  const actorSession = createActorRuntimeSession({
+  const actorSession = await createActorRuntimeSession({
     ownerScope,
     workspaceId: "user-turn-checkpoint",
     actor: testMainActor(),
@@ -273,7 +278,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
         throw new Error("No Stage tool context is expected in the user-turn checkpoint test.");
       },
     },
-    stageSessionId: "stage-session-user-turn-checkpoint",
     transcriptStore: transcript.store,
     agentOptions: {
       streamFn() {
@@ -286,7 +290,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
       },
     },
   });
-  await actorSession.restoreTranscript();
   const controller = createAgentRuntimeUserTurnController({ session: actorSession });
 
   await controller.runUserTurn({ userMessage: "first checkpointed user turn" });
@@ -355,7 +358,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
   const streamReleased = new Promise<void>((resolve) => {
     releaseStream = resolve;
   });
-  const serialSession = createTestUserTurnController({
+  const serialSession = await createTestUserTurnController({
     ownerScope,
     actor: testMainActor(),
     workspaceContext: emptyWorkspaceContext(),
@@ -370,7 +373,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
         throw new Error("No Stage tool context is expected in the serial turn contract test.");
       },
     },
-    stageSessionId: "stage-session-serial",
     llmProviderSessionId: "provider-session-serial",
     agentOptions: {
       streamFn() {
@@ -409,7 +411,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
 }
 
 {
-  const abortedSession = createTestUserTurnController({
+  const abortedSession = await createTestUserTurnController({
     ownerScope,
     actor: testMainActor(),
     workspaceContext: emptyWorkspaceContext(),
@@ -424,7 +426,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
         throw new Error("No Stage tool context is expected in the aborted turn contract test.");
       },
     },
-    stageSessionId: "stage-session-aborted",
     llmProviderSessionId: "provider-session-aborted",
     agentOptions: {
       streamFn() {
@@ -456,7 +457,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
     actor: unknown;
   }[] = [];
   let streamCallCount = 0;
-  const session = createTestUserTurnController({
+  const session = await createTestUserTurnController({
     ownerScope,
     actor: testMainActor([
       radioMotifSetDescriptor.name,
@@ -555,7 +556,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
         });
       },
     },
-    stageSessionId: "stage-session-main-basis",
     llmProviderSessionId: "provider-session-main-basis",
     agentOptions: {
       streamFn() {
@@ -647,7 +647,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
     queue: [],
     radio: emptyRadioTruthSlice(),
   };
-  const session = createTestUserTurnController({
+  const session = await createTestUserTurnController({
     ownerScope,
     actor: testMainActor([playbackQueueAppendDescriptor.name]),
     workspaceContext: createWorkspaceContextAssembler({
@@ -701,7 +701,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
         });
       },
     },
-    stageSessionId: "stage-session-context-diff",
     llmProviderSessionId: "provider-session-context-diff",
     agentOptions: {
       streamFn() {
@@ -820,7 +819,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
       },
     }),
   });
-  const a4Session = createTestUserTurnController({
+  const a4Session = await createTestUserTurnController({
     ownerScope,
     actor: testMainActor([
       musicDiscoveryLookupDescriptor.name,
@@ -856,7 +855,6 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
         });
       },
     },
-    stageSessionId: "stage-session-a4",
     llmProviderSessionId: "provider-session-a4",
     agentOptions: {
       streamFn(_model, context) {
@@ -900,7 +898,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
       },
       order: "text_relevance",
       limit: 1,
-      sessionId: "stage-session-a4",
+      sessionId: "default:main",
     },
   ]);
   assert.equal(turn.workspaceContext.listening?.queue, "empty");
@@ -1015,6 +1013,11 @@ function emptyWorkspaceContext(): WorkspaceContextAssembler {
 function testMainActor(stageToolNames: readonly string[] = []): ActorDefinition {
   return {
     name: "main",
+    runtimePolicy: {
+      actorKind: "main_agent",
+      cascadePriority: 2,
+      additionalToolPreconditionBasis: {},
+    },
     identity: {
       role: "Main test actor.",
       job: "Exercise the Main Agent session facade.",

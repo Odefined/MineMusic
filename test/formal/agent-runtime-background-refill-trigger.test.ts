@@ -46,13 +46,19 @@ function createAgentRuntimeBackgroundRefillPort(input: {
   workspaceContext?: WorkspaceContextAssembler;
   promptForPayload?: Parameters<typeof createProductionBackgroundRefillPort>[0]["promptForPayload"];
   hooks?: Parameters<typeof createProductionBackgroundRefillPort>[0]["hooks"];
-  resultFromRun?: Parameters<typeof createProductionBackgroundRefillPort>[0]["resultFromRun"];
+  resultFromRun?: ReturnType<
+    Parameters<typeof createProductionBackgroundRefillPort>[0]["createResultRecorder"]
+  >["result"];
+  createResultRecorder?: Parameters<typeof createProductionBackgroundRefillPort>[0]["createResultRecorder"];
 }) {
   return createProductionBackgroundRefillPort({
     session: input.session,
     ...(input.promptForPayload === undefined ? {} : { promptForPayload: input.promptForPayload }),
     ...(input.hooks === undefined ? {} : { hooks: input.hooks }),
-    ...(input.resultFromRun === undefined ? {} : { resultFromRun: input.resultFromRun }),
+    createResultRecorder: input.createResultRecorder ?? (() => ({
+      observeToolResult() {},
+      result: input.resultFromRun!,
+    })),
   });
 }
 
@@ -90,7 +96,7 @@ function createCountingTranscriptStore(): {
 
 {
   const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
-  const firstSession = createTestActorRuntimeSession("first", {
+  const firstSession = await createTestActorRuntimeSession("first", {
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
   });
@@ -111,7 +117,6 @@ function createCountingTranscriptStore(): {
     signal: new AbortController().signal,
   });
 
-  assert.equal(firstSession.agent.state.messages.length, 2);
   assert.equal(transcriptStore.snapshot(key).length, 2);
 
   await transcriptStore.save({
@@ -126,17 +131,13 @@ function createCountingTranscriptStore(): {
     signal: new AbortController().signal,
   });
 
-  assert.equal(firstSession.agent.state.messages.length, 4);
   assert.equal(transcriptStore.snapshot(key).length, 4);
   assert.deepEqual(runStarts, ["radio-job-1", "radio-job-2"]);
 
-  const restartedSession = createTestActorRuntimeSession("restart", {
+  const restartedSession = await createTestActorRuntimeSession("restart", {
     transcriptStore,
     clock: () => "2026-06-28T00:00:02.000Z",
   });
-  await restartedSession.restoreTranscript();
-  assert.equal(restartedSession.agent.state.messages.length, 4);
-
   const restartedRunPort = createAgentRuntimeBackgroundRefillPort({
     session: restartedSession,
     resultFromRun: defaultRadioResult,
@@ -146,17 +147,15 @@ function createCountingTranscriptStore(): {
     payload: payload(3),
     signal: new AbortController().signal,
   });
-  assert.equal(restartedSession.agent.state.messages.length, 6);
   assert.equal(transcriptStore.snapshot(key).length, 6);
 }
 
 {
   const transcript = createCountingTranscriptStore();
-  const actorSession = createTestActorRuntimeSession("checkpoint", {
+  const actorSession = await createTestActorRuntimeSession("checkpoint", {
     transcriptStore: transcript.store,
     clock: () => "2026-06-28T00:00:00.000Z",
   });
-  await actorSession.restoreTranscript();
   const runPort = createAgentRuntimeBackgroundRefillPort({
     session: actorSession,
     resultFromRun: defaultRadioResult,
@@ -183,7 +182,7 @@ function createCountingTranscriptStore(): {
   let observedSystemPrompt = "";
   let observedMessagesJson = "";
   let observedToolCount = 0;
-  const actorSession = createTestActorRuntimeSession("floor", {
+  const actorSession = await createTestActorRuntimeSession("floor", {
     transcriptStore,
     tools: [playbackQueueAppendDescriptor],
     workspaceContext: createWorkspaceContextAssembler({
@@ -258,7 +257,7 @@ function createCountingTranscriptStore(): {
       stale: true,
     },
   });
-  const actorSession = createTestActorRuntimeSession("stale-posture", {
+  const actorSession = await createTestActorRuntimeSession("stale-posture", {
     transcriptStore,
     workspaceContext: createWorkspaceContextAssembler({
       musicExperience: {
@@ -326,7 +325,7 @@ function createCountingTranscriptStore(): {
     actor: unknown;
   }[] = [];
   let streamCallCount = 0;
-  const actorSession = createTestActorRuntimeSession("basis-tracker", {
+  const actorSession = await createTestActorRuntimeSession("basis-tracker", {
     transcriptStore,
     tools: [playbackQueueAppendDescriptor, playbackQueueMoveDescriptor, radioLeanAddDescriptor],
     dispatch: {
@@ -448,7 +447,7 @@ function createCountingTranscriptStore(): {
     session: actorSession,
     transcriptStore,
     clock: () => "2026-06-28T00:00:00.000Z",
-    resultFromRun: defaultRadioResult,
+    createResultRecorder: createRadioRunResultRecorder,
     workspaceContext: createWorkspaceContextAssembler({
       musicExperience: {
         async readWorkspaceProjection() {
@@ -465,11 +464,13 @@ function createCountingTranscriptStore(): {
     }),
   });
 
-  await runPort.runRadioRefill({
+  const basisRunResult = await runPort.runRadioRefill({
     runId: "radio-job-basis",
     payload: payloadWithRevisions({ refillGeneration: 18, radioSessionRevision: 99, radioDirectionRevision: 99 }),
     signal: new AbortController().signal,
   });
+
+  assert.equal(basisRunResult.outcome, "queue_corrected");
 
   assert.deepEqual(observedContexts, [
     {
@@ -726,7 +727,7 @@ function createCountingTranscriptStore(): {
 
 {
   const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
-  const actorSession = createTestActorRuntimeSession("error", {
+  const actorSession = await createTestActorRuntimeSession("error", {
     streamFn() {
       return fakeAssistantMessageEventStream({
         type: "error",
@@ -763,7 +764,7 @@ function createCountingTranscriptStore(): {
       throw new Error("transcript save failed");
     },
   };
-  const saveFailedSession = createTestActorRuntimeSession("save-failed", {
+  const saveFailedSession = await createTestActorRuntimeSession("save-failed", {
     transcriptStore,
   });
   const runPort = createAgentRuntimeBackgroundRefillPort({
@@ -788,13 +789,17 @@ function createCountingTranscriptStore(): {
 {
   const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
   const controller = new AbortController();
-  const actorSession = createTestActorRuntimeSession("abort", {
+  let agentSignalAborted = false;
+  const actorSession = await createTestActorRuntimeSession("abort", {
     async streamFn(_model, _context, options) {
       const message = assistantErrorMessage("aborted", "background job aborted");
       setTimeout(() => controller.abort(), 0);
       if (options?.signal !== undefined && !options.signal.aborted) {
         await new Promise<void>((resolve) => {
-          options?.signal?.addEventListener("abort", () => resolve(), { once: true });
+          options?.signal?.addEventListener("abort", () => {
+            agentSignalAborted = true;
+            resolve();
+          }, { once: true });
           setTimeout(resolve, 0);
         });
       }
@@ -805,12 +810,6 @@ function createCountingTranscriptStore(): {
       });
     },
   });
-  const originalAbort = actorSession.agent.abort.bind(actorSession.agent);
-  let abortCalls = 0;
-  actorSession.agent.abort = () => {
-    abortCalls += 1;
-    originalAbort();
-  };
   const runPort = createAgentRuntimeBackgroundRefillPort({
     ...key,
     session: actorSession,
@@ -832,7 +831,7 @@ function createCountingTranscriptStore(): {
     outcome: "voided_stale",
     appendedCount: 0,
   });
-  assert.equal(abortCalls, 1);
+  assert.equal(agentSignalAborted, true);
 }
 
 {
@@ -841,7 +840,7 @@ function createCountingTranscriptStore(): {
   controller.abort();
   const runPort = createAgentRuntimeBackgroundRefillPort({
     ...key,
-    session: createTestActorRuntimeSession("pre-abort"),
+    session: await createTestActorRuntimeSession("pre-abort"),
     transcriptStore,
     ...radioRunDefaults(),
     clock: () => "2026-06-28T00:00:00.000Z",
@@ -865,7 +864,7 @@ function createCountingTranscriptStore(): {
 {
   const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
   let resolveRead: ((value: WorkspaceContextAssembly | Promise<WorkspaceContextAssembly>) => void) | undefined;
-  const actorSession = createTestActorRuntimeSession("concurrent", {
+  const actorSession = await createTestActorRuntimeSession("concurrent", {
     transcriptStore,
     workspaceContext: {
       assemble() {
@@ -906,6 +905,13 @@ function createCountingTranscriptStore(): {
   }).assemble({
     actor: {
       name: "radio",
+      runtimePolicy: {
+        actorKind: "radio_agent",
+        cascadePriority: 1,
+        additionalToolPreconditionBasis: {
+          "playback.queue.append": ["radioDirectionRevision", "radioSessionRevision"],
+        },
+      },
       identity: {
         role: "Radio test.",
         job: "Run radio tests.",
@@ -926,7 +932,7 @@ function createCountingTranscriptStore(): {
 
 {
   const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
-  const actorSession = createTestActorRuntimeSession("async-result");
+  const actorSession = await createTestActorRuntimeSession("async-result");
   let releaseResult: (() => void) | undefined;
   const resultWait = new Promise<void>((resolve) => {
     releaseResult = resolve;
@@ -965,37 +971,14 @@ function createCountingTranscriptStore(): {
 
 {
   const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
-  const runPort = createAgentRuntimeBackgroundRefillPort({
-    ...key,
-    session: createTestActorRuntimeSession("missing-result-extractor"),
-    transcriptStore,
-    ...radioRunDefaults(),
-    clock: () => "2026-06-28T00:00:00.000Z",
-  });
-
-  await assert.rejects(
-    () => runPort.runRadioRefill({
-      runId: "radio-job-missing-result-extractor",
-      payload: payload(11),
-      signal: new AbortController().signal,
-    }),
-    /has no result extractor/,
-  );
-}
-
-{
-  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
   await transcriptStore.save({
     ...key,
     messages: [{ role: "assistant" } as never],
     now: "2026-06-28T00:00:00.000Z",
   });
 
-  const corruptSession = createTestActorRuntimeSession("corrupt", {
-    transcriptStore,
-  });
   await assert.rejects(
-    () => corruptSession.restoreTranscript(),
+    () => createTestActorRuntimeSession("corrupt", { transcriptStore }),
     /Stored Agent Runtime transcript message at index 0 is invalid/,
   );
 }
@@ -1037,20 +1020,38 @@ function defaultRadioResult(input: {
   };
 }
 
-function createTestActorRuntimeSession(label: string, input: {
+async function createTestActorRuntimeSession(label: string, input: {
   streamFn?: StreamFn;
   transcriptStore?: AgentRuntimeTranscriptStore;
   workspaceContext?: ReturnType<typeof emptyWorkspaceContext>;
   tools?: readonly ToolDeclaration[];
   dispatch?: StageToolDispatchPort;
   clock?: () => string;
-} = {}): ActorRuntimeSession {
+} = {}): Promise<ActorRuntimeSession> {
   let streamCallCount = 0;
+  const stageToolNames = (input.tools ?? []).map((tool) => tool.name);
+  const radioQueueToolNames = new Set([
+    "playback.queue.append",
+    "playback.queue.remove",
+    "playback.queue.replace",
+    "playback.queue.move",
+    "playback.queue.clear",
+  ]);
+  const additionalToolPreconditionBasis = Object.fromEntries(
+    stageToolNames
+      .filter((toolName) => radioQueueToolNames.has(toolName))
+      .map((toolName) => [toolName, ["radioDirectionRevision", "radioSessionRevision"]] as const),
+  );
   return createActorRuntimeSession({
     ownerScope: key.ownerScope,
     workspaceId: key.workspaceId,
     actor: {
       name: "radio",
+      runtimePolicy: {
+        actorKind: "radio_agent",
+        cascadePriority: 1,
+        additionalToolPreconditionBasis,
+      },
       identity: {
         role: `Radio test ${label}.`,
         job: "Run background refill trigger tests.",
@@ -1062,7 +1063,7 @@ function createTestActorRuntimeSession(label: string, input: {
         prohibitions: "None.",
       },
       declaredWorkspaceSections: ["listening", "radio"],
-      toolPack: { stageToolNames: (input.tools ?? []).map((tool) => tool.name) },
+      toolPack: { stageToolNames },
     },
     workspaceContext: input.workspaceContext ?? emptyWorkspaceContext(),
     tools: input.tools ?? [],
@@ -1082,8 +1083,7 @@ function createTestActorRuntimeSession(label: string, input: {
         );
       },
     },
-    stageSessionId: `stage-${label}`,
-    ...(input.transcriptStore === undefined ? {} : { transcriptStore: input.transcriptStore }),
+    transcriptStore: input.transcriptStore ?? createInMemoryAgentRuntimeTranscriptStore(),
     clock: input.clock ?? (() => "2026-06-28T00:00:00.000Z"),
     agentOptions: {
       streamFn(...streamInput) {

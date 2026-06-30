@@ -1560,8 +1560,12 @@ catalog integration. Design authority:
   path rather than a side effect of runtime config. When mounted, Radio receives
   its tools through the same ActorDefinition tool-pack selection path used by
   Main. Agent Runtime owns the shared long-lived `ActorRuntimeSession`, generic
-  Stage-tool-result observation, and Radio run-local result recorder; Server
-  Host wires one composed shared session instead of a Radio-specific tool bridge.
+  run-scoped Stage-tool-result observation, and Radio run-local result recorder;
+  Server Host wires one composed shared session instead of a Radio-specific tool
+  bridge. Session construction restores continuity exactly once before exposing
+  the actor, and `ActorDefinition.runtimePolicy` is the sole owner of actor kind,
+  cascade priority, and actor-specific tool precondition additions; shared
+  execution code has no Main/Radio actor branch.
   Agent Runtime now owns the
   `agent_runtime.radio_refill_run` job payload/result contracts,
   internal `Running` / `Paused` / `Shutdown` wake-gate state, minimal

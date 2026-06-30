@@ -3,7 +3,6 @@ import type {
   AgentRuntimeStageToolContextFactoryPort,
   AgentRunCascadeCoordinator,
   MainRadioNotifyChannel,
-  RadioRunResultRecorder,
   StageToolDispatchPort,
 } from "../agent_runtime/index.js";
 import {
@@ -61,7 +60,6 @@ export function createAgentRuntimeRadioModule(
   const ownerScope = input.ownerScope ?? "local";
   const workspaceId = input.workspaceId ?? DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID;
   let supervisor: RadioSupervisor | undefined;
-  let runResultRecorder: RadioRunResultRecorder | undefined;
 
   return {
     descriptor: {
@@ -70,40 +68,37 @@ export function createAgentRuntimeRadioModule(
       label: "Agent Runtime Radio",
     },
     async initialize() {
-      runResultRecorder = createRadioRunResultRecorder();
       const db = requirePort(input.database(), "music database");
       const backgroundWork = requirePort(input.backgroundWork(), "Background Work");
       const musicExperienceRead = requirePort(input.musicExperienceRead(), "Music Experience read model");
       const notifyChannel = requirePort(input.notifyChannel(), "Main Radio notify channel");
       const agentOptions = requirePort(input.agentOptions(), "Radio Agent stream options");
       const cascade = requirePort(input.cascade(), "Agent Runtime cascade coordinator");
+      const dispatch = requirePort(input.dispatch(), "Stage dispatch");
+      const contextFactory = requirePort(input.contextFactory(), "Stage tool context factory");
       const transcriptStore = createPostgresAgentRuntimeTranscriptStore({ db });
       const queuePlaybackRecords = createMusicExperienceQueuePlaybackRecords({ db, workspaceId });
       const radioTruthRecords = createMusicExperienceRadioTruthRecords({ db, workspaceId });
       const workspaceContext = createWorkspaceContextAssembler({
         musicExperience: musicExperienceRead,
       });
-      const session = createActorRuntimeSession({
+      const session = await createActorRuntimeSession({
         ownerScope,
         workspaceId,
         actor: radioDefinition,
         workspaceContext,
         tools: input.tools(),
-        dispatch: lazyDispatch(input),
-        contextFactory: radioContextFactory(),
-        stageSessionId: "radio",
+        dispatch,
+        contextFactory,
         transcriptStore,
         clock: () => new Date().toISOString(),
         agentOptions,
-        observeToolResult(result) {
-          requirePort(runResultRecorder, "Radio run result recorder").observeToolResult(result);
-        },
       });
-      await session.restoreTranscript();
 
       const runPort = createAgentRuntimeBackgroundRefillPort({
         session,
         cascade,
+        createResultRecorder: createRadioRunResultRecorder,
         hooks: {
           async beforeWorkspaceContextAssemble() {
             const radioTruthSnapshot = await radioTruthRecords.read({ ownerScope });
@@ -122,9 +117,6 @@ export function createAgentRuntimeRadioModule(
               });
             }
           },
-        },
-        resultFromRun(resultInput) {
-          return requirePort(runResultRecorder, "Radio run result recorder").result(resultInput);
         },
       });
 
@@ -159,34 +151,7 @@ export function createAgentRuntimeRadioModule(
     async stop() {
       await supervisor?.stop();
       supervisor = undefined;
-      runResultRecorder = undefined;
       return { ok: true, value: undefined };
-    },
-  };
-  function radioContextFactory(): AgentRuntimeStageToolContextFactoryPort {
-    return {
-      createToolContext(perCall) {
-        const factory = input.contextFactory();
-        if (factory === undefined) {
-          throw new Error("Radio Agent context factory used before Stage Runtime is ready.");
-        }
-        return factory.createToolContext({
-          ...perCall,
-        });
-      },
-    };
-  }
-
-}
-
-function lazyDispatch(input: CreateAgentRuntimeRadioModuleInput): StageToolDispatchPort {
-  return {
-    dispatch(dispatchInput) {
-      const dispatch = input.dispatch();
-      if (dispatch === undefined) {
-        throw new Error("Radio Agent dispatch used before Stage Runtime is ready.");
-      }
-      return dispatch.dispatch(dispatchInput);
     },
   };
 }

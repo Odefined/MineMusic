@@ -843,9 +843,11 @@ restored as compatibility layers.
   ActorDefinition tool-pack selection path. Main user turns and Radio refills
   both run through the same long-lived `ActorRuntimeSession.run()` spine; their
   only runtime differences are the selected ActorDefinition and the trigger that
-  calls `run()`. Agent Runtime owns generic Stage-tool-result observation and the
-  Radio result recorder; Server Host wires those through the composed shared
-  session instead of constructing a Radio-specific tool bridge. The run result is
+  calls `run()`. Actor kind, cascade priority, and actor-specific additions to
+  tool precondition basis live in `ActorDefinition.runtimePolicy`; shared
+  session, harness, cascade, and basis-tracker code do not branch on Main versus
+  Radio. Agent Runtime owns one run-scoped Stage-tool-result observation path;
+  the Radio trigger creates one result recorder per run. The run result is
   recorded from Stage dispatch results, not scraped from pi transcript messages
   or fabricated as unconditional success; queue append `voided_stale` /
   `operation_aborted` command errors become
@@ -859,8 +861,9 @@ restored as compatibility layers.
   the generic `agent_runtime_transcripts` table keyed by actor kind; the shared
   session writes a capped tail of the long-lived pi `Agent.state.messages` after
   pi `agent_end`; save failures fail the run instead of fabricating success.
-  Main and Radio reload only on explicit actor reconstruction, not before each
-  run.
+  The async session factory restores Main and Radio continuity once before
+  returning the actor; neither actor has a public restore method or loads again
+  before a later run.
 - Phase B PR3.4-PR3.6 now closes the callable steering/correction chain. Main
   has structural motif/active-variation tools, Radio has bounded lean tools,
   and user/Main/Radio queue edits share provenance-aware

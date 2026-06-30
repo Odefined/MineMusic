@@ -26,10 +26,16 @@ export type CreateAgentRuntimeBackgroundRefillPortInput = {
     payload: RadioRefillRunJobPayload;
     workspaceContext: EncodedWorkspaceContext;
   }) => string | Promise<string>;
-  resultFromRun?: (input: {
-    runId: string;
-    payload: RadioRefillRunJobPayload;
-  }) => RadioRunResult | Promise<RadioRunResult>;
+  createResultRecorder(): {
+    observeToolResult(input: Pick<
+      Parameters<NonNullable<ActorRuntimeSessionRunHooks["onToolResult"]>>[0],
+      "toolName" | "result"
+    >): Promise<void> | void;
+    result(input: {
+      runId: string;
+      payload: RadioRefillRunJobPayload;
+    }): RadioRunResult | Promise<RadioRunResult>;
+  };
 };
 
 export function createAgentRuntimeBackgroundRefillPort(
@@ -41,6 +47,7 @@ export function createAgentRuntimeBackgroundRefillPort(
         return voidedStaleResult(runInput.runId, runInput.payload);
       }
 
+      const resultRecorder = input.createResultRecorder();
       let radioResult: RadioRunResult | undefined;
       const runResult = await input.session.run({
         runId: runInput.runId,
@@ -56,18 +63,20 @@ export function createAgentRuntimeBackgroundRefillPort(
         }),
         hooks: {
           ...input.hooks,
+          async onToolResult(hookInput) {
+            await input.hooks?.onToolResult?.(hookInput);
+            await resultRecorder.observeToolResult({
+              toolName: hookInput.toolName,
+              result: hookInput.result,
+            });
+          },
           async afterRun(hookInput) {
             await input.hooks?.afterRun?.(hookInput);
             if (hookInput.signal.aborted || finalAssistantAborted(hookInput.newMessages)) {
               return;
             }
             throwIfFinalAssistantFailed(runInput.runId, hookInput.newMessages);
-
-            if (input.resultFromRun === undefined) {
-              throw new Error(`Radio refill run '${runInput.runId}' has no result extractor.`);
-            }
-
-            radioResult = await input.resultFromRun({
+            radioResult = await resultRecorder.result({
               runId: runInput.runId,
               payload: runInput.payload,
             });

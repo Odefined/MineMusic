@@ -1,10 +1,10 @@
 import type {
-  AgentActorKind,
   ConcernRevisionChange,
   ConcernRevisionChangeActor,
   ConcernRevisionChangeConcern,
   ConcernRevisionSet,
 } from "../contracts/kernel.js";
+import { actorCascadePriority } from "./actor_definition.js";
 
 export type AgentRunCascadeLease = {
   abortSignal: AbortSignal;
@@ -15,7 +15,7 @@ export type AgentRunCascadeLease = {
 export type AgentRunCascadeCoordinator = {
   register(input: {
     runId: string;
-    actor: AgentActorKind;
+    priority: number;
     basis: ConcernRevisionSet;
   }): AgentRunCascadeLease;
   observeRevisionChange(change: ConcernRevisionChange): void;
@@ -24,7 +24,7 @@ export type AgentRunCascadeCoordinator = {
 
 type ActiveAgentRun = {
   runId: string;
-  actor: AgentActorKind;
+  priority: number;
   basis: ConcernRevisionSet;
   abortController: AbortController;
 };
@@ -61,7 +61,7 @@ export function createAgentRunCascadeCoordinator(input: {
       for (const activeRun of activeRuns.values()) {
         if (
           basisIncludesConcern(activeRun.basis, change.concern) &&
-          canAbort({ writer: change.actor, runActor: activeRun.actor })
+          canAbort({ writer: change.actor, runPriority: activeRun.priority })
         ) {
           activeRun.abortController.abort(new Error(
             `Concern '${change.concern}' advanced to revision ${change.newRevision}.`,
@@ -96,18 +96,11 @@ function basisIncludesConcern(
 
 function canAbort(input: {
   writer: ConcernRevisionChangeActor;
-  runActor: AgentActorKind;
+  runPriority: number;
 }): boolean {
-  return actorPriority(input.writer) > actorPriority(input.runActor);
+  return actorPriority(input.writer) > input.runPriority;
 }
 
 function actorPriority(actor: ConcernRevisionChangeActor): number {
-  switch (actor) {
-    case "user":
-      return 3;
-    case "main_agent":
-      return 2;
-    case "radio_agent":
-      return 1;
-  }
+  return actorCascadePriority(actor);
 }

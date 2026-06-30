@@ -17,12 +17,12 @@ import type {
   RetrievalQueryService,
 } from "../../src/music_intelligence/index.js";
 import {
-  createMineMusicPiAgentAdapter,
-  createStageToolBridge,
   toPiToolName,
   type MineMusicPiAgentAdapterOptions,
   type StageToolDispatchPort,
 } from "../../src/agent_runtime/index.js";
+import { createMineMusicPiAgentAdapter } from "../../src/agent_runtime/pi_engine.js";
+import { createStageToolBridge } from "../../src/agent_runtime/stage_tool_bridge.js";
 import {
   createInMemoryMusicScopeAvailabilityPort,
   createMusicDiscoveryLookupRegistration,
@@ -209,12 +209,6 @@ assert.throws(
       payload: unknown;
     }
     | undefined;
-  let observed:
-    | {
-      toolName: string;
-      result: Result<ToolCallOutput>;
-    }
-    | undefined;
   const controller = new AbortController();
   const dispatch: StageToolDispatchPort = {
     async dispatch(input) {
@@ -240,9 +234,6 @@ assert.throws(
         return createMinimalContext(input.sessionId, input.requestId, input.abortSignal);
       },
     },
-    observeToolResult(input) {
-      observed = input;
-    },
     stageSessionId: "stage-session",
   });
 
@@ -264,16 +255,6 @@ assert.throws(
   assert.equal(dispatched?.ctx.sessionId, "stage-session");
   assert.equal(dispatched?.ctx.requestId, "tool-call-1");
   assert.equal(dispatched?.ctx.abortSignal, controller.signal);
-  assert.deepEqual(observed, {
-    toolName: descriptor.name,
-    result: {
-      ok: true,
-      value: {
-        toolName: descriptor.name,
-        result: { answer: "found" },
-      },
-    },
-  });
 }
 
 {

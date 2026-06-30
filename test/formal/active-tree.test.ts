@@ -258,6 +258,40 @@ const agentRuntimeForbiddenRootPiImports = new Set([
     "JsonlSessionRepository",
     "MemorySessionRepository",
 ]);
+const actorExecutionOwner = "src/agent_runtime/actor_runtime_session.ts";
+const actorExecutionInternals = new Set([
+    "src/agent_runtime/agent_harness.ts",
+    "src/agent_runtime/pi_engine.ts",
+]);
+const actorTriggerFiles = new Set([
+    "src/agent_runtime/agent_background_refill_trigger.ts",
+    "src/agent_runtime/agent_user_turn_trigger.ts",
+]);
+const actorTriggerForbiddenInternals = new Set([
+    ...actorExecutionInternals,
+    "src/agent_runtime/agent_transcript_store.ts",
+    "src/agent_runtime/stage_tool_bridge.ts",
+]);
+const actorExecutionOwnershipFailures: string[] = [];
+for (const edge of architectureGraph.edges) {
+    if (edge.toFile !== undefined && actorExecutionInternals.has(edge.toFile) && edge.fromFile !== actorExecutionOwner && !edge.isTypeOnly) {
+        actorExecutionOwnershipFailures.push(`Only ActorRuntimeSession may import actor execution internals: ${formatEdge(edge)}`);
+    }
+    if (actorTriggerFiles.has(edge.fromFile) && edge.toFile !== undefined && actorTriggerForbiddenInternals.has(edge.toFile)) {
+        actorExecutionOwnershipFailures.push(`Actor triggers must call ActorRuntimeSession instead of importing execution internals: ${formatEdge(edge)}`);
+    }
+}
+const triggersUsingSharedSession = new Set(
+    architectureGraph.edges
+        .filter((edge) => actorTriggerFiles.has(edge.fromFile) && edge.toFile === actorExecutionOwner)
+        .map((edge) => edge.fromFile),
+);
+for (const triggerFile of actorTriggerFiles) {
+    if (!triggersUsingSharedSession.has(triggerFile)) {
+        actorExecutionOwnershipFailures.push(`Actor trigger does not import the shared ActorRuntimeSession: ${triggerFile}`);
+    }
+}
+assert.deepEqual(actorExecutionOwnershipFailures.sort(), [], "Main and Radio triggers must share one ActorRuntimeSession execution owner");
 const contractsDagFailures: string[] = [];
 for (const [contractFile, allowed] of Object.entries(contractsDagAllowlist)) {
     for (const edge of architectureGraph.edges.filter((candidate) => candidate.fromFile === contractFile && candidate.specifier.startsWith("."))) {

@@ -1,3 +1,8 @@
+import type {
+  AgentActorKind,
+  ConcernRevisionChangeActor,
+  ConcernRevisionSet,
+} from "../contracts/kernel.js";
 import type { ToolDeclaration } from "../contracts/stage_interface.js";
 import { toPiToolName } from "./stage_tool_bridge.js";
 
@@ -19,6 +24,13 @@ export type ActorInstruction = {
 
 export type ActorDefinition = {
   name: ActorName;
+  runtimePolicy: {
+    actorKind: AgentActorKind;
+    cascadePriority: number;
+    additionalToolPreconditionBasis: Readonly<
+      Partial<Record<ToolDeclaration["name"], readonly (keyof ConcernRevisionSet)[]>>
+    >;
+  };
   identity: ActorIdentity;
   instruction: ActorInstruction;
   declaredWorkspaceSections: readonly WorkspaceContextSectionName[];
@@ -27,8 +39,23 @@ export type ActorDefinition = {
   };
 };
 
+export function actorKindForDefinition(actor: ActorDefinition): AgentActorKind {
+  return actor.runtimePolicy.actorKind;
+}
+
 export const radioDefinition: ActorDefinition = {
   name: "radio",
+  runtimePolicy: {
+    actorKind: "radio_agent",
+    cascadePriority: 1,
+    additionalToolPreconditionBasis: {
+      "playback.queue.append": ["radioDirectionRevision", "radioSessionRevision"],
+      "playback.queue.remove": ["radioDirectionRevision", "radioSessionRevision"],
+      "playback.queue.replace": ["radioDirectionRevision", "radioSessionRevision"],
+      "playback.queue.move": ["radioDirectionRevision", "radioSessionRevision"],
+      "playback.queue.clear": ["radioDirectionRevision", "radioSessionRevision"],
+    },
+  },
   identity: {
     role: "Radio presence for the current listening direction.",
     job: "Keep the listening flow alive with choices that feel intentional, fresh, and connected, never on autopilot.",
@@ -77,6 +104,11 @@ export const radioDefinition: ActorDefinition = {
 
 export const mainDefinition: ActorDefinition = {
   name: "main",
+  runtimePolicy: {
+    actorKind: "main_agent",
+    cascadePriority: 2,
+    additionalToolPreconditionBasis: {},
+  },
   identity: {
     role: "Music partner inside the MineMusic workspace.",
     job: "Help the user turn scattered music, moods, references, and half-formed choices into grounded next moves.",
@@ -142,9 +174,14 @@ export const mainDefinition: ActorDefinition = {
 };
 
 export function validateActorDefinition(actor: ActorDefinition): void {
+  validateRuntimePolicy(actor);
   validateActorIdentity(actor);
   validateDeclaredSections(actor);
   validateInstructionToolReferences(actor);
+}
+
+export function actorCascadePriority(actor: ConcernRevisionChangeActor): number {
+  return actorCascadePriorities[actor];
 }
 
 export function selectActorStageToolDeclarations(input: {
@@ -165,6 +202,27 @@ function validateActorIdentity(actor: ActorDefinition): void {
   for (const [field, value] of Object.entries(actor.identity)) {
     if (value.trim().length === 0) {
       throw new Error(`Actor '${actor.name}' identity.${field} must be non-empty.`);
+    }
+  }
+}
+
+function validateRuntimePolicy(actor: ActorDefinition): void {
+  if (actor.runtimePolicy.actorKind !== `${actor.name}_agent`) {
+    throw new Error(`Actor '${actor.name}' runtimePolicy.actorKind does not match its name.`);
+  }
+  if (!Number.isSafeInteger(actor.runtimePolicy.cascadePriority) || actor.runtimePolicy.cascadePriority <= 0) {
+    throw new Error(`Actor '${actor.name}' runtimePolicy.cascadePriority must be a positive safe integer.`);
+  }
+  const declaredTools = new Set(actor.toolPack.stageToolNames);
+  for (const [toolName, concerns] of Object.entries(actor.runtimePolicy.additionalToolPreconditionBasis)) {
+    if (concerns === undefined) {
+      continue;
+    }
+    if (!declaredTools.has(toolName)) {
+      throw new Error(`Actor '${actor.name}' runtime policy references tool '${toolName}' outside its tool pack.`);
+    }
+    if (new Set(concerns).size !== concerns.length) {
+      throw new Error(`Actor '${actor.name}' runtime policy repeats a precondition concern for '${toolName}'.`);
     }
   }
 }
@@ -206,3 +264,9 @@ function backtickedTokens(text: string): readonly string[] {
 function isModelVisibleToolReference(token: string): boolean {
   return /^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/u.test(token);
 }
+
+const actorCascadePriorities: Readonly<Record<ConcernRevisionChangeActor, number>> = {
+  user: 3,
+  main_agent: mainDefinition.runtimePolicy.cascadePriority,
+  radio_agent: radioDefinition.runtimePolicy.cascadePriority,
+};

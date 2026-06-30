@@ -7,9 +7,11 @@ import type {
   AfterToolCallResult,
 } from "@earendil-works/pi-agent-core";
 
-import type { AgentActorKind } from "../contracts/kernel.js";
 import type { ToolCallOutput } from "../contracts/stage_interface.js";
-import type { ActorDefinition } from "./actor_definition.js";
+import {
+  actorKindForDefinition,
+  type ActorDefinition,
+} from "./actor_definition.js";
 import {
   createCommandBasisTracker,
   type CommandBasisTracker,
@@ -179,7 +181,7 @@ export function createMineMusicAgentHarness(input: {
     });
     activeTurnState = turnState;
     commandBasisTracker = createCommandBasisTracker({
-      owner: actorKind,
+      actor: input.actor,
       initialBasis: turnState.commandBasis,
     });
     installMineMusicAgentHarnessTurnState({ agent: input.agent(), turnState });
@@ -309,15 +311,6 @@ function createMineMusicAgentHarnessContext(input: {
     messages: input.agent.state.messages.slice(),
     tools: input.turnState.tools.slice(),
   };
-}
-
-function actorKindForDefinition(actor: ActorDefinition): AgentActorKind {
-  switch (actor.name) {
-    case "main":
-      return "main_agent";
-    case "radio":
-      return "radio_agent";
-  }
 }
 
 function isToolCallOutput(value: unknown): value is ToolCallOutput {

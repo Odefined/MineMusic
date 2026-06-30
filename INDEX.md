@@ -521,11 +521,15 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/background_work/pg_boss_backend.ts`: concrete `pg-boss` adapter confined
   behind the Background Work port.
 - `src/background_work/index.ts`: Background Work public exports.
+- `src/agent_runtime/actor_definition.ts`: the only Main/Radio difference
+  authority: identity, instruction, workspace sections, tool pack, actor kind,
+  cascade priority, and additional tool precondition basis.
 - `src/agent_runtime/actor_runtime_session.ts`: shared long-lived
   `ActorRuntimeSession` over one pi `Agent`; Main user turns and Radio
   background refills both enter through `run()`, share pi transcript/tool/abort
-  lifecycle, may pass only generic run hooks, and checkpoint the capped
-  transcript tail after pi `agent_end`.
+  lifecycle, load continuity once before the factory returns, may pass only
+  generic run hooks, and checkpoint the capped transcript tail after pi
+  `agent_end`.
 - `src/agent_runtime/agent_user_turn_trigger.ts`: Main user-turn trigger over
   shared `ActorRuntimeSession.run()`.
 - `src/agent_runtime/agent_background_refill_trigger.ts`: Radio low-watermark /
