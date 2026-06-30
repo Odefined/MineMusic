@@ -537,7 +537,7 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   `ActorRuntimeSession.run()`.
 - `src/agent_runtime/agent_transcript_store.ts`: generic Agent Runtime
   transcript store keyed by owner/workspace/actor kind and backed by
-  `agent_runtime_transcripts`.
+  `agent_runtime_actor_sessions`.
 - `src/agent_runtime/agent_run_cascade.ts`: shared concern-revision cascade
   coordinator for aborting stale lower-priority actor runs.
 - `src/agent_runtime/radio_supervisor.ts`: Phase B Radio supervisor
@@ -551,7 +551,7 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   builds `RadioRunResult` from queue-append outcomes, stale/abort mapping, and
   non-progress no-action results.
 - `src/agent_runtime/schema.ts`: Agent Runtime schema contributions, including
-  `agent_runtime_transcripts`.
+  `agent_runtime_actor_sessions`.
 - `src/agent_runtime/main_radio_channel.ts` and
   `src/agent_runtime/speech_level.ts`: Phase B typed Radio→Main notify channel
   and minimal Speech Level vocabulary.
@@ -569,14 +569,14 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   Retrieval query, material projection, relation, collection, download,
   local-source, and localization capabilities without owning database
   lifecycle or cross-area schema initialization.
-- `src/server/library_import_runtime_module.ts`: Server Host shim for the
+- `src/server/library_import_runtime_module.ts`: Server Host composition module for the
   MDP-owned Library Import Stage Adapter RuntimeModule, adapting Extension
   platform-library-provider descriptor metadata, source-library import service,
   and source-library status reads into narrow Library Import ports.
-- `src/server/library_relation_runtime_module.ts`: Server Host shim for the
+- `src/server/library_relation_runtime_module.ts`: Server Host composition module for the
   MDP-owned Library Relation Stage Adapter RuntimeModule, adapting the
   initialized library relation service into narrow relation control ports.
-- `src/server/library_catalog_runtime_module.ts`: Server Host shim for the
+- `src/server/library_catalog_runtime_module.ts`: Server Host composition module for the
   MDP-owned Library Catalog Stage Adapter RuntimeModule, adapting the catalog
   read port, Material Projection, and source-library/relation scope availability
   while excluding provider scopes.
@@ -661,7 +661,7 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   lookup local/provider result-set workspace and material-candidate cache
   boundary.
 - `src/music_intelligence/core/search/metadata_lookup_retrieval_adapter.ts`:
-  internal Retrieval-compatible query service over the metadata lookup search
+  internal lookup-query service over the metadata lookup search
   workspace and provider-search port wiring.
 - `src/music_intelligence/core/retrieval/query_normalization.ts`:
   Retrieval-owned input normalization and cursor fingerprint input construction.

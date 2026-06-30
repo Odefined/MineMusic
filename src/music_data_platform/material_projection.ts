@@ -316,7 +316,7 @@ function assertSourceKindMatchesMaterial(input: {
   if (sourceMaterialKind !== input.materialRecord.entity.kind) {
     throw new MusicDataPlatformError({
       code: "music_data.record_kind_mismatch",
-      message: "Material bound source kind is not compatible with material kind.",
+      message: "Material bound source kind does not match material kind.",
     });
   }
 }

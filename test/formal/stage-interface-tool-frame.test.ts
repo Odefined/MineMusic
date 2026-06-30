@@ -46,7 +46,7 @@ const validateItemHandle = compiled(musicItemHandleSchema);
 assert.equal(validateItemHandle("[material:mat_1]"), true);
 assert.equal(validateItemHandle("[candidate:cand_1]"), true);
 assert.equal(validateItemHandle("[candidate:]"), false);
-// ADR-0040: the "library" item-handle kind is retired; only "material" and
+// ADR-0040: the "library" item-handle kind is removed; only "material" and
 // "candidate" are valid MusicItemHandle kinds now.
 assert.equal(validateItemHandle({ kind: "library", id: "pub_1" }), false);
 const validateMusicCard = compiled(musicCardSchema);

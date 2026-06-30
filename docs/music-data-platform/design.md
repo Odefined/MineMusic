@@ -516,7 +516,7 @@ updated_at
 
 `search_vector` is indexed with Postgres GIN full-text search, and
 `search_text` is indexed with `pg_trgm` for fuzzy metadata recall. The runtime
-schema no longer creates or maintains the retired legacy material-text tables.
+schema creates only the active metadata lookup projection tables.
 
 Text projection derives only from current durable facts:
 

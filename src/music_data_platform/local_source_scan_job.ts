@@ -65,9 +65,8 @@ export type CreateLocalSourceScanAdvanceJobHandlerInput = {
   deletionChunk?: number;
   maxConcurrentFiles?: number;
   // Spread into the re-chain submit so pg-boss retries transient failures and
-  // `isFinalAttempt` sees a non-zero retryLimit. Optional for backward
-  // compatibility with tests that drive the handler directly.
-  submitRetry?: LocalSourceScanSubmitRetry;
+  // `isFinalAttempt` sees the retryLimit declared by the composition root.
+  submitRetry: LocalSourceScanSubmitRetry;
 };
 
 export function createLocalSourceScanAdvanceJobHandler(
@@ -83,6 +82,7 @@ export function createLocalSourceScanAdvanceJobHandler(
     if (job.jobType !== LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE) {
       throw new Error(`Local source scan handler received unexpected job type '${job.jobType}'.`);
     }
+    const retryMetadata = requireRetryMetadata(job);
     const batchId = parseAdvancePayload(job.payload).batchId;
     const batch = await input.read.getBatch({ batchId });
     if (batch === undefined || isTerminalScanBatchStatus(batch.status)) {
@@ -120,7 +120,7 @@ export function createLocalSourceScanAdvanceJobHandler(
       // Transient system failures (adapter throw, db failure) propagate so
       // Background Work retries the bounded job. On the final attempt, mark the
       // batch failed so retry exhaustion never strands a non-terminal batch.
-      if (isFinalAttempt(job)) {
+      if (isFinalAttempt(retryMetadata)) {
         await input.commands.markBatchFailed({
           batchId,
           code: "music_data.scan_batch_failed",
@@ -143,7 +143,7 @@ export function createLocalSourceScanAdvanceJobHandler(
         jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE,
         payload: { batchId },
         idempotencyKey: localSourceScanAdvanceIdempotencyKey(batchId, nextGeneration),
-        ...(input.submitRetry ?? {}),
+        ...input.submitRetry,
       });
     } catch (cause) {
       await input.commands.markBatchFailed({
@@ -262,8 +262,18 @@ async function runWithConcurrency<T>(
   await Promise.all(workers);
 }
 
-function isFinalAttempt(job: { retryCount?: number; retryLimit?: number }): boolean {
-  return job.retryCount !== undefined && job.retryLimit !== undefined && job.retryCount >= job.retryLimit;
+function requireRetryMetadata(job: { retryCount?: number; retryLimit?: number }): {
+  retryCount: number;
+  retryLimit: number;
+} {
+  if (job.retryCount === undefined || job.retryLimit === undefined) {
+    throw new Error("Local source scan advance jobs require retry metadata from Background Work.");
+  }
+  return { retryCount: job.retryCount, retryLimit: job.retryLimit };
+}
+
+function isFinalAttempt(job: { retryCount: number; retryLimit: number }): boolean {
+  return job.retryCount >= job.retryLimit;
 }
 
 function parseAdvancePayload(payload: unknown): LocalSourceScanAdvanceJobPayload {
@@ -291,8 +301,8 @@ export type CreateLocalSourceScanStartCommandInput = {
   backgroundWork: Pick<BackgroundWorkBackend, "submit">;
   now?: () => string;
   // Spread into the first advance submit (generation 0) so the opening job is
-  // retryable. Optional for backward compatibility.
-  submitRetry?: LocalSourceScanSubmitRetry;
+  // retryable under the same policy as re-chained advance jobs.
+  submitRetry: LocalSourceScanSubmitRetry;
 };
 
 export function createLocalSourceScanStartCommand(
@@ -311,7 +321,7 @@ export function createLocalSourceScanStartCommand(
           jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE,
           payload: { batchId },
           idempotencyKey: localSourceScanAdvanceIdempotencyKey(batchId, 0),
-          ...(input.submitRetry ?? {}),
+          ...input.submitRetry,
         });
       } catch (cause) {
         await input.advanceCommands.markBatchFailed({
@@ -354,7 +364,7 @@ export type CreateLocalSourceScanRecoveryInput = {
   read: Pick<LocalSourceScanReadPort, "listNonTerminalBatches">;
   backgroundWork: Pick<BackgroundWorkBackend, "submit">;
   ownerScope: string;
-  submitRetry?: LocalSourceScanSubmitRetry;
+  submitRetry: LocalSourceScanSubmitRetry;
 };
 
 export function createLocalSourceScanRecovery(
@@ -368,7 +378,7 @@ export function createLocalSourceScanRecovery(
           jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE,
           payload: { batchId: batch.batchId },
           idempotencyKey: localSourceScanAdvanceIdempotencyKey(batch.batchId, batch.advanceGeneration),
-          ...(input.submitRetry ?? {}),
+          ...input.submitRetry,
         });
       }
     },

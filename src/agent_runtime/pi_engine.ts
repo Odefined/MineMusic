@@ -6,7 +6,7 @@ import {
   type AfterToolCallResult,
   type StreamFn,
 } from "@earendil-works/pi-agent-core";
-import type { Message } from "@earendil-works/pi-ai/compat";
+import type { Message } from "@earendil-works/pi-ai";
 
 import type { ToolDeclaration } from "../contracts/stage_interface.js";
 import {

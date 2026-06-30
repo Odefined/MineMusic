@@ -1,7 +1,7 @@
 # Music Intelligence Ports
 
 > Status: Current boundary authority through Phase 22 metadata lookup search
-> Scope: Internal Retrieval-compatible metadata lookup query service and its consumed search/provider
+> Scope: Internal metadata lookup query service and its consumed search/provider
 > capabilities
 
 ## Provides
@@ -18,7 +18,7 @@
 | --- | --- | --- | --- | --- |
 | `MusicDataPlatformMetadataLookupSearchWorkspace` | Music Data Platform | Build/read metadata lookup result sets and candidate cache pages through the owning Music Data Platform boundary. | `searchMetadataLookupResultSet(...)` | None from Retrieval; Music Data Platform owns internal runtime writes. |
 | `RetrievalProviderSearchPort` | Server Host composition, backed by Extension Runtime | Search source providers for provider-search pools without depending on provider/plugin internals. | `search(...)` | None |
-| `Ref`, `refKey(ref)`, `MaterialEntityKind`, `hasPrefixOrV1Token(...)` | Contracts | Pool ref validation, shared token-presence fallback, query fingerprinting, and result contracts. | Contract fields and shared token helper | None |
+| `Ref`, `refKey(ref)`, `MaterialEntityKind`, `hasPrefixToken(...)` | Contracts | Pool ref validation, shared token-presence check, query fingerprinting, and result contracts. | Contract fields and shared token helper | None |
 
 ## Retrieval Service Contract
 
@@ -37,7 +37,7 @@ The service is async because provider-search pools can call provider search
 through the narrow provider-search port. Local-only metadata lookup uses the
 same async API without provider calls.
 
-`RetrievalQueryInput` uses typed `pools`, not the removed `poolFilter` field.
+`RetrievalQueryInput` uses typed `pools`.
 The query service maps only durable local pools to the Music Data Platform
 metadata lookup search workspace:
 
@@ -79,12 +79,12 @@ It must not import:
   projection maintenance commands;
 - Stage Interface, Stage Core, Server Host, Extension provider/plugin
   implementations, Storage, or concrete storage adapter modules;
-- Music Experience, Memory, Effect Boundary, presentation, provider, or legacy
-  query roots.
+- Music Experience, Memory, Effect Boundary, presentation, provider, or
+  non-owning query roots.
 
 Retrieval must not import Music Data Platform material text or search metadata
 normalization helpers. Retrieval uses the shared Contracts token helper for
-`prefix_or_v1` token-presence fallback in compatibility normalization, while
+`prefix_token` token-presence check in query normalization, while
 Music Data Platform owns SQL-facing metadata lookup normalization, recall, and
 reranking.
 

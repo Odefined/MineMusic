@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { hasPrefixOrV1Token, type MaterialEntityKind } from "../../../contracts/music_data_platform.js";
+import { hasPrefixToken, type MaterialEntityKind } from "../../../contracts/music_data_platform.js";
 import { isRefComponentSafe, refKey, type Ref } from "../../../contracts/kernel.js";
 import { MusicIntelligenceError } from "../../errors.js";
 import {
@@ -50,8 +50,6 @@ export function normalizeRetrievalQueryInput(
   input: RetrievalQueryInput,
   options: NormalizeRetrievalQueryInputOptions = {},
 ): NormalizedRetrievalQuery {
-  rejectRemovedPoolFilter(input);
-
   const ownerScope = normalizeOwnerScope(input.ownerScope);
   const text = normalizeRetrievalQueryText(input.text);
   const materialKind = normalizeMaterialKind(input.materialKind);
@@ -94,7 +92,7 @@ export function normalizeRetrievalQueryText(value: string | undefined): string |
     return undefined;
   }
 
-  return hasPrefixOrV1Token(normalized) ? normalized : undefined;
+  return hasPrefixToken(normalized) ? normalized : undefined;
 }
 
 export function fingerprintForRetrievalQuery(query: RetrievalEffectiveQuery): string {
@@ -425,10 +423,6 @@ function normalizePool(
     throw invalidQuery("Retrieval pools must be typed pool objects.");
   }
 
-  if (looksLikeBareRef(value)) {
-    throw invalidQuery("Retrieval pools no longer accept bare Ref values.");
-  }
-
   if (typeof value.kind !== "string") {
     throw invalidQuery("Retrieval pool kind must be a string.");
   }
@@ -593,20 +587,6 @@ export function hasProviderSearchPool(pools: RetrievalPoolFilter | undefined): b
   return (pools?.allOf ?? []).some(isProviderSearchPool) ||
     (pools?.anyOf ?? []).some(isProviderSearchPool) ||
     (pools?.noneOf ?? []).some(isProviderSearchPool);
-}
-
-function rejectRemovedPoolFilter(input: RetrievalQueryInput): void {
-  if ("poolFilter" in (input as Record<string, unknown>)) {
-    throw invalidQuery("RetrievalQueryInput.poolFilter was removed; use pools instead.");
-  }
-}
-
-function looksLikeBareRef(value: Record<string, unknown>): boolean {
-  return typeof value.namespace === "string" &&
-    typeof value.kind === "string" &&
-    typeof value.id === "string" &&
-    !("ref" in value) &&
-    !("providerId" in value);
 }
 
 function safeRefKey(ref: Ref): string {

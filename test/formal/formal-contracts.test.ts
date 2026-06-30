@@ -7,7 +7,7 @@ import type { EvolvedPostureSnapshot, MusicExperiencePlaybackPlayCommandOutput, 
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
 import type { LibraryImportLibraryKind, LibraryImportListSourcesInput, LibraryImportListSourcesOutput, LibraryRelationItemInput, LibraryRelationStateOutput, MaterialMusicItemHandle, MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePlaybackPlayOutput, MusicExperiencePresentInput, MusicExperiencePresentOutput, MusicItemHandle, PlaybackQueueAppendOutput, PlaybackQueueEditOutput, PlaybackQueueReplaceOutput, PublicDisplayLink, RadioDirectionToolOutput, RadioLeanToolOutput, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
 import { assertRefSafe, refKey } from "../../src/contracts/kernel.js";
-import { hasPrefixOrV1Token, tokenizePrefixOrV1Text } from "../../src/contracts/music_data_platform.js";
+import { hasPrefixToken, tokenizePrefixText } from "../../src/contracts/music_data_platform.js";
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2 ? true : false;
 type Expect<Check extends true> = Check;
 type ForbiddenKeys<T, Keys extends PropertyKey> = Extract<keyof T, Keys>;
@@ -97,7 +97,7 @@ export type _musicExperienceCommandPortFailureChannels = Expect<Equal<Awaited<Re
 export type _musicExperienceRadioTruthCommandPortShape = Expect<Equal<keyof MusicExperienceRadioTruthCommand, "setRadioDirection" | "setRadioMotif" | "clearRadioMotif" | "addRadioVariation" | "removeRadioVariation" | "replaceRadioVariation" | "moveRadioVariation" | "clearRadioVariations" | "writeRadioPosture" | "addRadioLean" | "removeRadioLean" | "replaceRadioLean" | "moveRadioLean" | "clearRadioLean">>;
 export type _musicExperienceRadioTruthCommandPortFailureChannels = Expect<Equal<Awaited<ReturnType<MusicExperienceRadioTruthCommand["setRadioDirection"]>>, Result<MusicExperienceSetRadioDirectionCommandOutput>> & Equal<Awaited<ReturnType<MusicExperienceRadioTruthCommand["writeRadioPosture"]>>, Result<MusicExperienceWriteRadioPostureCommandOutput>>>;
 // ADR-0040 guard #1: the item-handle currency is exactly bracket material/candidate
-// handles; the "library" item-handle kind is retired and must not reappear.
+// handles; the "library" item-handle kind is removed and must not reappear.
 // ("library" survives only as a MusicScope baseline, not as an item-handle kind.)
 export type _musicItemHandleShape = Expect<Equal<MusicItemHandle, `[material:${string}]` | `[candidate:${string}]`>>;
 export type _stageRuntimeStatusShape = Expect<Equal<StageRuntimeStatus, "created" | "initializing" | "ready" | "failed" | "stopping" | "stopped">>;
@@ -127,7 +127,7 @@ assert.doesNotThrow(() => assertRefSafe(sourceRef));
 assert.doesNotThrow(() => assertRefSafe(canonicalRef));
 assert.throws(() => refKey({ namespace: "source:netease", kind: "track", id: "1" }));
 assert.throws(() => refKey({ namespace: "source_netease", kind: "", id: "1" }));
-assert.deepEqual(tokenizePrefixOrV1Text("café del mar"), ["café", "del", "mar"]);
-assert.deepEqual(tokenizePrefixOrV1Text("--- !!!"), []);
-assert.equal(hasPrefixOrV1Token("foo_bar"), true);
-assert.equal(hasPrefixOrV1Token("--- !!!"), false);
+assert.deepEqual(tokenizePrefixText("café del mar"), ["café", "del", "mar"]);
+assert.deepEqual(tokenizePrefixText("--- !!!"), []);
+assert.equal(hasPrefixToken("foo_bar"), true);
+assert.equal(hasPrefixToken("--- !!!"), false);

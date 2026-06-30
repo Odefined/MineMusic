@@ -17,7 +17,7 @@ export type CreateLibraryCollectionServerRuntimeModuleInput = {
   ports: LibraryCollectionServerPorts;
 };
 
-// Composition shim mirroring library_relation_runtime_module.ts: wires the
+// Composition module mirroring library_relation_runtime_module.ts: wires the
 // LibraryCollectionService (created in mdp_runtime) into the collection edit
 // control port, and shares the catalog scope-availability port so the handler
 // can resolve collection scope ids and veil post-edit state.

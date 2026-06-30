@@ -7,7 +7,7 @@
 
 - `src/music_intelligence/errors.ts` defines `MusicIntelligenceError` with
   retrieval query, provider-search pool validation, provider-search
-  unavailable/failed/invalid-result, retrieval cursor, legacy cursor, and
+  unavailable/failed/invalid-result, retrieval cursor, and
   retrieval result invariant codes.
 - `src/music_intelligence/core/retrieval/contracts.ts` defines internal Retrieval
   query input/result/hit contracts, typed pools, defaults, async service shape,
@@ -15,10 +15,9 @@
 - `src/music_intelligence/core/retrieval/query_normalization.ts` defaults the
   local owner scope, normalizes query text for echo, validates order and
   limit, normalizes typed pools, dedupes durable pools, rejects unsupported
-  pool refs, rejects old `poolFilter` input, rejects bare `Ref[]` pool groups,
-  rejects positive-vs-`noneOf` pool conflicts, validates provider-search pool
+  pool refs, rejects positive-vs-`noneOf` pool conflicts, validates provider-search pool
   placement/limits/provider uniqueness/material-kind mapping, and uses the
-  shared Contracts `prefix_or_v1` token helper so tokenless punctuation-only
+  shared Contracts `prefix_token` helper so tokenless punctuation-only
   text is treated as absent text before defaulting order.
 - `src/music_intelligence/core/retrieval/cursor.ts` owns version 2 opaque cursor
   encode/decode and query-fingerprint mismatch detection.
@@ -65,8 +64,7 @@ Formal tests cover:
 - explicit `text_relevance` without effective text rejection;
 - limit, owner scope, material kind, and pool ref validation;
 - typed durable pool dedupe, empty arrays, sorted ref-key normalization,
-  `local_catalog` local-read semantics, old `poolFilter` rejection, bare ref
-  rejection, provider-search pool validation, and positive-vs-`noneOf`
+  `local_catalog` local-read semantics, provider-search pool validation, and positive-vs-`noneOf`
   conflict rejection;
 - provider-search query construction, default/capped provider limits,
   material-kind to source-target-kind mapping, `sessionId` pass-through without

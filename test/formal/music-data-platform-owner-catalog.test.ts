@@ -3,7 +3,7 @@ import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import { DEFAULT_OWNER_SCOPE, createOwnerCatalogProjectionCommands, createOwnerCatalogRecords, createSourceLibraryRef, isMusicDataPlatformError, musicDataPlatformIdentitySchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformSourceLibrarySchema, type OwnerCatalogMaterialRecord, type OwnerCatalogProjectionCommands, type OwnerMaterialEntryRecord, type RebuildOwnerRelationEntriesInput, type RebuildSourceLibraryEntriesForLibraryInput, type RebuildSourceLibraryEntriesForMaterialInput, } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
 import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
-import type { MusicDatabase, MusicDatabaseSchemaContribution } from "../../src/storage/index.js";
+import type { MusicDatabase } from "../../src/storage/index.js";
 import { columnDataType, relationKind, tableColumns, uniqueIndexCovers } from "./helpers/postgres-introspection.js";
 import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
@@ -22,80 +22,6 @@ export type _ownerCatalogProjectionCommandsShape = Expect<Equal<keyof OwnerCatal
 export type _rebuildSourceLibraryEntriesForLibraryInputShape = Expect<Equal<keyof RebuildSourceLibraryEntriesForLibraryInput, "ownerScope" | "libraryRef">>;
 export type _rebuildSourceLibraryEntriesForMaterialInputShape = Expect<Equal<keyof RebuildSourceLibraryEntriesForMaterialInput, "ownerScope" | "materialRef">>;
 export type _rebuildOwnerRelationEntriesInputShape = Expect<Equal<keyof RebuildOwnerRelationEntriesInput, "ownerScope" | "materialRef">>;
-const oldOwnerCatalogTextJsonSchema: MusicDatabaseSchemaContribution = {
-    id: "test.old_owner_catalog_text_json",
-    async apply(context) {
-        await context.run(`
-          CREATE TABLE owner_material_entries (
-            entry_key TEXT PRIMARY KEY,
-            owner_scope TEXT NOT NULL,
-            entry_kind TEXT NOT NULL,
-            entry_ref_key TEXT NOT NULL,
-            material_ref_key TEXT NOT NULL,
-            visibility_role TEXT NOT NULL,
-            active INTEGER NOT NULL,
-            provenance_json TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            CHECK (entry_kind IN ('source_library', 'collection', 'owner_relation')),
-            CHECK (visibility_role IN ('positive', 'blocked_audit', 'historical')),
-            CHECK (active IN (0, 1)),
-            UNIQUE(owner_scope, entry_kind, entry_ref_key, material_ref_key),
-            FOREIGN KEY(material_ref_key) REFERENCES material_records(ref_key)
-          )
-        `);
-
-        await context.run(`
-          INSERT INTO material_records (
-            ref_key,
-            kind,
-            lifecycle_status,
-            identity_status,
-            entity_json,
-            created_at,
-            updated_at
-          )
-          VALUES (?, 'recording', 'active', 'standalone', '{}', ?, ?)
-        `, [
-            "material:recording:m_migrated_owner_catalog",
-            "2026-06-07T00:00:00.000Z",
-            "2026-06-07T00:00:00.000Z",
-        ]);
-
-        await context.run(`
-          INSERT INTO owner_material_entries (
-            entry_key,
-            owner_scope,
-            entry_kind,
-            entry_ref_key,
-            material_ref_key,
-            visibility_role,
-            active,
-            provenance_json,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, 'source_library', ?, ?, 'positive', 1, ?, ?, ?)
-        `, [
-            "ome_migrated_owner_catalog",
-            DEFAULT_OWNER_SCOPE,
-            "source_library:saved_source_track:migrated",
-            "material:recording:m_migrated_owner_catalog",
-            JSON.stringify({
-                kind: "source_library",
-                lastAddedAt: "2026-06-07T00:00:00.000Z",
-            }),
-            "2026-06-07T00:00:00.000Z",
-            "2026-06-07T00:00:00.000Z",
-        ]);
-
-        await context.run(`
-          CREATE VIEW owner_material_catalog_view AS
-          SELECT provenance_json::jsonb AS provenance_json
-          FROM owner_material_entries
-        `);
-    },
-};
 const groupedDatabase = await initializedDatabase();
 assert.equal(await relationKind(groupedDatabase, "owner_material_catalog_view"), "view");
 const ownerEntryColumns = await tableColumns(groupedDatabase, "owner_material_entries");
@@ -121,35 +47,6 @@ assert.equal(await uniqueIndexCovers(groupedDatabase, "owner_material_entries", 
     "entry_ref_key",
     "material_ref_key",
 ]), true);
-const migratedTextJsonDatabase = await openUninitializedPostgresTestMusicDatabase();
-await migratedTextJsonDatabase.initialize({
-    schemas: [
-        musicDataPlatformIdentitySchema,
-        oldOwnerCatalogTextJsonSchema,
-        musicDataPlatformOwnerRelationSchema,
-        musicDataPlatformOwnerCatalogEntriesSchema,
-        musicDataPlatformOwnerCatalogViewSchema,
-    ],
-});
-assert.equal(await columnDataType(migratedTextJsonDatabase, "owner_material_entries", "provenance_json"), "jsonb");
-const migratedCatalogRow = await migratedTextJsonDatabase.context().get<{
-    recently_added_at: string;
-    provenance_json: unknown;
-}>(`
-  SELECT recently_added_at, provenance_json
-  FROM owner_material_catalog_view
-  WHERE owner_scope = ?
-`, [DEFAULT_OWNER_SCOPE]);
-assert.deepEqual(migratedCatalogRow, {
-    recently_added_at: "2026-06-07T00:00:00.000Z",
-    provenance_json: [
-        {
-            kind: "source_library",
-            lastAddedAt: "2026-06-07T00:00:00.000Z",
-        },
-    ],
-});
-await migratedTextJsonDatabase.close();
 const groupedLibraryRef = sourceLibraryRef("130950618", "saved_source_track");
 const groupedMaterialRef: Ref = {
     namespace: "material",

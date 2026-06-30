@@ -15,12 +15,6 @@ export const musicDataPlatformSearchResultSetSchema: MusicDatabaseSchemaContribu
     `);
 
     await context.run(`
-      ALTER TABLE search_result_sets
-      ALTER COLUMN expires_at TYPE TIMESTAMPTZ
-      USING expires_at::timestamptz
-    `);
-
-    await context.run(`
       CREATE INDEX IF NOT EXISTS search_result_sets_expires_at_idx
       ON search_result_sets(expires_at, result_set_id)
     `);

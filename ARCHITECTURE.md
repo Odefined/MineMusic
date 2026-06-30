@@ -57,7 +57,7 @@ Formal v1 has eleven top-level architecture areas:
 | Workbench Interface | Shared Web and embedded-agent workspace interaction interface: Workspace Interaction State, Workspace Protocol, public card/action views, snapshot/replay, user action adaptation, and product-level work/card projections assembled from owning areas. | Music facts, playback/queue/radio truth, agent run/message/work state, durable music outcomes, Effect decisions, provider state, Web component implementation, process transports, or runtime graph composition. |
 | Extension | Plugin System, Capability Slots, provider/plugin manifests, adapter lifecycle metadata, and replaceability semantics. | Runtime graph composition, music facts, material identity, owner facts, query/present workflow, or final presentation. |
 | Music Data Platform | Source/material/canonical identity, storage records, bindings, owner-scoped fact families, library import/update persistence, projections, and canonical maintenance. | Provider integration, plugin semantics, Stage Interface schemas, query/present orchestration, Memory, or Effect execution. |
-| Music Intelligence | Search, Retrieval compatibility, and Knowledge capabilities for discovery, comparison, attributed evidence, ranking evidence, and reasoning support. | Durable facts, long-term Memory, final recommendation judgement, material identity, or external effects. |
+| Music Intelligence | Search, internal lookup-query orchestration, and Knowledge capabilities for discovery, comparison, attributed evidence, ranking evidence, and reasoning support. | Durable facts, long-term Memory, final recommendation judgement, material identity, or external effects. |
 | Music Experience | Live and consequential music interaction behavior: playback, queue, radio mode, now-playing intent, radio pacing, recommendation batches, presented recommendations, play/open/skip events, feedback binding, dedupe, external action intent, and listening outcomes/history. | Workbench interaction state, Agent Runtime state, Retrieval, Music Data Platform writes outside explicit ports, long-term Memory, effect execution, or effect permission policy. |
 | Memory | Long-term user/music relationship state, taste memory, preference/rule memory, contextual preferences, and evidence-backed memory proposals. | Material identity, owner relation source-of-truth, Retrieval, Knowledge, or external effects. |
 | Effect Boundary | Permission, approval, effect proposal/decision, side-effect audit, and execution policy. | Provider capability declaration, domain facts, recommendation judgement, or normal query/presentation output. |
@@ -386,8 +386,8 @@ Intelligence owns query normalization, cursor/fingerprint validation,
 provider-search error mapping, and compact hit shaping; it does not import
 provider plugins or write runtime cache tables directly.
 
-Music Intelligence keeps Retrieval compatibility code under `core/retrieval`
-and new lookup search orchestration under `core/search`; Stage Interface tool
+Music Intelligence keeps internal lookup-query contracts under `core/retrieval`
+and lookup search orchestration under `core/search`; Stage Interface tool
 handlers live under `stage_adapter` and are the only Music Intelligence subtree
 allowed to import Stage Interface contracts or public description helpers.
 Stage adapters may contribute RuntimeModule tool registrations for
@@ -433,10 +433,9 @@ caller-owned row construction or row-by-row TypeScript merge loops.
 
 ## Music Intelligence, Experience, And Memory
 
-Music Intelligence groups Search, Retrieval compatibility, and Knowledge.
+Music Intelligence groups Search, internal lookup-query orchestration, and Knowledge.
 Search owns candidate discovery, query planning, ranking evidence assembly,
-and query result evidence for new lookup paths. Retrieval compatibility remains
-for old internal query contracts while migration continues. Knowledge owns
+and query result evidence for lookup paths. Knowledge owns
 read-oriented, provider-attributed music knowledge search/lookup/evidence.
 Neither writes durable material identity, canonical identity, owner facts,
 Memory, or presentation output.
@@ -498,8 +497,7 @@ permits the action.
 
 ## Deleted Formal v1 Surfaces
 
-Formal v1 deletes these MVP surfaces instead of preserving them through
-compatibility aliases:
+Formal v1 deletes these MVP surfaces instead of preserving aliases for them:
 
 - Material Resolve as a public/domain surface;
 - Ephemeral Material and `emat` material identity;

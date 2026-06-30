@@ -40,6 +40,7 @@ import type {
 const ownerScope = "DEFAULT";
 const FIXED_NOW = "2026-06-25T12:00:00.000Z";
 const FIXED_NOW_MS = Date.parse(FIXED_NOW);
+const TEST_SCAN_SUBMIT_RETRY = { retryLimit: 3, retryDelay: 5, retryBackoff: true } as const;
 
 // ---------------------------------------------------------------------------
 // In-memory filesystem tree + port
@@ -217,9 +218,11 @@ async function testReconciliationDeletion(database: MusicDatabase): Promise<void
   const handler = createLocalSourceScanAdvanceJobHandler({
     read, filesystemPort: port, commands: advanceCommands, backgroundWork: fakeBackgroundWork(queue),
     resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   const start = createLocalSourceScanStartCommand({
     service, advanceCommands, backgroundWork: fakeBackgroundWork(queue), now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   const batchId = unwrap(await start.submit({ rootId })).batchId;
 
@@ -234,7 +237,10 @@ async function testReconciliationDeletion(database: MusicDatabase): Promise<void
 
   const controller = new AbortController();
   await drain(database, queue, async (job) => {
-    await handler({ jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller.signal });
+    await handler({
+      jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller.signal,
+      retryCount: 0, retryLimit: TEST_SCAN_SUBMIT_RETRY.retryLimit,
+    });
   });
 
   const summary = unwrap(await service.getScanStatus({ batchId }));
@@ -290,9 +296,11 @@ async function testReconciliationChunkedDeletion(database: MusicDatabase): Promi
   const handler = createLocalSourceScanAdvanceJobHandler({
     read, filesystemPort: port, commands: advanceCommands, backgroundWork: fakeBackgroundWork(queue),
     resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   const start = createLocalSourceScanStartCommand({
     service, advanceCommands, backgroundWork: fakeBackgroundWork(queue), now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   const batchId = unwrap(await start.submit({ rootId })).batchId;
   const controller = new AbortController();
@@ -300,7 +308,10 @@ async function testReconciliationChunkedDeletion(database: MusicDatabase): Promi
   while (queue.length > 0 && safety < 200) {
     safety += 1;
     const job = queue.shift()!;
-    await handler({ jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller.signal });
+    await handler({
+      jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller.signal,
+      retryCount: 0, retryLimit: TEST_SCAN_SUBMIT_RETRY.retryLimit,
+    });
   }
   assert.ok(safety < 200, "chunked reconciliation chain terminates");
   const summary = unwrap(await service.getScanStatus({ batchId }));
@@ -376,9 +387,13 @@ async function testProcessRestartRecovery(database: MusicDatabase): Promise<void
     backgroundWork: fakeBackgroundWork([]),
     resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS,
     now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   const controller = new AbortController();
-  await handler({ jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: "b-cancel" }, signal: controller.signal });
+  await handler({
+    jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: "b-cancel" }, signal: controller.signal,
+    retryCount: 0, retryLimit: TEST_SCAN_SUBMIT_RETRY.retryLimit,
+  });
   const cancelSummary = await read.getBatchSummary({ batchId: "b-cancel" });
   assert.equal(cancelSummary?.status, "cancelled", "cancel_requested batch finalizes to cancelled on resume");
 }
@@ -457,6 +472,7 @@ async function testRetryFinalAttemptMarksBatchFailed(database: MusicDatabase): P
   const handler = createLocalSourceScanAdvanceJobHandler({
     read, filesystemPort: throwingPort, commands: advanceCommands, backgroundWork: fakeBackgroundWork([]),
     resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   const job = (retryCount: number, retryLimit: number) => ({
     jobId: "j",
@@ -527,6 +543,7 @@ async function testSubmitRetryThreading(database: MusicDatabase): Promise<void> 
   });
   await handler({
     jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId }, signal: new AbortController().signal,
+    retryCount: 0, retryLimit: submitRetry.retryLimit,
   });
   const rechainSubmit = submissions.find((s) => s.idempotencyKey === localSourceScanAdvanceIdempotencyKey(batchId, 1));
   assert.ok(rechainSubmit, "re-chain generation-1 submit captured");
@@ -586,9 +603,11 @@ async function testConcurrencyBounding(database: MusicDatabase): Promise<void> {
     read, filesystemPort: countingPort, commands: fakeCommands, backgroundWork: fakeBackgroundWork([]),
     resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, now: () => FIXED_NOW,
     maxConcurrentFiles: 2,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   await handler({
     jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: "b-conc" }, signal: new AbortController().signal,
+    retryCount: 0, retryLimit: TEST_SCAN_SUBMIT_RETRY.retryLimit,
   });
   assert.equal(peak, 2, "D35: in-flight inspectAudioFile calls cap at maxConcurrentFiles=2 (and reach it, not serialized)");
 }
@@ -672,9 +691,11 @@ async function testEndToEndDiscoveryProcessing(database: MusicDatabase): Promise
     backgroundWork: fakeBackgroundWork(queue),
     resolveExclusions: (rid) => (rid === rootId ? { directoryNames: ["Excluded"], relativePaths: [] } : EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS),
     now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   const start = createLocalSourceScanStartCommand({
     service, advanceCommands, backgroundWork: fakeBackgroundWork(queue), now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
 
   // Start (submits the first advance job). The root was registered above.
@@ -687,7 +708,10 @@ async function testEndToEndDiscoveryProcessing(database: MusicDatabase): Promise
   while (queue.length > 0 && safety < 100) {
     safety += 1;
     const job = queue.shift()!;
-    await handler({ jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller.signal });
+    await handler({
+      jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller.signal,
+      retryCount: 0, retryLimit: TEST_SCAN_SUBMIT_RETRY.retryLimit,
+    });
   }
   assert.ok(safety < 100, "advance chain did not terminate");
 
@@ -736,9 +760,11 @@ async function testUnstableAndCensusFatal(database: MusicDatabase): Promise<void
   const handler = createLocalSourceScanAdvanceJobHandler({
     read, filesystemPort: port, commands: advanceCommands, backgroundWork: fakeBackgroundWork(queue),
     resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   const start = createLocalSourceScanStartCommand({
     service, advanceCommands, backgroundWork: fakeBackgroundWork(queue), now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   const baseCommands = createLocalSourceScanCommands({ database, generateBatchId: () => "x" });
   // Register both roots for this sub-test in one readiness call (D39 requires
@@ -754,7 +780,10 @@ async function testUnstableAndCensusFatal(database: MusicDatabase): Promise<void
   while (queue.length > 0 && safety < 100) {
     safety += 1;
     const job = queue.shift()!;
-    await handler({ jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller.signal });
+    await handler({
+      jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller.signal,
+      retryCount: 0, retryLimit: TEST_SCAN_SUBMIT_RETRY.retryLimit,
+    });
   }
   const summary = unwrap(await service.getScanStatus({ batchId }));
   assert.equal(summary.status, "completed_with_issues");
@@ -789,9 +818,11 @@ async function testUnstableAndCensusFatal(database: MusicDatabase): Promise<void
   const handler2 = createLocalSourceScanAdvanceJobHandler({
     read: read2, filesystemPort: fatalPort, commands: advanceCommands2, backgroundWork: fakeBackgroundWork(queue2),
     resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   const start2 = createLocalSourceScanStartCommand({
     service: service2, advanceCommands: advanceCommands2, backgroundWork: fakeBackgroundWork(queue2), now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   const started2 = unwrap(await start2.submit({ rootId: rootId2 }));
   const batchId2 = started2.batchId;
@@ -800,7 +831,10 @@ async function testUnstableAndCensusFatal(database: MusicDatabase): Promise<void
   while (queue2.length > 0 && safety2 < 100) {
     safety2 += 1;
     const job = queue2.shift()!;
-    await handler2({ jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller2.signal });
+    await handler2({
+      jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller2.signal,
+      retryCount: 0, retryLimit: TEST_SCAN_SUBMIT_RETRY.retryLimit,
+    });
   }
   const summary2 = unwrap(await service2.getScanStatus({ batchId: batchId2 }));
   assert.equal(summary2.status, "failed", "unreadable directory is census-fatal");

@@ -108,7 +108,7 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     assert.equal(Object.hasOwn(firstOutput.card, "trackPosition"), false);
     assert.equal(Object.hasOwn(firstOutput.card, "durationMs"), false);
     // ADR-0040 guard #2: present output carries the "material" item-handle kind
-    // (never the retired "library") and leaks no raw materialRef — the minted
+    // (never "library") and leaks no raw materialRef — the minted
     // handle is the only item reference in the output.
     assert.match(firstOutput.item, /^\[material:[^\]\r\n]+\]$/u);
     assert.equal("materialRef" in firstOutput, false);

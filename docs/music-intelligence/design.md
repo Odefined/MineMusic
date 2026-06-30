@@ -1,12 +1,12 @@
 # Music Intelligence Design
 
 > Status: Current design authority through Phase 22 metadata lookup search
-> Scope: Internal Retrieval-compatible query service over the Music Data
+> Scope: Internal lookup-query service over the Music Data
 > Platform metadata lookup search workspace and provider-search port
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Intelligence contains Retrieval and Knowledge. The current implemented
-Retrieval-compatible service turns Music Data Platform metadata lookup rows
+The lookup-query service turns Music Data Platform metadata lookup rows
 into compact internal query evidence for Stage lookup.
 
 Retrieval is not a Stage Interface tool and does not return `MaterialCard`.
@@ -54,15 +54,14 @@ Music Data Platform metadata lookup search workspace.
 Provider-search pools are accepted only in `anyOf`, require effective
 top-level text and `text_relevance` order, reject duplicate provider ids, cap
 provider limits at 50, and map `recording | album | artist` material kinds to
-source target kinds `track | album | artist`. The removed `poolFilter` input
-and bare `Ref[]` pool groups are not accepted.
+source target kinds `track | album | artist`.
 
 `sessionId` is provider-search pass-through only. It is not included in
 metadata lookup fingerprints, cursor identity, or result-set identity.
 
 Retrieval normalizes text for query echo with
 `NFKC`, trim, lowercase, whitespace collapse, and the shared
-`prefix_or_v1` token helper from Contracts. Text that has no usable prefix
+`prefix_token` token helper from Contracts. Text that has no usable prefix
 token, such as punctuation-only input, is treated as absent text before
 Retrieval chooses its effective order. The metadata lookup adapter then builds
 a metadata-specific `mlqf_` query fingerprint from owner scope, lookup text,

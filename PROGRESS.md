@@ -408,8 +408,7 @@ implemented plan lives at
 `docs/formal-rebuild/phase-8-owner-catalog-projection-foundation-implementation-plan.md`.
 Current Music Data Platform docs live under `docs/music-data-platform/`.
 
-2026-06-24 update: the Phase 10 material-text projection/read-helper has been
-retired from the active tree. Current lookup/search projection state is
+2026-06-24 update: the active lookup/search projection state is
 `search_metadata_documents` plus metadata lookup result sets.
 
 ## 2026-06-14: Phase 11C Source-Of-Truth Invalidation Wiring
@@ -747,16 +746,13 @@ Phase 14 completes the first real source-library update removal behavior:
 
 ## 2026-06-15: Phase 15A Provider Search Pool Retrieval Typed Pools
 
-Phase 15A implements the typed pool input migration slice for internal
-Retrieval:
+Phase 15A implements typed pool input for internal lookup queries:
 
-- `RetrievalQueryInput` now uses typed `pools` instead of the removed
-  `poolFilter` input;
+- `RetrievalQueryInput` uses typed `pools`;
 - supported typed durable pools are `local_catalog`, `source_library(ref)`,
   and `owner_relation(ref)`;
 - `provider_search(providerId, limit?)` pool vocabulary is recognized and
   validated, but provider-search execution remains rejected until Phase 15D;
-- old bare `Ref[]` pool groups and old `poolFilter` inputs are rejected;
 - local durable typed pools are translated to the existing Music Data Platform
   read port's ref-based pool filter, so the local read port remains pure local
   and does not accept provider-aware pools;
@@ -836,8 +832,7 @@ The contracts barrel is split into per-area contract files behind a shared leaf
 kernel (ADR-0013):
 
 - `src/contracts/index.ts` was a single 61-export barrel imported across every
-  formal area; it is now a transitional re-export shim over five definition
-  files;
+  formal area; it was replaced by five definition files;
 - `kernel.ts` is a strict leaf (`Result`, `StageError`/`StageWarning`,
   `FormalArea`, `Ref`, `isRefComponentSafe`, `assertRefSafe`, `refKey`);
 - `music_data_platform.ts` imports the kernel; `storage.ts` imports the kernel
@@ -854,25 +849,24 @@ kernel (ADR-0013):
   check;
 - Phase 1 changed no importer; Phase 2 (same date) repointed every importer to
   the narrow per-area paths via a symbol-to-area codemod, deleted the `index.ts`
-  shim, replaced the Phase 1 barrel-integrity guard with a ref-origin guard (G3:
+  re-export, replaced the Phase 1 barrel-integrity guard with a ref-origin guard (G3:
   ref primitives imported only from `kernel.js`), and repointed `src/index.ts` to
   re-export the five area files directly. The contracts barrel no longer exists.
 
-## 2026-06-16: Legacy Retrieval Text Ranking Dedup
+## 2026-06-16: Retrieval Text Ranking Dedup
 
-The now-retired duplicated FTS5 text-ranking SQL engine was consolidated into
-one shared module (architecture deepening candidate #2):
+The duplicated FTS5 text-ranking SQL engine was consolidated into one shared
+module during the retrieval phase (architecture deepening candidate #2):
 
 - `src/music_data_platform/material_text_ranking.ts` owns the field config,
   token-count, and field-priority SQL expressions, parameterised by the FTS table
   name (`material_text_fts` | `retrieval_result_text_fts`);
-- `retrieval_read_model.ts` and `retrieval_mixed_workspace.ts` import these
-  instead of maintaining byte-identical copies (~400 duplicated lines removed);
+- the retrieval read and mixed-workspace modules imported these instead of
+  maintaining byte-identical copies (~400 duplicated lines removed);
 - the text cursor clause and matched-text evidence SQL stay per-file — they
   diverge materially (order switch vs single text-relevance tie-break;
   `material_ref_key` vs result-row keying) and are not shareable;
-- no public-surface change; `RetrievalTextField` moved to the ranking module and
-  is re-exported from `retrieval_read_model.ts` for backward compatibility.
+- no public-surface change.
 
 ## 2026-06-16: Capability Slot Registration and Dispatch Deepening
 
@@ -1285,8 +1279,7 @@ Search Core path:
 - Field values are normalized and deduped within each field, with merged
   attribution evidence stored as JSONB.
 - Projection Maintenance rebuilds the search metadata index through
-  `search_metadata` material-scoped projection targets; the legacy
-  material-text projection/read-helper has been removed from the active tree.
+  `search_metadata` material-scoped projection targets.
 - Music Data Platform now owns `search_result_sets` and `search_result_rows`
   for metadata lookup result windows, Postgres text-score reranking, and
   local/provider mixed recall. Result rows store row identity, compact text
@@ -1300,9 +1293,7 @@ Search Core path:
 - Provider search hits already bound to an active material rerank from the
   durable material metadata search document only. Unresolved provider hits
   become runtime metadata lookup candidate documents.
-- The old Retrieval read/mixed service modules and old `retrieval_result_*`
-  result-set tables are no longer active; `material_candidate_cache` remains
-  as the runtime unresolved-provider payload cache.
+- `material_candidate_cache` is the runtime unresolved-provider payload cache.
 - Focused tests cover search metadata projection, resolved-provider dedupe,
   unresolved runtime candidates, result-row schema shape, real Metadata Lookup
   adapter + MDP workspace integration, schema contributions, active-tree
@@ -1504,7 +1495,7 @@ catalog integration. Design authority:
   provider-session ids.
 - A2 added the minimal `src/workbench_interface` formal root and
   `src/contracts/workbench_interface.ts` as a pre-refactor agent context seam.
-  Agent Context PR3.1/PR3.2/PR3.3 have since retired that composed
+  Agent Context PR3.1/PR3.2/PR3.3 removed that composed
   agent-facing seam; Workbench Interface remains the owner for workspace
   interaction-state contracts, while embedded-agent Workspace Context is
   assembled in Agent Runtime from area-owned projections plus Workbench-owned
@@ -1630,8 +1621,8 @@ Agent Runtime context-engineering authority for embedded MineMusic agents:
 - Phase B Knowledge / Memory Context starts with `userTasteHint` generated from
   existing `library.catalog.summary` public output; it is a library-shaped taste
   hint, not durable Memory or an explicit user preference rule;
-- `Session Context` is retained only as a legacy umbrella term; new design and
-  code should use the seven rails explicitly.
+- `Session Context` is not a new runtime object; new design and code should use
+  the seven rails explicitly.
 
 ## 2026-06-29: Agent Context PR3.1/PR3.2/PR3.3 Implementation
 
@@ -1639,15 +1630,15 @@ Agent Runtime context-engineering authority for embedded MineMusic agents:
   the `MusicExperienceWorkspaceProjectionPort` in the Music Experience contract.
   Actor identity/instruction/tool packs/declared sections now have one
   Agent Runtime definition per actor.
-- PR3.2 moves Radio run-start context from the retired Radio-only Run Floor to
+- PR3.2 moves Radio run-start context from the Radio-only Run Floor to
   the shared assembler and changes Radio refill invocation to JSON with
   `runId`, `wakeReason`, `suggestedAppendCount`, and basis revisions separated
   from Workspace Context.
 - PR3.3 moves Main turn-start context onto the same assembler and removes the
-  old `session_context.ts` / Workbench agent-composition seam. Guards now cover
+  previous `session_context.ts` / Workbench agent-composition seam. Guards now cover
   structural ActorDefinition validation, assembler section selection, Radio
   queue handle visibility, Main system prompt refresh, and active-tree deletion
-  of the retired seam.
+  of that seam.
 
 ## 2026-06-30: Phase B PR3.6 Direction-Change Correction
 
@@ -1698,12 +1689,11 @@ Agent Runtime context-engineering authority for embedded MineMusic agents:
   but never select, clear, append, replace, or remove queue material.
 - Agent Runtime now lazily constructs the Radio actor session on start/resume,
   deactivates the active session on shutdown, and stores active/inactive actor
-  session transcript rows in `agent_runtime_actor_sessions` while retaining
-  legacy transcript migration.
+  session transcript rows in `agent_runtime_actor_sessions`.
 - Verification covers tool registration and model-visible availability,
   lifecycle dispatch output, strict empty-input validation, queue-preserving
-  playback effects, Server Host wake submission, schema migration into active
-  actor sessions, and the full project test suite.
+  playback effects, Server Host wake submission, active actor-session schema,
+  and the full project test suite.
 
 ## 2026-06-30: Deep Code Audit (Full Codebase)
 
@@ -1765,8 +1755,7 @@ in scope. Known later areas include:
   ports.
 
 Each later phase should keep old MVP code/docs as evidence only and should not
-add compatibility layers unless a new accepted ADR explicitly allows an
-exception.
+add bridge layers unless a new accepted ADR explicitly allows an exception.
 
 ### Tracked follow-up refactors
 

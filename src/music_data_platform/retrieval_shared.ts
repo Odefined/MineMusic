@@ -1,10 +1,7 @@
-// Shared retrieval primitives consumed by the metadata-lookup search workspace
-// (metadata_lookup_search_workspace.ts) and the retrieval query adapter
+// Shared retrieval-named primitives consumed by the metadata-lookup search
+// workspace (metadata_lookup_search_workspace.ts) and the lookup query adapter
 // (music_intelligence/core/search/metadata_lookup_retrieval_adapter.ts). Holds
-// the cross-cutting types those two modules share. The old
-// retrieval_read_model.ts / retrieval_mixed_workspace.ts consumers were deleted
-// with the old retrieval query path; this leaf now backs the surviving search
-// path.
+// the cross-cutting types those two active modules share.
 
 import type { MaterialEntityKind } from "../contracts/music_data_platform.js";
 import type { Ref } from "../contracts/kernel.js";

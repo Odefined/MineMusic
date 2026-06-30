@@ -1,6 +1,6 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 
-// Returns the last assistant message in `messages`, searching backwards. Shared
+// Returns the last assistant message in `messages`, searching from the end. Shared
 // by the Main and Radio agent run paths, which both read the final assistant
 // turn's stop reason to detect failure/abort.
 export function finalAssistantMessage(

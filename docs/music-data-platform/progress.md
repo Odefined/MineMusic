@@ -118,8 +118,7 @@
   `projection_maintenance_targets` plus a pending-order index.
 - `src/music_data_platform/search_metadata_projection_schema.ts` contributes
   durable `search_metadata_documents` for material-level metadata lookup; the
-  runtime schema no longer creates or maintains the retired legacy material-text
-  tables.
+  runtime schema creates only the active metadata lookup projection tables.
 - `src/music_data_platform/search_metadata_projection_commands.ts` implements
   command-owned rebuild of current metadata lookup documents by explicit
   material ref.

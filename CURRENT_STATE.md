@@ -21,8 +21,8 @@ rebuild command, and SQL catalog view. Phase 9 adds
 `owner_material_relations`, deterministic owner relation refs/pool refs,
 material-scope `saved/favorite/blocked`, owner-relation projection, and
 ordinary catalog exclusion for active blocked facts. Phase 10 originally added
-the owner-neutral material text projection foundation; the active tree has now
-retired that legacy projection in favor of `search_metadata_documents`. Phase
+the owner-neutral material text projection foundation; the active tree now uses
+`search_metadata_documents` instead. Phase
 11 adds `projection_maintenance_targets`, typed invalidation/
 dirty/failed projection maintenance commands, an internal rebuild runner that
 dispatches to owner catalog and search metadata projection commands, and a
@@ -40,10 +40,9 @@ runtime-module lifecycle wiring, and end-to-end freshness closure from
 source-of-truth writes through retrieval reads. Phase 14 adds
 provider-exhausted source-library current-membership reconciliation through the
 source-library command boundary and library-scope owner catalog invalidation.
-Phase 15A starts provider-search pool retrieval by migrating internal
-Retrieval input from removed `poolFilter` bare refs to typed `pools`, replacing
-the active cursor payload with version 2, and validating provider-search pool
-shape. Phase 15B added the first Music Data Platform-owned runtime result-set
+Phase 15A establishes typed `pools` for internal lookup queries, replaces the
+active cursor payload with version 2, and validates provider-search pool shape.
+Phase 15B added the first Music Data Platform-owned runtime result-set
 and material-candidate cache foundation. Phase 22 later retires the old
 `retrieval_result_*` active result-set tables and keeps only
 `material_candidate_cache` from that foundation for unresolved provider
@@ -100,11 +99,11 @@ fields, evidence, and scores only; they do not persist a duplicate
 provider hit already bound to an active material is only a discovery path to
 that material and is reranked from the durable material metadata document;
 only unresolved provider hits become runtime metadata lookup candidate
-documents. The old Retrieval read/mixed service modules and legacy
+documents. The previous Retrieval read/mixed service modules and
 `retrieval_result_*` result-set tables have been removed from the active tree.
-The remaining Retrieval contracts, normalization, and cursor helpers are a
-compatibility surface used by the Stage lookup path; default lookup no longer
-uses the old material-text matched-token / field-priority ranking path.
+The remaining lookup-query contracts, normalization, and cursor helpers are the
+active internal service used by the Stage lookup path; default lookup uses the
+metadata lookup search path.
 Phase 23 adds the MDP-owned `library.catalog.*` read-only tool surface over
 owner catalog membership plus Material Projection display. `library.catalog.list_scopes`
 lists only catalog-usable library/source-library/relation scopes and excludes
@@ -472,7 +471,7 @@ Current metadata lookup vocabulary includes:
 - `music_data.metadata_lookup_search_invalid` for Music Data Platform
   metadata lookup validation.
 
-Current Music Intelligence Retrieval compatibility vocabulary includes:
+Current Music Intelligence lookup-query vocabulary includes:
 
 - `createMetadataLookupRetrievalQueryService({ searchWorkspace, providerSearch? })`;
 - `RetrievalQueryService.query(input)`;
@@ -528,8 +527,7 @@ Phase 15 provider-search pool retrieval vocabulary includes:
 
 ## Deleted Formal v1 Surfaces
 
-Formal v1 deletes these MVP concepts and does not preserve them with
-compatibility aliases:
+Formal v1 deletes these MVP concepts and does not preserve aliases for them:
 
 - Material Resolve as a public/domain surface;
 - Ephemeral Material and `emat` material identity;
@@ -679,8 +677,8 @@ The active TypeScript tree is now a formal skeleton:
 - `src/music_intelligence/core/retrieval/cursor.ts` owns opaque cursor
   encode/decode;
 - `src/music_intelligence/core/search/metadata_lookup_retrieval_adapter.ts`
-  owns the internal Retrieval-compatible query service over the Music Data
-  Platform metadata lookup search workspace and provider-search port wiring;
+  owns the internal lookup-query service over the Music Data Platform metadata
+  lookup search workspace and provider-search port wiring;
 - `src/music_intelligence/stage_adapter/scope_availability.ts` owns the narrow
   Music Scope availability port and in-memory test adapter used by Stage
   Adapter handlers;
@@ -709,11 +707,11 @@ The active TypeScript tree is now a formal skeleton:
 - `src/music_data_platform/stage_adapter/index.ts` owns the MDP Stage Adapter
   subtree and contributes the `library-import`, `library-relation`, and
   `library-catalog` RuntimeModules.
-- `src/server/library_import_runtime_module.ts` owns the Server Host shim that
+- `src/server/library_import_runtime_module.ts` owns the Server Host composition module that
   mounts the MDP Library Import RuntimeModule and adapts Extension
   platform-library-provider descriptor metadata, the import service, and the
   source-library status read port into narrow Library Import ports.
-- `src/server/library_catalog_runtime_module.ts` owns the Server Host shim that
+- `src/server/library_catalog_runtime_module.ts` owns the Server Host composition module that
   mounts the MDP Library Catalog RuntimeModule and adapts the catalog read port
   plus source-library/relation scope availability while excluding provider
   scopes.
@@ -765,7 +763,7 @@ The old MVP runtime roots, provider integrations, storage adapters, material
 flow, source grounding, collection service, library import runtime, Codex skill
 snapshot, launchd reset script, and old tests were removed from active source.
 They remain available through git history for reference only. They must not be
-restored as compatibility layers.
+restored as runtime bridges.
 
 ## Documentation State
 
@@ -773,7 +771,7 @@ restored as compatibility layers.
 - `docs/formal-project-glossary.md` owns formal target vocabulary and
   MVP-to-formal term mapping.
 - `docs/adr/0004-same-repo-formal-rebuild.md` records the same-repo rebuild
-  posture and no-compatibility decision.
+  posture and no-bridge decision.
 - `docs/adr/0005-formal-top-level-architecture-areas.md` records the initial
   formal top-level area model.
 - `docs/adr/0030-agent-runtime-and-workbench-interface-are-top-level-areas.md`
@@ -862,10 +860,9 @@ restored as compatibility layers.
   Radio cooperative aborts return `voided_stale` rather than failed terminal
   outcomes, and Radio→Main notify subjects use public handle-shaped objects, not
   internal material refs. Transcript durability is Agent Runtime-owned through
-  `agent_runtime_actor_sessions`, with legacy `agent_runtime_transcripts` rows
-  migrated into active actor sessions; the shared session writes a capped tail
-  of the long-lived pi `Agent.state.messages` after pi `agent_end`; save
-  failures fail the run instead of fabricating success.
+  `agent_runtime_actor_sessions`; the shared session writes a capped tail of
+  the long-lived pi `Agent.state.messages` after pi `agent_end`; save failures
+  fail the run instead of fabricating success.
   The async session factory restores Main and Radio continuity once before
   returning the actor; neither actor has a public restore method or loads again
   before a later run.

@@ -57,6 +57,7 @@ import { createLocalSourceScanRootDirResolver } from "../../src/server/local_sou
 
 const ownerScope = DEFAULT_OWNER_SCOPE;
 const FIXED_NOW = "2026-06-25T12:00:00.000Z";
+const TEST_SCAN_SUBMIT_RETRY = { retryLimit: 3, retryDelay: 5, retryBackoff: true } as const;
 // The file's on-disk mtime is pinned into the past. The scan service stamps
 // batch rows with FIXED_NOW, and a file whose mtime is within the 10s stability
 // window (D16) of the batch start is classified "unstable" and NOT imported.
@@ -178,6 +179,7 @@ function buildScanRuntime(
     backgroundWork: fakeBackgroundWork(queue),
     resolveExclusions: () => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS,
     now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   const controller = new AbortController();
   const start = createLocalSourceScanStartCommand({
@@ -185,6 +187,7 @@ function buildScanRuntime(
     advanceCommands,
     backgroundWork: fakeBackgroundWork(queue),
     now: () => FIXED_NOW,
+    submitRetry: TEST_SCAN_SUBMIT_RETRY,
   });
   return {
     queue,
@@ -196,6 +199,8 @@ function buildScanRuntime(
         jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE,
         payload: { batchId: job.batchId },
         signal: controller.signal,
+        retryCount: 0,
+        retryLimit: TEST_SCAN_SUBMIT_RETRY.retryLimit,
       });
     },
   };

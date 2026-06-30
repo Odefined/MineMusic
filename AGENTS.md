@@ -37,6 +37,10 @@ non-trivial workflow applies to `boundary-affecting`,
   compatibility shims, or one-off conditionals when the live design calls for
   the correct repair. Fix at the owning boundary, and when the correct repair is
   a refactor, facade, migration, or rewrite, implement that complete shape.
+- MineMusic is in active development. Do not add or preserve compatibility
+  code, legacy aliases, unused branches, dead helpers, dead files, or inert
+  scaffolding unless the task explicitly identifies them as current product
+  behavior.
 - Preserve user changes. Do not revert unrelated work.
 - Back claims with repository evidence: files, diffs, commands, or tests.
 - Reuse existing modules, ports, helpers, and docs before creating new ones.

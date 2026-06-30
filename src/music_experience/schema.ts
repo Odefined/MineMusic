@@ -36,21 +36,6 @@ export const musicExperienceQueuePlaybackSchema: MusicDatabaseSchemaContribution
     `);
 
     await context.run(`
-      ALTER TABLE music_experience_state
-      ADD COLUMN IF NOT EXISTS radio_direction_revision INTEGER NOT NULL DEFAULT 0
-    `);
-
-    await context.run(`
-      ALTER TABLE music_experience_state
-      ADD COLUMN IF NOT EXISTS radio_session_revision INTEGER NOT NULL DEFAULT 0
-    `);
-
-    await context.run(`
-      ALTER TABLE music_experience_state
-      ADD COLUMN IF NOT EXISTS queue_next_position INTEGER NOT NULL DEFAULT 1
-    `);
-
-    await context.run(`
       CREATE TABLE IF NOT EXISTS music_experience_queue_items (
         owner_scope TEXT NOT NULL,
         workspace_id TEXT NOT NULL,

@@ -890,7 +890,7 @@ function assertSourceRefCompatibleWithMaterial(
   ) {
     throwMusicDataError({
       code: "music_data.record_kind_mismatch",
-      message: "Source ref kind is not compatible with material kind.",
+      message: "Source ref kind does not match material kind.",
     });
   }
 }
@@ -919,7 +919,7 @@ function assertSourceCanBindToMaterial(
   if (materialKindForSourceKind(sourceEntity.kind) !== materialEntity.kind) {
     throwMusicDataError({
       code: "music_data.record_kind_mismatch",
-      message: "Source entity kind is not compatible with material kind.",
+      message: "Source entity kind does not match material kind.",
     });
   }
 }

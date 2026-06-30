@@ -19,21 +19,6 @@ export const musicDataPlatformIdentitySchema: MusicDatabaseSchemaContribution = 
       )
     `);
 
-    await context.run(`
-      ALTER TABLE source_records
-      ADD COLUMN IF NOT EXISTS local_root_id TEXT
-    `);
-
-    await context.run(`
-      ALTER TABLE source_records
-      ADD COLUMN IF NOT EXISTS local_relative_path TEXT
-    `);
-
-    await context.run(`
-      ALTER TABLE source_records
-      ADD COLUMN IF NOT EXISTS local_content_md5 TEXT
-    `);
-
     // The table-level UNIQUE is split so provider rows and local rows each have
     // one authoritative identity shape. Two partial
     // unique indexes (same shape as material_records_active_canonical_ref_key_uidx)
@@ -42,10 +27,6 @@ export const musicDataPlatformIdentitySchema: MusicDatabaseSchemaContribution = 
       CREATE UNIQUE INDEX IF NOT EXISTS source_records_provider_identity_uidx
       ON source_records(provider_id, provider_entity_id, kind)
       WHERE origin = 'provider'
-    `);
-
-    await context.run(`
-      DROP INDEX IF EXISTS source_records_local_md5_uidx
     `);
 
     await context.run(`

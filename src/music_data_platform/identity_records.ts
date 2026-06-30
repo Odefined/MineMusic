@@ -498,7 +498,7 @@ function placeholdersFor(values: readonly unknown[]): string {
 // upsertSourceRecord, which serializes entity_json and the lookup columns from
 // the same entity after assertSourceRecordConsistency. A row whose entity_json
 // disagrees with its columns — or whose origin is outside the SourceOrigin union
-// — is corruption, not a legacy shape to silently normalize. Fail loud at the
+// — is corruption, not a shape to silently normalize. Fail loud at the
 // read boundary so a corrupt row never flows into projections, nor surfaces
 // later as a misleading identity_conflict on the next write touching that ref.
 function assertSourceRecordRowIntegrity(row: SourceRecordRow, entity: SourceEntity): void {

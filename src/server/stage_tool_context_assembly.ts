@@ -8,7 +8,7 @@
 // Server Host creation time, before the Music Data Platform module is
 // initialized, so it closes over thin proxies that resolve the real ports from
 // the owning module on first use (after `start()`). This mirrors the lazy-port
-// pattern used by the Music Experience server shim (`lazyCandidateCommitCommand`).
+// pattern used by the Music Experience server module (`lazyCandidateCommitCommand`).
 
 import type { HandleMintingPort, LookupCursorStore } from "../contracts/stage_interface.js";
 import {

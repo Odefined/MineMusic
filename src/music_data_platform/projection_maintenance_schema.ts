@@ -32,30 +32,6 @@ export const musicDataPlatformProjectionMaintenanceSchema: MusicDatabaseSchemaCo
     `);
 
     await context.run(`
-      DELETE FROM projection_maintenance_targets
-      WHERE projection_kind = 'material_text'
-    `);
-
-    await context.run(`
-      ALTER TABLE projection_maintenance_targets
-      DROP CONSTRAINT IF EXISTS projection_maintenance_targets_projection_kind_check
-    `);
-
-    await context.run(`
-      ALTER TABLE projection_maintenance_targets
-      ADD CONSTRAINT projection_maintenance_targets_projection_kind_check CHECK (projection_kind IN (
-        'owner_catalog_source_library',
-        'owner_catalog_source_library_material',
-        'owner_catalog_relation_material',
-        'owner_catalog_collection',
-        'owner_catalog_collection_material',
-        'owner_catalog_scan_root',
-        'owner_catalog_scan_root_material',
-        'search_metadata'
-      ))
-    `);
-
-    await context.run(`
       CREATE INDEX IF NOT EXISTS projection_maintenance_targets_pending_order_idx
       ON projection_maintenance_targets(updated_at, projection_kind, target_key)
     `);

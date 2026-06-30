@@ -50,6 +50,7 @@ const FIXED_NOW = "2026-06-25T12:00:00.000Z";
 const LOCAL_FILE_RECENTLY_ADDED_AT = "2024-06-01T12:00:00.000Z";
 const LOCAL_FILE_MODIFIED_AT_MS = Date.parse(LOCAL_FILE_RECENTLY_ADDED_AT);
 const SHADOW_LIBRARY_PROVIDER_ADDED_AT = "2020-01-02T03:04:05.000Z";
+const TEST_SCAN_SUBMIT_RETRY = { retryLimit: 3, retryDelay: 5, retryBackoff: true } as const;
 
 type FakeNode =
   | { kind: "directory"; children: Map<string, FakeNode> }
@@ -392,9 +393,11 @@ async function testEndToEndRunnerAdmitAndDrift(): Promise<void> {
     const handler = createLocalSourceScanAdvanceJobHandler({
       read, filesystemPort: port, commands: advanceCommands, backgroundWork: fakeBackgroundWork(queue),
       resolveExclusions: (): LocalSourceScanExclusions => EMPTY_LOCAL_SOURCE_SCAN_EXCLUSIONS, now: () => FIXED_NOW,
+      submitRetry: TEST_SCAN_SUBMIT_RETRY,
     });
     const start = createLocalSourceScanStartCommand({
       service, advanceCommands, backgroundWork: fakeBackgroundWork(queue), now: () => FIXED_NOW,
+      submitRetry: TEST_SCAN_SUBMIT_RETRY,
     });
     const batchId = unwrap(await start.submit({ rootId })).batchId;
 
@@ -403,7 +406,10 @@ async function testEndToEndRunnerAdmitAndDrift(): Promise<void> {
     while (queue.length > 0 && safety < 100) {
       safety += 1;
       const job = queue.shift()!;
-      await handler({ jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller.signal });
+      await handler({
+        jobId: "j", jobType: LOCAL_SOURCE_SCAN_ADVANCE_JOB_TYPE, payload: { batchId: job.batchId }, signal: controller.signal,
+        retryCount: 0, retryLimit: TEST_SCAN_SUBMIT_RETRY.retryLimit,
+      });
     }
     assert.ok(safety < 100, "advance chain did not terminate");
     void batchId;

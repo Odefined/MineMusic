@@ -1,4 +1,4 @@
-import { tokenizePrefixOrV1Text } from "../contracts/music_data_platform.js";
+import { tokenizePrefixText } from "../contracts/music_data_platform.js";
 
 export type SearchMetadataFieldName =
   | "title"
@@ -50,7 +50,7 @@ export function tokenizeSearchMetadataValue(value: string): readonly string[] {
     return [];
   }
 
-  return tokenizePrefixOrV1Text(normalized);
+  return tokenizePrefixText(normalized);
 }
 
 export function buildSearchMetadataPrefixQueryTokens(text: string): readonly string[] {
