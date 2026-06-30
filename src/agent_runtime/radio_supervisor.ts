@@ -248,6 +248,10 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   function abortActiveRefill(): void {
     activeRefillAbortController?.abort();
     terminalObservationAbortController?.abort();
+    activeRefillAbortController = undefined;
+    terminalObservationAbortController = undefined;
+    terminalObservationJobId = undefined;
+    refilling = false;
   }
 
   // The public supervisor port exposes only low-watermark wakes. Direction

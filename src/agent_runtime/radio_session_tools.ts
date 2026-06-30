@@ -11,6 +11,7 @@ import {
 } from "../contracts/generated/stage_interface_schemas.js";
 import type {
   InstrumentDescriptor,
+  StageToolContext,
   RadioSessionToolOutput,
   StageToolRegistration,
   ToolDeclaration,
@@ -39,6 +40,26 @@ const radioSessionErrors = [
     code: "radio_session_invalid_transition",
     retryable: false,
     suggestedFixTemplate: "Use the radio session control that matches the current Radio lifecycle state.",
+  },
+  {
+    code: "radio_session_actor_not_allowed",
+    retryable: false,
+    suggestedFixTemplate: "Call Radio session controls only from the Main agent.",
+  },
+  {
+    code: "radio_session_runtime_failed",
+    retryable: true,
+    suggestedFixTemplate: "Retry the Radio session control if it is still desired.",
+  },
+  {
+    code: "radio_session_wake_failed",
+    retryable: true,
+    suggestedFixTemplate: "Radio is already Running; do not retry radio.session.start or radio.session.resume (both will be rejected). The queue refill is retried automatically on the next low-watermark wake.",
+  },
+  {
+    code: "radio_session_cleanup_failed",
+    retryable: false,
+    suggestedFixTemplate: "No retry is needed: Radio is already shut down. Any leftover transcript row is superseded when Radio is next started.",
   },
 ] as const;
 
@@ -143,27 +164,40 @@ export function createRadioSessionToolRegistrations(
   return [
     {
       descriptor: radioSessionStartDescriptor,
-      handler: () => handleRadioSessionControl(control.start()),
+      handler: (ctx) => handleRadioSessionControl(ctx, () => control.start()),
     },
     {
       descriptor: radioSessionPauseDescriptor,
-      handler: () => handleRadioSessionControl(control.pause()),
+      handler: (ctx) => handleRadioSessionControl(ctx, () => control.pause()),
     },
     {
       descriptor: radioSessionShutdownDescriptor,
-      handler: () => handleRadioSessionControl(control.shutdown()),
+      handler: (ctx) => handleRadioSessionControl(ctx, () => control.shutdown()),
     },
     {
       descriptor: radioSessionResumeDescriptor,
-      handler: () => handleRadioSessionControl(control.resume()),
+      handler: (ctx) => handleRadioSessionControl(ctx, () => control.resume()),
     },
   ];
 }
 
 async function handleRadioSessionControl(
-  resultPromise: Promise<Result<RadioSessionControlResult>>,
+  ctx: StageToolContext,
+  run: () => Promise<Result<RadioSessionControlResult>>,
 ): Promise<Result<unknown>> {
-  const result = await resultPromise;
+  if (ctx.actor !== "main_agent") {
+    return {
+      ok: false,
+      error: {
+        code: "radio_session_actor_not_allowed",
+        message: "Only the Main agent may change the Radio session lifecycle.",
+        area: "agent_runtime",
+        retryable: false,
+        suggestedFix: "Call Radio session controls only from the Main agent.",
+      },
+    };
+  }
+  const result = await run();
   if (!result.ok) {
     return result;
   }

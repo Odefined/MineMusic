@@ -67,6 +67,7 @@ export function createAgentRuntimeRadioModule(
   let supervisor: RadioSupervisor | undefined;
   let activeSession: Awaited<ReturnType<typeof createActorRuntimeSession>> | undefined;
   let lifecycleState: "Running" | "Paused" | "Shutdown" = "Shutdown";
+  let transitionSerialization: Promise<void> = Promise.resolve();
 
   return {
     descriptor: {
@@ -180,114 +181,178 @@ export function createAgentRuntimeRadioModule(
       }
 
       async function startRadioSession() {
-        if (lifecycleState !== "Shutdown") {
-          return invalidTransition("radio.session.start", lifecycleState, "Shutdown");
-        }
-        const previousState = lifecycleState;
-        activeSession = await createRadioSession();
-        const transitioned = await radioSession.transitionRadioSession({
-          ownerScope,
-          operation: "start",
-          now: new Date().toISOString(),
-        });
-        if (!transitioned.ok) {
-          activeSession = undefined;
-          return transitioned;
-        }
-        lifecycleState = "Running";
-        supervisor?.transitionWakeGate("Running");
-        await supervisor?.wake("low_watermark");
-        return radioSessionControlOutput({
-          previousState,
-          state: lifecycleState,
-          wakeRequested: true,
-          transitioned: transitioned.value,
+        return await serializeTransition(async () => {
+          if (lifecycleState !== "Shutdown") {
+            return invalidTransition("radio.session.start", lifecycleState, "Shutdown");
+          }
+          const previousState = lifecycleState;
+          const now = new Date().toISOString();
+          let session: Awaited<ReturnType<typeof createActorRuntimeSession>> | undefined;
+          try {
+            await transcriptStore.deactivateActive?.({
+              ownerScope,
+              workspaceId,
+              actor: "radio_agent",
+              reason: "superseded",
+              now,
+            });
+            session = await createRadioSession();
+            const transitioned = await radioSession.transitionRadioSession({
+              ownerScope,
+              operation: "start",
+              now,
+            });
+            if (!transitioned.ok) {
+              session.abort();
+              return transitioned;
+            }
+            activeSession = session;
+            lifecycleState = "Running";
+            supervisor?.transitionWakeGate("Running");
+            try {
+              await supervisor?.wake("low_watermark");
+            } catch {
+              return wakeFailure("radio.session.start");
+            }
+            return radioSessionControlOutput({
+              previousState,
+              state: lifecycleState,
+              wakeRequested: true,
+              transitioned: transitioned.value,
+            });
+          } catch {
+            session?.abort();
+            return runtimeFailure("radio.session.start");
+          }
         });
       }
 
       async function pauseRadioSession() {
-        if (lifecycleState === "Shutdown") {
-          return invalidTransition("radio.session.pause", lifecycleState, "Running");
-        }
-        const previousState = lifecycleState;
-        if (lifecycleState === "Paused") {
-          return invalidTransition("radio.session.pause", previousState, "Running");
-        }
-        supervisor?.transitionWakeGate("Paused");
-        activeSession?.abort();
-        const transitioned = await radioSession.transitionRadioSession({
-          ownerScope,
-          operation: "pause",
-          now: new Date().toISOString(),
-        });
-        if (!transitioned.ok) {
-          return transitioned;
-        }
-        lifecycleState = "Paused";
-        return radioSessionControlOutput({
-          previousState,
-          state: lifecycleState,
-          wakeRequested: false,
-          transitioned: transitioned.value,
+        return await serializeTransition(async () => {
+          if (lifecycleState === "Shutdown") {
+            return invalidTransition("radio.session.pause", lifecycleState, "Running");
+          }
+          const previousState = lifecycleState;
+          if (lifecycleState === "Paused") {
+            return invalidTransition("radio.session.pause", previousState, "Running");
+          }
+          try {
+            const transitioned = await radioSession.transitionRadioSession({
+              ownerScope,
+              operation: "pause",
+              now: new Date().toISOString(),
+            });
+            if (!transitioned.ok) {
+              return transitioned;
+            }
+            lifecycleState = "Paused";
+            supervisor?.transitionWakeGate("Paused");
+            activeSession?.abort();
+            return radioSessionControlOutput({
+              previousState,
+              state: lifecycleState,
+              wakeRequested: false,
+              transitioned: transitioned.value,
+            });
+          } catch {
+            return runtimeFailure("radio.session.pause");
+          }
         });
       }
 
       async function shutdownRadioSession() {
-        const previousState = lifecycleState;
-        if (lifecycleState === "Shutdown") {
-          return invalidTransition("radio.session.shutdown", previousState, "Running or Paused");
-        }
-        supervisor?.transitionWakeGate("Shutdown");
-        activeSession?.abort();
-        await activeSession?.waitForIdle();
-        await transcriptStore.deactivateActive?.({
-          ownerScope,
-          workspaceId,
-          actor: "radio_agent",
-          reason: "radio_shutdown",
-          now: new Date().toISOString(),
-        });
-        activeSession = undefined;
-        const transitioned = await radioSession.transitionRadioSession({
-          ownerScope,
-          operation: "shutdown",
-          now: new Date().toISOString(),
-        });
-        if (!transitioned.ok) {
-          return transitioned;
-        }
-        lifecycleState = "Shutdown";
-        return radioSessionControlOutput({
-          previousState,
-          state: lifecycleState,
-          wakeRequested: false,
-          transitioned: transitioned.value,
+        return await serializeTransition(async () => {
+          const previousState = lifecycleState;
+          if (lifecycleState === "Shutdown") {
+            return invalidTransition("radio.session.shutdown", previousState, "Running or Paused");
+          }
+          const now = new Date().toISOString();
+          try {
+            const transitioned = await radioSession.transitionRadioSession({
+              ownerScope,
+              operation: "shutdown",
+              now,
+            });
+            if (!transitioned.ok) {
+              return transitioned;
+            }
+            lifecycleState = "Shutdown";
+            supervisor?.transitionWakeGate("Shutdown");
+            const session = activeSession;
+            activeSession = undefined;
+            session?.abort();
+            try {
+              await session?.waitForIdle();
+              await transcriptStore.deactivateActive?.({
+                ownerScope,
+                workspaceId,
+                actor: "radio_agent",
+                reason: "radio_shutdown",
+                now,
+              });
+            } catch {
+              return cleanupFailure();
+            }
+            return radioSessionControlOutput({
+              previousState,
+              state: lifecycleState,
+              wakeRequested: false,
+              transitioned: transitioned.value,
+            });
+          } catch {
+            return runtimeFailure("radio.session.shutdown");
+          }
         });
       }
 
       async function resumeRadioSession() {
-        if (lifecycleState !== "Paused") {
-          return invalidTransition("radio.session.resume", lifecycleState, "Paused");
-        }
-        const previousState = lifecycleState;
-        activeSession ??= await createRadioSession();
-        const transitioned = await radioSession.transitionRadioSession({
-          ownerScope,
-          operation: "resume",
-          now: new Date().toISOString(),
+        return await serializeTransition(async () => {
+          if (lifecycleState !== "Paused") {
+            return invalidTransition("radio.session.resume", lifecycleState, "Paused");
+          }
+          const previousState = lifecycleState;
+          let createdSession: Awaited<ReturnType<typeof createActorRuntimeSession>> | undefined;
+          try {
+            createdSession = activeSession === undefined
+              ? await createRadioSession()
+              : undefined;
+            const session = createdSession ?? activeSession;
+            const transitioned = await radioSession.transitionRadioSession({
+              ownerScope,
+              operation: "resume",
+              now: new Date().toISOString(),
+            });
+            if (!transitioned.ok) {
+              return transitioned;
+            }
+            activeSession = session;
+            lifecycleState = "Running";
+            supervisor?.transitionWakeGate("Running");
+            try {
+              await supervisor?.wake("low_watermark");
+            } catch {
+              return wakeFailure("radio.session.resume");
+            }
+            return radioSessionControlOutput({
+              previousState,
+              state: lifecycleState,
+              wakeRequested: true,
+              transitioned: transitioned.value,
+            });
+          } catch {
+            createdSession?.abort();
+            return runtimeFailure("radio.session.resume");
+          }
         });
-        if (!transitioned.ok) {
-          return transitioned;
-        }
-        lifecycleState = "Running";
-        supervisor?.transitionWakeGate("Running");
-        await supervisor?.wake("low_watermark");
-        return radioSessionControlOutput({
-          previousState,
-          state: lifecycleState,
-          wakeRequested: true,
-          transitioned: transitioned.value,
-        });
+      }
+
+      function serializeTransition<T>(run: () => Promise<T>): Promise<T> {
+        const scheduled = transitionSerialization.then(run, run);
+        transitionSerialization = scheduled.then(
+          () => undefined,
+          () => undefined,
+        );
+        return scheduled;
       }
     },
     wake(reason) {
@@ -304,6 +369,72 @@ export function createAgentRuntimeRadioModule(
       activeSession = undefined;
       lifecycleState = "Shutdown";
       return { ok: true, value: undefined };
+    },
+  };
+}
+
+function runtimeFailure(toolName: string): {
+  ok: false;
+  error: {
+    code: "radio_session_runtime_failed";
+    message: string;
+    area: "agent_runtime";
+    retryable: true;
+    suggestedFix: string;
+  };
+} {
+  return {
+    ok: false,
+    error: {
+      code: "radio_session_runtime_failed",
+      message: `${toolName} could not complete because the Radio runtime boundary failed.`,
+      area: "agent_runtime",
+      retryable: true,
+      suggestedFix: "Retry the Radio session control if it is still desired.",
+    },
+  };
+}
+
+function wakeFailure(toolName: "radio.session.start" | "radio.session.resume"): {
+  ok: false;
+  error: {
+    code: "radio_session_wake_failed";
+    message: string;
+    area: "agent_runtime";
+    retryable: true;
+    suggestedFix: string;
+  };
+} {
+  return {
+    ok: false,
+    error: {
+      code: "radio_session_wake_failed",
+      message: `${toolName} set Radio running, but the refill wake request failed.`,
+      area: "agent_runtime",
+      retryable: true,
+      suggestedFix: "Radio is already Running; do not retry radio.session.start or radio.session.resume (both will be rejected). The queue refill is retried automatically on the next low-watermark wake.",
+    },
+  };
+}
+
+function cleanupFailure(): {
+  ok: false;
+  error: {
+    code: "radio_session_cleanup_failed";
+    message: string;
+    area: "agent_runtime";
+    retryable: false;
+    suggestedFix: string;
+  };
+} {
+  return {
+    ok: false,
+    error: {
+      code: "radio_session_cleanup_failed",
+      message: "radio.session.shutdown set Radio to Shutdown, but transcript cleanup did not finish; the leftover transcript row will be superseded on the next radio.session.start.",
+      area: "agent_runtime",
+      retryable: false,
+      suggestedFix: "No retry is needed: Radio is already shut down. Any leftover transcript row is superseded when Radio is next started.",
     },
   };
 }

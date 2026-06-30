@@ -44,35 +44,6 @@ export function createPostgresAgentRuntimeTranscriptStore(input: {
       return row === undefined ? [] : messagesFromStoredJson(row.messages_json);
     },
     async save(saveInput) {
-      const active = await input.db.get<{ session_id: string }>(
-        `
-          SELECT session_id
-          FROM agent_runtime_actor_sessions
-          WHERE owner_scope = ?
-            AND workspace_id = ?
-            AND actor_kind = ?
-            AND active = TRUE
-          ORDER BY updated_at DESC
-          LIMIT 1
-        `,
-        [saveInput.ownerScope, saveInput.workspaceId, saveInput.actor],
-      );
-      if (active !== undefined) {
-        await input.db.run(
-          `
-            UPDATE agent_runtime_actor_sessions
-            SET messages_json = ?::jsonb,
-              updated_at = ?
-            WHERE session_id = ?
-          `,
-          [
-            JSON.stringify(saveInput.messages),
-            saveInput.now,
-            active.session_id,
-          ],
-        );
-        return;
-      }
       await input.db.run(
         `
           INSERT INTO agent_runtime_actor_sessions (
@@ -86,6 +57,11 @@ export function createPostgresAgentRuntimeTranscriptStore(input: {
             updated_at
           )
           VALUES (?, ?, ?, ?, TRUE, ?::jsonb, ?, ?)
+          ON CONFLICT (owner_scope, workspace_id, actor_kind)
+          WHERE active = TRUE
+          DO UPDATE SET
+            messages_json = EXCLUDED.messages_json,
+            updated_at = EXCLUDED.updated_at
         `,
         [
           randomUUID(),

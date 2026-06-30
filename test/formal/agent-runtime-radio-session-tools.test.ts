@@ -91,6 +91,15 @@ if (!invalidPayload.ok) {
   assert.equal(invalidPayload.error.code, "stage_interface.invalid_input");
 }
 
+const radioActorDenied = await stageInterface.dispatch(testStageToolContext("radio_agent"), {
+  toolName: "radio.session.start",
+  payload: {},
+});
+assert.equal(radioActorDenied.ok, false);
+if (!radioActorDenied.ok) {
+  assert.equal(radioActorDenied.error.code, "radio_session_actor_not_allowed");
+}
+
 function createFakeRadioSessionControl(): RadioSessionControlPort {
   let revision = 0;
   return {
@@ -133,12 +142,12 @@ function ok(value: RadioSessionControlResult): Promise<Result<RadioSessionContro
   return Promise.resolve({ ok: true, value });
 }
 
-function testStageToolContext(): StageToolContext {
+function testStageToolContext(actor: StageToolContext["actor"] = "main_agent"): StageToolContext {
   return createStageToolContext({
     ownerScope: "local",
     sessionId: "radio-session-tools-test-session",
     requestId: "radio-session-tools-test-request",
-    actor: "main_agent",
+    ...(actor === undefined ? {} : { actor }),
     clock: () => "2026-06-30T00:00:00.000Z",
     executionGate: {
       async preflight() {

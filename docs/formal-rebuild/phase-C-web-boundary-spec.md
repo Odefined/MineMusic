@@ -37,6 +37,41 @@ Seam Resolutions"; this spec does not restate them. In build terms:
   delta-replay buffer in v1); multi-tab equal-writer serialization, de-conflated
   from playback output-device authority (ADR-0036).
 
+### C3a — Workspace Presence And Playback Controller Leases
+
+Phase C must introduce explicit liveness leases at the Web boundary. This is the
+authority that keeps Radio and logical playback from continuing after the
+workspace has no active Web surface; Agent Runtime must not infer that from its
+own in-memory Radio lifecycle, and Music Experience playback truth must not be
+left `playing` merely because the server process still exists.
+
+- **Workspace presence lease.** Each Web connection registers a short-lived
+  `{ ownerScope, workspaceId, clientId, leaseId, expiresAt }` lease and refreshes
+  it by heartbeat. Normal disconnect releases it; abnormal disconnect expires by
+  TTL. The lease table/state is Workbench Interface runtime interaction state,
+  exposed through the Web transport owned by Server Host.
+- **Playback controller lease.** At most one Web client per workspace owns the
+  active browser/player controller lease. Other tabs observe. Controller
+  disconnect or heartbeat expiry releases the lease; stale expiry events must be
+  generation/token checked so an old timer cannot stop a newly reconnected
+  controller.
+- **Unattended-workspace transition.** When the last workspace presence lease
+  expires, or when the active playback-controller lease expires without a
+  replacement, Workbench emits a typed unattended-workspace event. That event
+  routes through owning commands: Radio is paused or shut down through Agent
+  Runtime lifecycle control, and Music Experience logical playback is paused
+  through its playback command. The Web layer does not mutate Radio/session or
+  playback tables directly.
+- **Startup reconciliation.** Server startup with no valid Web presence or
+  playback-controller lease must not restore Radio to `Running`. If durable
+  Music Experience playback truth says `playing` but there is no active playback
+  controller lease, startup/lease recovery must reconcile it to paused through
+  the owning Music Experience command.
+
+The source-resolution/player-control work can still graduate separately; this
+lease rule is the minimum Phase C contract that prevents headless Radio or
+logical playback from running without an observing/controlling Web surface.
+
 ## Handle Reuse (Web vs Agent)
 
 The Web object reference is an opaque public handle — but for **boundary +
@@ -141,8 +176,10 @@ does not make the whole product feel like an admin console.
 - Memory / taste: after Phase C.
 - Bounded delta-replay buffer (ADR-0036): until resnapshot cost proves
   insufficient.
-- Playback output-device authority: separate Music Experience ↔ Web player
-  follow-up (ADR-0036). This follow-up should introduce a
+- Playback source resolution and actual output-device control: separate Music
+  Experience ↔ Web player follow-up (ADR-0036). C3a still owns the
+  presence/controller lease and unattended-workspace stop guarantee; this
+  follow-up should introduce a
   `PlaybackSourceResolver` boundary: `materialRef -> current survivor -> choose
   bound source by playback policy -> local source target or provider
   `SourceProvider.getPlayableLinks(...)` -> short-lived `PlaybackSource` ->
