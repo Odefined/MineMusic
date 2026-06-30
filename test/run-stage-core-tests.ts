@@ -28,6 +28,7 @@ const testModules = [
     "./formal/agent-runtime-radio-module.test.js",
     "./formal/radio-supervisor.test.js",
     "./formal/agent-runtime-background-refill-trigger.test.js",
+    "./formal/radio-endurance.test.js",
     "./formal/active-tree.test.js",
     "./formal/mcp-stdio-transport.test.js",
     "./formal/extension-capability-slot.test.js",
