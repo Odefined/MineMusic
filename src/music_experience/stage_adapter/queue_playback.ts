@@ -140,6 +140,11 @@ const playbackPlayErrors = [
     retryable: true,
     suggestedFixTemplate: "Retry the action if it is still desired.",
   },
+  {
+    code: "voided_stale",
+    retryable: true,
+    suggestedFixTemplate: "Refresh the current music experience state and retry if the action is still desired.",
+  },
 ] as const;
 
 function queueEditDescriptor(input: {
@@ -643,6 +648,7 @@ async function handlePlaybackPlay(
     ownerScope: ctx.ownerScope,
     materialRef: resolved.value,
     actor: revisionChangeActorForContext(ctx),
+    ...(ctx.preconditionBasis === undefined ? {} : { basis: ctx.preconditionBasis }),
     now: ctx.clock(),
   });
   if (!played.ok) {

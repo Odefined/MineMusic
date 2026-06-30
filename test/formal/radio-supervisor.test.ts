@@ -687,23 +687,24 @@ async function runRadioSupervisorTests(): Promise<void> {
 
   const firstKey = harness.backgroundWork.submissions[0]!.input.idempotencyKey;
   const secondKey = harness.backgroundWork.submissions[1]!.input.idempotencyKey;
-  assert.notEqual(firstKey, secondKey);
-  assert.match(firstKey ?? "", /^radio-supervisor-test-epoch\|/);
-  assert.match(secondKey ?? "", /^radio-supervisor-test-epoch\|/);
-  assert.match(firstKey ?? "", /\|low_watermark\|1$/);
-  assert.match(secondKey ?? "", /\|low_watermark\|2$/);
+  assert.equal(firstKey, undefined);
+  assert.equal(secondKey, undefined);
+  assert.equal(harness.backgroundWork.submissions[0]!.input.queuePolicy, "exclusive");
+  assert.equal(harness.backgroundWork.submissions[1]!.input.queuePolicy, "exclusive");
+  assert.equal(harness.backgroundWork.submissions[0]!.input.singletonKey, "default|owner_radio_supervisor|radio");
+  assert.equal(harness.backgroundWork.submissions[1]!.input.singletonKey, "default|owner_radio_supervisor|radio");
 }
 
 {
-  const first = createHarness({ queueDepth: 4, runEpoch: "first-process" });
-  const second = createHarness({ queueDepth: 4, runEpoch: "second-process" });
+  const first = createHarness({ queueDepth: 4 });
+  const second = createHarness({ queueDepth: 4 });
 
   await first.supervisor.wake("low_watermark");
   await second.supervisor.wake("low_watermark");
 
-  assert.notEqual(
-    first.backgroundWork.submissions[0]!.input.idempotencyKey,
-    second.backgroundWork.submissions[0]!.input.idempotencyKey,
+  assert.equal(
+    first.backgroundWork.submissions[0]!.input.singletonKey,
+    second.backgroundWork.submissions[0]!.input.singletonKey,
   );
 }
 
@@ -713,7 +714,6 @@ function createHarness(input: {
   queueDepth: number;
   wakeGateState?: "Running" | "Paused" | "Shutdown";
   clock?: RadioSupervisorClock;
-  runEpoch?: string;
   failedTerminalCooldownMs?: number;
   lowWatermark?: number;
   fillTarget?: number;
@@ -742,7 +742,6 @@ function createHarness(input: {
       },
     },
     ...(input.clock === undefined ? {} : { clock: input.clock }),
-    runEpoch: input.runEpoch ?? "radio-supervisor-test-epoch",
     ...(input.failedTerminalCooldownMs === undefined ? {} : {
       failedTerminalCooldownMs: input.failedTerminalCooldownMs,
     }),
@@ -802,6 +801,7 @@ class FakeBackgroundWorkBackend implements BackgroundWorkBackend {
   nextSubmitErrorAfterCreate?: unknown;
   private handler?: BackgroundWorkHandler<RadioRefillRunJobPayload>;
   private jobCounter = 0;
+  private readonly terminalJobIds = new Set<string>();
   private readonly terminalResolvers = new Map<string, (terminal: BackgroundWorkTerminalState) => void>();
   private readonly terminalRejecters = new Map<string, (error: unknown) => void>();
 
@@ -815,8 +815,13 @@ class FakeBackgroundWorkBackend implements BackgroundWorkBackend {
       throw error;
     }
     const existing = this.submissions.find((submission) =>
-      submission.input.idempotencyKey !== undefined &&
-      submission.input.idempotencyKey === input.idempotencyKey
+      !this.terminalJobIds.has(submission.jobId) &&
+      (
+        (submission.input.idempotencyKey !== undefined &&
+          submission.input.idempotencyKey === input.idempotencyKey) ||
+        (submission.input.singletonKey !== undefined &&
+          submission.input.singletonKey === input.singletonKey)
+      )
     );
     if (existing !== undefined) {
       return { jobId: existing.jobId, submission: "deduplicated" };
@@ -884,6 +889,7 @@ class FakeBackgroundWorkBackend implements BackgroundWorkBackend {
     }
     this.terminalResolvers.delete(jobId);
     this.terminalRejecters.delete(jobId);
+    this.terminalJobIds.add(jobId);
     resolve({ jobId, state });
   }
 

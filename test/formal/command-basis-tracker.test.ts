@@ -75,6 +75,10 @@ assert.deepEqual(changedBasisFromRuntimeMetadata({ queueRevision: 4 }), { queueR
 assert.throws(() => changedBasisFromRuntimeMetadata(null), /changedBasis must be an object/u);
 assert.throws(() => changedBasisFromRuntimeMetadata("bad"), /changedBasis must be an object/u);
 assert.throws(() => changedBasisFromRuntimeMetadata({ queueRevision: 1.5 }), /queueRevision must be a safe integer/u);
+assert.throws(
+  () => changedBasisFromRuntimeMetadata({ radioSession: 1 }),
+  /changedBasis\.radioSession is not a known concern revision/u,
+);
 
 function okToolOutput(input: {
   runtime?: ToolCallOutput["runtime"];

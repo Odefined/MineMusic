@@ -112,6 +112,11 @@ export function changedBasisFromRuntimeMetadata(changedBasis: unknown): ConcernR
   if (changedBasis === null || typeof changedBasis !== "object") {
     throw new Error("Stage tool changedBasis must be an object when present.");
   }
+  for (const key of Object.keys(changedBasis)) {
+    if (!concernRevisionKeys.has(key as ConcernRevisionKey)) {
+      throw new Error(`Stage tool changedBasis.${key} is not a known concern revision.`);
+    }
+  }
 
   const parsed: ConcernRevisionSet = {};
   copyRevision(changedBasis, parsed, "radioDirectionRevision");
@@ -120,6 +125,13 @@ export function changedBasisFromRuntimeMetadata(changedBasis: unknown): ConcernR
   copyRevision(changedBasis, parsed, "playbackRevision");
   return parsed;
 }
+
+const concernRevisionKeys = new Set<ConcernRevisionKey>([
+  "radioDirectionRevision",
+  "queueRevision",
+  "radioSessionRevision",
+  "playbackRevision",
+]);
 
 function copyRevision(
   source: object,

@@ -15,6 +15,7 @@ import type {
   BackgroundWorkBackend,
   BackgroundWorkAwaitTerminalInput,
   BackgroundWorkHandler,
+  RegisterBackgroundWorkHandlerInput,
   BackgroundWorkSubmitInput,
   BackgroundWorkSubmitResult,
   BackgroundWorkTerminalState,
@@ -53,6 +54,7 @@ export type CreatePgBossBackgroundWorkBackendInput = {
 
 type HandlerRegistration = {
   handler: BackgroundWorkHandler<object>;
+  queuePolicy?: string;
 };
 
 const jobTypePattern = /^[A-Za-z0-9_.\-/]+$/;
@@ -63,7 +65,7 @@ export function createPgBossBackgroundWorkBackend(
 ): BackgroundWorkBackend {
   const client = input.client ?? createPgBossClient(input);
   const handlers = new Map<string, HandlerRegistration>();
-  const createdQueues = new Set<string>();
+  const createdQueues = new Map<string, string | undefined>();
   let clientStarted = false;
   let workersStarted = false;
   let lifecycleAbortController = new AbortController();
@@ -74,14 +76,16 @@ export function createPgBossBackgroundWorkBackend(
     ): Promise<BackgroundWorkSubmitResult> {
       const jobType = assertJobType(submitInput.jobType);
       await ensureClientStarted();
-      await ensureQueue(jobType);
+      await ensureQueue(jobType, submitInput.queuePolicy);
 
       const idempotencyKey = normalizedOptionalString(submitInput.idempotencyKey);
+      const singletonKey = normalizedOptionalString(submitInput.singletonKey);
       const expectedJobId = idempotencyKey === undefined
         ? undefined
         : deterministicJobId(jobType, idempotencyKey);
       const options: SendOptions = {
         ...(expectedJobId === undefined ? {} : { id: expectedJobId }),
+        ...(singletonKey === undefined ? {} : { singletonKey }),
         ...(submitInput.runAfter === undefined ? {} : { startAfter: submitInput.runAfter }),
         ...(submitInput.retryLimit === undefined ? {} : { retryLimit: submitInput.retryLimit }),
         ...(submitInput.retryDelay === undefined ? {} : { retryDelay: submitInput.retryDelay }),
@@ -96,11 +100,9 @@ export function createPgBossBackgroundWorkBackend(
         };
       }
 
-      if (expectedJobId === undefined) {
-        throw new Error(`Background Work backend did not create job '${jobType}'.`);
-      }
-
-      const existingJobId = await findExistingJobId(jobType, expectedJobId);
+      const existingJobId = singletonKey === undefined
+        ? await findExistingJobId(jobType, expectedJobId)
+        : await findExistingSingletonJobId(jobType, singletonKey);
       if (existingJobId === undefined) {
         throw new Error(`Background Work backend deduplicated job '${jobType}' but no existing job was found.`);
       }
@@ -111,10 +113,7 @@ export function createPgBossBackgroundWorkBackend(
       };
     },
 
-    registerHandler<Payload extends object>(registerInput: {
-      jobType: string;
-      handler: BackgroundWorkHandler<Payload>;
-    }): void {
+    registerHandler<Payload extends object>(registerInput: RegisterBackgroundWorkHandlerInput<Payload>): void {
       if (workersStarted) {
         throw new Error("Background Work handlers must be registered before workers start.");
       }
@@ -126,6 +125,7 @@ export function createPgBossBackgroundWorkBackend(
 
       handlers.set(jobType, {
         handler: registerInput.handler as BackgroundWorkHandler<object>,
+        ...(registerInput.queuePolicy === undefined ? {} : { queuePolicy: registerInput.queuePolicy }),
       });
     },
 
@@ -162,7 +162,7 @@ export function createPgBossBackgroundWorkBackend(
 
       await ensureClientStarted();
       for (const [jobType, registration] of handlers) {
-        await ensureQueue(jobType);
+        await ensureQueue(jobType, registration.queuePolicy);
         await client.work<object>(
           jobType,
           {
@@ -216,18 +216,39 @@ export function createPgBossBackgroundWorkBackend(
     clientStarted = true;
   }
 
-  async function ensureQueue(jobType: string): Promise<void> {
+  async function ensureQueue(
+    jobType: string,
+    policy: string | undefined,
+  ): Promise<void> {
+    const effectivePolicy = policy ?? input.queueOptions?.policy;
     if (createdQueues.has(jobType)) {
+      if (createdQueues.get(jobType) !== effectivePolicy) {
+        throw new Error(`Background Work queue '${jobType}' was already created with a different policy.`);
+      }
       return;
     }
 
-    await client.createQueue(jobType, input.queueOptions);
-    createdQueues.add(jobType);
+    await client.createQueue(jobType, {
+      ...(input.queueOptions ?? {}),
+      ...(effectivePolicy === undefined ? {} : { policy: effectivePolicy }),
+    });
+    createdQueues.set(jobType, effectivePolicy);
   }
 
-  async function findExistingJobId(jobType: string, expectedJobId: string): Promise<string | undefined> {
+  async function findExistingJobId(
+    jobType: string,
+    expectedJobId: string | undefined,
+  ): Promise<string | undefined> {
+    if (expectedJobId === undefined) {
+      return undefined;
+    }
     const jobs = await client.findJobs(jobType, { id: expectedJobId });
     return jobs.find((job) => job.id === expectedJobId)?.id;
+  }
+
+  async function findExistingSingletonJobId(jobType: string, singletonKey: string): Promise<string | undefined> {
+    const jobs = await client.findJobs(jobType, { key: singletonKey });
+    return jobs[0]?.id;
   }
 }
 

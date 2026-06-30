@@ -3,6 +3,7 @@ import type { StreamFn } from "@earendil-works/pi-agent-core";
 
 import {
   createAgentRuntimeBackgroundRefillPort as createProductionBackgroundRefillPort,
+  createAgentRunCascadeCoordinator,
   createActorRuntimeSession,
   createInMemoryAgentRuntimeTranscriptStore,
   createRadioRunResultRecorder,
@@ -45,6 +46,7 @@ function createAgentRuntimeBackgroundRefillPort(input: {
   clock?: () => string;
   workspaceContext?: WorkspaceContextAssembler;
   promptForPayload?: Parameters<typeof createProductionBackgroundRefillPort>[0]["promptForPayload"];
+  cascade?: Parameters<typeof createProductionBackgroundRefillPort>[0]["cascade"];
   hooks?: Parameters<typeof createProductionBackgroundRefillPort>[0]["hooks"];
   resultFromRun?: ReturnType<
     Parameters<typeof createProductionBackgroundRefillPort>[0]["createResultRecorder"]
@@ -53,6 +55,7 @@ function createAgentRuntimeBackgroundRefillPort(input: {
 }) {
   return createProductionBackgroundRefillPort({
     session: input.session,
+    ...(input.cascade === undefined ? {} : { cascade: input.cascade }),
     ...(input.promptForPayload === undefined ? {} : { promptForPayload: input.promptForPayload }),
     ...(input.hooks === undefined ? {} : { hooks: input.hooks }),
     createResultRecorder: input.createResultRecorder ?? (() => ({
@@ -466,7 +469,7 @@ function createCountingTranscriptStore(): {
 
   const basisRunResult = await runPort.runRadioRefill({
     runId: "radio-job-basis",
-    payload: payloadWithRevisions({ refillGeneration: 18, radioSessionRevision: 99, radioDirectionRevision: 99 }),
+    payload: payloadWithRevisions({ refillGeneration: 18, radioSessionRevision: 3, radioDirectionRevision: 7 }),
     signal: new AbortController().signal,
   });
 
@@ -494,6 +497,57 @@ function createCountingTranscriptStore(): {
       actor: "radio_agent",
     },
   ]);
+}
+
+{
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
+  let streamCalled = false;
+  const actorSession = await createTestActorRuntimeSession("stale-payload", {
+    transcriptStore,
+    streamFn() {
+      streamCalled = true;
+      return fakeAssistantMessageEventStream({
+        type: "done",
+        reason: "stop",
+        message: assistantTextMessage("should not run"),
+      });
+    },
+    workspaceContext: createWorkspaceContextAssembler({
+      musicExperience: {
+        async readWorkspaceProjection() {
+          return workspaceProjectionFixture({
+            concernRevisions: {
+              queueRevision: 11,
+              radioDirectionRevision: 7,
+              radioSessionRevision: 3,
+              playbackRevision: 0,
+            },
+          });
+        },
+      },
+    }),
+  });
+  const runPort = createAgentRuntimeBackgroundRefillPort({
+    ...key,
+    session: actorSession,
+    transcriptStore,
+    clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromRun: defaultRadioResult,
+  });
+
+  assert.deepEqual(await runPort.runRadioRefill({
+    runId: "radio-job-stale-payload",
+    payload: payloadWithRevisions({ refillGeneration: 19, radioSessionRevision: 99, radioDirectionRevision: 99 }),
+    signal: new AbortController().signal,
+  }), {
+    runId: "radio-job-stale-payload",
+    radioDirectionRevision: 99,
+    radioSessionRevision: 99,
+    outcome: "voided_stale",
+    appendedCount: 0,
+  });
+  assert.equal(streamCalled, false);
+  assert.equal(transcriptStore.snapshot(key).length, 0);
 }
 
 {
@@ -826,7 +880,7 @@ function createCountingTranscriptStore(): {
 
   assert.deepEqual(await running, {
     runId: "radio-job-abort",
-    radioDirectionRevision: 0,
+    radioDirectionRevision: 7,
     radioSessionRevision: 0,
     outcome: "voided_stale",
     appendedCount: 0,
@@ -853,11 +907,119 @@ function createCountingTranscriptStore(): {
     signal: controller.signal,
   }), {
     runId: "radio-job-pre-abort",
-    radioDirectionRevision: 0,
+    radioDirectionRevision: 7,
     radioSessionRevision: 0,
     outcome: "voided_stale",
     appendedCount: 0,
   });
+  assert.equal(transcriptStore.snapshot(key).length, 0);
+}
+
+{
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
+  const controller = new AbortController();
+  let streamCalled = false;
+  const runPort = createAgentRuntimeBackgroundRefillPort({
+    ...key,
+    session: await createTestActorRuntimeSession("prompt-abort", {
+      transcriptStore,
+      streamFn() {
+        streamCalled = true;
+        return fakeAssistantMessageEventStream({
+          type: "done",
+          reason: "stop",
+          message: assistantTextMessage("should not stream"),
+        });
+      },
+    }),
+    transcriptStore,
+    ...radioRunDefaults(),
+    clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromRun: defaultRadioResult,
+    async promptForPayload() {
+      controller.abort();
+      return "late prompt";
+    },
+  });
+
+  assert.deepEqual(await runPort.runRadioRefill({
+    runId: "radio-job-prompt-abort",
+    payload: payload(20),
+    signal: controller.signal,
+  }), {
+    runId: "radio-job-prompt-abort",
+    radioDirectionRevision: 7,
+    radioSessionRevision: 0,
+    outcome: "voided_stale",
+    appendedCount: 0,
+  });
+  assert.equal(streamCalled, false);
+  assert.equal(transcriptStore.snapshot(key).length, 0);
+}
+
+{
+  const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
+  const cascade = createAgentRunCascadeCoordinator({ ownerScope: key.ownerScope });
+  let resolveRead: ((value: WorkspaceContextAssembly | Promise<WorkspaceContextAssembly>) => void) | undefined;
+  let streamCalled = false;
+  const actorSession = await createTestActorRuntimeSession("cascade-start-abort", {
+    transcriptStore,
+    workspaceContext: {
+      assemble() {
+        return new Promise((resolve) => {
+          resolveRead = resolve;
+        });
+      },
+    },
+    streamFn() {
+      streamCalled = true;
+      return fakeAssistantMessageEventStream({
+        type: "done",
+        reason: "stop",
+        message: assistantTextMessage("should not stream"),
+      });
+    },
+  });
+  const runPort = createAgentRuntimeBackgroundRefillPort({
+    ...key,
+    session: actorSession,
+    cascade,
+    transcriptStore,
+    clock: () => "2026-06-28T00:00:00.000Z",
+    resultFromRun: defaultRadioResult,
+  });
+  const running = runPort.runRadioRefill({
+    runId: "radio-job-cascade-start-abort",
+    payload: payload(21),
+    signal: new AbortController().signal,
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.ok(resolveRead !== undefined);
+  cascade.observeRevisionChange({
+    ownerScope: key.ownerScope,
+    concern: "radio-direction",
+    newRevision: 8,
+    actor: "main_agent",
+  });
+  resolveRead({
+    workspaceContext: {},
+    commandBasis: {
+      queueRevision: 11,
+      radioDirectionRevision: 7,
+      radioSessionRevision: 0,
+      playbackRevision: 0,
+    },
+  });
+
+  assert.deepEqual(await running, {
+    runId: "radio-job-cascade-start-abort",
+    radioDirectionRevision: 7,
+    radioSessionRevision: 0,
+    outcome: "voided_stale",
+    appendedCount: 0,
+  });
+  assert.equal(streamCalled, false);
   assert.equal(transcriptStore.snapshot(key).length, 0);
 }
 
@@ -987,7 +1149,7 @@ function payload(refillGeneration: number) {
   return payloadWithRevisions({
     refillGeneration,
     radioSessionRevision: 0,
-    radioDirectionRevision: 0,
+    radioDirectionRevision: 7,
   });
 }
 

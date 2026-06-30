@@ -63,6 +63,17 @@ export function createAgentRuntimeBackgroundRefillPort(
         }),
         hooks: {
           ...input.hooks,
+          async prepareRun(hookInput) {
+            const prepareDecision = await input.hooks?.prepareRun?.(hookInput);
+            if (prepareDecision?.kind === "skip") {
+              return prepareDecision;
+            }
+            if (radioRefillPayloadMatchesBasis(runInput.payload, hookInput.commandBasis)) {
+              return undefined;
+            }
+            radioResult = voidedStaleResult(runInput.runId, runInput.payload);
+            return { kind: "skip" as const };
+          },
           async onToolResult(hookInput) {
             await input.hooks?.onToolResult?.(hookInput);
             await resultRecorder.observeToolResult({
@@ -84,7 +95,11 @@ export function createAgentRuntimeBackgroundRefillPort(
         },
       });
       const newMessages = runResult.newMessages;
-      if (runInput.signal.aborted || finalAssistantAborted(newMessages)) {
+      if (
+        runResult.outcome === "aborted" ||
+        runInput.signal.aborted ||
+        finalAssistantAborted(newMessages)
+      ) {
         return voidedStaleResult(runInput.runId, runInput.payload);
       }
       if (radioResult === undefined) {
@@ -105,6 +120,14 @@ function radioRefillRunBasis(payload: RadioRefillRunJobPayload): ConcernRevision
     radioDirectionRevision: payload.radioDirectionRevision,
     radioSessionRevision: payload.radioSessionRevision,
   };
+}
+
+function radioRefillPayloadMatchesBasis(
+  payload: RadioRefillRunJobPayload,
+  basis: ConcernRevisionSet,
+): boolean {
+  return basis.radioDirectionRevision === payload.radioDirectionRevision &&
+    basis.radioSessionRevision === payload.radioSessionRevision;
 }
 
 async function promptForPayload(

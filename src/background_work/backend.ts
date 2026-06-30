@@ -1,9 +1,19 @@
 export type BackgroundWorkSubmission = "created" | "deduplicated";
 
+export type BackgroundWorkQueuePolicy =
+  | "standard"
+  | "short"
+  | "singleton"
+  | "stately"
+  | "exclusive"
+  | "key_strict_fifo";
+
 export type BackgroundWorkSubmitInput<Payload extends object = Record<string, unknown>> = {
   jobType: string;
   payload: Payload;
   idempotencyKey?: string;
+  singletonKey?: string;
+  queuePolicy?: BackgroundWorkQueuePolicy;
   runAfter?: Date;
   // pg-boss retry policy. When omitted, pg-boss applies its queue/constructor
   // defaults. Carried so domain callers can declare per-job retry without
@@ -47,6 +57,7 @@ export type BackgroundWorkHandler<Payload extends object = Record<string, unknow
 
 export type RegisterBackgroundWorkHandlerInput<Payload extends object = Record<string, unknown>> = {
   jobType: string;
+  queuePolicy?: BackgroundWorkQueuePolicy;
   handler: BackgroundWorkHandler<Payload>;
 };
 

@@ -128,18 +128,17 @@ export function createMusicExperienceQueuePlaybackCommand(
     async playNow(commandInput) {
       assertMaterialRef(commandInput.materialRef);
 
-      const result: Result<MusicExperiencePlaybackPlayCommandOutput> = await input.database.transaction(async (db) => {
+      const result: Result<MusicExperiencePlaybackPlayCommandOutput> = await runQueuePlayback(input, async (db) => {
         const records = createMusicExperienceQueuePlaybackRecords({ db });
-        return {
-          ok: true,
-          value: await records.playNow(commandInput),
-        };
+        return records.playNow(commandInput);
       });
-      observePlaybackRevision(input, {
-        ownerScope: commandInput.ownerScope,
-        playbackRevision: result.value.playbackRevision,
-        actor: commandInput.actor ?? "user",
-      });
+      if (result.ok) {
+        observePlaybackRevision(input, {
+          ownerScope: commandInput.ownerScope,
+          playbackRevision: result.value.playbackRevision,
+          actor: commandInput.actor ?? "user",
+        });
+      }
       return result;
     },
   };

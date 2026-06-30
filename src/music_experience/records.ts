@@ -91,6 +91,7 @@ export type MusicExperienceQueuePlaybackRecords = {
   playNow(input: {
     ownerScope: string;
     materialRef: Ref;
+    basis?: ConcernRevisionSet;
     now: string;
   }): Promise<{
     materialRef: Ref;
@@ -352,6 +353,7 @@ export function createMusicExperienceQueuePlaybackRecords(
         db,
         key,
         materialRef: playInput.materialRef,
+        ...(playInput.basis === undefined ? {} : { basis: playInput.basis }),
         now: playInput.now,
       });
 
@@ -718,9 +720,15 @@ async function advanceRevision(input: {
   basis?: ConcernRevisionSet;
   now: string;
   setClause: string;
+  setParams?: readonly (string | number)[];
 }): Promise<StateRow> {
   const conditions: string[] = [];
-  const params: (string | number)[] = [input.now, input.key.ownerScope, input.key.workspaceId];
+  const params: (string | number)[] = [
+    ...(input.setParams ?? []),
+    input.now,
+    input.key.ownerScope,
+    input.key.workspaceId,
+  ];
   const basisConditions: Array<[fragment: string, revision: ConcernRevision | undefined]> = [
     ["AND radio_direction_revision = ?", input.basis?.radioDirectionRevision],
     ["AND queue_revision = ?", input.basis?.queueRevision],
@@ -767,34 +775,25 @@ async function updatePlayback(input: {
   db: MusicDatabaseContext;
   key: MusicExperienceWorkspaceKey;
   materialRef: Ref;
+  basis?: ConcernRevisionSet;
   now: string;
 }): Promise<StateRow> {
-  const row = await input.db.get<StateRow>(
-    `
-      UPDATE music_experience_state
-      SET playback_revision = playback_revision + 1,
-        now_playing_material_ref_key = ?,
-        now_playing_material_ref_json = ?::jsonb,
-        playback_status = 'playing',
-        updated_at = ?
-      WHERE owner_scope = ?
-        AND workspace_id = ?
-      RETURNING ${STATE_ROW_COLUMNS}
-    `,
-    [
+  return advanceRevision({
+    db: input.db,
+    key: input.key,
+    ...(input.basis === undefined ? {} : { basis: input.basis }),
+    now: input.now,
+    setClause: [
+      "playback_revision = playback_revision + 1",
+      "now_playing_material_ref_key = ?",
+      "now_playing_material_ref_json = ?::jsonb",
+      "playback_status = 'playing'",
+    ].join(",\n        "),
+    setParams: [
       refKey(input.materialRef),
       JSON.stringify(input.materialRef),
-      input.now,
-      input.key.ownerScope,
-      input.key.workspaceId,
     ],
-  );
-
-  if (row === undefined) {
-    throw new Error("Music Experience playback update did not return a state row.");
-  }
-
-  return row;
+  });
 }
 
 async function updateRadioDirectionRevision(input: {

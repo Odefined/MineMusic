@@ -19,7 +19,7 @@ export const agentRuntimeTranscriptSchema: MusicDatabaseSchemaContribution = {
     await context.run(`
       DO $$
       BEGIN
-        IF to_regclass('public.agent_runtime_radio_transcripts') IS NOT NULL THEN
+        IF to_regclass('agent_runtime_radio_transcripts') IS NOT NULL THEN
           INSERT INTO agent_runtime_transcripts (
             owner_scope,
             workspace_id,

@@ -38,8 +38,13 @@ import type { EncodedWorkspaceContext } from "./workspace_context_encoder.js";
 import type { WorkspaceContextAssembler } from "./workspace_context_assembler.js";
 
 export type ActorRuntimeSessionRunResult = MineMusicAgentHarnessRunResult & {
+  outcome: ActorRuntimeSessionRunOutcome;
   workspaceContext: EncodedWorkspaceContext;
 };
+
+export type ActorRuntimeSessionRunOutcome = "completed" | "aborted" | "skipped";
+
+export type ActorRuntimeSessionRunControl = { kind: "skip" };
 
 export type ActorRuntimeSessionRunHooks = {
   beforeWorkspaceContextAssemble?: (input: {
@@ -49,11 +54,13 @@ export type ActorRuntimeSessionRunHooks = {
   prepareRun?: (input: {
     runId: string;
     workspaceContext: EncodedWorkspaceContext;
+    commandBasis: ConcernRevisionSet;
     signal: AbortSignal;
-  }) => Promise<void> | void;
+  }) => Promise<ActorRuntimeSessionRunControl | void> | ActorRuntimeSessionRunControl | void;
   onRunStart?: (input: {
     runId: string;
     workspaceContext: EncodedWorkspaceContext;
+    commandBasis: ConcernRevisionSet;
     signal: AbortSignal;
   }) => Promise<void> | void;
   onToolResult?: (input: {
@@ -64,6 +71,7 @@ export type ActorRuntimeSessionRunHooks = {
   afterRun?: (input: {
     runId: string;
     workspaceContext: EncodedWorkspaceContext;
+    commandBasis: ConcernRevisionSet;
     signal: AbortSignal;
     newMessages: readonly AgentMessage[];
   }) => Promise<void> | void;
@@ -208,11 +216,20 @@ export async function createActorRuntimeSession(
         const initialTurnState = await harness.createTurnState({
           tools: agent.state.tools,
         });
-        await runInput.hooks?.prepareRun?.({
+        const prepareDecision = await runInput.hooks?.prepareRun?.({
           runId: runInput.runId,
           workspaceContext: initialTurnState.workspaceContext,
+          commandBasis: initialTurnState.commandBasis,
           signal,
         });
+        if (prepareDecision?.kind === "skip") {
+          return {
+            outcome: "skipped",
+            turnState: initialTurnState,
+            workspaceContext: initialTurnState.workspaceContext,
+            newMessages: [],
+          };
+        }
         if (cascadeLease === undefined && runInput.cascade !== undefined) {
           const basis = Object.keys(initialTurnState.commandBasis).length === 0
             ? undefined
@@ -228,6 +245,7 @@ export async function createActorRuntimeSession(
         }
         if (signal.aborted) {
           return {
+            outcome: "aborted",
             turnState: initialTurnState,
             workspaceContext: initialTurnState.workspaceContext,
             newMessages: [],
@@ -236,10 +254,12 @@ export async function createActorRuntimeSession(
         await runInput.hooks?.onRunStart?.({
           runId: runInput.runId,
           workspaceContext: initialTurnState.workspaceContext,
+          commandBasis: initialTurnState.commandBasis,
           signal,
         });
         if (signal.aborted) {
           return {
+            outcome: "aborted",
             turnState: initialTurnState,
             workspaceContext: initialTurnState.workspaceContext,
             newMessages: [],
@@ -252,6 +272,14 @@ export async function createActorRuntimeSession(
         const prompt = typeof runInput.prompt === "function"
           ? await runInput.prompt({ workspaceContext: initialTurnState.workspaceContext })
           : runInput.prompt;
+        if (signal.aborted) {
+          return {
+            outcome: "aborted",
+            turnState,
+            workspaceContext: turnState.workspaceContext,
+            newMessages: [],
+          };
+        }
         const result = await harness.runAgentTurn({
           prompt,
           turnState,
@@ -260,11 +288,13 @@ export async function createActorRuntimeSession(
         await runInput.hooks?.afterRun?.({
           runId: runInput.runId,
           workspaceContext: result.turnState.workspaceContext,
+          commandBasis: result.turnState.commandBasis,
           signal,
           newMessages: result.newMessages,
         });
         return {
           ...result,
+          outcome: "completed",
           workspaceContext: result.turnState.workspaceContext,
         };
       } finally {
@@ -305,6 +335,7 @@ async function abortedBeforeStartResult(): Promise<ActorRuntimeSessionRunResult>
     tools: [],
   };
   return {
+    outcome: "aborted",
     turnState,
     workspaceContext: turnState.workspaceContext,
     newMessages: [],

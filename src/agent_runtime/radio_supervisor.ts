@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import type {
   BackgroundWorkAwaitTerminalInput,
   BackgroundWorkSubmitInput,
@@ -62,7 +60,6 @@ export type CreateRadioSupervisorInput = {
   runPort: RadioRefillRunPort;
   notifyChannel: MainRadioNotifyChannel;
   clock?: RadioSupervisorClock;
-  runEpoch?: string;
   lowWatermark?: number;
   fillTarget?: number;
   failedTerminalCooldownMs?: number;
@@ -133,13 +130,13 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
   const observedRunResultsByJobId = new Map<string, RadioRunResult>();
 
   const clock = input.clock ?? defaultClock;
-  const runEpoch = input.runEpoch ?? randomUUID();
   const lowWatermark = input.lowWatermark ?? 5;
   const fillTarget = input.fillTarget ?? 10;
   const failedTerminalCooldownMs = input.failedTerminalCooldownMs ?? 30_000;
 
   input.backgroundWork.registerHandler<RadioRefillRunJobPayload>({
     jobType: RADIO_REFILL_JOB_TYPE,
+    queuePolicy: "exclusive",
     async handler(job) {
       const refillAbortController = new AbortController();
       activeRefillAbortController = refillAbortController;
@@ -331,7 +328,8 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
     const submitted = await input.backgroundWork.submit({
       jobType: RADIO_REFILL_JOB_TYPE,
       payload: submission.payload,
-      idempotencyKey: idempotencyKey(submission.payload, runEpoch),
+      singletonKey: radioRunSingletonKey(submission.payload),
+      queuePolicy: "exclusive",
       ...(submission.runAfter === undefined ? {} : { runAfter: submission.runAfter }),
     });
     pendingSubmission = undefined;
@@ -527,15 +525,11 @@ function pendingSubmissionMatchesPacing(
     submission.payload.radioSessionRevision === pacing.radioSessionRevision;
 }
 
-function idempotencyKey(payload: RadioRefillRunJobPayload, runEpoch: string): string {
+function radioRunSingletonKey(payload: RadioRefillRunJobPayload): string {
   return [
-    runEpoch,
     payload.workspaceId,
     payload.ownerScope,
-    payload.radioSessionRevision,
-    payload.radioDirectionRevision,
-    payload.wakeReason,
-    payload.refillGeneration,
+    "radio",
   ].join("|");
 }
 

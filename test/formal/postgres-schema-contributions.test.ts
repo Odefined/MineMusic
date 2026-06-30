@@ -3,7 +3,12 @@ import { musicDataPlatformSchemas } from "../../src/music_data_platform/index.js
 import { musicExperienceSchemas } from "../../src/music_experience/index.js";
 import { createMusicDatabase } from "../../src/storage/index.js";
 import { stageInterfaceSchemas } from "../../src/stage_interface/index.js";
-import { postgresTestDatabaseUrl, resetPostgresTestSchema, } from "../support/postgres.js";
+import {
+    createPostgresTestSchema,
+    dropPostgresTestSchema,
+    postgresTestDatabaseUrl,
+    resetPostgresTestSchema,
+} from "../support/postgres.js";
 const connectionString = postgresTestDatabaseUrl();
 await resetPostgresTestSchema(connectionString);
 const legacyDatabase = await createMusicDatabase({
@@ -182,3 +187,73 @@ if (retiredRadioTranscriptsTable !== undefined) {
     throw new Error("legacy Radio-only transcript table remained after shared-store migration");
 }
 await database.close();
+
+const customSchema = `minemusic_test_agent_runtime_${process.pid}`;
+await createPostgresTestSchema({ connectionString, schema: customSchema });
+try {
+    const customLegacyDatabase = await createMusicDatabase({
+        connectionString,
+        schema: customSchema,
+        schemas: [{
+            id: "test.agent_runtime_radio_transcript_v1_custom_schema",
+            async apply(context) {
+                await context.run(`
+                  CREATE TABLE agent_runtime_radio_transcripts (
+                    owner_scope TEXT NOT NULL,
+                    workspace_id TEXT NOT NULL,
+                    messages_json JSONB NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(owner_scope, workspace_id)
+                  )
+                `);
+                await context.run(`
+                  INSERT INTO agent_runtime_radio_transcripts (
+                    owner_scope,
+                    workspace_id,
+                    messages_json,
+                    created_at,
+                    updated_at
+                  ) VALUES (
+                    'custom-legacy-owner',
+                    'custom-legacy-workspace',
+                    '[{"role":"assistant","content":[]}]'::jsonb,
+                    '2026-06-30T00:00:00.000Z',
+                    '2026-06-30T00:00:00.000Z'
+                  )
+                `);
+            },
+        }],
+    });
+    await customLegacyDatabase.close();
+
+    const customDatabase = await createMusicDatabase({
+        connectionString,
+        schema: customSchema,
+        schemas: agentRuntimeSchemas,
+    });
+    const customContext = customDatabase.context();
+    const customMigratedRadioTranscript = await customContext.get<{
+        actor_kind: string;
+    }>(`
+      SELECT actor_kind
+      FROM agent_runtime_transcripts
+      WHERE owner_scope = 'custom-legacy-owner'
+        AND workspace_id = 'custom-legacy-workspace'
+    `);
+    if (customMigratedRadioTranscript?.actor_kind !== "radio_agent") {
+        throw new Error("custom-schema legacy Radio transcript was not migrated into the shared actor transcript store");
+    }
+    const customRetiredRadioTranscriptsTable = await customContext.get<{ table_name: string }>(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = ?
+        AND table_name = 'agent_runtime_radio_transcripts'
+    `, [customSchema]);
+    if (customRetiredRadioTranscriptsTable !== undefined) {
+        throw new Error("custom-schema legacy Radio-only transcript table remained after shared-store migration");
+    }
+    await customDatabase.close();
+} finally {
+    await dropPostgresTestSchema({ connectionString, schema: customSchema });
+}

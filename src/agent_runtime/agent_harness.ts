@@ -103,6 +103,7 @@ export function createMineMusicAgentHarness(input: {
     async runAgentTurn(runInput) {
       const agent = input.agent();
       assertNoActiveHarnessTurn();
+      runInput.abortSignal?.throwIfAborted();
       const originalPrepareNextTurn = agent.prepareNextTurn;
       const originalAfterToolCall = agent.afterToolCall;
       if (originalPrepareNextTurn !== undefined) {

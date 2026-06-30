@@ -224,6 +224,11 @@ function validateRuntimePolicy(actor: ActorDefinition): void {
     if (new Set(concerns).size !== concerns.length) {
       throw new Error(`Actor '${actor.name}' runtime policy repeats a precondition concern for '${toolName}'.`);
     }
+    for (const concern of concerns) {
+      if (!concernRevisionKeys.has(concern)) {
+        throw new Error(`Actor '${actor.name}' runtime policy references unknown precondition concern '${concern}'.`);
+      }
+    }
   }
 }
 
@@ -270,3 +275,10 @@ const actorCascadePriorities: Readonly<Record<ConcernRevisionChangeActor, number
   main_agent: mainDefinition.runtimePolicy.cascadePriority,
   radio_agent: radioDefinition.runtimePolicy.cascadePriority,
 };
+
+const concernRevisionKeys = new Set<keyof ConcernRevisionSet>([
+  "radioDirectionRevision",
+  "queueRevision",
+  "radioSessionRevision",
+  "playbackRevision",
+]);

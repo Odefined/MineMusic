@@ -226,6 +226,12 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(playedOutput.playbackRevision, 1);
   assert.equal(playedOutput.status, "playing");
   assert.deepEqual(playedOutput.materialRef, materialRef);
+  await expectCommandError(command.playNow({
+    ownerScope,
+    materialRef,
+    basis: { playbackRevision: 0 },
+    now,
+  }), "voided_stale");
   assert.deepEqual(observedChanges, [
     {
       ownerScope,
@@ -804,6 +810,20 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(playOutput.status, "playing");
   assert.deepEqual(playOutput.item, `[material:${materialHandleId}]`);
   assertPublicToolOutput(playOutput);
+  const stalePlayResult = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "a3-session",
+    requestId: "a3-stale-request",
+    clock: () => now,
+    handleMinting,
+    preconditionBasis: { playbackRevision: 0 },
+  }), {
+    toolName: "music.experience.playback.play",
+    payload: {
+      item: `[material:${materialHandleId}]`,
+    },
+  });
+  expectToolError(stalePlayResult, "voided_stale");
 
   const readModel = createMusicExperienceReadModel({
     db: database.context(),
@@ -1780,6 +1800,13 @@ function expectPlayOutput(result: Awaited<ReturnType<ReturnType<typeof createMus
     throw new Error(`expected playback play to succeed, got ${result.error.code}`);
   }
   return result.value;
+}
+
+async function expectCommandError(
+  result: Promise<{ ok: true } | { ok: false; error: { code: string } }>,
+  code: string,
+): Promise<void> {
+  expectToolError(await result, code);
 }
 
 function expectToolError(result: { ok: true } | { ok: false; error: { code: string } }, code: string): void {

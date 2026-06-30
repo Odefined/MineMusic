@@ -30,13 +30,15 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
   startCount = 0;
   readonly stopCalls: unknown[] = [];
   readonly createdQueues: string[] = [];
+  readonly createdQueueOptions: (Omit<import("pg-boss").Queue, "name"> | undefined)[] = [];
   readonly sendCalls: SendCall[] = [];
-  readonly findJobsCalls: { name: string; id?: string }[] = [];
+  readonly findJobsCalls: { name: string; id?: string; key?: string }[] = [];
   readonly workCalls: WorkCall[] = [];
   private readonly jobs = new Map<string, {
     name: string;
     data: object | null | undefined;
     state: JobWithMetadata["state"];
+    singletonKey?: string;
     output?: object | null;
   }>();
   private generatedJobId = 0;
@@ -50,9 +52,10 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
     this.stopCalls.push(options);
   }
 
-  async createQueue(name: string): Promise<void> {
+  async createQueue(name: string, options?: Omit<import("pg-boss").Queue, "name">): Promise<void> {
     if (!this.createdQueues.includes(name)) {
       this.createdQueues.push(name);
+      this.createdQueueOptions.push(options);
     }
   }
 
@@ -64,11 +67,27 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
     });
     const id = options?.id ?? `00000000-0000-4000-8000-${String(++this.generatedJobId).padStart(12, "0")}`;
 
+    if (
+      options?.singletonKey !== undefined &&
+      Array.from(this.jobs.values()).some((job) =>
+        job.name === name &&
+        job.singletonKey === options.singletonKey &&
+        ["created", "active", "retry"].includes(job.state)
+      )
+    ) {
+      return null;
+    }
+
     if (this.jobs.has(id)) {
       return null;
     }
 
-    this.jobs.set(id, { name, data, state: "created" });
+    this.jobs.set(id, {
+      name,
+      data,
+      state: "created",
+      ...(options?.singletonKey === undefined ? {} : { singletonKey: options.singletonKey }),
+    });
     return id;
   }
 
@@ -77,21 +96,28 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
     options?: FindJobsOptionsForFake,
   ): Promise<readonly { id: string; data: Payload }[]> {
     const id = typeof options?.id === "string" ? options.id : undefined;
+    const key = typeof options?.key === "string" ? options.key : undefined;
     this.findJobsCalls.push({
       name,
       ...(id === undefined ? {} : { id }),
+      ...(key === undefined ? {} : { key }),
     });
 
-    if (id === undefined) {
-      return [];
+    if (id !== undefined) {
+      const job = this.jobs.get(id);
+      if (job === undefined || job.name !== name) {
+        return [];
+      }
+      return [{ id, data: job.data as Payload }];
     }
 
-    const job = this.jobs.get(id);
-    if (job === undefined || job.name !== name) {
-      return [];
+    if (key !== undefined) {
+      return Array.from(this.jobs.entries())
+        .filter(([, job]) => job.name === name && job.singletonKey === key)
+        .map(([jobId, job]) => ({ id: jobId, data: job.data as Payload }));
     }
 
-    return [{ id, data: job.data as Payload }];
+    return [];
   }
 
   async getJobById<Payload extends object>(name: string, id: string): Promise<JobWithMetadata<Payload> | null> {
@@ -189,6 +215,34 @@ class FakePgBossClient implements PgBossBackgroundWorkClient {
   assert.deepEqual(client.findJobsCalls[0], {
     name: localizeJobType,
     id: first.jobId,
+  });
+}
+
+{
+  const client = new FakePgBossClient();
+  const backend = createPgBossBackgroundWorkBackend({ client });
+
+  const first = await backend.submit({
+    jobType: localizeJobType,
+    payload: { sourceRefKey: "source_netease:track:radio-slot" },
+    singletonKey: "owner:workspace:radio",
+    queuePolicy: "exclusive",
+  });
+  const second = await backend.submit({
+    jobType: localizeJobType,
+    payload: { sourceRefKey: "source_netease:track:radio-slot-newer" },
+    singletonKey: "owner:workspace:radio",
+    queuePolicy: "exclusive",
+  });
+
+  assert.equal(first.submission, "created");
+  assert.equal(second.submission, "deduplicated");
+  assert.equal(second.jobId, first.jobId);
+  assert.equal(client.sendCalls[0]?.options?.singletonKey, "owner:workspace:radio");
+  assert.equal(client.createdQueueOptions[0]?.policy, "exclusive");
+  assert.deepEqual(client.findJobsCalls.at(-1), {
+    name: localizeJobType,
+    key: "owner:workspace:radio",
   });
 }
 

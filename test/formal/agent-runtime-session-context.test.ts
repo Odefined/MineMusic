@@ -213,6 +213,18 @@ assert.throws(
   }),
   /runtime policy references tool 'radio\.lean\.add' outside its tool pack/u,
 );
+assert.throws(
+  () => validateActorDefinition({
+    ...mainDefinition,
+    runtimePolicy: {
+      ...mainDefinition.runtimePolicy,
+      additionalToolPreconditionBasis: {
+        "playback.queue.append": ["radioSession" as never],
+      },
+    },
+  }),
+  /runtime policy references unknown precondition concern 'radioSession'/u,
+);
 
 function projectionFixture(): MusicExperienceWorkspaceProjection {
   return {
