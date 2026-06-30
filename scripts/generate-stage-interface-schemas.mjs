@@ -179,6 +179,31 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
+    exportName: "radioSessionStartInputSchema",
+    typeName: "RadioSessionStartInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioSessionPauseInputSchema",
+    typeName: "RadioSessionPauseInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioSessionShutdownInputSchema",
+    typeName: "RadioSessionShutdownInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioSessionResumeInputSchema",
+    typeName: "RadioSessionResumeInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "radioSessionToolOutputSchema",
+    typeName: "RadioSessionToolOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
     exportName: "musicDiscoveryLookupInputSchema",
     typeName: "MusicDiscoveryLookupInput",
     sourcePath: "src/contracts/stage_interface.ts",

@@ -232,6 +232,10 @@ assert.deepEqual(host.snapshot().interfaceContract.tools.map((tool) => tool.name
     "radio.lean.replace",
     "radio.lean.move",
     "radio.lean.clear",
+    "radio.session.start",
+    "radio.session.pause",
+    "radio.session.shutdown",
+    "radio.session.resume",
     "stage.runtime.status",
 ]);
 const listedImportSources = await host.dispatch(testStageToolContext(), {
@@ -242,6 +246,35 @@ assert.equal(listedImportSources.ok, true);
 if (listedImportSources.ok) {
     assert.equal(listedImportSources.value.toolName, "library.import.list_sources");
 }
+const startedRadio = await host.dispatch({
+    ...testStageToolContext(),
+    actor: "main_agent",
+}, {
+    toolName: "radio.session.start",
+    payload: {},
+});
+assert.equal(startedRadio.ok, true);
+if (startedRadio.ok) {
+    assert.deepEqual(startedRadio.value.result, {
+        previousState: "Shutdown",
+        state: "Running",
+        radioSessionRevision: 1,
+        playbackEffect: "unchanged",
+        wakeRequested: true,
+    });
+}
+const startWakeSubmission = await serverHostBackgroundWork.waitForSubmit(
+    "agent_runtime.radio_refill_run",
+);
+assert.deepEqual(startWakeSubmission.payload, {
+    workspaceId: "default",
+    ownerScope: "local",
+    radioSessionRevision: 1,
+    radioDirectionRevision: 0,
+    wakeReason: "low_watermark",
+    refillGeneration: 1,
+    suggestedAppendCount: 10,
+});
 const changedDirection = await host.dispatch({
     ...testStageToolContext(),
     actor: "main_agent",
@@ -253,18 +286,7 @@ const changedDirection = await host.dispatch({
     },
 });
 assert.equal(changedDirection.ok, true);
-const directionWakeSubmission = await serverHostBackgroundWork.waitForSubmit(
-    "agent_runtime.radio_refill_run",
-);
-assert.deepEqual(directionWakeSubmission.payload, {
-    workspaceId: "default",
-    ownerScope: "local",
-    radioSessionRevision: 0,
-    radioDirectionRevision: 1,
-    wakeReason: "direction_changed",
-    refillGeneration: 1,
-    suggestedAppendCount: 10,
-});
+assert.equal(serverHostBackgroundWork.submissions.length, 1);
 const stopped = await host.stop();
 assert.equal(stopped.ok, true);
 assert.equal(host.snapshot().status, "stopped");

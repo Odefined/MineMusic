@@ -836,11 +836,15 @@ restored as compatibility layers.
   radio-session revision has moved, preventing old-basis retry submission from
   racing a newer wake. Server Host shutdown cancels the observer before stopping
   the backend. The default Server Host mounts Radio only when explicit Radio
-  agent stream options are supplied, and startup does not wake Radio; wake
-  remains an explicit seam for the later user-command lifecycle path rather than
-  a side effect of runtime config. When mounted, Radio sees only its explicit
-  discovery/catalog/queue-append Stage tool pack through the shared
-  ActorDefinition tool-pack selection path. Main user turns and Radio refills
+  agent stream options are supplied, and startup does not wake Radio. Main owns
+  explicit `radio.session.start` / `pause` / `shutdown` / `resume` Stage tools:
+  start opens the wake gate and requests a low-watermark refill, pause and
+  shutdown abort active refills, shutdown deactivates the active Radio actor
+  session, and resume reopens the wake gate. These lifecycle tools never clear,
+  replace, append, select, or start queue material; those choices stay with the
+  existing queue/playback tools after agent judgement. When mounted, Radio sees
+  only its explicit discovery/catalog/queue-append Stage tool pack through the
+  shared ActorDefinition tool-pack selection path. Main user turns and Radio refills
   both run through the same long-lived `ActorRuntimeSession.run()` spine; their
   only runtime differences are the selected ActorDefinition and the trigger that
   calls `run()`. Actor kind, cascade priority, and actor-specific additions to
@@ -858,9 +862,10 @@ restored as compatibility layers.
   Radio cooperative aborts return `voided_stale` rather than failed terminal
   outcomes, and Radio→Main notify subjects use public handle-shaped objects, not
   internal material refs. Transcript durability is Agent Runtime-owned through
-  the generic `agent_runtime_transcripts` table keyed by actor kind; the shared
-  session writes a capped tail of the long-lived pi `Agent.state.messages` after
-  pi `agent_end`; save failures fail the run instead of fabricating success.
+  `agent_runtime_actor_sessions`, with legacy `agent_runtime_transcripts` rows
+  migrated into active actor sessions; the shared session writes a capped tail
+  of the long-lived pi `Agent.state.messages` after pi `agent_end`; save
+  failures fail the run instead of fabricating success.
   The async session factory restores Main and Radio continuity once before
   returning the actor; neither actor has a public restore method or loads again
   before a later run.

@@ -1,6 +1,7 @@
 import type {
   MusicExperiencePlaybackPlayCommandOutput,
   MusicExperienceQueuePlaybackCommand,
+  MusicExperienceRadioSessionCommand,
   MusicExperienceRadioTruthCommand,
   MusicExperienceSetRadioDirectionCommandOutput,
   MusicExperienceWriteRadioPostureCommandOutput,
@@ -44,6 +45,11 @@ export type CreateMusicExperienceQueuePlaybackCommandInput = {
 export type CreateMusicExperienceRadioTruthCommandInput = {
   database: MusicDatabase;
   revisionObserver: ConcernRevisionObserver;
+};
+
+export type CreateMusicExperienceRadioSessionCommandInput = {
+  database: MusicDatabase;
+  revisionObserver?: ConcernRevisionObserver;
 };
 
 export function createMusicExperienceQueuePlaybackCommand(
@@ -138,6 +144,35 @@ export function createMusicExperienceQueuePlaybackCommand(
           playbackRevision: result.value.playbackRevision,
           actor: commandInput.actor ?? "user",
         });
+      }
+      return result;
+    },
+  };
+}
+
+export function createMusicExperienceRadioSessionCommand(
+  input: CreateMusicExperienceRadioSessionCommandInput,
+): MusicExperienceRadioSessionCommand {
+  return {
+    async transitionRadioSession(commandInput) {
+      const result = await runQueuePlayback(input, async (db) => {
+        const records = createMusicExperienceQueuePlaybackRecords({ db });
+        return records.transitionRadioSession(commandInput);
+      });
+      if (result.ok) {
+        input.revisionObserver?.observe({
+          ownerScope: commandInput.ownerScope,
+          concern: "radio-session",
+          newRevision: result.value.radioSessionRevision,
+          actor: "main_agent",
+        });
+        if (result.value.playbackEffect !== "unchanged") {
+          observePlaybackRevision(input, {
+            ownerScope: commandInput.ownerScope,
+            playbackRevision: result.value.playbackRevision,
+            actor: "main_agent",
+          });
+        }
       }
       return result;
     },

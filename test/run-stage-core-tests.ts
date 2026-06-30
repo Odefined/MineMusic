@@ -23,6 +23,7 @@ const testModules = [
     "./formal/agent-runtime-cascade.test.js",
     "./formal/command-basis-tracker.test.js",
     "./formal/agent-runtime-user-turn-trigger.test.js",
+    "./formal/agent-runtime-radio-session-tools.test.js",
     "./formal/radio-supervisor.test.js",
     "./formal/agent-runtime-background-refill-trigger.test.js",
     "./formal/active-tree.test.js",

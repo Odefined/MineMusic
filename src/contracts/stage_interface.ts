@@ -860,6 +860,26 @@ export type MusicExperiencePlaybackPlayOutput = {
   status: Extract<MusicExperiencePlaybackStatus, "playing">;
 };
 
+export type RadioSessionStartInput = Record<string, never>;
+export type RadioSessionPauseInput = Record<string, never>;
+export type RadioSessionShutdownInput = Record<string, never>;
+export type RadioSessionResumeInput = Record<string, never>;
+
+export type RadioSessionState = "Running" | "Paused" | "Shutdown";
+
+export type RadioSessionPlaybackEffect =
+  | "unchanged"
+  | "paused_existing"
+  | "resumed_existing";
+
+export type RadioSessionToolOutput = {
+  previousState: RadioSessionState;
+  state: RadioSessionState;
+  radioSessionRevision: number;
+  playbackEffect: RadioSessionPlaybackEffect;
+  wakeRequested: boolean;
+};
+
 export type MusicDiscoveryLookupItemDescription = PublicHandleDescription & {
   title?: string;
   artistsText?: string;

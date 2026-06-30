@@ -93,6 +93,8 @@ export type RadioSupervisorSnapshot = {
 export type RadioSupervisor = {
   wake(reason: Extract<RadioWakeReason, "low_watermark">): Promise<RadioWakeDecision>;
   observeRevisionChange(change: ConcernRevisionChange): void;
+  transitionWakeGate(state: RadioWakeGateState): void;
+  abortActiveRefill(): void;
   setWakeGateStateForTest(state: RadioWakeGateState): void;
   snapshot(): RadioSupervisorSnapshot;
   waitForWakeScheduling(): Promise<void>;
@@ -193,6 +195,13 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       }
       enqueuePendingDirectionWake();
     },
+    transitionWakeGate(state) {
+      wakeGateState = state;
+      if (state !== "Running") {
+        abortActiveRefill();
+      }
+    },
+    abortActiveRefill,
     setWakeGateStateForTest(state) {
       wakeGateState = state;
     },
@@ -235,6 +244,11 @@ export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioS
       refilling = false;
     },
   };
+
+  function abortActiveRefill(): void {
+    activeRefillAbortController?.abort();
+    terminalObservationAbortController?.abort();
+  }
 
   // The public supervisor port exposes only low-watermark wakes. Direction
   // change wakes are internal work scheduled by observeRevisionChange.

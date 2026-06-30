@@ -161,6 +161,36 @@ export type MusicExperiencePlaybackPlayCommandOutput = {
   playbackRevision: ConcernRevision;
 };
 
+export type MusicExperienceRadioSessionOperation =
+  | "start"
+  | "pause"
+  | "shutdown"
+  | "resume";
+
+export type MusicExperienceRadioSessionPlaybackEffect =
+  | "unchanged"
+  | "paused_existing"
+  | "resumed_existing";
+
+export type MusicExperienceRadioSessionCommandInput = {
+  ownerScope: string;
+  operation: MusicExperienceRadioSessionOperation;
+  now: string;
+};
+
+export type MusicExperienceRadioSessionCommandOutput = {
+  radioSessionRevision: ConcernRevision;
+  playbackRevision: ConcernRevision;
+  playbackStatus: MusicExperiencePlaybackStatus;
+  playbackEffect: MusicExperienceRadioSessionPlaybackEffect;
+};
+
+export type MusicExperienceRadioSessionCommand = {
+  transitionRadioSession(
+    input: MusicExperienceRadioSessionCommandInput,
+  ): Promise<Result<MusicExperienceRadioSessionCommandOutput>>;
+};
+
 export type MusicExperienceQueuePlaybackCommand = {
   append(input: MusicExperienceQueueAppendCommandInput): Promise<Result<MusicExperienceQueueAppendCommandOutput>>;
   remove(input: MusicExperienceQueueIndexCommandInput): Promise<Result<MusicExperienceQueueEditCommandOutput>>;

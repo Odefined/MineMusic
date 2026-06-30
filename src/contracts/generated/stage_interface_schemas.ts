@@ -1667,6 +1667,86 @@ export const musicExperiencePlaybackPlayOutputSchema = {
   }
 } as const satisfies JsonSchema;
 
+export const radioSessionStartInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": {
+    "not": {}
+  }
+} as const satisfies JsonSchema;
+
+export const radioSessionPauseInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": {
+    "not": {}
+  }
+} as const satisfies JsonSchema;
+
+export const radioSessionShutdownInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": {
+    "not": {}
+  }
+} as const satisfies JsonSchema;
+
+export const radioSessionResumeInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": {
+    "not": {}
+  }
+} as const satisfies JsonSchema;
+
+export const radioSessionToolOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "previousState": {
+      "$ref": "#/definitions/RadioSessionState"
+    },
+    "state": {
+      "$ref": "#/definitions/RadioSessionState"
+    },
+    "radioSessionRevision": {
+      "type": "number"
+    },
+    "playbackEffect": {
+      "$ref": "#/definitions/RadioSessionPlaybackEffect"
+    },
+    "wakeRequested": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "previousState",
+    "state",
+    "radioSessionRevision",
+    "playbackEffect",
+    "wakeRequested"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "RadioSessionState": {
+      "type": "string",
+      "enum": [
+        "Running",
+        "Paused",
+        "Shutdown"
+      ]
+    },
+    "RadioSessionPlaybackEffect": {
+      "type": "string",
+      "enum": [
+        "unchanged",
+        "paused_existing",
+        "resumed_existing"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
 export const musicDiscoveryLookupInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",

@@ -157,6 +157,7 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/agent_runtime
     "src/agent_runtime/main_radio_channel.ts",
     "src/agent_runtime/pi_engine.ts",
     "src/agent_runtime/radio_run_result_recorder.ts",
+    "src/agent_runtime/radio_session_tools.ts",
     "src/agent_runtime/radio_supervisor.ts",
     "src/agent_runtime/schema.ts",
     "src/agent_runtime/speech_level.ts",

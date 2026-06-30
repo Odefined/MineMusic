@@ -165,6 +165,17 @@ const agentRuntimeTranscriptsTable = await context.get<{
 if (agentRuntimeTranscriptsTable === undefined) {
     throw new Error("agent_runtime_transcripts table was not initialized");
 }
+const agentRuntimeActorSessionsTable = await context.get<{
+    table_name: string;
+}>(`
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name = 'agent_runtime_actor_sessions'
+`);
+if (agentRuntimeActorSessionsTable === undefined) {
+    throw new Error("agent_runtime_actor_sessions table was not initialized");
+}
 const migratedRadioTranscript = await context.get<{
     actor_kind: string;
     messages_json: unknown;
@@ -176,6 +187,19 @@ const migratedRadioTranscript = await context.get<{
 `);
 if (migratedRadioTranscript?.actor_kind !== "radio_agent") {
     throw new Error("legacy Radio transcript was not migrated into the shared actor transcript store");
+}
+const migratedRadioActorSession = await context.get<{
+    actor_kind: string;
+    active: boolean;
+}>(`
+  SELECT actor_kind, active
+  FROM agent_runtime_actor_sessions
+  WHERE owner_scope = 'legacy-owner'
+    AND workspace_id = 'legacy-workspace'
+    AND actor_kind = 'radio_agent'
+`);
+if (migratedRadioActorSession?.active !== true) {
+    throw new Error("legacy Radio transcript was not migrated into an active actor session");
 }
 const retiredRadioTranscriptsTable = await context.get<{ table_name: string }>(`
   SELECT table_name
@@ -243,6 +267,19 @@ try {
     `);
     if (customMigratedRadioTranscript?.actor_kind !== "radio_agent") {
         throw new Error("custom-schema legacy Radio transcript was not migrated into the shared actor transcript store");
+    }
+    const customMigratedRadioActorSession = await customContext.get<{
+        actor_kind: string;
+        active: boolean;
+    }>(`
+      SELECT actor_kind, active
+      FROM agent_runtime_actor_sessions
+      WHERE owner_scope = 'custom-legacy-owner'
+        AND workspace_id = 'custom-legacy-workspace'
+        AND actor_kind = 'radio_agent'
+    `);
+    if (customMigratedRadioActorSession?.active !== true) {
+        throw new Error("custom-schema legacy Radio transcript was not migrated into an active actor session");
     }
     const customRetiredRadioTranscriptsTable = await customContext.get<{ table_name: string }>(`
       SELECT table_name

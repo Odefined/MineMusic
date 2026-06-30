@@ -36,6 +36,7 @@ import { createIdentityWriteCommands } from "../../src/music_data_platform/ident
 import {
   createMusicExperienceQueuePlaybackCommand,
   createMusicExperienceQueuePlaybackRecords,
+  createMusicExperienceRadioSessionCommand,
   createMusicExperienceReadModel,
   musicExperienceQueuePlaybackSchema,
   musicExperienceRadioTruthSchema,
@@ -143,6 +144,106 @@ assertQueueIndexSchema(playbackQueueMoveInputSchema, "to");
 assert.equal(musicExperiencePlaybackPlayDescriptor.name, "music.experience.playback.play");
 assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.runtimeStateWrite, true);
 assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, false);
+
+{
+  const database = await initializedMusicExperienceDatabase();
+  await seedRecording(database, materialRef, "Session Song", ["Session Artist"]);
+  const observedChanges: ConcernRevisionChange[] = [];
+  const queuePlayback = createMusicExperienceQueuePlaybackCommand({
+    database,
+    revisionObserver: {
+      observe(change) {
+        observedChanges.push(change);
+      },
+    },
+  });
+  const radioSession = createMusicExperienceRadioSessionCommand({
+    database,
+    revisionObserver: {
+      observe(change) {
+        observedChanges.push(change);
+      },
+    },
+  });
+  const appended = await queuePlayback.append({
+    ownerScope,
+    materialRefs: [materialRef],
+    provenance: "radio_agent",
+    now,
+  });
+  assert.equal(appended.ok, true);
+  const played = await queuePlayback.playNow({
+    ownerScope,
+    materialRef,
+    actor: "main_agent",
+    now,
+  });
+  assert.equal(played.ok, true);
+
+  const started = await radioSession.transitionRadioSession({
+    ownerScope,
+    operation: "start",
+    now,
+  });
+  assert.equal(started.ok, true);
+  if (started.ok) {
+    assert.equal(started.value.radioSessionRevision, 1);
+    assert.equal(started.value.playbackEffect, "unchanged");
+    assert.equal(started.value.playbackStatus, "playing");
+  }
+
+  const paused = await radioSession.transitionRadioSession({
+    ownerScope,
+    operation: "pause",
+    now,
+  });
+  assert.equal(paused.ok, true);
+  if (paused.ok) {
+    assert.equal(paused.value.radioSessionRevision, 2);
+    assert.equal(paused.value.playbackEffect, "paused_existing");
+    assert.equal(paused.value.playbackStatus, "paused");
+  }
+
+  const resumed = await radioSession.transitionRadioSession({
+    ownerScope,
+    operation: "resume",
+    now,
+  });
+  assert.equal(resumed.ok, true);
+  if (resumed.ok) {
+    assert.equal(resumed.value.radioSessionRevision, 3);
+    assert.equal(resumed.value.playbackEffect, "resumed_existing");
+    assert.equal(resumed.value.playbackStatus, "playing");
+  }
+
+  const shutDown = await radioSession.transitionRadioSession({
+    ownerScope,
+    operation: "shutdown",
+    now,
+  });
+  assert.equal(shutDown.ok, true);
+  if (shutDown.ok) {
+    assert.equal(shutDown.value.radioSessionRevision, 4);
+    assert.equal(shutDown.value.playbackEffect, "paused_existing");
+    assert.equal(shutDown.value.playbackStatus, "paused");
+  }
+  const snapshot = await createMusicExperienceQueuePlaybackRecords({
+    db: database.context(),
+  }).read({ ownerScope });
+  assert.equal(snapshot.queue.length, 1);
+  assert.equal(refKey(snapshot.queue[0]!.materialRef), refKey(materialRef));
+  assert.equal(snapshot.radioSessionRevision, 4);
+  assert.equal(snapshot.playback.status, "paused");
+  assert.deepEqual(observedChanges.filter((change) => change.concern === "radio-session").map((change) => change.newRevision), [
+    1,
+    2,
+    3,
+    4,
+  ]);
+  assert.deepEqual(observedChanges.filter((change) => change.concern === "queue").map((change) => change.newRevision), [1]);
+
+  await database.close();
+}
 
 {
   const database = await initializedMusicExperienceDatabase();

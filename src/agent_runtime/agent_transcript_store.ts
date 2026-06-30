@@ -1,4 +1,5 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { randomUUID } from "node:crypto";
 
 import type { AgentActorKind } from "../contracts/kernel.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
@@ -15,6 +16,10 @@ export type AgentRuntimeTranscriptStore = {
     messages: readonly AgentMessage[];
     now: string;
   }): Promise<void>;
+  deactivateActive?(input: AgentRuntimeTranscriptKey & {
+    reason: "radio_shutdown" | "superseded";
+    now: string;
+  }): Promise<void>;
 };
 
 export function createPostgresAgentRuntimeTranscriptStore(input: {
@@ -25,10 +30,13 @@ export function createPostgresAgentRuntimeTranscriptStore(input: {
       const row = await input.db.get<{ messages_json: string | readonly AgentMessage[] }>(
         `
           SELECT messages_json
-          FROM agent_runtime_transcripts
+          FROM agent_runtime_actor_sessions
           WHERE owner_scope = ?
             AND workspace_id = ?
             AND actor_kind = ?
+            AND active = TRUE
+          ORDER BY updated_at DESC
+          LIMIT 1
         `,
         [loadInput.ownerScope, loadInput.workspaceId, loadInput.actor],
       );
@@ -36,29 +44,80 @@ export function createPostgresAgentRuntimeTranscriptStore(input: {
       return row === undefined ? [] : messagesFromStoredJson(row.messages_json);
     },
     async save(saveInput) {
+      const active = await input.db.get<{ session_id: string }>(
+        `
+          SELECT session_id
+          FROM agent_runtime_actor_sessions
+          WHERE owner_scope = ?
+            AND workspace_id = ?
+            AND actor_kind = ?
+            AND active = TRUE
+          ORDER BY updated_at DESC
+          LIMIT 1
+        `,
+        [saveInput.ownerScope, saveInput.workspaceId, saveInput.actor],
+      );
+      if (active !== undefined) {
+        await input.db.run(
+          `
+            UPDATE agent_runtime_actor_sessions
+            SET messages_json = ?::jsonb,
+              updated_at = ?
+            WHERE session_id = ?
+          `,
+          [
+            JSON.stringify(saveInput.messages),
+            saveInput.now,
+            active.session_id,
+          ],
+        );
+        return;
+      }
       await input.db.run(
         `
-          INSERT INTO agent_runtime_transcripts (
+          INSERT INTO agent_runtime_actor_sessions (
+            session_id,
             owner_scope,
             workspace_id,
             actor_kind,
+            active,
             messages_json,
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?::jsonb, ?, ?)
-          ON CONFLICT(owner_scope, workspace_id, actor_kind)
-          DO UPDATE SET
-            messages_json = EXCLUDED.messages_json,
-            updated_at = EXCLUDED.updated_at
+          VALUES (?, ?, ?, ?, TRUE, ?::jsonb, ?, ?)
         `,
         [
+          randomUUID(),
           saveInput.ownerScope,
           saveInput.workspaceId,
           saveInput.actor,
           JSON.stringify(saveInput.messages),
           saveInput.now,
           saveInput.now,
+        ],
+      );
+    },
+    async deactivateActive(deactivateInput) {
+      await input.db.run(
+        `
+          UPDATE agent_runtime_actor_sessions
+          SET active = FALSE,
+            inactive_reason = ?,
+            inactive_at = ?,
+            updated_at = ?
+          WHERE owner_scope = ?
+            AND workspace_id = ?
+            AND actor_kind = ?
+            AND active = TRUE
+        `,
+        [
+          deactivateInput.reason,
+          deactivateInput.now,
+          deactivateInput.now,
+          deactivateInput.ownerScope,
+          deactivateInput.workspaceId,
+          deactivateInput.actor,
         ],
       );
     },
@@ -75,6 +134,9 @@ export function createInMemoryAgentRuntimeTranscriptStore(): AgentRuntimeTranscr
     },
     async save(input) {
       messagesByKey.set(storeKey(input), input.messages.slice());
+    },
+    async deactivateActive(input) {
+      messagesByKey.delete(storeKey(input));
     },
     snapshot(input) {
       return messagesByKey.get(storeKey(input)) ?? [];

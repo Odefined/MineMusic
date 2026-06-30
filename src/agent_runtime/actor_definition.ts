@@ -124,6 +124,7 @@ export const mainDefinition: ActorDefinition = {
       "Check `listening` for what is playing and queued before suggesting next steps. " +
       "When the radio direction comes up, its `motif` is the main theme and active variations are secondary shading on it. " +
       "Use `radio_motif_set` or `radio_motif_clear` for the single motif slot, and `radio_variations_add`, `radio_variations_remove`, `radio_variations_replace`, `radio_variations_move`, or `radio_variations_clear` for the ordered active-variation list. " +
+      "Use `radio_session_start`, `radio_session_pause`, `radio_session_shutdown`, or `radio_session_resume` when the listener asks to start, pause, shut down, or resume Radio. " +
       "Use `playback_queue_append`, `playback_queue_remove`, `playback_queue_replace`, `playback_queue_move`, or `playback_queue_clear` to edit the current queue when the listener asks for queue changes. " +
       "Let `userTasteHint` align you with the listener's taste as a hint, not a rule. " +
       "Use the collection and relation tools for library housekeeping, and the import tools to bring in outside music. " +
@@ -168,6 +169,10 @@ export const mainDefinition: ActorDefinition = {
       "radio.variations.replace",
       "radio.variations.move",
       "radio.variations.clear",
+      "radio.session.start",
+      "radio.session.pause",
+      "radio.session.shutdown",
+      "radio.session.resume",
       "stage.runtime.status",
     ],
   },

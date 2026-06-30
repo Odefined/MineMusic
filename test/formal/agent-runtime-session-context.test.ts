@@ -65,6 +65,10 @@ assert.deepEqual(
     "radio.variations.replace",
     "radio.variations.move",
     "radio.variations.clear",
+    "radio.session.start",
+    "radio.session.pause",
+    "radio.session.shutdown",
+    "radio.session.resume",
   ],
 );
 

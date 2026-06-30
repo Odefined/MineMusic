@@ -36,6 +36,7 @@ import {
 } from "./agent_runtime_radio_module.js";
 import {
   createMusicExperienceQueuePlaybackCommand,
+  createMusicExperienceRadioSessionCommand,
   createMusicExperienceRadioTruthCommand,
   createMusicExperienceReadModel,
   musicExperienceSchemas,
@@ -71,6 +72,7 @@ import {
 } from "../stage_interface/index.js";
 import type {
   MusicExperienceQueuePlaybackCommand,
+  MusicExperienceRadioSessionCommand,
   MusicExperienceRadioTruthCommand,
   MusicExperienceWorkspaceProjectionPort,
 } from "../contracts/music_experience.js";
@@ -130,6 +132,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
   const usesDefaultRuntime = input.runtime === undefined && input.modules === undefined;
   let defaultMusicDatabase: MusicDatabase | undefined;
   let queuePlaybackCommand: MusicExperienceQueuePlaybackCommand | undefined;
+  let radioSessionCommand: MusicExperienceRadioSessionCommand | undefined;
   let radioTruthCommand: MusicExperienceRadioTruthCommand | undefined;
   let stageInterfaceRuntimePorts: StageInterfaceRuntimePorts | undefined;
   let musicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
@@ -248,6 +251,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
           database: () => defaultMusicDatabase?.context(),
           backgroundWork: () => backgroundWork,
           musicExperienceRead: () => readDefaultMusicExperienceReadPort(),
+          radioSession: () => readDefaultRadioSessionCommand(),
           radioTruth: () => readDefaultRadioTruthCommand(),
           notifyChannel: () => mainRadioNotifyChannel,
           agentOptions: () => input.radioAgentOptions,
@@ -392,6 +396,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       await defaultMusicDatabase.close();
       defaultMusicDatabase = undefined;
       queuePlaybackCommand = undefined;
+      radioSessionCommand = undefined;
       radioTruthCommand = undefined;
       return { ok: true, value: undefined };
     } catch (cause) {
@@ -434,6 +439,20 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       },
     });
     return radioTruthCommand;
+  }
+
+  function readDefaultRadioSessionCommand(): MusicExperienceRadioSessionCommand | undefined {
+    if (defaultMusicDatabase === undefined) {
+      return undefined;
+    }
+
+    radioSessionCommand ??= createMusicExperienceRadioSessionCommand({
+      database: defaultMusicDatabase,
+      revisionObserver: {
+        observe: observeConcernRevisionChange,
+      },
+    });
+    return radioSessionCommand;
   }
 
   function observeConcernRevisionChange(change: ConcernRevisionChange): void {

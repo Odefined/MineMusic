@@ -123,3 +123,16 @@ export {
 export type {
   RadioRunResultRecorder,
 } from "./radio_run_result_recorder.js";
+export {
+  createRadioSessionToolRegistrations,
+  radioSessionInstrument,
+  radioSessionPauseDescriptor,
+  radioSessionResumeDescriptor,
+  radioSessionShutdownDescriptor,
+  radioSessionStartDescriptor,
+  radioSessionToolNames,
+} from "./radio_session_tools.js";
+export type {
+  RadioSessionControlPort,
+  RadioSessionControlResult,
+} from "./radio_session_tools.js";

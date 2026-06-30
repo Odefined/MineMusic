@@ -11,10 +11,12 @@ export const musicExperienceSchemas: readonly MusicDatabaseSchemaContribution[] 
 
 export {
   createMusicExperienceQueuePlaybackCommand,
+  createMusicExperienceRadioSessionCommand,
   createMusicExperienceRadioTruthCommand,
 } from "./commands.js";
 export type {
   CreateMusicExperienceQueuePlaybackCommandInput,
+  CreateMusicExperienceRadioSessionCommandInput,
 } from "./commands.js";
 export {
   createMusicExperienceReadModel,

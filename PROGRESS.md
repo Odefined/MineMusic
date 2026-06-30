@@ -1556,8 +1556,7 @@ catalog integration. Design authority:
   radio-direction or radio-session revision has moved. Server Host cancels that
   observation before backend shutdown. The default Server Host mounts Radio only
   when explicit Radio agent stream options are supplied; startup does not wake
-  Radio, leaving wake as an explicit seam for the later user-command lifecycle
-  path rather than a side effect of runtime config. When mounted, Radio receives
+  Radio. When mounted, Radio receives
   its tools through the same ActorDefinition tool-pack selection path used by
   Main. Agent Runtime owns the shared long-lived `ActorRuntimeSession`, generic
   run-scoped Stage-tool-result observation, and Radio run-local result recorder;
@@ -1578,11 +1577,11 @@ catalog integration. Design authority:
   `RadioRunResult.outcome = "voided_stale"` without Background Work failure,
   no automatic follow-up refill after a terminal `voided_stale` success,
   cooperative abort as `voided_stale`, public-handle shaped notify subjects, and
-  the generic actor transcript store (`agent_runtime_transcripts`). The shared
-  session mirrors pi by keeping one long-lived `Agent`, entering runs through
-  pi `prompt()`, persisting a capped transcript tail after pi `agent_end` with
-  save failures failing the run, and reloading transcript only on simulated
-  restart/reconstruction.
+  the generic actor session transcript store (`agent_runtime_actor_sessions`).
+  The shared session mirrors pi by keeping one long-lived `Agent`, entering runs
+  through pi `prompt()`, persisting a capped transcript tail after pi
+  `agent_end` with save failures failing the run, and reloading transcript only
+  on simulated restart/reconstruction.
 
 ## 2026-06-27: ADR-0045 Runtime Module Ownership Split
 
@@ -1686,6 +1685,25 @@ Agent Runtime context-engineering authority for embedded MineMusic agents:
 - Verification added observer-matrix coverage for queue/playback writers,
   no-event-on-stale coverage, and deterministic Radio cascade tests for
   Main-written direction abort, queue-only no-abort, and Radio-written no-abort.
+
+## 2026-06-30: Phase B PR5 Radio Session Tools
+
+- Main now receives explicit `radio.session.start`, `radio.session.pause`,
+  `radio.session.shutdown`, and `radio.session.resume` Stage tools. Radio does
+  not receive these tools.
+- Session transitions bump `radio_session_revision` through the Music
+  Experience Radio Session command. Start only opens the wake gate and requests
+  a low-watermark refill; resume only resumes existing paused now-playing
+  material when such material exists. Pause and shutdown pause existing playback
+  but never select, clear, append, replace, or remove queue material.
+- Agent Runtime now lazily constructs the Radio actor session on start/resume,
+  deactivates the active session on shutdown, and stores active/inactive actor
+  session transcript rows in `agent_runtime_actor_sessions` while retaining
+  legacy transcript migration.
+- Verification covers tool registration and model-visible availability,
+  lifecycle dispatch output, strict empty-input validation, queue-preserving
+  playback effects, Server Host wake submission, schema migration into active
+  actor sessions, and the full project test suite.
 
 ## 2026-06-30: Deep Code Audit (Full Codebase)
 

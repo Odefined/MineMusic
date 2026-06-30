@@ -12,6 +12,8 @@ import type {
   MusicExperienceQueueItemProvenance,
   MusicExperienceQueueItemSnapshot,
   MusicExperienceRadioTruthSnapshot,
+  MusicExperienceRadioSessionOperation,
+  MusicExperienceRadioSessionPlaybackEffect,
   MusicExperienceSnapshot,
   MusicExperienceWorkspaceKey,
   RadioDirectionScopeValue,
@@ -97,6 +99,16 @@ export type MusicExperienceQueuePlaybackRecords = {
     materialRef: Ref;
     status: Extract<MusicExperiencePlaybackStatus, "playing">;
     playbackRevision: ConcernRevision;
+  }>;
+  transitionRadioSession(input: {
+    ownerScope: string;
+    operation: MusicExperienceRadioSessionOperation;
+    now: string;
+  }): Promise<{
+    radioSessionRevision: ConcernRevision;
+    playbackRevision: ConcernRevision;
+    playbackStatus: MusicExperiencePlaybackStatus;
+    playbackEffect: MusicExperienceRadioSessionPlaybackEffect;
   }>;
 };
 
@@ -361,6 +373,29 @@ export function createMusicExperienceQueuePlaybackRecords(
         materialRef: playInput.materialRef,
         status: "playing",
         playbackRevision: state.playback_revision,
+      };
+    },
+    async transitionRadioSession(sessionInput) {
+      const key = workspaceKey(sessionInput.ownerScope, workspaceId);
+      await ensureState({ db, key, now: sessionInput.now });
+      const previous = await lockStateForUpdate({ db, key });
+      const playbackEffect = radioSessionPlaybackEffect({
+        operation: sessionInput.operation,
+        previous,
+      });
+      const state = await updateRadioSession({
+        db,
+        key,
+        operation: sessionInput.operation,
+        playbackEffect,
+        now: sessionInput.now,
+      });
+
+      return {
+        radioSessionRevision: state.radio_session_revision,
+        playbackRevision: state.playback_revision,
+        playbackStatus: state.playback_status,
+        playbackEffect,
       };
     },
   };
@@ -794,6 +829,61 @@ async function updatePlayback(input: {
       JSON.stringify(input.materialRef),
     ],
   });
+}
+
+async function updateRadioSession(input: {
+  db: MusicDatabaseContext;
+  key: MusicExperienceWorkspaceKey;
+  operation: MusicExperienceRadioSessionOperation;
+  playbackEffect: MusicExperienceRadioSessionPlaybackEffect;
+  now: string;
+}): Promise<StateRow> {
+  const playbackSetClause = (() => {
+    switch (input.playbackEffect) {
+      case "paused_existing":
+        return [
+          "playback_revision = playback_revision + 1",
+          "playback_status = 'paused'",
+        ];
+      case "resumed_existing":
+        return [
+          "playback_revision = playback_revision + 1",
+          "playback_status = 'playing'",
+        ];
+      case "unchanged":
+        return [];
+    }
+  })();
+
+  return advanceRevision({
+    db: input.db,
+    key: input.key,
+    now: input.now,
+    setClause: [
+      "radio_session_revision = radio_session_revision + 1",
+      ...playbackSetClause,
+    ].join(",\n        "),
+  });
+}
+
+function radioSessionPlaybackEffect(input: {
+  operation: MusicExperienceRadioSessionOperation;
+  previous: StateRow;
+}): MusicExperienceRadioSessionPlaybackEffect {
+  switch (input.operation) {
+    case "start":
+      return "unchanged";
+    case "resume":
+      return input.previous.playback_status === "paused" &&
+        input.previous.now_playing_material_ref_key !== null
+        ? "resumed_existing"
+        : "unchanged";
+    case "pause":
+    case "shutdown":
+      return input.previous.playback_status === "playing"
+        ? "paused_existing"
+        : "unchanged";
+  }
 }
 
 async function updateRadioDirectionRevision(input: {
