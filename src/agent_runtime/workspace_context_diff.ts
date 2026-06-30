@@ -74,7 +74,7 @@ export function renderWorkspaceContextDiff(input: {
   }
 
   return [
-    "Workspace Context diff:",
+    "Workspace Context diff after this tool result:",
     "```diff",
     ...renderedHunks,
     ...(omittedHunks === 0 ? [] : [`... ${omittedHunks} more Workspace Context hunk(s) omitted`]),

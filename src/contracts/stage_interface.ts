@@ -653,13 +653,13 @@ export type LibraryCollectionStateOutput = {
 
 export type MusicDiscoveryLookupInput =
   | {
-    /** Free-text music lookup (title, artist, album, etc.). Required for a fresh lookup. */
+    /** Concrete music lookup text (title, artist, album, scene, or known alias), not a bare mood or genre prompt. Required for a fresh lookup. */
     lookupText: string;
     /** Desired material kind of the results. */
     targetKind?: MusicTargetKind;
-    /** Where to look: "all", "library", a listed source-library/relation scope, or a provider. Omit for the whole available surface. */
-    scopes?: readonly (MusicScope | ListedMusicScope)[];
-    /** Max items to return (1..100). */
+    /** Where to look: pass scope handle strings from music.discovery.list_scopes. Omit to search every available scope; use "[all]" by itself for the same all-scope behavior explicitly. */
+    scopes?: readonly MusicScope[];
+    /** Max items to return (1..100); use small limits when testing concrete references before broadening. */
     limit?: number;
   }
   | {

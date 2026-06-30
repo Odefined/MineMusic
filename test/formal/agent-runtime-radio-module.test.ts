@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 
-import type { BackgroundWorkBackend, BackgroundWorkSubmitInput, BackgroundWorkTerminalState } from "../../src/background_work/index.js";
 import { agentRuntimeSchemas, createAgentRunCascadeCoordinator, createInMemoryMainRadioNotifyChannel, radioDefinition, radioRunFinishDescriptor, toPiToolName, type AgentRuntimeStageToolContextFactoryPort, type MineMusicPiAgentAdapterOptions, type StageToolDispatchPort } from "../../src/agent_runtime/index.js";
 import { RADIO_TERMINAL_DECLARATION_TEXT_MAX_LENGTH } from "../../src/contracts/agent_runtime.js";
 import type { Result } from "../../src/contracts/kernel.js";
@@ -159,31 +158,6 @@ const FIXED_NOW = "2026-06-30T00:00:00.000Z";
 }
 
 {
-  const backgroundWork = createFakeBackgroundWorkBackend({
-    async submit() {
-      throw new Error("wake submit failed");
-    },
-  });
-  const harness = await createHarness({
-    backgroundWork,
-    radioSession: createScriptedRadioSessionCommand(),
-  });
-  try {
-    const started = await dispatchRadioTool(harness, "radio.session.start");
-    assertStageError(started, "radio_session_wake_failed");
-
-    const retryStart = await dispatchRadioTool(harness, "radio.session.start");
-    assertStageError(retryStart, "radio_session_invalid_transition");
-
-    const paused = await dispatchRadioTool(harness, "radio.session.pause");
-    assert.ok(paused.ok, "wake failure must still leave Radio in Running so pause can succeed");
-    assert.equal(readState(paused), "Paused");
-  } finally {
-    await closeHarness(harness);
-  }
-}
-
-{
   let firstShutdownCleanup = true;
   const harness = await createHarness({
     databaseContextFactory(database) {
@@ -256,17 +230,7 @@ const FIXED_NOW = "2026-06-30T00:00:00.000Z";
 {
   let activeTranscriptLoads = 0;
   let radioRuns = 0;
-  const handlerErrors: unknown[] = [];
-  let runHandlerOnSubmit = false;
-  const backgroundWork = createFakeBackgroundWorkBackend({
-    runHandlerOnSubmit: () => runHandlerOnSubmit && radioRuns === 0,
-    handlerErrors,
-    async awaitTerminal({ jobId }) {
-      return { jobId, state: "cancelled" };
-    },
-  });
   const harness = await createHarness({
-    backgroundWork,
     databaseContextFactory(database) {
       const base = database.context();
       return {
@@ -305,22 +269,18 @@ const FIXED_NOW = "2026-06-30T00:00:00.000Z";
   });
   try {
     assert.ok((await dispatchRadioTool(harness, "radio.session.start")).ok);
+    await waitFor(() => radioRuns === 1);
     assert.equal(activeTranscriptLoads, 1);
-    assert.equal(radioRuns, 0);
+    assert.equal(radioRuns, 1);
 
     assert.ok((await dispatchRadioTool(harness, "radio.session.pause")).ok);
 
-    runHandlerOnSubmit = true;
     const resumed = await dispatchRadioTool(harness, "radio.session.resume");
-    assert.ok(
-      resumed.ok,
-      resumed.ok
-        ? undefined
-        : `${resumed.error.code}: ${resumed.error.message}; handlerErrors=${handlerErrors.map(String).join(" | ")}`,
-    );
+    assert.ok(resumed.ok);
     assert.equal(readState(resumed), "Running");
+    await waitFor(() => radioRuns === 2);
     assert.equal(activeTranscriptLoads, 1, "resume after pause must reuse the same actor session");
-    assert.equal(radioRuns, 1, "resumed session must execute a refill run after pause abort");
+    assert.equal(radioRuns, 2, "resumed session must execute a direct refill run");
   } finally {
     await closeHarness(harness);
   }
@@ -334,7 +294,6 @@ type Harness = {
 
 async function createHarness(input: {
   radioSession?: MusicExperienceRadioSessionCommand;
-  backgroundWork?: BackgroundWorkBackend;
   databaseContextFactory?: (database: MusicDatabase) => MusicDatabaseContext;
   agentOptions?: MineMusicPiAgentAdapterOptions;
 } = {}): Promise<Harness> {
@@ -347,7 +306,6 @@ async function createHarness(input: {
   const db = input.databaseContextFactory?.(database) ?? database.context();
   const module = createAgentRuntimeRadioModule({
     database: () => db,
-    backgroundWork: () => input.backgroundWork ?? createFakeBackgroundWorkBackend(),
     musicExperienceRead: () => fakeMusicExperienceReadPort(),
     radioSession: () => input.radioSession ?? createScriptedRadioSessionCommand(),
     radioTruth: () => fakeRadioTruthCommand(),
@@ -620,72 +578,6 @@ type TestTransitionOutput = {
   playbackEffect: "unchanged" | "paused_existing" | "resumed_existing";
 };
 
-function createFakeBackgroundWorkBackend(input: {
-  submit?: (input: BackgroundWorkSubmitInput<Record<string, unknown>>) => Promise<{ jobId: string; submission: "created" | "deduplicated" }>;
-  awaitTerminal?: (input: { jobType: string; jobId: string; signal?: AbortSignal }) => Promise<BackgroundWorkTerminalState>;
-  runHandlerOnSubmit?: boolean | ((input: BackgroundWorkSubmitInput<Record<string, unknown>>) => boolean);
-  handlerErrors?: unknown[];
-} = {}): BackgroundWorkBackend {
-  let nextJobId = 0;
-  let handler: ((job: {
-    jobId: string;
-    jobType: string;
-    payload: Record<string, unknown>;
-    signal: AbortSignal;
-  }) => Promise<void>) | undefined;
-  const terminals = new Map<string, BackgroundWorkTerminalState>();
-  return {
-    async submit(submitInput) {
-      if (input.submit !== undefined) {
-        return await input.submit(submitInput as BackgroundWorkSubmitInput<Record<string, unknown>>);
-      }
-      nextJobId += 1;
-      const jobId = `radio-job-${nextJobId}`;
-      const runHandler = typeof input.runHandlerOnSubmit === "function"
-        ? input.runHandlerOnSubmit(submitInput as BackgroundWorkSubmitInput<Record<string, unknown>>)
-        : input.runHandlerOnSubmit === true;
-      if (runHandler) {
-        if (handler === undefined) {
-          throw new Error("Radio module test background work has no registered handler.");
-        }
-        try {
-          await handler({
-            jobId,
-            jobType: submitInput.jobType,
-            payload: submitInput.payload as Record<string, unknown>,
-            signal: new AbortController().signal,
-          });
-          terminals.set(jobId, { jobId, state: "succeeded", output: null });
-        } catch (error) {
-          input.handlerErrors?.push(error);
-          terminals.set(jobId, { jobId, state: "failed", output: null });
-          throw error;
-        }
-      }
-      return { jobId, submission: "created" };
-    },
-    registerHandler(registerInput) {
-      handler = registerInput.handler as typeof handler;
-    },
-    async awaitTerminal(awaitInput) {
-      if (input.awaitTerminal !== undefined) {
-        return await input.awaitTerminal(awaitInput);
-      }
-      const terminal = terminals.get(awaitInput.jobId);
-      if (terminal !== undefined) {
-        return terminal;
-      }
-      return {
-        jobId: awaitInput.jobId,
-        state: "cancelled",
-        output: null,
-      };
-    },
-    async start() {},
-    async stop() {},
-  };
-}
-
 function ok<T>(value: T): Result<T> {
   return { ok: true, value };
 }
@@ -699,4 +591,14 @@ function deferred<T>(): {
     resolve = promiseResolve;
   });
   return { promise, resolve };
+}
+
+async function waitFor(condition: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (condition()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  assert.equal(condition(), true);
 }

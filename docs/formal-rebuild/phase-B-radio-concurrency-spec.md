@@ -64,58 +64,39 @@ does not replace the LLM. Supervisor responsibilities:
 - **Selection stays agentic**: what to append, which tools to use, how many — the
   Radio agent decides. "Several tracks per turn, not one per inference" is
   turn/prompt design (batch append in one turn), not determinism.
-- **Lifecycle + endurance**: start/pause/shutdown (PB10), cancellation, and the endurance
-  strategy (ADR-0032's load-bearing risk). **Recoverable execution
-  (restart-on-failure, retry/backoff, delayed run, idempotent submission) is
-  reused from Background Work (ADR-0025/0027) via its MineMusic-owned port, not
-  re-implemented in the supervisor.** What the supervisor *keeps* is the
-  domain-specific part Background Work cannot supply: the pacing decision (read
-  queue depth, low-watermark judgement, when to wake) and the single-flight lock
-  (see PB1a). The split: Background Work owns recoverable-execution mechanics;
-  the supervisor owns pacing + single-flight; Agent Runtime owns the Radio run
-  itself (prompt, context, lifecycle). See PB1a for why single-flight stays in
-  the supervisor rather than reusing a pg-boss singleton. Continuity is layered
+- **Lifecycle + endurance**: start/pause/shutdown (PB10), cancellation, cooldown,
+  and restart-time re-evaluation (ADR-0032's load-bearing risk). Radio refill is a
+  live actor turn, not a durable batch job: it is valid only for the current
+  Radio session/direction basis. The supervisor owns pacing, single-flight,
+  cancellation, and cooldown scheduling; Agent Runtime owns the Radio run itself
+  (prompt, context, lifecycle). Background Work remains for durable import/scan
+  work, not for Radio refill turns.
 
-**Background Work wiring (recoverable execution, made executable).** The Radio
-run is submitted as one Background Work job, so PB1's "reuse" is a real contract,
-not an un-wired claim:
+**Supervisor-owned refill turn (made executable).** The Radio run is started
+directly by the Radio supervisor as one cancellable `runPort.runRadioRefill`
+actor turn:
 
-- **Job type:** `agent_runtime.radio_refill_run` (new; the port already carries
-  `music_data_platform.*` job types — `src/background_work/backend.ts`).
-- **Payload:** `{ workspaceId, ownerScope, radioSessionRevision,
-  radioDirectionRevision, wakeReason: "low_watermark" | "direction_changed" }`.
-  (`runId` is not a separate random field — it **is** the job id, so work
-  correlation ties to the generation below.)
-- **Idempotency key:** derived from `{ workspaceId, radioSessionRevision,
+- **Run id:** derived from `{ workspaceId, ownerScope, radioSessionRevision,
   radioDirectionRevision, wakeReason, refillGeneration }`. `refillGeneration` is a
-  supervisor monotonic counter, incremented on each submit: retries of **one** job
-  share the key (de-duplicated), but the **next** refill under the same direction
-  — e.g. a refill that succeeded yet did not fill above `low` (PB1a allows "may
-  add fewer") — gets a new generation and is **not** de-duplicated. A key without
-  the generation would dedupe a legitimate second refill against the
-  already-succeeded job and stall Radio. The supervisor's single-flight (PB1a)
-  gates submission and is held submit→terminal, covering the in-flight run and its
-  pending retries.
-- **Handler scope:** the job does **not** execute a turn in a fresh process and
-  does **not** reconstruct the Agent (PB2: one long-lived `Agent` per Radio, held
-  in-process by the supervisor). The Background Work job is a recoverable-execution
-  + single-flight **shell** that triggers one bounded `agent.prompt()` turn (select
-  + batch-append + emit) on the held Agent; the handler runs in the supervisor's
-  process so it can reach that Agent. All durable writes still go through the
-  owning commands (OCC, PB3). It owns neither pacing nor single-flight. (If a
-  future production deploy runs pg-boss workers in separate processes, that
-  multi-process model would force per-job Agent reconstruction — a deferred cost,
-  same family as PB1a's multi-instance deferral, not the Phase B in-process model.)
-- **Recoverable execution owned by Background Work:** retry/backoff **within one
-  job** on handler failure, restart-on-failure, delayed run, idempotent
-  submission. **Crash-survival / persisted-queue is production-only** (real
-  pg-boss), not exercised by the in-process harness; intra-job retry/backoff
-  **is** exercised, via a fake `BackgroundWorkBackend` with a fake clock. The
-  **inter-job** layer of hot-loop prevention (a pacing cooldown after a *failed*
-  terminal) is in PB1a, not recoverable execution.
+  supervisor monotonic counter, incremented on each started turn. It is a run
+  correlation id, not a Background Work job id and not an idempotency key.
+- **Payload:** `{ workspaceId, ownerScope, radioSessionRevision,
+  radioDirectionRevision, wakeReason: "low_watermark" | "direction_changed",
+  refillGeneration, suggestedAppendCount }`.
+- **No Background Work identity:** Radio does not submit `agent_runtime.radio_refill_run`
+  jobs, does not use `singletonKey`, does not use `idempotencyKey`, and does not
+  use `runAfter`. Those identities model durable queued work; Radio needs
+  current-intent actor turns. Queueing a stale direction as a retry would keep
+  old intent alive after the listener has changed direction.
+- **Handler scope:** the turn runs on the long-lived Radio `Agent` held by the
+  current process (PB2). All durable writes still go through the owning commands
+  (OCC, PB3). If the process restarts, Radio does not resume an old refill
+  payload; the next watcher/session wake re-reads current pacing and starts a new
+  turn only if current state still requires one.
 - **Harness layers:** OCC correctness is proven at the command layer with no
-  Background Work (Two-Layer harness, below); Background Work wiring is
-  integration-layer only.
+  Background Work (Two-Layer harness, below). Radio supervisor correctness is
+  proven as an in-process cancellable scheduler with fake run ports, fake clock,
+  and fake wake scheduling.
 
 ### PB1a — Pacing is single-flight low-watermark refill to a fill-target (not a bare single threshold)
 
@@ -197,59 +178,35 @@ The numbers (`low = 5`, `high = 10`, hint `5`) are the starting operating point,
 tunable in implementation; the load-bearing decisions are single-flight
 non-reentrancy, low-as-sole-wake-line, and batch-size-stays-agentic.
 
-**Single-flight lives in the supervisor (in-process) and gates submission to the
-Background Work job — it is not a reused pg-boss singleton.** The Radio run is
-submitted as a Background Work job (`agent_runtime.radio_refill_run`, PB1) so
-recoverable execution (retry/backoff/restart-on-failure) is reused, not
-re-implemented. But the single-flight *lock* stays an in-process supervisor flag
-that **gates submission**: acquired before the job is submitted and held **from
-submit to terminal** (success or final failure), so an in-flight run and its
-pending Background-Work retries count as one occupied slot — preventing double
-execution while the wake gate still sees a low depth. A second external review
-proposed instead keying the whole refill by a pg-boss `singletonKey`; that is
-rejected (the MineMusic-owned port, ADR-0027, deliberately exposes only
-`idempotencyKey`, not `singletonKey`), for three reasons grounded in the actual
-port and harness:
-- **Semantics differ.** Single-flight means "while a run is *in flight* (a
-  seconds-to-tens-of-seconds LLM turn) or has a retry pending, do not start
-  another." pg-boss `singleton` semantics are *enqueue-time de-duplication*; the
-  in-process submit-gate models the in-flight + pending state directly, which
-  enqueue-time de-dup cannot.
-- **Harness testability.** Phase B's correctness harness is deterministic and
-  in-process and does **not** run a pg-boss runtime (the Two-Layer harness,
-  below; PB3 correctness is proven by direct command-layer calls). The
-  single-flight submit-gate is a pure in-process state machine, directly
-  testable; the Background Work job runs through a fake `BackgroundWorkBackend`
-  (with a fake clock for backoff) only in the integration layer.
-- **Cohesion + no premature multi-process cost.** Single-flight (`refilling`
-  flag + wake gate) is the same decision loop as the low-watermark read; they
-  belong together in the supervisor. The Radio supervisor is a single in-process
-  actor (ADR-0032), so an in-process submit-gate suffices.
+**Single-flight lives in the supervisor (in-process) and gates actor turns — it
+is not a reused pg-boss singleton.** The supervisor owns one `activeRun` at a
+time. While `activeRun` exists, low-watermark wakes coalesce into a pending
+low-watermark wake; direction changes abort the active turn and coalesce to the
+latest pending direction revision. The next turn starts only after the previous
+actor turn settles, so one long-lived Radio Agent is never driven concurrently.
 
-**Terminal observation is a required port capability.** Holding submit→terminal
-needs the supervisor to observe the job's terminal state, but the current
-`BackgroundWorkBackend` port (`src/background_work/backend.ts`) exposes only
-`submit` / `registerHandler` / `start` / `stop` and returns `{ jobId, submission }`
-— no job status, terminal callback, or await-completion. Phase B extends the port
-with one narrow terminal-observation capability (e.g. `awaitTerminal(jobId)` or
-`onJobStateChange`; exact shape is implementation); the supervisor releases
-single-flight on the observed terminal. A domain run-state table is **not**
-needed: it could not authoritatively track the pending-retry window (only the
-backend knows whether it will retry), and `runId` = jobId already provides work
-correlation.
+Using pg-boss `singletonKey`, Background Work retry, or delayed jobs for Radio is
+rejected:
+- **Current intent beats old payloads.** A direction/session revision change
+  invalidates the old refill turn. The old turn must abort; it must not retry
+  later with stale intent.
+- **Semantics differ.** Single-flight here means "while the Radio Agent turn is
+  active or aborting, do not start another turn." pg-boss singleton semantics are
+  enqueue-time de-duplication and cannot model actor-turn cancellation.
+- **Harness testability and cohesion.** The pacing read, wake gate, cancellation,
+  and pending-direction priority are one supervisor state machine and are tested
+  directly with fake run ports. Background Work would add terminal-observation
+  and cancellation machinery without owning any Radio decision.
 
-**Hot-loop prevention is two non-overlapping layers.** *Intra-job*: Background
-Work owns retry/backoff on a handler failure (PB1). *Inter-job*: after a **failed**
-terminal the supervisor applies a pacing cooldown before the next generation,
-reusing Background Work's `runAfter` (delayed run) for the delay itself — pacing
-decides only *whether* to re-submit, so no backoff is re-implemented in the
-supervisor. Without this inter-job cooldown a persistent provider failure would
-re-submit a fresh generation every `retryLimit × backoff`: a throttled but
-unbounded loop (each generation is a new job, so Background Work's per-job backoff
-resets). A **succeeded** terminal is not cooled down — if depth is still below
-`low`, the next generation is submitted straight away, because the run made
-progress. **Exhaustion** (0 fit) is neither: it is the exhaustion back-off above
-(stop until direction-change), not a failure cooldown.
+**Hot-loop prevention is supervisor-owned cooldown.** After a run fails from an
+infrastructure/provider/runtime error, the supervisor records `cooldownUntil` and
+schedules a local wake. When the cooldown fires, it re-reads current pacing and
+current direction before deciding whether to start a new turn. The delayed object
+is the wake, not the old payload. Direction changes clear failure cooldown and
+start the newest direction turn as soon as any active/aborting turn settles. A
+successful progress run is not cooled down; if depth is still below `low`, the
+next generation starts straight away. **Exhaustion** (0 fit) is neither: it is the
+exhaustion back-off above (stop until direction-change), not a failure cooldown.
 
 Deferred: if Radio is ever deployed as multiple supervisor instances, the
 submit-gate must coordinate across processes — at that point promote it into the

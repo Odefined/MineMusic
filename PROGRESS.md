@@ -1535,19 +1535,17 @@ catalog integration. Design authority:
   projection, and the PR2 harness covers late posture writes, empty stamped
   posture, value-shape validation, cap enforcement, and current-queue dedup
   reads.
-- Phase B PR3 has landed the Radio actor runtime substrate. Background Work now
-  has a cancellable terminal-observation port keyed by `{ jobType, jobId }` over
-  pg-boss job state, so a Radio supervisor can hold a single-flight refill from
-  submit through terminal retry completion without a process-local reverse map;
-  if terminal observation itself errors transiently, the same job remains locked
-  and the next wake retries observation instead of submitting another
-  generation. Idempotency keys include a supervisor run epoch so submit recovery
-  does not collide with retained terminal jobs from an earlier process. Pending
-  submit retries re-read current pacing and discard stale pending payloads when
-  radio-direction or radio-session revision has moved. Server Host cancels that
-  observation before backend shutdown. The default Server Host mounts Radio only
-  when explicit Radio agent stream options are supplied; startup does not wake
-  Radio. When mounted, Radio receives
+- Phase B PR3 has landed the Radio actor runtime substrate. Radio refill is now
+  a supervisor-owned cancellable actor turn rather than a Background Work job:
+  there is no `agent_runtime.radio_refill_run` submission, singleton/idempotency
+  key, `runAfter`, or terminal-observation dependency for Radio. The supervisor
+  owns active-run cancellation, pending low-watermark coalescing, latest
+  direction correction, and failure cooldown wakes that re-read current pacing
+  instead of retrying old payloads. Direction changes abort stale active turns,
+  clear failure cooldown, and start the newest intent after any aborting turn
+  settles; pause/shutdown abort active turns and cancel scheduled wakes. The
+  default Server Host mounts Radio only when explicit Radio agent stream options
+  are supplied; startup does not wake Radio. When mounted, Radio receives
   its tools through the same ActorDefinition tool-pack selection path used by
   Main. Agent Runtime owns the shared long-lived `ActorRuntimeSession`, generic
   run-scoped Stage-tool-result observation, and Radio run-local result recorder;
@@ -1556,16 +1554,15 @@ catalog integration. Design authority:
   the actor, and `ActorDefinition.runtimePolicy` is the sole owner of actor kind,
   cascade priority, and actor-specific tool precondition additions; shared
   execution code has no Main/Radio actor branch.
-  Agent Runtime now owns the
-  `agent_runtime.radio_refill_run` job payload/result contracts,
-  internal `Running` / `Paused` / `Shutdown` wake-gate state, minimal
+  Agent Runtime now owns the Radio refill payload/result contracts, internal
+  `Running` / `Paused` / `Shutdown` wake-gate state, minimal
   `Silent` / `Notify` speech level, Radio→Main notify channel, low-watermark
   single-flight supervisor, exhaustion suppression by `radio_direction_revision`,
-  failed-terminal plus zero-progress `no_action` cooldown via `runAfter`,
+  failure plus zero-progress `no_action` cooldown via supervisor-scheduled wake,
   queue-append-derived run results recorded from Stage dispatch results instead
   of transcript scraping or fabricated success, queue append `voided_stale` /
   `operation_aborted` error-code mapping to
-  `RadioRunResult.outcome = "voided_stale"` without Background Work failure,
+  `RadioRunResult.outcome = "voided_stale"` without runtime failure,
   no automatic follow-up refill after a terminal `voided_stale` success,
   cooperative abort as `voided_stale`, public-handle shaped notify subjects, and
   the generic actor session transcript store (`agent_runtime_actor_sessions`).
@@ -1649,7 +1646,7 @@ Agent Runtime context-engineering authority for embedded MineMusic agents:
   context.
 - Server Host routes `radio-direction` changes into the Radio supervisor. A
   `direction_changed` run bypasses queue depth and old-direction exhaustion but
-  retains lifecycle, single-flight, and Background Work cooldown behavior.
+  retains lifecycle, single-flight, and supervisor-owned cooldown behavior.
 - Rapid direction revisions coalesce to the latest pending revision. Pending
   direction correction takes priority over ordinary low-watermark wake,
   including a direction change that lands while the pacing read is in flight.

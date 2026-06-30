@@ -1,4 +1,3 @@
-import type { BackgroundWorkBackend } from "../background_work/index.js";
 import type {
   AgentRuntimeStageToolContextFactoryPort,
   AgentRunCascadeCoordinator,
@@ -7,7 +6,7 @@ import type {
   StageToolDispatchPort,
 } from "../agent_runtime/index.js";
 import {
-  createAgentRuntimeBackgroundRefillPort,
+  createAgentRuntimeRadioRefillRunPort,
   createActorRuntimeSession,
   createPostgresAgentRuntimeTranscriptStore,
   createRadioSessionToolRegistrations,
@@ -44,7 +43,6 @@ export type CreateAgentRuntimeRadioModuleInput = {
   ownerScope?: string;
   workspaceId?: string;
   database(): MusicDatabaseContext | undefined;
-  backgroundWork(): BackgroundWorkBackend | undefined;
   musicExperienceRead(): MusicExperienceWorkspaceProjectionPort | undefined;
   radioSession(): MusicExperienceRadioSessionCommand | undefined;
   radioTruth(): MusicExperienceRadioTruthCommand | undefined;
@@ -79,7 +77,6 @@ export function createAgentRuntimeRadioModule(
     },
     async initialize() {
       const db = requirePort(input.database(), "music database");
-      const backgroundWork = requirePort(input.backgroundWork(), "Background Work");
       const musicExperienceRead = requirePort(input.musicExperienceRead(), "Music Experience read model");
       const radioSession = requirePort(input.radioSession(), "Music Experience Radio Session command");
       const notifyChannel = requirePort(input.notifyChannel(), "Main Radio notify channel");
@@ -94,7 +91,7 @@ export function createAgentRuntimeRadioModule(
         musicExperience: musicExperienceRead,
       });
 
-      const runPort = createAgentRuntimeBackgroundRefillPort({
+      const runPort = createAgentRuntimeRadioRefillRunPort({
         session: {
           get actorKind() {
             return requirePort(activeSession, "active Radio session").actorKind;
@@ -138,7 +135,6 @@ export function createAgentRuntimeRadioModule(
       supervisor = createRadioSupervisor({
         ownerScope,
         workspaceId,
-        backgroundWork,
         runPort,
         notifyChannel,
         pacingRead: {

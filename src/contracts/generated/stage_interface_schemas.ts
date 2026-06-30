@@ -1832,7 +1832,7 @@ export const musicDiscoveryLookupInputSchema = {
   "properties": {
     "lookupText": {
       "type": "string",
-      "description": "Free-text music lookup (title, artist, album, etc.). Required for a fresh lookup."
+      "description": "Concrete music lookup text (title, artist, album, scene, or known alias), not a bare mood or genre prompt. Required for a fresh lookup."
     },
     "targetKind": {
       "$ref": "#/definitions/MusicTargetKind",
@@ -1841,16 +1841,9 @@ export const musicDiscoveryLookupInputSchema = {
     "scopes": {
       "type": "array",
       "items": {
-        "anyOf": [
-          {
-            "$ref": "#/definitions/MusicScope"
-          },
-          {
-            "$ref": "#/definitions/ListedMusicScope"
-          }
-        ]
+        "$ref": "#/definitions/MusicScope"
       },
-      "description": "Where to look: \"all\", \"library\", a listed source-library/relation scope, or a provider. Omit for the whole available surface."
+      "description": "Where to look: pass scope handle strings from music.discovery.list_scopes. Omit to search every available scope; use \"[all]\" by itself for the same all-scope behavior explicitly."
     },
     "cursor": {
       "type": "string",
@@ -1901,88 +1894,6 @@ export const musicDiscoveryLookupInputSchema = {
       "type": "string",
       "pattern": "^\\[provider:[^\\]\\r\\n]+\\]$",
       "description": "Provider music scope handle. Pass the whole bracket string unchanged, e.g. \"[provider:netease]\"."
-    },
-    "ListedMusicScope": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "scope": {
-              "type": "string",
-              "const": "[library]"
-            },
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            }
-          },
-          "required": [
-            "scope",
-            "description"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "scope": {
-              "$ref": "#/definitions/MusicLibraryScopeHandle"
-            },
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            }
-          },
-          "required": [
-            "scope",
-            "description"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "$ref": "#/definitions/MusicScopeDescription"
-            },
-            "targetKinds": {
-              "$ref": "#/definitions/NonEmptyMusicTargetKinds"
-            },
-            "scope": {
-              "$ref": "#/definitions/MusicProviderScopeHandle"
-            }
-          },
-          "required": [
-            "description",
-            "scope",
-            "targetKinds"
-          ]
-        }
-      ]
-    },
-    "MusicScopeDescription": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "targetKind": {
-          "$ref": "#/definitions/MusicTargetKind"
-        },
-        "detailText": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "label"
-      ]
-    },
-    "NonEmptyMusicTargetKinds": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/MusicTargetKind"
-      },
-      "minItems": 1
     }
   }
 } as const satisfies JsonSchema;

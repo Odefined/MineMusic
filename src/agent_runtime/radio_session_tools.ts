@@ -70,6 +70,7 @@ function radioSessionDescriptor(input: {
   useWhen: string;
   doNotUseWhen: string;
   inputSchema: ToolDeclaration["inputSchema"];
+  examples?: readonly ToolDeclaration["examples"][number][];
 }): ToolDeclaration {
   return {
     name: input.name,
@@ -83,6 +84,7 @@ function radioSessionDescriptor(input: {
       outputSemantics: "Returns the compact Radio lifecycle state and existing-playback effect; it does not choose music or expose runtime job ids.",
     },
     examples: [
+      ...(input.examples ?? []),
       {
         prompt: input.useWhen,
         expects: "call",
@@ -118,9 +120,20 @@ function radioSessionDescriptor(input: {
 export const radioSessionStartDescriptor = radioSessionDescriptor({
   name: "radio.session.start",
   label: "Start Radio Session",
-  description: "Start a fresh Radio agent session from Shutdown.",
-  useWhen: "Start Radio after it has been shut down.",
-  doNotUseWhen: "Do not use to resume a paused Radio session, pick music, clear queue items, or edit the radio direction.",
+  description: "Start a fresh Radio agent session from Shutdown so Radio can autonomously keep the listening flow alive under the current direction.",
+  useWhen: "Use when Radio is shut down and the listener grants continuing-flow control: take over the next stretch of listening, keep the vibe going, continue playing around a mood, or stop making them choose one track at a time.",
+  doNotUseWhen: "Do not use for a one-shot recommendation, a finite queue edit, a direction-only change, or a paused Radio session; set or adjust the radio direction before starting when the listener gives a new mood.",
+  examples: [
+    {
+      prompt: "take over the next half hour and keep this neon late-night coding mood going",
+      expects: "call",
+    },
+    {
+      prompt: "just find me one track for this mood and stop",
+      expects: "avoid",
+      note: "This is a bounded recommendation, not continuing-flow control.",
+    },
+  ],
   inputSchema: radioSessionStartInputSchema,
 });
 

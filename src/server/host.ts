@@ -245,11 +245,10 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     ? undefined
     : createBackgroundWorkRuntimeModule({ backgroundWork });
   const agentRuntimeRadioModule: AgentRuntimeRadioModule | undefined =
-    musicDataPlatformModule === undefined || backgroundWork === undefined || input.radioAgentOptions === undefined
+    musicDataPlatformModule === undefined || input.radioAgentOptions === undefined
       ? undefined
       : createAgentRuntimeRadioModule({
           database: () => defaultMusicDatabase?.context(),
-          backgroundWork: () => backgroundWork,
           musicExperienceRead: () => readDefaultMusicExperienceReadPort(),
           radioSession: () => readDefaultRadioSessionCommand(),
           radioTruth: () => readDefaultRadioTruthCommand(),
@@ -279,8 +278,6 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       ...(libraryCollectionModule === undefined ? [] : [libraryCollectionModule]),
       ...(musicDiscoveryModule === undefined ? [] : [musicDiscoveryModule]),
       ...(musicExperienceModule === undefined ? [] : [musicExperienceModule]),
-      // Radio registers the agent_runtime.radio_refill_run handler during
-      // initialize(); Background Work starts workers and forbids late handlers.
       ...(agentRuntimeRadioModule === undefined ? [] : [agentRuntimeRadioModule]),
       ...(backgroundWorkModule === undefined ? [] : [backgroundWorkModule]),
     ],

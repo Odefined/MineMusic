@@ -532,20 +532,18 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   `agent_end`.
 - `src/agent_runtime/agent_user_turn_trigger.ts`: Main user-turn trigger over
   shared `ActorRuntimeSession.run()`.
-- `src/agent_runtime/agent_background_refill_trigger.ts`: Radio low-watermark /
-  direction-change Background Work trigger over shared
-  `ActorRuntimeSession.run()`.
+- `src/agent_runtime/agent_radio_refill_runner.ts`: Radio low-watermark /
+  direction-change actor-turn runner over shared `ActorRuntimeSession.run()`.
 - `src/agent_runtime/agent_transcript_store.ts`: generic Agent Runtime
   transcript store keyed by owner/workspace/actor kind and backed by
   `agent_runtime_actor_sessions`.
 - `src/agent_runtime/agent_run_cascade.ts`: shared concern-revision cascade
   coordinator for aborting stale lower-priority actor runs.
 - `src/agent_runtime/radio_supervisor.ts`: Phase B Radio supervisor
-  single-flight low-watermark wake gate, exhaustion suppression, terminal
-  observation retry, run-epoch idempotency, failed/non-progress cooldown,
-  terminal `voided_stale` no-rewake handling, post-commit direction-change
-  correction scheduling/coalescing, and narrow Background Work handler
-  registration.
+  single-flight low-watermark wake gate, active-run cancellation, pending
+  low-watermark coalescing, latest-direction correction scheduling/coalescing,
+  exhaustion suppression, supervisor-owned cooldown wake scheduling, and
+  terminal `voided_stale` no-rewake handling.
 - `src/agent_runtime/radio_run_result_recorder.ts`: Agent Runtime-owned run-local
   observer that records Stage tool results as they return from dispatch and
   builds `RadioRunResult` from queue-append outcomes, stale/abort mapping, and
@@ -560,8 +558,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   composer, internal source library import seam accessor, optional Radio runtime
   mounting without startup wake, and the composed Tool Context Factory accessor.
 - `src/server/agent_runtime_radio_module.ts`: Agent Runtime Radio composition
-  module that wires database, Background Work, Workbench read model, transcript
-  store, Radio run port, supervisor, and Stage tool context dependencies.
+  module that wires database, Music Experience read model, transcript store,
+  Radio run port, supervisor, and Stage tool context dependencies.
 - `src/server/config.ts`: Server Host default runtime composition config.
 - `src/server/music_data_platform_runtime_module.ts`: Server Host composition
   module for Music Data Platform-owned ports and commands from an injected

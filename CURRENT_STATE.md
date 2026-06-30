@@ -817,24 +817,19 @@ restored as runtime bridges.
 - Phase B PR3 Radio supervisor and trigger path have landed on top of that Music
   Experience floor and now run through the shared Actor Runtime spine: Agent
   Runtime defines the internal Radio wake-gate state
-  (`Running` / `Paused` / `Shutdown`), Radio refill job payload/result types,
+  (`Running` / `Paused` / `Shutdown`), Radio refill payload/result types,
   minimal Speech Level (`Silent` / `Notify`), and a typed Radio→Main notify
   channel. `radio_supervisor` owns the low-watermark single-flight wake gate,
-  candidate-exhaustion-by-direction suppression, failed-terminal and
-  zero-progress `no_action` cooldown via Background Work `runAfter`, and
-  `agent_runtime.radio_refill_run` handler registration.
-  Background Work now exposes cancellable terminal observation keyed by
-  `{ jobType, jobId }`, so the supervisor can hold submit→terminal single-flight
-  across retries without relying on a process-local reverse map; transient
-  observation errors keep the same job locked and are retried on the next wake
-  instead of submitting a new generation. Idempotency keys include a supervisor
-  run epoch, so same-process submit recovery does not collide with retained
-  terminal jobs from an earlier process. Pending submit retries re-read current
-  pacing and discard stale pending payloads when radio-direction or
-  radio-session revision has moved, preventing old-basis retry submission from
-  racing a newer wake. Server Host shutdown cancels the observer before stopping
-  the backend. The default Server Host mounts Radio only when explicit Radio
-  agent stream options are supplied, and startup does not wake Radio. Main owns
+  active-run cancellation, pending low-watermark coalescing, latest-direction
+  correction scheduling/coalescing, candidate-exhaustion-by-direction
+  suppression, and supervisor-owned failure cooldown. Radio refill is no longer
+  submitted through Background Work: there is no `agent_runtime.radio_refill_run`
+  job, `singletonKey`, `idempotencyKey`, `runAfter`, or terminal-observation
+  dependency for Radio. Direction changes abort stale active turns, clear
+  failure cooldown, and start the newest intent after any aborting turn settles;
+  pause and shutdown abort active turns and cancel scheduled wakes. The default
+  Server Host mounts Radio only when explicit Radio agent stream options are
+  supplied, and startup does not wake Radio. Main owns
   explicit `radio.session.start` / `pause` / `shutdown` / `resume` Stage tools:
   start opens the wake gate and requests a low-watermark refill, pause and
   shutdown abort active refills, shutdown deactivates the active Radio actor
@@ -849,11 +844,11 @@ restored as runtime bridges.
   tool precondition basis live in `ActorDefinition.runtimePolicy`; shared
   session, harness, cascade, and basis-tracker code do not branch on Main versus
   Radio. Agent Runtime owns one run-scoped Stage-tool-result observation path;
-  the Radio trigger creates one result recorder per run. The run result is
+  the Radio runner creates one result recorder per run. The run result is
   recorded from Stage dispatch results, not scraped from pi transcript messages
   or fabricated as unconditional success; queue append `voided_stale` /
   `operation_aborted` command errors become
-  `RadioRunResult.outcome = "voided_stale"` instead of Background Work failures,
+  `RadioRunResult.outcome = "voided_stale"` instead of runtime failures,
   while no successful append remains `no_action`; candidate-exhaustion notify is
   still Radio agent judgement, not inferred by the result recorder. A terminal
   `voided_stale` success does not auto-submit a follow-up low-watermark refill.

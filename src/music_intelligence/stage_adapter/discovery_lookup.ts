@@ -74,10 +74,10 @@ export const musicDiscoveryLookupDescriptor: ToolDeclaration = {
   instrumentId: musicDiscoveryInstrument.id,
   label: "Lookup Music",
   ownerArea: "music_intelligence",
-  description: "Find or identify music candidates from music lookup text without writing user state.",
+  description: "Find or identify music candidates from concrete music lookup text without writing user state.",
   usage: {
-    useWhen: "Use for active lookup-text-driven library, source-library, relation, or provider retrieval from title, artist, album, or known-alias text chosen by the agent while doing music tasks.",
-    doNotUseWhen: "Do not use for mood or semantic recommendation prompts, browsing a scope without lookup text, save, play, favorite, import, or final recommendation workflows.",
+    useWhen: "Use for active lookup-text-driven library, source-library, relation, or provider retrieval from title, artist, album, scene, or known-alias text chosen by the agent while doing music tasks. Use small limits for exploratory reference checks.",
+    doNotUseWhen: "Do not use bare mood, genre, activity, texture, or semantic recommendation prompts as lookupText. First translate the mood into concrete likely artists, tracks, albums, scenes, or aliases, then look up those names. Pass scope handles as strings, not list_scopes result objects. Do not mix [all] with any other scope: omit scopes or use [all] alone for every available scope, or pass explicit non-[all] scopes. Do not use for browsing a scope without lookup text, save, play, favorite, import, or final recommendation workflows.",
     outputSemantics: "Returns public music item handles plus lookup descriptions; material handles are durable and candidate handles are unconfirmed, read-only, and TTL-bound.",
   },
   examples: [
@@ -90,9 +90,27 @@ export const musicDiscoveryLookupDescriptor: ToolDeclaration = {
       expects: "call",
     },
     {
+      prompt: "Kavinsky Nightcall",
+      expects: "call",
+    },
+    {
+      prompt: "The Midnight Los Angeles",
+      expects: "call",
+    },
+    {
       prompt: "find quiet walking music",
       expects: "avoid",
       note: "mood and semantic recommendation are separate future tools",
+    },
+    {
+      prompt: "synthwave dark synth retro analog instrumental",
+      expects: "avoid",
+      note: "generic genre and texture words are selection criteria, not concrete lookup text",
+    },
+    {
+      prompt: "lookup across [all] and NetEase together",
+      expects: "avoid",
+      note: "[all] is exclusive; omit scopes or use [all] alone for every available scope, or choose explicit provider scopes",
     },
     {
       prompt: "browse my saved music scopes",
@@ -133,7 +151,7 @@ export const musicDiscoveryLookupDescriptor: ToolDeclaration = {
     {
       code: "invalid_input",
       retryable: false,
-      suggestedFixTemplate: "Retry with lookupText, optional targetKind, optional non-empty scopes, and optional limit; cursor pages must pass only cursor and optional limit.",
+      suggestedFixTemplate: "Retry with concrete lookupText, optional targetKind, optional non-empty scope handle strings, and optional limit. Use [all] only by itself; cursor pages must pass only cursor and optional limit.",
     },
     {
       code: "invalid_cursor",
@@ -663,11 +681,11 @@ function normalizeLookupScopes(
     return invalidInput("music.discovery.lookup scopes must be non-empty when present.");
   }
 
-  const rawScopes = inputScopes ?? [formatMusicScopeHandle({ kind: "library" })];
+  const rawScopes = inputScopes ?? [formatMusicScopeHandle({ kind: "all" })];
   const scopesByKey = new Map<string, ParsedMusicScope>();
 
   for (const rawScope of rawScopes) {
-    const normalized = normalizeLookupScope(scopeHandleFromLookupInput(rawScope));
+    const normalized = normalizeLookupScope(rawScope);
 
     if (!normalized.ok) {
       return normalized;
@@ -682,7 +700,7 @@ function normalizeLookupScopes(
   const scopes = Array.from(scopesByKey.values());
   const hasAll = scopes.some((scope) => scope.kind === "all");
   if (hasAll && scopes.length > 1) {
-    return invalidInput("music.discovery.lookup scope all cannot be mixed with any other scope.");
+    return invalidInput("music.discovery.lookup scope all cannot be mixed with any other scope; omit scopes or use [all] alone for every available scope, or pass explicit non-[all] scopes.");
   }
 
   const hasLibrary = scopes.some((scope) => scope.kind === "library");
@@ -697,12 +715,6 @@ function normalizeLookupScopes(
     ok: true,
     value: scopes,
   };
-}
-
-type LookupScopeInput = NonNullable<LookupFirstPageInput["scopes"]>[number];
-
-function scopeHandleFromLookupInput(value: LookupScopeInput): MusicScope {
-  return typeof value === "string" ? value : value.scope;
 }
 
 function normalizeLookupScope(value: MusicScope): Result<ParsedMusicScope> {

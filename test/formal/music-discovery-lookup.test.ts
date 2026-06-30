@@ -96,6 +96,8 @@ assert.equal(musicDiscoveryLookupDescriptor.sideEffect.durableUserStateWrite, fa
 assert.equal(musicDiscoveryLookupDescriptor.sideEffect.runtimeStateWrite, true);
 assert.equal(musicDiscoveryLookupDescriptor.sideEffect.externalCall, true);
 assert.equal(musicDiscoveryLookupDescriptor.examples.some((example) => example.expects === "avoid" && example.prompt.includes("quiet walking")), true);
+assert.equal(musicDiscoveryLookupDescriptor.examples.some((example) => example.expects === "avoid" && example.prompt.includes("synthwave dark synth")), true);
+assert.equal(musicDiscoveryLookupDescriptor.examples.some((example) => example.expects === "avoid" && example.prompt.includes("[all]")), true);
 assert.equal(musicDiscoveryLookupDescriptor.examples.some((example) => example.expects === "avoid" && example.prompt.includes("browse")), true);
 assert.equal((musicDiscoveryLookupDescriptor.allowedActions ?? []).some((action) => action.action === "save" || action.action === "play" || action.action === "commit"), false);
 const lookupResult = await stageInterface.dispatch(testStageToolContext({
@@ -190,6 +192,48 @@ if (lookupResult.ok) {
         });
     }
 }
+const mixedAllScopeResult = await stageInterface.dispatch(testStageToolContext({
+    mintedAnchors,
+}), {
+    toolName: "music.discovery.lookup",
+    payload: {
+        lookupText: "whoo",
+        scopes: [
+            "[all]",
+            "[provider:netease]",
+        ],
+    },
+});
+assert.equal(mixedAllScopeResult.ok, false);
+if (!mixedAllScopeResult.ok) {
+    assert.equal(mixedAllScopeResult.error.code, "invalid_input");
+    assert.match(mixedAllScopeResult.error.message, /use \[all\] alone/u);
+}
+const unscopedLookup = await stageInterface.dispatch(testStageToolContext({
+    mintedAnchors,
+}), {
+    toolName: "music.discovery.lookup",
+    payload: {
+        lookupText: "whoo",
+        limit: 3,
+    },
+});
+assert.equal(unscopedLookup.ok, true);
+assert.deepEqual(queryCalls.at(-1), {
+    ownerScope: "local",
+    text: "whoo",
+    materialKind: "recording",
+    pools: {
+        anyOf: [
+            { kind: "local_catalog" },
+            { kind: "provider_search", providerId: "netease" },
+            { kind: "provider_search", providerId: "spotify" },
+        ],
+    },
+    order: "text_relevance",
+    limit: 3,
+    sessionId: "music-discovery-lookup-test-session",
+});
 const forgedCursor = await stageInterface.dispatch(testStageToolContext({
     mintedAnchors: [],
 }), {

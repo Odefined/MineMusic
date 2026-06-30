@@ -15,6 +15,7 @@
     "smoke:ncm:retrieval": "npm run build:test && node ./.tmp-test/test/live/ncm-mixed-retrieval-smoke.js",
     "smoke:ncm:matrix": "npm run build:test && node ./.tmp-test/test/live/ncm-real-scenario-matrix.js",
     "smoke:ncm:perf": "npm run build:test && node ./.tmp-test/test/live/ncm-performance-smoke.js",
+    "smoke:phase-b:llm": "npm run build:test && node ./.tmp-test/test/live/phase-b-llm-judgement-smoke.js",
     "smoke:qq": "npm run build:test && node ./.tmp-test/test/live/qq-source-smoke.js",
     "smoke:qq:download": "npm run build:test && node ./.tmp-test/test/live/qq-download-smoke.js",
     "smoke:qq:library": "npm run build:test && node ./.tmp-test/test/live/qq-source-library-smoke.js",

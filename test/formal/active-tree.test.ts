@@ -146,9 +146,9 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/agent_runtime
     .sort(), [
     "src/agent_runtime/actor_definition.ts",
     "src/agent_runtime/actor_runtime_session.ts",
-    "src/agent_runtime/agent_background_refill_trigger.ts",
     "src/agent_runtime/agent_harness.ts",
     "src/agent_runtime/agent_message_helpers.ts",
+    "src/agent_runtime/agent_radio_refill_runner.ts",
     "src/agent_runtime/agent_run_cascade.ts",
     "src/agent_runtime/agent_transcript_store.ts",
     "src/agent_runtime/agent_user_turn_trigger.ts",
@@ -266,7 +266,7 @@ const actorExecutionInternals = new Set([
     "src/agent_runtime/pi_engine.ts",
 ]);
 const actorTriggerFiles = new Set([
-    "src/agent_runtime/agent_background_refill_trigger.ts",
+    "src/agent_runtime/agent_radio_refill_runner.ts",
     "src/agent_runtime/agent_user_turn_trigger.ts",
 ]);
 const actorTriggerForbiddenInternals = new Set([
@@ -440,19 +440,6 @@ function musicDataPlatformBoundaryFailure(edge: ArchitectureImportEdge): string 
     return undefined;
 }
 function agentRuntimeBoundaryFailure(edge: ArchitectureImportEdge): string | undefined {
-    if (edge.fromFile === "src/agent_runtime/radio_supervisor.ts" && edge.toFile === "src/background_work/index.ts") {
-        const allowedNames = new Set([
-            "BackgroundWorkAwaitTerminalInput",
-            "BackgroundWorkSubmitInput",
-            "BackgroundWorkSubmitResult",
-            "BackgroundWorkTerminalState",
-            "RegisterBackgroundWorkHandlerInput",
-        ]);
-        const forbiddenNames = edge.importedNames.filter((name) => !allowedNames.has(name));
-        return forbiddenNames.length === 0 && edge.importedNames.length > 0
-            ? undefined
-            : `Agent Runtime may import only the narrow Background Work terminal-observation port types for Radio supervisor: ${formatEdge(edge)} symbols=[${edge.importedNames.join(", ")}]`;
-    }
     if (edge.toArea === "storage") {
         const storageTypeOnlyFiles = new Set([
             "src/agent_runtime/index.ts",

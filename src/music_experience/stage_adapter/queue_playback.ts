@@ -188,7 +188,7 @@ export const playbackQueueAppendDescriptor: ToolDeclaration = {
   usage: {
     useWhen: "Use after choosing one or more concrete music items that should be placed in the current logical queue.",
     doNotUseWhen: "Do not use for lookup, presentation cards, library saving, or making an item the current now-playing selection.",
-    outputSemantics: "Returns compact public [material:...] handles, appended indexes, and queue length; it does not expose storage rows, material refs, or runtime metadata.",
+    outputSemantics: "Returns compact public [material:...] handles, appended indexes, and the queue length after this append; it does not expose storage rows, material refs, or runtime metadata.",
   },
   examples: [
     {
@@ -209,7 +209,7 @@ export const playbackQueueAppendDescriptor: ToolDeclaration = {
   resultSummary(result) {
     const output = result as PlaybackQueueAppendOutput;
     const indexes = output.items.map((item) => item.index).join(", ");
-    return `Appended ${output.items.length} item(s) to queue index(es) ${indexes}; queue length is ${output.queueLength}.`;
+    return `Appended ${output.items.length} item(s) to queue index(es) ${indexes}; queue length after this append is ${output.queueLength}.`;
   },
 };
 

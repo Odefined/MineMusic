@@ -149,21 +149,18 @@ commands land in PR3.4 as structured actor-appropriate routes.
 
 ---
 
-## PR3 — Radio actor runtime + lifecycle enum + pacing + supervisor + transcript durability + BW port extension
+## PR3 — Radio actor runtime + lifecycle enum + pacing + supervisor + transcript durability
 
-**Covers:** PB1, PB1a (pacing/single-flight/exhaustion/cooldown), PB2 (one long-lived Agent + PG transcript durability), PB4 (cross-context two-step integration confirm only — no build, model holds via ADR-0040), PB10 (minimal lifecycle enum only), Background Work port extension (`awaitTerminal`). PB7's structured terminal declaration lands later in PR6.
+**Covers:** PB1, PB1a (pacing/single-flight/exhaustion/cooldown), PB2 (one long-lived Agent + PG transcript durability), PB4 (cross-context two-step integration confirm only — no build, model holds via ADR-0040), PB10 (minimal lifecycle enum only). PB7's structured terminal declaration lands later in PR6.
 
-**Goal:** Stand up the Radio supervisor as an in-process actor: lifecycle enum (`Running | Paused | Shutdown`, **set programmatically**), the three-state wake gate, the single-flight submit-gate, **one long-lived pi `Agent` held by the supervisor** (PB2 pi-faithful model: `_state.messages` accumulates across `prompt()`/`continue()` turns — no per-run reload, no per-run reconstruction), the initial run-result envelope, and the `BackgroundWorkBackend` terminal-observation extension. Exhaustion back-off is wired as supervisor state, but the honest Radio-declared exhaustion judgement lands in PR6.
+**Goal:** Stand up the Radio supervisor as an in-process actor: lifecycle enum (`Running | Paused | Shutdown`, **set programmatically**), the three-state wake gate, the single-flight actor-turn gate, **one long-lived pi `Agent` held by the supervisor** (PB2 pi-faithful model: `_state.messages` accumulates across `prompt()`/`continue()` turns — no per-run reload, no per-run reconstruction), the initial run-result envelope, and supervisor-owned failure cooldown. Exhaustion back-off is wired as supervisor state, but the honest Radio-declared exhaustion judgement lands in PR6.
 
-**Why one merge unit:** This is the "Radio actor exists and runs" PR. PB1a's wake gate needs enum + single-flight together to be defined at all; without the lifecycle leg a paused/shutdown Radio would be re-woken. PB2's long-lived Agent + PG durability is the run's continuity substrate. The BW port extension has no consumer before the supervisor's submit→terminal single-flight (tradeoff d → folds here so it is testable). PB6's batch append (PR1) is consumed here as the run's append tool. PB7 does not close here because Radio still lacks a structured terminal declaration surface.
+**Why one merge unit:** This is the "Radio actor exists and runs" PR. PB1a's wake gate needs enum + single-flight together to be defined at all; without the lifecycle leg a paused/shutdown Radio would be re-woken. PB2's long-lived Agent + PG durability is the run's continuity substrate. PB6's batch append (PR1) is consumed here as the run's append tool. PB7 does not close here because Radio still lacks a structured terminal declaration surface.
 
 **Files touched:**
-- `src/background_work/backend.ts` — add `awaitTerminal(jobId): Promise<BackgroundWorkTerminalState>` (or `onJobStateChange`); the supervisor releases single-flight on the observed terminal (PB1a "Terminal observation is a required port capability").
-- `src/background_work/pg_boss_backend.ts` — implement `awaitTerminal` over pg-boss job state (production; not exercised by the harness).
-- `test/formal/background-work-backend.test.ts` — extend `FakePgBossClient` to support `awaitTerminal` + fake-clock backoff.
 - `src/agent_runtime/` (new files):
-  - `radio_supervisor.ts` — lifecycle enum, `refilling` single-flight flag, wake gate (depth < `low` AND not refilling AND `Running` AND not-exhausted-for-current-direction), `refillGeneration` counter, exhaustion record (the exhausted `radio_direction_revision`), submit-to-BW with idempotency key `{workspaceId, radioSessionRevision, radioDirectionRevision, wakeReason, refillGeneration}` (PB1 "Idempotency key"), release single-flight on `awaitTerminal`, inter-job failed-terminal cooldown via `runAfter` (PB1a "Hot-loop prevention is two non-overlapping layers").
-  - `agent_background_refill_trigger.ts` — one bounded Radio turn on the supervisor's **long-lived**
+  - `radio_supervisor.ts` — lifecycle enum, `refilling` single-flight flag, wake gate (depth < `low` AND not refilling AND `Running` AND not-exhausted-for-current-direction), `activeRun` cancellation, pending low-watermark coalescing, pending latest direction correction, `refillGeneration` counter, exhaustion record (the exhausted `radio_direction_revision`), supervisor-owned failure cooldown, and local scheduled wake that re-reads current pacing instead of retrying an old payload.
+  - `agent_radio_refill_runner.ts` — one bounded Radio turn on the supervisor's **long-lived**
     `Agent`: call `agent.prompt(...)` (the transcript accumulates in
     `_state.messages` automatically — **no reload, no reconstruct**), select +
     batch-append (via `playback.queue.append`, provenance `radio_agent`) + emit
@@ -180,25 +177,25 @@ commands land in PR3.4 as structured actor-appropriate routes.
   - `main_radio_channel.ts` — optional typed Main↔Radio channel shell only. Phase B does not require runtime bus delivery for PR6; do not add PB7 semantic forwarding here.
   - `speech_level.ts` — minimal `Silent | Notify` vocabulary shell. PB7 terminal declaration and derived notify intent land in PR6.
 - `src/contracts/agent_runtime.ts` — `RadioRunResult` envelope, `RadioLifecycleState`, and `SpeechLevel` shell. Do not add script-derived candidate-exhaustion semantics here; PR6 adds the structured Radio terminal declaration contract.
-- `src/server/host.ts` — register the `agent_runtime.radio_refill_run` job handler (PB1 "Job type"); wire Radio as a runtime module.
+- `src/server/host.ts` — wire Radio as a runtime module; Radio does not register a Background Work job handler.
 
 **Dependencies:** PR1 (batch append + CAS columns + `radio_session_revision`), PR2 (radio-truth read for run-start direction + posture). PR3.1 and PR3.2 are follow-up migrations on top of this landed PR3; they are not prerequisites for the landed substrate.
 
-**Guards / tests** (new `test/formal/radio-supervisor.test.ts`, in-process, fake BackgroundWorkBackend + fake clock, **no real LLM**, run handler stubbed):
+**Guards / tests** (new `test/formal/radio-supervisor.test.ts`, in-process, fake run port + fake clock + fake wake scheduler, **no real LLM**):
 1. Wake gate three-state: depth < low + refilling=false + `Running` ⇒ wakes; + `Paused` ⇒ no wake; + `Shutdown` ⇒ no wake.
-2. Single-flight: a wake while refilling=true ⇒ no second submit (coalesced); on `awaitTerminal` succeeded ⇒ re-evaluates, submits next generation if depth still < low.
+2. Single-flight: a wake while refilling=true ⇒ no second run (coalesced); when the active turn settles ⇒ re-evaluates and starts next generation if depth still < low.
 3. Exhaustion state shell: a stubbed exhausted-direction result records the `radio_direction_revision`, stops re-waking on low watermark; steer to a new direction ⇒ exhaustion cleared, may wake; `pause`/resume does **not** clear exhaustion. The honest agent declaration path for that result lands in PR6.
 4. No script-derived PB7: a zero-append/no-action run is not treated as candidate exhaustion or notify.
-5. Inter-job cooldown: failed terminal ⇒ next generation delayed via `runAfter`; succeeded ⇒ no delay.
-6. Idempotency key: retries of one job share the key (de-duplicated by the fake backend); next generation gets a new key.
+5. Failure cooldown: runtime/provider failure records cooldown and schedules a local wake; direction change clears cooldown and starts latest intent after any active/aborting turn settles.
+6. Cancellation: direction changes abort active stale turns and coalesce to the latest direction; pause/shutdown abort active turns and cancel scheduled wakes.
 7. **`playback.queue.append` cross-context two-step (PB6 two-step + PB4 benign orphan, moved from PR1)** — candidate commit succeeds, the Music Experience append voids on a stale basis (`voided_stale`), retry resolves the **same** idempotent material ref and appends exactly once; a committed-but-not-appended material is a benign orphan (PB4). This is the MDP × Music Experience integration test that does not belong in PR1's pure command-layer suite.
 - Boundary guard: forbidden-import test — raw pi harness helper imports allowed only in `agent_transcript_store*.ts` and adapter tests (ADR-0039 Consequences).
 
-**Verification:** `npm run typecheck`; `npm run test:stage-core radio-supervisor`; `npm run test:stage-core background-work-backend`.
+**Verification:** `npm run typecheck`; `npm run test:stage-core radio-supervisor`; targeted Agent Runtime radio module/runner tests.
 
-**Stopping condition:** wake gate correct across all three lifecycle states + exhaustion shell; single-flight coalesces; zero-append/no-action is not script-promoted to candidate exhaustion; failed-terminal cools down, succeeded does not; idempotency key correct across retries vs generations; **one long-lived Agent per Radio** accumulates `_state.messages` across `prompt()` turns with NO per-run reload/reconstruct; transcript persisted after each turn to PG; run-start context is installed before `Agent.prompt(...)` by PR3.2's shared AgentHarness path, and `agent_start` remains observation-only; **cross-context two-step (test 7) voids on stale basis and the idempotent retry resolves the same material ref and appends exactly once, with a committed-but-not-appended material treated as a benign orphan (PB4)**; a simulated restart reconstructs the Agent from PG and continuity survives (in-memory double in the harness). The temporary legacy context injection path is retired by PR3.2; PB7 remains open until PR6's structured Radio terminal declaration.
+**Stopping condition:** wake gate correct across all three lifecycle states + exhaustion shell; single-flight coalesces; zero-append/no-action is not script-promoted to candidate exhaustion; runtime/provider failure cools down by scheduling a fresh wake that re-reads current pacing; direction changes abort stale active turns, clear failure cooldown, and coalesce to latest intent; pause/shutdown abort active turns and cancel scheduled wakes; **one long-lived Agent per Radio** accumulates `_state.messages` across `prompt()` turns with NO per-run reload/reconstruct; transcript persisted after each turn to PG; run-start context is installed before `Agent.prompt(...)` by PR3.2's shared AgentHarness path, and `agent_start` remains observation-only; **cross-context two-step (test 7) voids on stale basis and the idempotent retry resolves the same material ref and appends exactly once, with a committed-but-not-appended material treated as a benign orphan (PB4)**; a simulated restart reconstructs the Agent from PG and continuity survives (in-memory double in the harness). The temporary legacy context injection path is retired by PR3.2; PB7 remains open until PR6's structured Radio terminal declaration.
 
-**Optional split point:** if the BW port extension is contentious in review, split it into PR3a (port + fake backend) immediately before this PR. Default: keep folded.
+**Optional split point:** if cancellable supervisor scheduling is contentious in review, split runner renaming and supervisor scheduling into adjacent PRs. Default: keep folded because both describe the same Radio turn ownership change.
 
 ---
 
@@ -265,7 +262,7 @@ posture-stamp carry / clear, and Radio run result behavior.
   are scrubbed from provider context. Successful state-mutating tool results
   append a local Workspace Context diff through pi `afterToolCall`, extending
   the public observation with what changed for the next decision.
-- `src/agent_runtime/agent_background_refill_trigger.ts` — delete `renderRadioRunSystemPrompt`; Radio
+- `src/agent_runtime/agent_radio_refill_runner.ts` — delete `renderRadioRunSystemPrompt`; Radio
   uses the same shared `AgentHarness` adapter as Main. Radio-specific Background
   Work, stale-posture clear, transcript persistence, and run result extraction
   stay outside the shared agent loop path.
@@ -400,7 +397,7 @@ correctness dependent on a projection trick.
   runtime-only `preconditionBasis` for both Main and Radio according to the
   current `ActorDefinition.runtimePolicy` and shared base tool policy; Main and
   Radio do not carry parallel basis logic or actor-kind branches in the tracker.
-- `src/agent_runtime/agent_background_refill_trigger.ts` and shared context projection tests — run-start
+- `src/agent_runtime/agent_radio_refill_runner.ts` and shared context projection tests — run-start
   may observe stale posture, but the correction path is the Music
   Experience-owned posture command surface, not encoder suppression.
 - Boundary guards — prove tool routes call command ports and do not construct
@@ -549,7 +546,7 @@ too much queue.
   signals for one revision are idempotent; revisions arriving during an active
   run coalesce to the latest pending revision and are serviced before ordinary
   terminal-time pacing rechecks.
-- `src/agent_runtime/agent_background_refill_trigger.ts` — keep direction-change reason and suggested
+- `src/agent_runtime/agent_radio_refill_runner.ts` — keep direction-change reason and suggested
   append count in Invocation Context. Direction/session revisions remain
   runtime-only job metadata and do not enter model context.
 - `src/agent_runtime/actor_definition.ts` — distinguish ordinary refill from a
@@ -612,7 +609,7 @@ incomplete for the active Radio feature set.
   queue, playback, and radio-session writers.
 - `src/agent_runtime/radio_supervisor.ts` — basis table and priority-directed
   abort verdict.
-- `src/agent_runtime/agent_background_refill_trigger.ts` and user-turn trigger — per-run
+- `src/agent_runtime/agent_radio_refill_runner.ts` and user-turn trigger — per-run
   `AbortController`, threaded through `StageToolContext.abortSignal`, and tied
   to pi `Agent.abort()` where needed.
 - `src/agent_runtime/pi_engine.ts` and `src/agent_runtime/stage_tool_bridge.ts`
@@ -720,7 +717,7 @@ Phase B does not smuggle in a half-designed agent-to-agent messaging layer.
 - Radio actor terminal declaration protocol — structured final assistant
   declaration or a generic finish-run tool, chosen from pi capabilities at
   implementation time. Do not create a narrow one-off "exhaustion only" surface.
-- `src/agent_runtime/agent_background_refill_trigger.ts` — extract and validate the terminal
+- `src/agent_runtime/agent_radio_refill_runner.ts` — extract and validate the terminal
   declaration, then assemble `RadioRunResult` from declaration + runtime facts.
 - `src/agent_runtime/radio_run_result_recorder.ts` — keep or rename as a
   tool-fact recorder; it may report queue mutation facts (`appended` and

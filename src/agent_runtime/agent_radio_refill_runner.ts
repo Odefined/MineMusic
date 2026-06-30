@@ -17,7 +17,7 @@ import type { AgentRunCascadeCoordinator } from "./agent_run_cascade.js";
 import type { RadioRefillRunPort } from "./radio_supervisor.js";
 import type { EncodedWorkspaceContext } from "./workspace_context_encoder.js";
 
-export type CreateAgentRuntimeBackgroundRefillPortInput = {
+export type CreateAgentRuntimeRadioRefillRunPortInput = {
   session: ActorRuntimeSession;
   cascade?: AgentRunCascadeCoordinator;
   hooks?: ActorRuntimeSessionRunHooks;
@@ -38,8 +38,8 @@ export type CreateAgentRuntimeBackgroundRefillPortInput = {
   };
 };
 
-export function createAgentRuntimeBackgroundRefillPort(
-  input: CreateAgentRuntimeBackgroundRefillPortInput,
+export function createAgentRuntimeRadioRefillRunPort(
+  input: CreateAgentRuntimeRadioRefillRunPortInput,
 ): RadioRefillRunPort {
   return {
     async runRadioRefill(runInput) {
@@ -107,7 +107,7 @@ export function createAgentRuntimeBackgroundRefillPort(
       }
 
       if (radioResult.runId !== runInput.runId) {
-        throw new Error(`Radio refill run result '${radioResult.runId}' did not match Background Work job '${runInput.runId}'.`);
+        throw new Error(`Radio refill run result '${radioResult.runId}' did not match run '${runInput.runId}'.`);
       }
 
       return radioResult;
@@ -131,7 +131,7 @@ function radioRefillPayloadMatchesBasis(
 }
 
 async function promptForPayload(
-  input: Pick<CreateAgentRuntimeBackgroundRefillPortInput, "promptForPayload">,
+  input: Pick<CreateAgentRuntimeRadioRefillRunPortInput, "promptForPayload">,
   promptInput: {
     runId: string;
     payload: RadioRefillRunJobPayload;

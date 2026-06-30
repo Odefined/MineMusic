@@ -150,7 +150,7 @@ Content (spec-driven, traces to `agent-context-engineering-spec.md`, not to PBs)
 
 **PR3.2 — Radio consumes the shared assembler (retire the Run Floor)**
 - Delete `renderRadioRunSystemPrompt` (the "Radio Run Floor"). Radio uses the same shared AgentHarness adapter as Main: assemble `radio` + `listening` Workspace Context and harness-only `commandBasis`, install `state.systemPrompt` / `state.tools` before `Agent.prompt(...)`, and refresh same-run provider context through pi `prepareNextTurn` after tool results with `changedBasis`. Replace the prose Invocation (`Radio refill run: …`) with JSON `{run:{kind:"radio_refill",runId,wakeReason,suggestedAppendCount}}` via `agent.prompt(...)`. Wire `radioDefinition`. **Keep** PB8 posture-stamp carry/clear (ADR-0037 durable floor) as a pre-assembly domain hook. Replaces the **landed** PR3 Run Floor.
-- Files: `src/agent_runtime/agent_background_refill_trigger.ts`; `src/server/agent_runtime_radio_module.ts` (drop `radioBaseSystemPrompt` const); `src/contracts/agent_runtime.ts` (JSON invocation shape).
+- Files: `src/agent_runtime/agent_radio_refill_runner.ts`; `src/server/agent_runtime_radio_module.ts` (drop `radioBaseSystemPrompt` const); `src/contracts/agent_runtime.ts` (JSON invocation shape).
 - Dependencies: PR3.1, PR2.
 - Guards (anti-regression, spec Acceptance Criteria): Radio run-start systemPrompt == shared assembler output (no Radio-only renderer); Radio sees queue handles/labels; Invocation is JSON; timing preserved.
 

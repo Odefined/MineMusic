@@ -129,6 +129,12 @@ assert.equal(validateLookupInput({
     ],
     limit: 5,
 }), true);
+assert.equal(validateLookupInput({
+    lookupText: "whoo",
+    scopes: [
+        { scope: "[provider:netease]" },
+    ],
+}), false);
 assert.equal(validateLookupInput({ cursor: "cursor_1", limit: 5 }), true);
 // The public schema no longer rejects a mixed first/cursor input via a
 // top-level oneOf (the Anthropic API rejects top-level composition keywords);

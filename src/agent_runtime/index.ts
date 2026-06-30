@@ -76,11 +76,11 @@ export type {
   StageToolResultObserver,
 } from "./stage_tool_bridge.js";
 export {
-  createAgentRuntimeBackgroundRefillPort,
-} from "./agent_background_refill_trigger.js";
+  createAgentRuntimeRadioRefillRunPort,
+} from "./agent_radio_refill_runner.js";
 export type {
-  CreateAgentRuntimeBackgroundRefillPortInput,
-} from "./agent_background_refill_trigger.js";
+  CreateAgentRuntimeRadioRefillRunPortInput,
+} from "./agent_radio_refill_runner.js";
 export {
   cappedAgentTranscript,
   createInMemoryAgentRuntimeTranscriptStore,
@@ -100,12 +100,10 @@ export type {
   MainRadioNotifyChannel,
 } from "./main_radio_channel.js";
 export {
-  RADIO_REFILL_JOB_TYPE,
   createRadioSupervisor,
 } from "./radio_supervisor.js";
 export type {
   CreateRadioSupervisorInput,
-  RadioBackgroundWorkPort,
   RadioPacingReadPort,
   RadioPacingSnapshot,
   RadioRefillRunPort,

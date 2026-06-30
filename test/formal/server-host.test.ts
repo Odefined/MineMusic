@@ -18,12 +18,12 @@ import {
     createMusicExperienceRadioTruthCommand,
     musicExperienceSchemas,
 } from "../../src/music_experience/index.js";
-import { radioDefinition, selectActorStageToolDeclarations, } from "../../src/agent_runtime/index.js";
+import { radioDefinition, radioRunFinishDescriptor, selectActorStageToolDeclarations, toPiToolName, } from "../../src/agent_runtime/index.js";
 import { createExtensionRuntimeRetrievalProviderSearchPort, createMusicDataPlatformRuntimeModule, createMusicExperienceServerRuntimeModule, createMineMusicExtensionRuntime, createServerHost, createStageToolContextAssembly, } from "../../src/server/index.js";
 import { createExtensionRuntimeModule, createStageRuntime, } from "../../src/stage_core/index.js";
 import { createStageInterfaceRuntimePorts, stageInterfaceSchemas, type StageInterfaceRuntimePorts } from "../../src/stage_interface/index.js";
 import { createPostgresTestSchema, openPostgresTestMusicDatabase, postgresTestDatabaseUrl } from "../support/postgres.js";
-import { assistantTextMessage, fakeAssistantMessageEventStream } from "./helpers/pi-agent-message-fixtures.js";
+import { assistantMessageWithToolCall, assistantTextMessage, fakeAssistantMessageEventStream } from "./helpers/pi-agent-message-fixtures.js";
 const serverHostDatabaseUrl = postgresTestDatabaseUrl();
 const noRadioServerHostSchema = `minemusic_server_host_no_radio_${process.pid}`;
 await createPostgresTestSchema({
@@ -56,6 +56,7 @@ await createPostgresTestSchema({
     schema: serverHostSchema,
 });
 const serverHostBackgroundWork = createFakeBackgroundWorkBackend();
+let serverHostRadioRuns = 0;
 const host = createServerHost({
     backgroundWork: serverHostBackgroundWork,
     config: {
@@ -69,10 +70,15 @@ const host = createServerHost({
     },
     radioAgentOptions: {
         streamFn() {
+            serverHostRadioRuns += 1;
             return fakeAssistantMessageEventStream({
                 type: "done",
-                reason: "stop",
-                message: assistantTextMessage("radio idle"),
+                reason: "toolUse",
+                message: assistantMessageWithToolCall(
+                    `server-host-radio-${serverHostRadioRuns}-finish`,
+                    toPiToolName(radioRunFinishDescriptor.name),
+                    { judgement: "no_action", summary: "server host radio idle" },
+                ),
             });
         },
     },
@@ -125,7 +131,6 @@ assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.library_import_advance",
     "register:music_data_platform.projection_maintenance",
     "register:music_data_platform.local_source_scan_advance",
-    "register:agent_runtime.radio_refill_run",
     "start",
 ]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
@@ -264,18 +269,7 @@ if (startedRadio.ok) {
         wakeRequested: true,
     });
 }
-const startWakeSubmission = await serverHostBackgroundWork.waitForSubmit(
-    "agent_runtime.radio_refill_run",
-);
-assert.deepEqual(startWakeSubmission.payload, {
-    workspaceId: "default",
-    ownerScope: "local",
-    radioSessionRevision: 1,
-    radioDirectionRevision: 0,
-    wakeReason: "low_watermark",
-    refillGeneration: 1,
-    suggestedAppendCount: 10,
-});
+await waitFor(() => serverHostRadioRuns === 1);
 const changedDirection = await host.dispatch({
     ...testStageToolContext(),
     actor: "main_agent",
@@ -287,7 +281,8 @@ const changedDirection = await host.dispatch({
     },
 });
 assert.equal(changedDirection.ok, true);
-assert.equal(serverHostBackgroundWork.submissions.length, 1);
+await waitFor(() => serverHostRadioRuns === 2);
+assert.equal(serverHostBackgroundWork.submissions.length, 0);
 const stopped = await host.stop();
 assert.equal(stopped.ok, true);
 assert.equal(host.snapshot().status, "stopped");
@@ -298,10 +293,7 @@ assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.library_import_advance",
     "register:music_data_platform.projection_maintenance",
     "register:music_data_platform.local_source_scan_advance",
-    "register:agent_runtime.radio_refill_run",
     "start",
-    "submit:agent_runtime.radio_refill_run",
-    "await-terminal-aborted",
     "stop",
 ]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
@@ -767,4 +759,14 @@ function providerCandidateFixture(): ProviderMaterialCandidate {
             availabilityHint: "playable",
         },
     };
+}
+
+async function waitFor(condition: () => boolean): Promise<void> {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+        if (condition()) {
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    assert.equal(condition(), true);
 }

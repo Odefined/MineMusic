@@ -10,7 +10,7 @@
 
 ### P2-N1 — Cascade abort before `runAgentTurn` throws "produced no result" instead of returning `voided_stale`
 
-[agent_background_refill_trigger.ts:86-92](../../src/agent_runtime/agent_background_refill_trigger.ts#L86-L92),
+[agent_radio_refill_runner.ts:97-106](../../src/agent_runtime/agent_radio_refill_runner.ts#L97-L106),
 [actor_runtime_session.ts:192-247](../../src/agent_runtime/actor_runtime_session.ts#L192-L247).
 
 `session.run` combines the caller's external signal with the cascade lease
@@ -18,7 +18,7 @@ signal into one **internal** signal
 ([actor_runtime_session.ts:184-191](../../src/agent_runtime/actor_runtime_session.ts#L184-L191));
 the cascade aborts that internal signal. `runRadioRefill` only ever checks the
 **external** signal (`runInput.signal`) and `finalAssistantAborted(newMessages)`
-([agent_background_refill_trigger.ts:86-92](../../src/agent_runtime/agent_background_refill_trigger.ts#L86-L92)).
+([agent_radio_refill_runner.ts:97-106](../../src/agent_runtime/agent_radio_refill_runner.ts#L97-L106)).
 
 If a direction change aborts the lease during the `beforeWorkspaceContextAssemble`
 / `createTurnState` I/O window — real DB round-trips, reachable under rapid
@@ -27,13 +27,13 @@ steering — `session.run` hits an early-abort return with `newMessages: []` and
 check in `runRadioRefill` fires (external signal not aborted, no assistant
 message), so it throws `Radio refill run '<id>' produced no result.`
 
-Impact: the pg-boss job is marked **failed**, triggering the 30s failed-terminal
-cooldown + rewake
-([radio_supervisor.ts:427-431](../../src/agent_runtime/radio_supervisor.ts#L427-L431))
+Impact: the Radio supervisor treats the run as **failed**, triggering the
+failed-run cooldown + rewake
+([radio_supervisor.ts:350-354](../../src/agent_runtime/radio_supervisor.ts#L350-L354))
 instead of a clean `voided_stale`. Self-healing, no data loss, but spurious
 30s latency exactly when the user is actively changing direction. (Note
 `supervisor.stop()` is unaffected — it aborts the external-visible
-`activeRefillAbortController`; the design forgot that the cascade aborts an
+active run `AbortController`; the design forgot that the cascade aborts an
 internal signal.)
 
 Fix: surface the cascade abort out of `session.run` (e.g. an `aborted` flag on
@@ -66,7 +66,7 @@ the `playNow` command skips `runQueuePlayback` (so no `voided_stale`
 translation), and the adapter drops `ctx.preconditionBasis`. PR4 added `actor`
 propagation and `changedBasis.playbackRevision` — but no run carries `playback`
 in its basis (radio basis = direction+session,
-[agent_background_refill_trigger.ts:103-108](../../src/agent_runtime/agent_background_refill_trigger.ts#L103-L108);
+[agent_radio_refill_runner.ts:118-123](../../src/agent_runtime/agent_radio_refill_runner.ts#L118-L123);
 main has no `additionalToolPreconditionBasis` for playNow,
 [actor_definition.ts:110](../../src/agent_runtime/actor_definition.ts#L110)),
 so the new cascade is a no-op for playback. Concurrent play/skip remains

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 
 import {
-  createAgentRuntimeBackgroundRefillPort as createProductionBackgroundRefillPort,
+  createAgentRuntimeRadioRefillRunPort as createProductionRadioRefillRunPort,
   createAgentRunCascadeCoordinator,
   createActorRuntimeSession,
   createInMemoryAgentRuntimeTranscriptStore,
@@ -89,7 +89,7 @@ function assistantMessageWithToolCalls(
   };
 }
 
-function createAgentRuntimeBackgroundRefillPort(input: {
+function createAgentRuntimeRadioRefillRunPort(input: {
   session: ActorRuntimeSession;
   ownerScope?: string;
   workspaceId?: string;
@@ -97,15 +97,15 @@ function createAgentRuntimeBackgroundRefillPort(input: {
   transcriptStore?: AgentRuntimeTranscriptStore;
   clock?: () => string;
   workspaceContext?: WorkspaceContextAssembler;
-  promptForPayload?: Parameters<typeof createProductionBackgroundRefillPort>[0]["promptForPayload"];
-  cascade?: Parameters<typeof createProductionBackgroundRefillPort>[0]["cascade"];
-  hooks?: Parameters<typeof createProductionBackgroundRefillPort>[0]["hooks"];
+  promptForPayload?: Parameters<typeof createProductionRadioRefillRunPort>[0]["promptForPayload"];
+  cascade?: Parameters<typeof createProductionRadioRefillRunPort>[0]["cascade"];
+  hooks?: Parameters<typeof createProductionRadioRefillRunPort>[0]["hooks"];
   resultFromRun?: ReturnType<
-    Parameters<typeof createProductionBackgroundRefillPort>[0]["createResultRecorder"]
+    Parameters<typeof createProductionRadioRefillRunPort>[0]["createResultRecorder"]
   >["result"];
-  createResultRecorder?: Parameters<typeof createProductionBackgroundRefillPort>[0]["createResultRecorder"];
+  createResultRecorder?: Parameters<typeof createProductionRadioRefillRunPort>[0]["createResultRecorder"];
 }) {
-  return createProductionBackgroundRefillPort({
+  return createProductionRadioRefillRunPort({
     session: input.session,
     ...(input.cascade === undefined ? {} : { cascade: input.cascade }),
     ...(input.promptForPayload === undefined ? {} : { promptForPayload: input.promptForPayload }),
@@ -156,7 +156,7 @@ function createCountingTranscriptStore(): {
     clock: () => "2026-06-28T00:00:00.000Z",
   });
   const runStarts: string[] = [];
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     session: firstSession,
     resultFromRun: defaultRadioResult,
     hooks: {
@@ -193,7 +193,7 @@ function createCountingTranscriptStore(): {
     transcriptStore,
     clock: () => "2026-06-28T00:00:02.000Z",
   });
-  const restartedRunPort = createAgentRuntimeBackgroundRefillPort({
+  const restartedRunPort = createAgentRuntimeRadioRefillRunPort({
     session: restartedSession,
     resultFromRun: defaultRadioResult,
   });
@@ -211,7 +211,7 @@ function createCountingTranscriptStore(): {
     transcriptStore: transcript.store,
     clock: () => "2026-06-28T00:00:00.000Z",
   });
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     session: actorSession,
     resultFromRun: defaultRadioResult,
   });
@@ -258,7 +258,7 @@ function createCountingTranscriptStore(): {
       });
     },
   });
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: actorSession,
     transcriptStore,
@@ -331,7 +331,7 @@ function createCountingTranscriptStore(): {
     },
   });
   let clearCalls = 0;
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: actorSession,
     transcriptStore,
@@ -521,7 +521,7 @@ function createCountingTranscriptStore(): {
       });
     },
   });
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: actorSession,
     transcriptStore,
@@ -608,7 +608,7 @@ function createCountingTranscriptStore(): {
       },
     }),
   });
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: actorSession,
     transcriptStore,
@@ -665,7 +665,7 @@ function createCountingTranscriptStore(): {
       });
     },
   });
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: actorSession,
     transcriptStore,
@@ -765,7 +765,7 @@ function createCountingTranscriptStore(): {
       });
     },
   });
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: actorSession,
     transcriptStore,
@@ -1119,7 +1119,7 @@ function createCountingTranscriptStore(): {
       });
     },
   });
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: actorSession,
     transcriptStore,
@@ -1150,7 +1150,7 @@ function createCountingTranscriptStore(): {
   const saveFailedSession = await createTestActorRuntimeSession("save-failed", {
     transcriptStore,
   });
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: saveFailedSession,
     transcriptStore,
@@ -1193,7 +1193,7 @@ function createCountingTranscriptStore(): {
       });
     },
   });
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: actorSession,
     transcriptStore,
@@ -1221,7 +1221,7 @@ function createCountingTranscriptStore(): {
   const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
   const controller = new AbortController();
   controller.abort();
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: await createTestActorRuntimeSession("pre-abort"),
     transcriptStore,
@@ -1248,7 +1248,7 @@ function createCountingTranscriptStore(): {
   const transcriptStore = createInMemoryAgentRuntimeTranscriptStore();
   const controller = new AbortController();
   let streamCalled = false;
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: await createTestActorRuntimeSession("prompt-abort", {
       transcriptStore,
@@ -1309,7 +1309,7 @@ function createCountingTranscriptStore(): {
       });
     },
   });
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: actorSession,
     cascade,
@@ -1365,7 +1365,7 @@ function createCountingTranscriptStore(): {
       },
     },
   });
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: actorSession,
     transcriptStore,
@@ -1428,7 +1428,7 @@ function createCountingTranscriptStore(): {
   const resultWait = new Promise<void>((resolve) => {
     releaseResult = resolve;
   });
-  const runPort = createAgentRuntimeBackgroundRefillPort({
+  const runPort = createAgentRuntimeRadioRefillRunPort({
     ...key,
     session: actorSession,
     transcriptStore,
@@ -1546,7 +1546,7 @@ async function createTestActorRuntimeSession(label: string, input: {
       },
       identity: {
         role: `Radio test ${label}.`,
-        job: "Run background refill trigger tests.",
+        job: "Run radio refill trigger tests.",
         persona: "Precise.",
       },
       instruction: {
@@ -1561,7 +1561,7 @@ async function createTestActorRuntimeSession(label: string, input: {
     tools: input.tools ?? [],
     dispatch: input.dispatch ?? {
       async dispatch() {
-        throw new Error("Background refill trigger test has no default tools.");
+        throw new Error("Radio refill trigger test has no default tools.");
       },
     },
     contextFactory: {
