@@ -29,11 +29,14 @@ non-trivial workflow applies to `boundary-affecting`,
 
 ## Hard Rules
 
-- Prefer small, verifiable diffs. Do not silently broaden scope.
-- Prefer the smallest correct system change, not the smallest code diff. When
-  live code, product semantics, or authority docs imply a larger refactor,
-  facade, or workflow object, implement that shape instead of a conservative
-  workaround.
+- Prefer correct, complete, verifiable diffs. Do not silently broaden scope.
+- Prefer the right system change over a shorter code diff. When live code,
+  product semantics, or authority docs imply a larger refactor, facade, or
+  workflow object, implement that shape instead of a conservative workaround.
+- Do not land patch-code fixes: no local symptom plugs, wrapper hacks,
+  compatibility shims, or one-off conditionals when the live design calls for
+  the correct repair. Fix at the owning boundary, and when the correct repair is
+  a refactor, facade, migration, or rewrite, implement that complete shape.
 - Preserve user changes. Do not revert unrelated work.
 - Back claims with repository evidence: files, diffs, commands, or tests.
 - Reuse existing modules, ports, helpers, and docs before creating new ones.
@@ -148,8 +151,8 @@ default.
 2. For non-trivial work, state a compact plan: goal, owner, files, allowed
    reads/writes, guard or test plan, verification method, and stopping
    condition.
-3. Implement the smallest correct system change that satisfies the request
-   without weakening boundaries.
+3. Implement the correct system change that satisfies the request without
+   weakening boundaries.
 4. Verify with the narrowest meaningful project-native check first; broaden
    only when risk justifies it.
 5. Run state sync only for task classes that require it.
