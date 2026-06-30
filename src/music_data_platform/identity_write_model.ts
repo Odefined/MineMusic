@@ -92,9 +92,15 @@ export function createIdentityWriteCommands(
   input: CreateIdentityWriteCommandsInput,
 ): IdentityWriteCommands {
   const repositories = createIdentityRepositories({ db: input.db });
+  let writeScopeLock: Promise<void> | undefined;
+  const ensureWriteScopeLocked = async (): Promise<void> => {
+    writeScopeLock ??= lockIdentityWriteScope(input.db);
+    await writeScopeLock;
+  };
 
   return {
     async upsertSourceRecord(sourceInput) {
+      await ensureWriteScopeLocked();
       const record = await upsertSourceRecord(repositories, input.now, sourceInput);
       await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [{
@@ -105,6 +111,7 @@ export function createIdentityWriteCommands(
       return record;
     },
     async upsertMaterialRecord(materialInput) {
+      await ensureWriteScopeLocked();
       const record = await upsertMaterialRecord(repositories, input.now, materialInput);
       await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [{
@@ -115,6 +122,7 @@ export function createIdentityWriteCommands(
       return record;
     },
     async upsertCanonicalRecord(canonicalInput) {
+      await ensureWriteScopeLocked();
       const record = await upsertCanonicalRecord(repositories, input.now, canonicalInput);
       await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [{
@@ -125,6 +133,7 @@ export function createIdentityWriteCommands(
       return record;
     },
     async bindSourceToMaterial(bindingInput) {
+      await ensureWriteScopeLocked();
       const result = await bindSourceToMaterial(repositories, input.now, bindingInput);
       await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [
@@ -149,6 +158,7 @@ export function createIdentityWriteCommands(
       return result;
     },
     async bindMaterialToCanonical(bindingInput) {
+      await ensureWriteScopeLocked();
       const record = await bindMaterialToCanonical(repositories, input.now, bindingInput);
       await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [{
@@ -159,6 +169,7 @@ export function createIdentityWriteCommands(
       return record;
     },
     async mergeMaterialRecord(mergeInput) {
+      await ensureWriteScopeLocked();
       const result = await mergeMaterialRecord(repositories, input.now, mergeInput);
       await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [
@@ -181,6 +192,7 @@ export function createIdentityWriteCommands(
       return result;
     },
     async deleteBindingForSource(deleteInput) {
+      await ensureWriteScopeLocked();
       const binding = await repositories.sourceMaterialBindings.deleteBindingForSource({ sourceRef: deleteInput.sourceRef });
       if (binding === undefined) {
         return undefined;
@@ -197,6 +209,7 @@ export function createIdentityWriteCommands(
       return binding;
     },
     async deleteSourceRecord(deleteInput) {
+      await ensureWriteScopeLocked();
       const record = await repositories.sourceRecords.delete({ sourceRef: deleteInput.sourceRef });
       await input.projectionInvalidationCommands.markProjectionInvalidated({
         writes: [
@@ -209,6 +222,23 @@ export function createIdentityWriteCommands(
       return record;
     },
   };
+}
+
+async function lockIdentityWriteScope(db: MusicDatabaseTransactionContext): Promise<void> {
+  await db.run(`
+    INSERT INTO music_data_platform_identity_write_scope (scope_key)
+    VALUES ('global')
+    ON CONFLICT(scope_key) DO NOTHING
+  `);
+  const locked = await db.get<{ scope_key: string }>(`
+    SELECT scope_key
+    FROM music_data_platform_identity_write_scope
+    WHERE scope_key = 'global'
+    FOR UPDATE
+  `);
+  if (locked === undefined) {
+    throw new Error("Music Data Platform Identity write scope was unavailable after initialization.");
+  }
 }
 
 async function upsertSourceRecord(

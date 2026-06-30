@@ -1108,12 +1108,16 @@ maintenance evidence.
   backing material-candidate cache (`:117-131`): candidate handles never
   expire and can dangle after a cache purge. The Public Handle Veil
   candidate-TTL contract is silently broken.
-- Postgres transactions use a plain `BEGIN` = READ COMMITTED
-  (`src/storage/postgres/database.ts:215`). PR3.5's per-instance
-  `transactionQueue` serializes same-process transactions but leaves residual
-  lost-update risk in auto-commit `context()` writes and across
-  multi-process/multi-instance deployments. Identity merge, import dedup,
-  queue append, and playNow are the live read-modify-write surfaces.
+- Postgres root transactions now run concurrently on independent pool clients.
+  Storage keeps nested-transaction and lifecycle guards, while owning bounded
+  contexts protect read-modify-write paths with database-owned conflict
+  controls: Music Experience state rows use `FOR UPDATE`, Identity uses a
+  command-scope lock row plus uniqueness constraints, Collections serialize by
+  owner scope, Source Library import batches are reloaded `FOR UPDATE`, Local
+  Source Scan uses batch locks for state transitions plus atomic counters, and
+  Projection Maintenance keeps generation CAS. Remaining concurrency risk
+  should be reviewed at new write surfaces instead of relying on Storage-wide
+  serialization.
 - Three assertion test files are not registered in the stage-core test runner
   manifest (`test/run-stage-core-tests.ts:4-63`): `command-basis-tracker`,
   `download-command`, `library-import-job`. `npm test` reports green while

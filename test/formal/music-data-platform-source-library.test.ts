@@ -1416,6 +1416,65 @@ assert.equal(mismatchContinueRequest.request.cursor, "1");
 assert.equal((await createSourceLibraryRepositories({ db: mismatchDatabase.context() })
     .batches.get({ batchId: "mismatch-batch" }))?.status, "running");
 await mismatchDatabase.close();
+const batchLockDatabase = await initializedDatabase();
+const batchLockSeed = await batchLockDatabase.transaction(async (db) => {
+    return await createSourceLibraryCommands({
+        db,
+        now: "2026-06-08T04:30:00.000Z",
+        projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+    }).createImportBatch({
+        batchId: "batch-lock",
+        ownerScope: DEFAULT_OWNER_SCOPE,
+        providerId: "netease",
+        libraryKind: "saved_source_track",
+    });
+});
+let releaseFirstBatchWrite: () => void = () => {};
+const firstBatchWriteMayFinish = new Promise<void>((resolve) => {
+    releaseFirstBatchWrite = resolve;
+});
+let firstBatchWriteStarted = false;
+let secondBatchWriteStarted = false;
+let secondBatchWriteFinished = false;
+const firstBatchWrite = batchLockDatabase.transaction(async (db) => {
+    await createSourceLibraryCommands({
+        db,
+        now: "2026-06-08T04:31:00.000Z",
+        projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+    }).recordImportItemFailure({
+        batchId: batchLockSeed.batchId,
+        providerId: "netease",
+        providerEntityId: "batch-lock-failure",
+        errorCode: "music_data.test_failure",
+        errorMessage: "batch lock fixture",
+    });
+    firstBatchWriteStarted = true;
+    await firstBatchWriteMayFinish;
+});
+await waitUntil(() => firstBatchWriteStarted, "Source Library first batch write");
+const secondBatchWrite = batchLockDatabase.transaction(async (db) => {
+    secondBatchWriteStarted = true;
+    await createSourceLibraryCommands({
+        db,
+        now: "2026-06-08T04:32:00.000Z",
+        projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+    }).advanceImportBatchCursor({ batch: batchLockSeed, cursor: "second" });
+    secondBatchWriteFinished = true;
+});
+await waitUntil(() => secondBatchWriteStarted, "Source Library second batch write");
+for (let attempt = 0; attempt < 20 && !secondBatchWriteFinished; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+}
+const secondBatchWriteFinishedBeforeRelease = secondBatchWriteFinished;
+releaseFirstBatchWrite();
+await Promise.all([firstBatchWrite, secondBatchWrite]);
+assert.equal(secondBatchWriteFinishedBeforeRelease, false);
+const batchLockResult = await createSourceLibraryRepositories({ db: batchLockDatabase.context() })
+    .batches.get({ batchId: "batch-lock" });
+assert.equal(batchLockResult?.cursor, "second");
+assert.equal(batchLockResult?.processedCount, 1);
+assert.equal(batchLockResult?.failedCount, 1);
+await batchLockDatabase.close();
 const maxNewDatabase = await initializedDatabase();
 const maxNewReads = scriptedReadPort([
     okRead({
@@ -1588,4 +1647,13 @@ function assertErrorCode(result: Result<unknown>, code: string): void {
         assert.equal(result.error.code, code);
         assert.equal(result.error.area, "music_data_platform");
     }
+}
+async function waitUntil(predicate: () => boolean, label: string): Promise<void> {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+        if (predicate()) {
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    throw new Error(`Timed out waiting for ${label}.`);
 }

@@ -1784,10 +1784,11 @@ Findings are tracked in `docs/maintenance/full-codebase-audit-2026-06-30.md`
 - P1 Stage Interface: candidate handle bindings minted without `expiresAt` and
   resolve never revalidates the backing cache (Public Handle Veil candidate-TTL
   contract gap).
-- P1 Concurrency: READ COMMITTED default + implicit single-instance assumption;
-  PR3.5 per-instance `transactionQueue` mitigates same-instance serialization
-  but leaves residual auto-commit/multi-instance lost-update surface (identity
-  merge, import dedup, queue append, playNow).
+- P1 Concurrency: READ COMMITTED default + implicit single-instance assumption.
+  The old Storage-wide per-instance transaction queue has been removed; root
+  transactions now overlap on independent Postgres clients, and current write
+  surfaces use owner-local row locks, uniqueness constraints, atomic counters,
+  or generation CAS instead of relying on process-wide serialization.
 
 No `AI-xxx` entries were opened in
 `docs/maintenance/architecture-inconsistency-log.md`: the findings are

@@ -24,9 +24,10 @@ Accepted decisions:
 - transaction is root-only through `MusicDatabase.transaction(...)`;
 - transaction callbacks may be async, but the transaction-scoped context becomes
   inactive after commit/rollback;
-- overlapping root transactions queue FIFO on one Postgres adapter instance;
+- overlapping root transactions on one Postgres adapter instance may run
+  concurrently on independent Postgres clients;
 - root transactions have a finite deadline (60 seconds by default); timeout
-  destroys the client, rolls back the open transaction, and releases the queue;
+  destroys the client and rolls back the open transaction;
 - `MusicDatabaseContext` does not expose `transaction(...)`;
 - schema initialization uses ordered idempotent schema contributions inside one
   Postgres transaction, so initialization failure rolls back the whole schema
@@ -76,7 +77,7 @@ Targeted storage tests cover:
 - repeated `initialize(...)` rejection;
 - initialization failure terminal-state behavior;
 - root transaction commit and rollback;
-- transaction timeout rollback and queued-writer recovery;
+- transaction timeout rollback and unrelated transaction progress;
 - stale transaction context rejection after transaction end;
 - idempotent close and closed-handle rejection;
 - close rejection inside active transaction;

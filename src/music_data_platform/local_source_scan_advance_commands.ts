@@ -143,6 +143,10 @@ export function createLocalSourceScanAdvanceCommands(
     async enqueueDirectoryChildren({ batchId, parentRelativePath, entries, exclusions, now }) {
       await input.database.transaction(async (db) => {
         const repos = createLocalSourceScanRepositories({ db });
+        const batch = await repos.batches.getForUpdate({ batchId });
+        if (batch === undefined || isTerminalScanBatchStatus(batch.status)) {
+          return;
+        }
         let sequence = await repos.workItems.nextSequence({ batchId });
         const sorted = [...entries].sort(compareLocalSourceScanDirectoryEntry);
         for (const entry of sorted) {
@@ -203,7 +207,7 @@ export function createLocalSourceScanAdvanceCommands(
     async markBatchFailed({ batchId, code, message, now }) {
       await input.database.transaction(async (db) => {
         const repos = createLocalSourceScanRepositories({ db });
-        const batch = await repos.batches.get({ batchId });
+        const batch = await repos.batches.getForUpdate({ batchId });
         if (batch === undefined || isTerminalScanBatchStatus(batch.status)) {
           return;
         }
@@ -221,7 +225,7 @@ export function createLocalSourceScanAdvanceCommands(
     async completeCensus({ batchId, now }) {
       return await input.database.transaction(async (db) => {
         const repos = createLocalSourceScanRepositories({ db });
-        const batch = await repos.batches.get({ batchId });
+        const batch = await repos.batches.getForUpdate({ batchId });
         // Do not advance a cancel_requested batch: a cancel can land between the
         // handler's top-of-invocation read and this commit, and reverting it to
         // running would lose the user's cancellation (D18). The next handler
@@ -271,7 +275,7 @@ export function createLocalSourceScanAdvanceCommands(
     async prepareReconciliation({ batchId, now }) {
       await input.database.transaction(async (db) => {
         const repos = createLocalSourceScanRepositories({ db });
-        const batch = await repos.batches.get({ batchId });
+        const batch = await repos.batches.getForUpdate({ batchId });
         // Phase advancement must not revert a cancel that landed between the
         // handler's top-of-invocation read and this commit (D18). Advancing to
         // reconciling would also make the batch uncancellable (D43), so a
@@ -348,7 +352,7 @@ export function createLocalSourceScanAdvanceCommands(
     async finalize({ batchId, now }) {
       await input.database.transaction(async (db) => {
         const repos = createLocalSourceScanRepositories({ db });
-        const batch = await repos.batches.get({ batchId });
+        const batch = await repos.batches.getForUpdate({ batchId });
         if (batch === undefined || isTerminalScanBatchStatus(batch.status)) {
           return;
         }
@@ -370,7 +374,7 @@ export function createLocalSourceScanAdvanceCommands(
     async bumpAdvanceGeneration({ batchId, now }) {
       return await input.database.transaction(async (db) => {
         const repos = createLocalSourceScanRepositories({ db });
-        const batch = await repos.batches.get({ batchId });
+        const batch = await repos.batches.getForUpdate({ batchId });
         if (batch === undefined || !isActiveScanBatchStatus(batch.status)) {
           return undefined;
         }

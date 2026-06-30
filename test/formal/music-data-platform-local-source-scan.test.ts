@@ -64,6 +64,7 @@ export async function main(): Promise<void> {
   await runWithDatabase(testStatusProgressAndNotFound);
   await runWithDatabase(testCancellationStateMachine);
   await runWithDatabase(testIssuePagination);
+  await runWithDatabase(testConcurrentIssueSequenceAllocation);
   await runWithDatabase(testListRoots);
 }
 
@@ -304,6 +305,19 @@ async function testIssuePagination(database: MusicDatabase): Promise<void> {
   if (!badCursor.ok) {
     assert.equal(badCursor.error.code, "music_data.scan_issue_cursor_invalid");
   }
+}
+
+async function testConcurrentIssueSequenceAllocation(database: MusicDatabase): Promise<void> {
+  await registerTwoRoots(database);
+  const commands = createLocalSourceScanCommands({ database, generateBatchId: () => "issue-sequence-batch" });
+  const started = unwrap(await commands.startBatch({ rootId: "lib-a", ownerScope, now }));
+  const sequences = await Promise.all([
+    database.transaction(async (db) =>
+      createLocalSourceScanRepositories({ db }).issues.nextSequence({ batchId: started.batchId })),
+    database.transaction(async (db) =>
+      createLocalSourceScanRepositories({ db }).issues.nextSequence({ batchId: started.batchId })),
+  ]);
+  assert.deepEqual([...sequences].sort((left, right) => left - right), [0, 1]);
 }
 
 async function testListRoots(database: MusicDatabase): Promise<void> {

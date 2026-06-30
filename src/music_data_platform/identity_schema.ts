@@ -4,6 +4,13 @@ export const musicDataPlatformIdentitySchema: MusicDatabaseSchemaContribution = 
   id: "music_data_platform.identity_v1",
   async apply(context) {
     await context.run(`
+      CREATE TABLE IF NOT EXISTS music_data_platform_identity_write_scope (
+        scope_key TEXT PRIMARY KEY,
+        CHECK (scope_key = 'global')
+      )
+    `);
+
+    await context.run(`
       CREATE TABLE IF NOT EXISTS source_records (
         ref_key TEXT PRIMARY KEY,
         origin TEXT NOT NULL CHECK (origin IN ('provider', 'local_file')),

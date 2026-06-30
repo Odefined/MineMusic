@@ -141,6 +141,41 @@ await assert.rejects(
 
 const collectionRef = created.collectionRef;
 
+let releaseFirstCollectionWrite: () => void = () => {};
+const firstCollectionWriteMayFinish = new Promise<void>((resolve) => {
+  releaseFirstCollectionWrite = resolve;
+});
+let firstCollectionWriteStarted = false;
+let secondCollectionWriteStarted = false;
+let secondCollectionWriteFinished = false;
+const firstCollectionWrite = writeDatabase.transaction(async (db) => {
+  await createCollectionTestCommands(db, "2026-06-22T00:01:40.000Z").renameCollection({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    collectionRef,
+    name: created.name,
+  });
+  firstCollectionWriteStarted = true;
+  await firstCollectionWriteMayFinish;
+});
+await waitUntil(() => firstCollectionWriteStarted);
+const secondCollectionWrite = writeDatabase.transaction(async (db) => {
+  secondCollectionWriteStarted = true;
+  await createCollectionTestCommands(db, "2026-06-22T00:01:41.000Z").createCollection({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    collectionKind: "recording",
+    name: "Collection Scope Concurrent",
+  });
+  secondCollectionWriteFinished = true;
+});
+await waitUntil(() => secondCollectionWriteStarted);
+for (let attempt = 0; attempt < 20 && !secondCollectionWriteFinished; attempt += 1) {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+const secondCollectionWriteFinishedBeforeRelease = secondCollectionWriteFinished;
+releaseFirstCollectionWrite();
+await Promise.all([firstCollectionWrite, secondCollectionWrite]);
+assert.equal(secondCollectionWriteFinishedBeforeRelease, false);
+
 // D4: add appends at max(active position) + 1.
 const itemA = await writeDatabase.transaction(async (db) =>
   await createCollectionTestCommands(db, "2026-06-22T00:02:00.000Z").addCollectionItem({
@@ -435,4 +470,14 @@ async function initializedDatabase(): Promise<MusicDatabase> {
     ],
   });
   return database;
+}
+
+async function waitUntil(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error("Timed out waiting for Collection concurrency fixture.");
 }

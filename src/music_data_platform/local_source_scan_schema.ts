@@ -36,6 +36,7 @@ export const musicDataPlatformLocalSourceScanSchema: MusicDatabaseSchemaContribu
         status TEXT NOT NULL,
         phase TEXT,
         advance_generation INTEGER NOT NULL,
+        next_issue_sequence INTEGER NOT NULL DEFAULT 0,
         discovered_count INTEGER NOT NULL,
         processed_count INTEGER NOT NULL,
         imported_count INTEGER NOT NULL,

@@ -87,7 +87,7 @@ PR7 (PB8a)                 endurance acceptance: transcript erosion + floor/cont
 - `src/contracts/music_experience.ts` — `append` input gains optional `basis?`; error vocabulary gains `voided_stale`.
 - `src/music_experience/stage_adapter/queue_playback.ts` — remove the batch-of-1 length check (`:177-184`); `provenance` is currently hardcoded `"main_agent"` (`:214`) and must accept `"radio_agent"` (Radio's use).
 - `src/contracts/generated/stage_interface_schemas.ts` — regenerate: `maxItems: 1` → N.
-- **Migration note:** existing queue rows must be normalized to dense `1..N` positions per workspace before `queue_next_position` is treated as `N + 1`; otherwise dense append could collide with legacy gaps.
+- **Bootstrap rule:** this active-development schema does not migrate legacy queue rows. A fresh database starts with an empty queue, and every queue command must preserve dense `1..N` positions plus `queue_next_position = N + 1` from the first write onward.
 
 **Dependencies:** none (Phase A shipped).
 

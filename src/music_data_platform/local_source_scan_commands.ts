@@ -169,7 +169,7 @@ export function createLocalSourceScanCommands(
     async requestCancellation({ batchId, now }) {
       return await input.database.transaction(async (db) => {
         const repos = createLocalSourceScanRepositories({ db });
-        const batch = await repos.batches.get({ batchId });
+        const batch = await repos.batches.getForUpdate({ batchId });
         if (batch === undefined) {
           return fail("music_data.scan_batch_not_found", `Scan batch '${batchId}' was not found.`);
         }

@@ -75,7 +75,7 @@ successful initialization.
 `transactionTimeoutMs`. The adapter passes the same limit to PostgreSQL as
 `statement_timeout` and to pool connection acquisition. If the local deadline
 expires first, Storage destroys the transaction client, returns
-`storage.transaction_timeout`, and releases the FIFO transaction queue slot.
+`storage.transaction_timeout`, and releases that transaction's client.
 The timeout is a Storage system failure; higher command/tool layers must not
 translate it into stale-domain success or an empty result.
 
@@ -96,8 +96,9 @@ active initialization is forbidden.
 Transactions are root-only:
 
 - `MusicDatabase.transaction(...)` starts the transaction;
-- overlapping root transactions on one adapter instance execute FIFO;
-- a timed-out transaction is aborted before the next queued transaction starts;
+- overlapping root transactions on one adapter instance may execute
+  concurrently on independent Postgres clients;
+- a timed-out transaction aborts only its own client;
 - the callback receives only a transaction-scoped
   `MusicDatabaseTransactionContext`;
 - `MusicDatabaseContext` has no `transaction(...)` method;
@@ -108,6 +109,11 @@ Transactions are root-only:
 If a transaction callback throws, Storage rolls back and rethrows the original
 error. The transaction-scoped context becomes inactive after commit/rollback,
 so late continuations cannot use it to write outside the transaction.
+
+Storage does not serialize domain writes. Owning bounded contexts must protect
+their own read-modify-write sequences with row locks, uniqueness constraints,
+generation compare-and-swap, or other domain-owned concurrency controls at the
+command/repository boundary.
 
 ## Schema Initialization
 

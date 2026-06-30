@@ -35,6 +35,36 @@ function createIdentityTestCommands(db: Parameters<typeof createIdentityWriteCom
         projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
     });
 }
+let releaseFirstIdentityWrite: () => void = () => {};
+const firstIdentityWriteMayFinish = new Promise<void>((resolve) => {
+    releaseFirstIdentityWrite = resolve;
+});
+let firstIdentityWriteStarted = false;
+let secondIdentityWriteStarted = false;
+let secondIdentityWriteFinished = false;
+const firstIdentityWrite = database.transaction(async (db) => {
+    await createIdentityTestCommands(db, firstNow).upsertSourceRecord({
+        entity: sourceTrack("identity-scope-first", "Identity Scope First"),
+    });
+    firstIdentityWriteStarted = true;
+    await firstIdentityWriteMayFinish;
+});
+await waitUntil(() => firstIdentityWriteStarted);
+const secondIdentityWrite = database.transaction(async (db) => {
+    secondIdentityWriteStarted = true;
+    await createIdentityTestCommands(db, firstNow).upsertSourceRecord({
+        entity: sourceTrack("identity-scope-second", "Identity Scope Second"),
+    });
+    secondIdentityWriteFinished = true;
+});
+await waitUntil(() => secondIdentityWriteStarted);
+for (let attempt = 0; attempt < 20 && !secondIdentityWriteFinished; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+}
+const secondIdentityWriteFinishedBeforeRelease = secondIdentityWriteFinished;
+releaseFirstIdentityWrite();
+await Promise.all([firstIdentityWrite, secondIdentityWrite]);
+assert.equal(secondIdentityWriteFinishedBeforeRelease, false);
 await database.transaction(async (db) => {
     const commands = createIdentityTestCommands(db, firstNow);
     const sourceOne = await commands.upsertSourceRecord({
@@ -675,4 +705,13 @@ function requiredBinding(binding: SourceToMaterialBindingRecord | undefined): So
 }
 async function assertMusicDataError(operation: () => unknown | Promise<unknown>, code: MusicDataPlatformErrorCode): Promise<void> {
     await assert.rejects(async () => await operation(), (error) => isMusicDataPlatformError(error) && error.code === code);
+}
+async function waitUntil(predicate: () => boolean): Promise<void> {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+        if (predicate()) {
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    throw new Error("Timed out waiting for identity concurrency fixture.");
 }

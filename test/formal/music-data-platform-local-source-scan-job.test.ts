@@ -556,12 +556,9 @@ async function testSubmitRetryThreading(database: MusicDatabase): Promise<void> 
 // asserting peak === width fails both if the cap is too high (unbounded fan-out)
 // and if it serialized (peak never reached the configured width).
 //
-// recordAudioOutcome is faked to a no-op so the test isolates runWithConcurrency
-// itself: the real handler drives the real counting port, but no per-file DB
-// transaction runs. The test DB's transaction wrapper serializes on a single
-// active-transaction flag, so genuine inspect overlap against real
-// recordAudioOutcome would throw "transaction already active" — that guard is a
-// test-infrastructure limitation, not the concurrency cap under test.
+// recordAudioOutcome is faked to a no-op so the test isolates
+// runWithConcurrency itself; real per-file transaction concurrency and atomic
+// scan bookkeeping are covered by the Local Source Scan command tests.
 async function testConcurrencyBounding(database: MusicDatabase): Promise<void> {
   const rootId = "conc-lib";
   await createLocalSourceScanCommands({ database, generateBatchId: () => "x" }).registerRoots({

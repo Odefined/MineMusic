@@ -32,7 +32,7 @@ not provide music-domain repositories.
 | Execute statement | `MusicDatabaseContext.run` | Write/DDL | Repositories/schema modules | No rows returned; adapter translates `?` placeholders to Postgres parameters. |
 | Read rows | `MusicDatabaseContext.all` | Read | Repositories/query modules | Generic row type supplied by caller. |
 | Read optional row | `MusicDatabaseContext.get` | Read | Repositories/query modules | Returns `undefined` when no row. |
-| Root transaction | `MusicDatabase.transaction` | Write boundary | Commands/composition roots | Callback receives `MusicDatabaseTransactionContext`; nested transactions are rejected; overlapping roots queue FIFO; an over-time transaction fails and releases the queue slot. |
+| Root transaction | `MusicDatabase.transaction` | Write boundary | Commands/composition roots | Callback receives `MusicDatabaseTransactionContext`; nested transactions are rejected; overlapping roots may run concurrently on independent Postgres clients; an over-time transaction fails and releases its own client. |
 | Close database | `MusicDatabase.close` | Lifecycle | Composition roots/tests | Owns concrete pool lifetime. |
 
 ## Forbidden Dependencies
@@ -79,4 +79,4 @@ The composition root may know the concrete adapter. Area services should not.
 | Initialization failure makes use/retry unavailable while keeping `close()` allowed. | Storage behavior test |
 | `close()` is idempotent and closed-handle use rejects. | Storage behavior test |
 | Storage-owned boundary errors use `MusicDatabaseError`. | Storage behavior test |
-| A timed-out transaction destroys its client, rolls back, and releases the next queued transaction. | Storage behavior test |
+| A timed-out transaction destroys its client and rolls back without blocking unrelated root transactions. | Storage behavior test |

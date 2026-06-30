@@ -51,13 +51,13 @@ type PostgresDatabaseState =
   | "initializing"
   | "initialized"
   | "initialization_failed"
+  | "closing"
   | "closed";
 
 export class PostgresMusicDatabase implements MusicDatabase {
   private state: PostgresDatabaseState = "opened";
-  private transactionActive = false;
-  private pendingTransactions = 0;
-  private transactionQueue: Promise<void> = Promise.resolve();
+  private inFlightTransactionCount = 0;
+  private closePromise: Promise<void> | undefined;
   private readonly transactionScope = new AsyncLocalStorage<boolean>();
 
   private readonly initializedContext: PostgresMusicDatabaseContext = {
@@ -142,21 +142,11 @@ export class PostgresMusicDatabase implements MusicDatabase {
       });
     }
     this.ensureInitialized();
-    this.pendingTransactions += 1;
-    const priorTransaction = this.transactionQueue;
-    let releaseQueueSlot: () => void = () => {};
-    this.transactionQueue = new Promise<void>((resolve) => {
-      releaseQueueSlot = resolve;
-    });
-
-    await priorTransaction;
-    this.pendingTransactions -= 1;
-    this.ensureCanStartTransaction();
+    this.inFlightTransactionCount += 1;
     let client: PoolClient | undefined;
     let clientReleased = false;
     let transactionTimedOut = false;
     let transactionContextActive = true;
-    this.transactionActive = true;
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
@@ -220,8 +210,7 @@ export class PostgresMusicDatabase implements MusicDatabase {
         clearTimeout(timeoutHandle);
       }
       transactionContextActive = false;
-      this.transactionActive = false;
-      releaseQueueSlot();
+      this.inFlightTransactionCount -= 1;
       if (client !== undefined && !clientReleased) {
         clientReleased = true;
         client.release();
@@ -233,6 +222,10 @@ export class PostgresMusicDatabase implements MusicDatabase {
     if (this.state === "closed") {
       return;
     }
+    if (this.state === "closing") {
+      await this.closePromise;
+      return;
+    }
 
     if (this.state === "initializing") {
       throw new MusicDatabaseError({
@@ -241,14 +234,16 @@ export class PostgresMusicDatabase implements MusicDatabase {
       });
     }
 
-    if (this.transactionActive || this.pendingTransactions > 0) {
+    if (this.inFlightTransactionCount > 0) {
       throw new MusicDatabaseError({
         code: "storage.transaction_already_active",
         message: "Cannot close Postgres music database while a transaction is active.",
       });
     }
 
-    await this.pool.end();
+    this.state = "closing";
+    this.closePromise = this.pool.end();
+    await this.closePromise;
     this.state = "closed";
   }
 
@@ -356,23 +351,12 @@ export class PostgresMusicDatabase implements MusicDatabase {
     }
   }
 
-  private ensureCanStartTransaction(): void {
-    this.ensureInitialized();
-
-    if (this.transactionActive) {
-      throw new MusicDatabaseError({
-        code: "storage.transaction_already_active",
-        message: "Postgres music database transaction is already active.",
-      });
-    }
-  }
-
   private ensureInitialized(): void {
     if (this.state === "initialized") {
       return;
     }
 
-    if (this.state === "closed") {
+    if (this.state === "closing" || this.state === "closed") {
       throw closedError();
     }
 

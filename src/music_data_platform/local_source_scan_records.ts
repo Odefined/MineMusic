@@ -109,6 +109,7 @@ export type LocalSourceScanBatchOutcomeCounter =
 
 export type LocalSourceScanBatchRepository = {
   get(input: { batchId: string }): Promise<LocalSourceScanBatchRecord | undefined>;
+  getForUpdate(input: { batchId: string }): Promise<LocalSourceScanBatchRecord | undefined>;
   insert(record: LocalSourceScanBatchRecord): Promise<LocalSourceScanBatchRecord>;
   upsert(record: LocalSourceScanBatchRecord): Promise<LocalSourceScanBatchRecord>;
   // Atomically increment one outcome counter and processed_count by 1. Per-file
@@ -247,6 +248,18 @@ export function createLocalSourceScanRepositories(
     async get({ batchId }) {
       const row = await db.get<LocalSourceScanBatchRow>(
         "SELECT * FROM local_source_scan_batches WHERE batch_id = ?",
+        [batchId],
+      );
+      return row === undefined ? undefined : batchFromRow(row);
+    },
+    async getForUpdate({ batchId }) {
+      const row = await db.get<LocalSourceScanBatchRow>(
+        `
+          SELECT *
+          FROM local_source_scan_batches
+          WHERE batch_id = ?
+          FOR UPDATE
+        `,
         [batchId],
       );
       return row === undefined ? undefined : batchFromRow(row);
@@ -567,11 +580,19 @@ export function createLocalSourceScanRepositories(
       );
     },
     async nextSequence({ batchId }) {
-      const row = await db.get<{ max_sequence: number | null }>(
-        "SELECT MAX(sequence) AS max_sequence FROM local_source_scan_issues WHERE batch_id = ?",
+      const row = await db.get<{ sequence: number }>(
+        `
+          UPDATE local_source_scan_batches
+          SET next_issue_sequence = next_issue_sequence + 1
+          WHERE batch_id = ?
+          RETURNING next_issue_sequence - 1 AS sequence
+        `,
         [batchId],
       );
-      return (row?.max_sequence ?? -1) + 1;
+      if (row === undefined) {
+        throw new Error("Local Source Scan issue sequence owner batch was not found.");
+      }
+      return row.sequence;
     },
     async listForBatch({ batchId, afterSequence, limit }) {
       const rows = afterSequence === undefined
@@ -610,6 +631,7 @@ type LocalSourceScanBatchRow = {
   status: LocalSourceScanBatchStatus;
   phase: LocalSourceScanBatchPhase | null;
   advance_generation: number;
+  next_issue_sequence: number;
   discovered_count: number;
   processed_count: number;
   imported_count: number;

@@ -95,11 +95,14 @@ const secondConcurrentTransaction = orderedDatabase.transaction(async (tx) => {
     await tx.run("INSERT INTO first_schema (label) VALUES (?)", ["queued-second"]);
     transactionOrder.push("second:end");
 });
-await Promise.resolve();
-assert.deepEqual(transactionOrder, ["first:start"]);
+for (let attempt = 0; attempt < 20 && !transactionOrder.includes("second:end"); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+}
+const transactionOrderBeforeFirstReleased = transactionOrder.slice();
 releaseFirstTransaction();
 await Promise.all([firstConcurrentTransaction, secondConcurrentTransaction]);
-assert.deepEqual(transactionOrder, ["first:start", "first:end", "second:start", "second:end"]);
+assert.deepEqual(transactionOrderBeforeFirstReleased, ["first:start", "second:start", "second:end"]);
+assert.deepEqual(transactionOrder, ["first:start", "second:start", "second:end", "first:end"]);
 assert.equal((await context.get<{
     count: number;
 }>("SELECT COUNT(*) AS count FROM first_schema WHERE label IN (?, ?)", ["queued-first", "queued-second"]))?.count, 2);

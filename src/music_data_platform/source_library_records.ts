@@ -99,6 +99,7 @@ export type SourceLibraryItemRepository = {
 
 export type SourceLibraryImportBatchRepository = {
   get(input: { batchId: string }): Promise<SourceLibraryImportBatchRecord | undefined>;
+  getForUpdate(input: { batchId: string }): Promise<SourceLibraryImportBatchRecord | undefined>;
   insert(record: SourceLibraryImportBatchRecord): Promise<SourceLibraryImportBatchRecord>;
   upsert(record: SourceLibraryImportBatchRecord): Promise<SourceLibraryImportBatchRecord>;
   findRunningByOwnerProviderKind(input: {
@@ -365,6 +366,19 @@ export function createSourceLibraryRepositories(
     async get(input) {
       const row = await db.get<SourceLibraryImportBatchRow>(
         "SELECT * FROM source_library_import_batches WHERE batch_id = ?",
+        [input.batchId],
+      );
+
+      return row === undefined ? undefined : sourceLibraryImportBatchFromRow(row);
+    },
+    async getForUpdate(input) {
+      const row = await db.get<SourceLibraryImportBatchRow>(
+        `
+          SELECT *
+          FROM source_library_import_batches
+          WHERE batch_id = ?
+          FOR UPDATE
+        `,
         [input.batchId],
       );
 

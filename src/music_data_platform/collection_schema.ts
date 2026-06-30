@@ -4,6 +4,12 @@ export const musicDataPlatformCollectionSchema: MusicDatabaseSchemaContribution 
   id: "music_data_platform.collection_v1",
   async apply(context) {
     await context.run(`
+      CREATE TABLE IF NOT EXISTS music_data_platform_collection_write_scopes (
+        owner_scope TEXT PRIMARY KEY
+      )
+    `);
+
+    await context.run(`
       CREATE TABLE IF NOT EXISTS collections (
         collection_ref_key TEXT PRIMARY KEY,
         collection_ref_json TEXT NOT NULL,

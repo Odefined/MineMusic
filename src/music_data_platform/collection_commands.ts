@@ -83,12 +83,22 @@ export function createCollectionCommands(
   input: CreateCollectionCommandsInput,
 ): CollectionCommands {
   const records = createCollectionRecords({ db: input.db });
+  const writeScopeLocks = new Map<string, Promise<void>>();
+  const ensureOwnerWriteScopeLocked = async (ownerScope: string): Promise<void> => {
+    let lock = writeScopeLocks.get(ownerScope);
+    if (lock === undefined) {
+      lock = lockCollectionWriteScope(input.db, ownerScope);
+      writeScopeLocks.set(ownerScope, lock);
+    }
+    await lock;
+  };
 
   return {
     async createCollection(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
       assertCollectionKind(commandInput.collectionKind);
       assertCollectionName(commandInput.name);
+      await ensureOwnerWriteScopeLocked(commandInput.ownerScope);
 
       // D2: create is non-idempotent. A pre-check on UNIQUE(owner_scope, name)
       // yields the declared collection_name_taken error; the DB constraint is a
@@ -150,6 +160,7 @@ export function createCollectionCommands(
       assertOwnerScope(commandInput.ownerScope);
       assertCollectionRef(commandInput.collectionRef);
       assertCollectionName(commandInput.name);
+      await ensureOwnerWriteScopeLocked(commandInput.ownerScope);
 
       const existing = requireCollectionRecord(
         await records.getCollection({
@@ -212,6 +223,7 @@ export function createCollectionCommands(
       assertOwnerScope(commandInput.ownerScope);
       assertCollectionRef(commandInput.collectionRef);
       assertMaterialRef(commandInput.materialRef);
+      await ensureOwnerWriteScopeLocked(commandInput.ownerScope);
 
       const collection = requireCollectionRecord(
         await records.getCollection({
@@ -297,6 +309,7 @@ export function createCollectionCommands(
       assertOwnerScope(commandInput.ownerScope);
       assertCollectionRef(commandInput.collectionRef);
       assertMaterialRef(commandInput.materialRef);
+      await ensureOwnerWriteScopeLocked(commandInput.ownerScope);
 
       const existing = requireCollectionItemRecord(
         await records.getCollectionItem({
@@ -343,6 +356,7 @@ export function createCollectionCommands(
       assertOwnerScope(commandInput.ownerScope);
       assertCollectionRef(commandInput.collectionRef);
       assertMaterialRef(commandInput.materialRef);
+      await ensureOwnerWriteScopeLocked(commandInput.ownerScope);
 
       const collection = requireCollectionRecord(
         await records.getCollection({
@@ -431,6 +445,7 @@ export function createCollectionCommands(
     async deleteCollection(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
       assertCollectionRef(commandInput.collectionRef);
+      await ensureOwnerWriteScopeLocked(commandInput.ownerScope);
 
       const existing = requireCollectionRecord(
         await records.getCollection({
@@ -471,6 +486,26 @@ export function createCollectionCommands(
       return record;
     },
   };
+}
+
+async function lockCollectionWriteScope(
+  db: MusicDatabaseTransactionContext,
+  ownerScope: string,
+): Promise<void> {
+  await db.run(`
+    INSERT INTO music_data_platform_collection_write_scopes (owner_scope)
+    VALUES (?)
+    ON CONFLICT(owner_scope) DO NOTHING
+  `, [ownerScope]);
+  const locked = await db.get<{ owner_scope: string }>(`
+    SELECT owner_scope
+    FROM music_data_platform_collection_write_scopes
+    WHERE owner_scope = ?
+    FOR UPDATE
+  `, [ownerScope]);
+  if (locked === undefined) {
+    throw new Error("Music Data Platform Collection write scope was unavailable after initialization.");
+  }
 }
 
 async function invalidateCollection(

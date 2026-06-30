@@ -251,6 +251,76 @@ const ownerScope = "local";
 }
 
 {
+  const schema = `minemusic_test_${process.pid}_61001_schema_reinitialize`;
+  const primary = await openUninitializedPostgresTestMusicDatabase({ schema });
+  await primary.initialize({
+    schemas: [
+      musicDataPlatformIdentitySchema,
+      musicExperienceQueuePlaybackSchema,
+      musicExperienceRadioTruthSchema,
+    ],
+  });
+  const queuedRef = materialRef("phase_b_schema_reinitialize");
+  await seedRecording(primary, queuedRef, "Schema Reinitialize", ["Schema Artist"]);
+  expectAppendOutput(await createMusicExperienceQueuePlaybackCommand({ database: primary }).append({
+    ownerScope,
+    materialRefs: [queuedRef],
+    provenance: "main_agent",
+    now,
+  }));
+
+  const versionsBefore = await primary.context().get<{
+    queue_item_version: string;
+    state_version: string;
+  }>(
+    `
+      SELECT
+        q.xmin::text AS queue_item_version,
+        s.xmin::text AS state_version
+      FROM music_experience_queue_items q
+      JOIN music_experience_state s
+        ON s.owner_scope = q.owner_scope
+       AND s.workspace_id = q.workspace_id
+      WHERE q.owner_scope = ?
+        AND q.workspace_id = 'default'
+        AND q.position = 1
+    `,
+    [ownerScope],
+  );
+
+  const secondary = await openUninitializedPostgresTestMusicDatabase({ schema, reset: false });
+  await secondary.initialize({
+    schemas: [
+      musicDataPlatformIdentitySchema,
+      musicExperienceQueuePlaybackSchema,
+      musicExperienceRadioTruthSchema,
+    ],
+  });
+  const versionsAfter = await secondary.context().get<{
+    queue_item_version: string;
+    state_version: string;
+  }>(
+    `
+      SELECT
+        q.xmin::text AS queue_item_version,
+        s.xmin::text AS state_version
+      FROM music_experience_queue_items q
+      JOIN music_experience_state s
+        ON s.owner_scope = q.owner_scope
+       AND s.workspace_id = q.workspace_id
+      WHERE q.owner_scope = ?
+        AND q.workspace_id = 'default'
+        AND q.position = 1
+    `,
+    [ownerScope],
+  );
+  assert.deepEqual(versionsAfter, versionsBefore);
+
+  await secondary.close();
+  await primary.close();
+}
+
+{
   const recordsSource = await readFile("src/music_experience/records.ts", "utf8");
   assert.equal(recordsSource.includes("SELECT MAX(position)"), false);
   assert.equal(recordsSource.includes("queue_next_position = queue_next_position +"), false);
