@@ -5,6 +5,7 @@ import type {
 } from "../contracts/agent_runtime.js";
 import type { Result } from "../contracts/kernel.js";
 import type {
+  StageToolRuntimeQueueMutationMetadata,
   StageToolRuntimeQueueItemMetadata,
   ToolCallOutput,
 } from "../contracts/stage_interface.js";
@@ -61,7 +62,10 @@ export function createRadioRunResultRecorder(): RadioRunResultRecorder {
         return;
       }
 
-      if (input.result.value.runtime?.changedBasis?.queueRevision !== undefined) {
+      if (
+        input.toolName.startsWith(radioQueueToolPrefix) &&
+        isQueueCorrectionMutation(input.result.value.runtime?.queueMutation)
+      ) {
         queueChanged = true;
       }
       if (input.toolName === radioQueueAppendToolName) {
@@ -210,4 +214,12 @@ function queueAppendMetadataFromToolOutput(output: ToolCallOutput): readonly Sta
   }
 
   return queueItems;
+}
+
+function isQueueCorrectionMutation(
+  mutation: StageToolRuntimeQueueMutationMetadata | undefined,
+): boolean {
+  return mutation !== undefined &&
+    mutation.kind !== "append" &&
+    mutation.affectedCount > 0;
 }

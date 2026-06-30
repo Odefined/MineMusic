@@ -75,21 +75,6 @@ export class PostgresMusicDatabase implements MusicDatabase {
     },
   };
 
-  private readonly initializationContext: PostgresMusicDatabaseContext = {
-    run: async (sql, params) => {
-      this.ensureInitializing();
-      await queryRun(this.pool, sql, params);
-    },
-    all: async (sql, params) => {
-      this.ensureInitializing();
-      return queryAll(this.pool, sql, params);
-    },
-    get: async (sql, params) => {
-      this.ensureInitializing();
-      return queryGet(this.pool, sql, params);
-    },
-  };
-
   private constructor(
     private readonly pool: Pool,
     private readonly transactionTimeoutMs: number,
@@ -125,9 +110,11 @@ export class PostgresMusicDatabase implements MusicDatabase {
     this.state = "initializing";
 
     try {
-      await initializePostgresSchema({
-        context: this.initializationContext,
-        ...(input.schemas === undefined ? {} : { schemas: input.schemas }),
+      await this.runInitializationTransaction(async (context) => {
+        await initializePostgresSchema({
+          context,
+          ...(input.schemas === undefined ? {} : { schemas: input.schemas }),
+        });
       });
       this.state = "initialized";
     } catch (error) {
@@ -263,6 +250,83 @@ export class PostgresMusicDatabase implements MusicDatabase {
 
     await this.pool.end();
     this.state = "closed";
+  }
+
+  private async runInitializationTransaction(
+    operation: (context: PostgresMusicDatabaseContext) => Promise<void>,
+  ): Promise<void> {
+    this.ensureInitializing();
+    let client: PoolClient | undefined;
+    let clientReleased = false;
+    let transactionTimedOut = false;
+    let transactionContextActive = true;
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timeoutHandle = setTimeout(() => {
+        transactionTimedOut = true;
+        if (client !== undefined && !clientReleased) {
+          clientReleased = true;
+          client.release(true);
+        }
+        reject(transactionTimeoutError(this.transactionTimeoutMs));
+      }, this.transactionTimeoutMs);
+    });
+
+    try {
+      await Promise.race([
+        (async () => {
+          client = await this.pool.connect();
+          if (transactionTimedOut) {
+            if (!clientReleased) {
+              clientReleased = true;
+              client.release(true);
+            }
+            throw transactionTimeoutError(this.transactionTimeoutMs);
+          }
+          const activeClient = client;
+          const transactionContext: PostgresMusicDatabaseContext = {
+            run: async (sql, params) => {
+              ensureTransactionContextActive(transactionContextActive);
+              this.ensureInitializing();
+              await queryRun(activeClient, sql, params);
+            },
+            all: async (sql, params) => {
+              ensureTransactionContextActive(transactionContextActive);
+              this.ensureInitializing();
+              return queryAll(activeClient, sql, params);
+            },
+            get: async (sql, params) => {
+              ensureTransactionContextActive(transactionContextActive);
+              this.ensureInitializing();
+              return queryGet(activeClient, sql, params);
+            },
+          };
+          await client.query("BEGIN");
+          await operation(transactionContext);
+          await client.query("COMMIT");
+        })(),
+        timeout,
+      ]);
+    } catch (error) {
+      if (!transactionTimedOut) {
+        try {
+          await client?.query("ROLLBACK");
+        } catch {
+          // Preserve the original initialization error.
+        }
+      }
+      throw error;
+    } finally {
+      if (timeoutHandle !== undefined) {
+        clearTimeout(timeoutHandle);
+      }
+      transactionContextActive = false;
+      if (client !== undefined && !clientReleased) {
+        clientReleased = true;
+        client.release();
+      }
+    }
   }
 
   private ensureCanInitialize(): void {

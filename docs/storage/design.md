@@ -65,8 +65,10 @@ Runtime config accepts `database.url`, `database.schema`, and
 config helpers before the adapter is opened.
 
 Opening and initialization are separate. `open(...)` owns the database handle;
-`initialize(...)` applies ordered schema contributions. `context()` and
-`transaction(...)` reject use before successful initialization.
+`initialize(...)` applies ordered schema contributions inside one Postgres
+transaction. If any contribution fails, the initialization transaction rolls
+back the whole schema batch. `context()` and `transaction(...)` reject use before
+successful initialization.
 
 `PostgresMusicDatabase` bounds every root transaction. The default deadline is
 60 seconds and composition roots/tests may override it with

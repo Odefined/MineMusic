@@ -465,8 +465,9 @@ and projection tests must be reviewed together.
 - Music Experience queue command module — add indexed-list remove/move/clear
   user commands, plus replace where the product semantics require it, and a
   command that lets Radio edit only queue items it generated and that still
-  remain in the queue. All commands bump queue revision through the owner
-  boundary.
+  remain in the queue. Commands that actually change the queue bump queue
+  revision through the owner boundary; no-op edits return declared tool errors
+  and emit no revision event.
 - Stage registration modules — align the existing queue append capability under
   `playback.queue.append`, and expose new `playback.queue.remove`,
   `playback.queue.replace`, `playback.queue.move`, and `playback.queue.clear`

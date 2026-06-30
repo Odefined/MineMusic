@@ -1,4 +1,4 @@
-import type { Ref, Result } from "../../contracts/kernel.js";
+import type { ConcernRevisionChangeActor, Ref, Result } from "../../contracts/kernel.js";
 import {
   musicExperiencePlaybackPlayInputSchema,
   musicExperiencePlaybackPlayOutputSchema,
@@ -28,9 +28,10 @@ import type {
 import { stageToolHandlerOutput } from "../../contracts/stage_interface.js";
 import type {
   MusicExperienceQueueEditCommandOutput,
-  MusicExperienceQueueEditPermission,
+  MusicExperienceQueueEditContext,
   MusicExperienceQueueItemProvenance,
   MusicExperienceQueuePlaybackCommand,
+  MusicExperienceQueueReplaceContext,
 } from "../../contracts/music_experience.js";
 import type {
   CandidateCommitCommand,
@@ -95,7 +96,7 @@ const queueAppendErrors = [
   },
 ] as const;
 
-const queueIndexEditErrors = [
+const queueEditErrors = [
   {
     code: "operation_aborted",
     retryable: true,
@@ -112,10 +113,24 @@ const queueIndexEditErrors = [
     suggestedFixTemplate: "Choose a queue item this actor is allowed to edit.",
   },
   {
+    code: "queue_noop",
+    retryable: false,
+    suggestedFixTemplate: "Choose a queue edit that changes at least one queued item.",
+  },
+  {
     code: "voided_stale",
     retryable: true,
     suggestedFixTemplate: "Refresh the current music experience state and retry if the action is still desired.",
   },
+] as const;
+
+const queueIndexEditErrors = [
+  {
+    code: "invalid_input",
+    retryable: false,
+    suggestedFixTemplate: "Retry with an edit payload that changes the queue.",
+  },
+  ...queueEditErrors,
 ] as const;
 
 const queueReplaceErrors = [
@@ -125,7 +140,7 @@ const queueReplaceErrors = [
     retryable: false,
     suggestedFixTemplate: "Retry with `item` as a full [material:...] or [candidate:...] handle.",
   },
-  ...queueIndexEditErrors,
+  ...queueEditErrors,
 ] as const;
 
 const playbackPlayErrors = [
@@ -139,6 +154,11 @@ const playbackPlayErrors = [
     code: "operation_aborted",
     retryable: true,
     suggestedFixTemplate: "Retry the action if it is still desired.",
+  },
+  {
+    code: "playback_noop",
+    retryable: false,
+    suggestedFixTemplate: "Choose a different item to play, or stop if the current item is already desired.",
   },
   {
     code: "voided_stale",
@@ -461,6 +481,7 @@ async function handleQueueAppend(
       changedBasis: {
         queueRevision: appended.value.queueRevision,
       },
+      queueMutation: appended.value.queueMutation,
       queueItems: outputItems.map((item, index) => ({
         ...item,
         provenance: appended.value.appended[index]!.provenance,
@@ -485,6 +506,7 @@ function queueEditOutput(
       changedBasis: {
         queueRevision: result.value.queueRevision,
       },
+      queueMutation: result.value.queueMutation,
     }),
   };
 }
@@ -501,19 +523,59 @@ function queueProvenanceForActor(ctx: StageToolContext): MusicExperienceQueueIte
   throw new Error("Unknown Stage Tool actor for queue provenance.");
 }
 
-function queueEditPermissionForActor(ctx: StageToolContext): MusicExperienceQueueEditPermission {
-  const replacementProvenance = queueProvenanceForActor(ctx);
-  if (replacementProvenance === "radio_agent") {
-    return {
-      kind: "radio_owned_queued_items",
-      replacementProvenance,
-    };
+function queueRevisionActorForContext(ctx: StageToolContext): ConcernRevisionChangeActor {
+  switch (ctx.actor) {
+    case "radio_agent":
+      return "radio_agent";
+    case "main_agent":
+      return "main_agent";
+    case undefined:
+      return "user";
   }
+  throw new Error("Unknown Stage Tool actor for queue revision actor.");
+}
 
-  return {
-    kind: "all_queued_items",
-    replacementProvenance,
-  };
+function queueEditContextForActor(ctx: StageToolContext): MusicExperienceQueueEditContext {
+  switch (queueRevisionActorForContext(ctx)) {
+    case "radio_agent":
+      return {
+        authority: { kind: "radio_owned_queued_items" },
+        actor: "radio_agent",
+      };
+    case "main_agent":
+      return {
+        authority: { kind: "all_queued_items" },
+        actor: "main_agent",
+      };
+    case "user":
+      return {
+        authority: { kind: "all_queued_items" },
+        actor: "user",
+      };
+  }
+}
+
+function queueReplaceContextForActor(ctx: StageToolContext): MusicExperienceQueueReplaceContext {
+  switch (queueRevisionActorForContext(ctx)) {
+    case "radio_agent":
+      return {
+        authority: { kind: "radio_owned_queued_items" },
+        actor: "radio_agent",
+        replacementProvenance: "radio_agent",
+      };
+    case "main_agent":
+      return {
+        authority: { kind: "all_queued_items" },
+        actor: "main_agent",
+        replacementProvenance: "main_agent",
+      };
+    case "user":
+      return {
+        authority: { kind: "all_queued_items" },
+        actor: "user",
+        replacementProvenance: "user",
+      };
+  }
 }
 
 async function handleQueueRemove(
@@ -530,7 +592,7 @@ async function handleQueueRemove(
   const removed = await ports.queuePlayback.remove({
     ownerScope: ctx.ownerScope,
     index: input.index,
-    permission: queueEditPermissionForActor(ctx),
+    ...queueEditContextForActor(ctx),
     ...(ctx.preconditionBasis === undefined ? {} : { basis: ctx.preconditionBasis }),
     now: ctx.clock(),
   });
@@ -562,7 +624,7 @@ async function handleQueueReplace(
     ownerScope: ctx.ownerScope,
     index: input.index,
     materialRef: resolved.value,
-    permission: queueEditPermissionForActor(ctx),
+    ...queueReplaceContextForActor(ctx),
     ...(ctx.preconditionBasis === undefined ? {} : { basis: ctx.preconditionBasis }),
     now: ctx.clock(),
   });
@@ -580,6 +642,7 @@ async function handleQueueReplace(
       changedBasis: {
         queueRevision: replaced.value.queueRevision,
       },
+      queueMutation: replaced.value.queueMutation,
       queueItems: [{
         item,
         index: replaced.value.index,
@@ -604,7 +667,7 @@ async function handleQueueMove(
     ownerScope: ctx.ownerScope,
     from: input.from,
     to: input.to,
-    permission: queueEditPermissionForActor(ctx),
+    ...queueEditContextForActor(ctx),
     ...(ctx.preconditionBasis === undefined ? {} : { basis: ctx.preconditionBasis }),
     now: ctx.clock(),
   });
@@ -623,7 +686,7 @@ async function handleQueueClear(
 
   const cleared = await ports.queuePlayback.clear({
     ownerScope: ctx.ownerScope,
-    permission: queueEditPermissionForActor(ctx),
+    ...queueEditContextForActor(ctx),
     ...(ctx.preconditionBasis === undefined ? {} : { basis: ctx.preconditionBasis }),
     now: ctx.clock(),
   });

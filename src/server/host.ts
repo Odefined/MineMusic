@@ -40,6 +40,7 @@ import {
   createMusicExperienceRadioTruthCommand,
   createMusicExperienceReadModel,
   musicExperienceSchemas,
+  type ConcernRevisionObserverFailureSink,
 } from "../music_experience/index.js";
 import {
   agentRuntimeSchemas,
@@ -420,6 +421,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       revisionObserver: {
         observe: observeConcernRevisionChange,
       },
+      revisionObserverFailureSink: reportConcernRevisionObserverFailure,
     });
     return queuePlaybackCommand;
   }
@@ -434,6 +436,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       revisionObserver: {
         observe: observeConcernRevisionChange,
       },
+      revisionObserverFailureSink: reportConcernRevisionObserverFailure,
     });
     return radioTruthCommand;
   }
@@ -448,6 +451,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       revisionObserver: {
         observe: observeConcernRevisionChange,
       },
+      revisionObserverFailureSink: reportConcernRevisionObserverFailure,
     });
     return radioSessionCommand;
   }
@@ -455,6 +459,21 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
   function observeConcernRevisionChange(change: ConcernRevisionChange): void {
     agentRunCascade.observeRevisionChange(change);
     agentRuntimeRadioModule?.observeRevisionChange(change);
+  }
+
+  function reportConcernRevisionObserverFailure(
+    failure: Parameters<ConcernRevisionObserverFailureSink>[0],
+  ): void {
+    try {
+      process.stderr.write(
+        `MineMusic concern revision observer failed after commit: ${failure.change.concern} ` +
+        `revision ${failure.change.newRevision} actor ${failure.change.actor}: ` +
+        `${failure.error instanceof Error ? failure.error.message : String(failure.error)}\n`,
+      );
+    } catch {
+      // Diagnostics must not turn a committed Music Experience command into a
+      // failed command result.
+    }
   }
 
   function readDefaultMusicExperienceReadPort(): MusicExperienceWorkspaceProjectionPort | undefined {

@@ -3,9 +3,9 @@ import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEnt
 import type { RadioNotifyRequest } from "../../src/contracts/agent_runtime.js";
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../../src/contracts/storage.js";
 import type { ConcernRevision, Ref, Result, StageError } from "../../src/contracts/kernel.js";
-import type { EvolvedPostureSnapshot, MusicExperiencePlaybackPlayCommandOutput, MusicExperiencePlaybackSnapshot, MusicExperiencePlaybackStatus, MusicExperienceQueueAppendCommandOutput, MusicExperienceQueueEditCommandOutput, MusicExperienceQueueItemProvenance, MusicExperienceQueueItemSnapshot, MusicExperienceQueuePlaybackCommand, MusicExperienceQueueReplaceCommandOutput, MusicExperienceRadioTruthCommand, MusicExperienceRadioTruthSnapshot, MusicExperienceSetRadioDirectionCommandOutput, MusicExperienceSnapshot, MusicExperienceWorkspaceProjection, MusicExperienceWorkspaceProjectionPort, MusicExperienceWriteRadioPostureCommandOutput, RadioDirectionSnapshot, RadioDirectionValue } from "../../src/contracts/music_experience.js";
+import type { EvolvedPostureSnapshot, MusicExperiencePlaybackPlayCommandOutput, MusicExperiencePlaybackSnapshot, MusicExperiencePlaybackStatus, MusicExperienceQueueAppendCommandOutput, MusicExperienceQueueClearCommandInput, MusicExperienceQueueEditAuthority, MusicExperienceQueueEditCommandOutput, MusicExperienceQueueEditContext, MusicExperienceQueueIndexCommandInput, MusicExperienceQueueItemProvenance, MusicExperienceQueueItemSnapshot, MusicExperienceQueueMoveCommandInput, MusicExperienceQueuePlaybackCommand, MusicExperienceQueueReplaceCommandInput, MusicExperienceQueueReplaceCommandOutput, MusicExperienceQueueReplaceContext, MusicExperienceQueueReplacementContext, MusicExperienceRadioPostureClearCommandInput, MusicExperienceRadioPostureCommandBasis, MusicExperienceRadioPostureIndexCommandInput, MusicExperienceRadioPostureIndexedValueCommandInput, MusicExperienceRadioPostureInsertValueCommandInput, MusicExperienceRadioPostureMoveCommandInput, MusicExperienceRadioTruthCommand, MusicExperienceRadioTruthSnapshot, MusicExperienceSetRadioDirectionCommandOutput, MusicExperienceSnapshot, MusicExperienceWorkspaceProjection, MusicExperienceWorkspaceProjectionPort, MusicExperienceWriteRadioPostureCommandInput, MusicExperienceWriteRadioPostureCommandOutput, RadioDirectionSnapshot, RadioDirectionValue } from "../../src/contracts/music_experience.js";
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
-import type { LibraryImportLibraryKind, LibraryImportListSourcesInput, LibraryImportListSourcesOutput, LibraryRelationItemInput, LibraryRelationStateOutput, MaterialMusicItemHandle, MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePlaybackPlayOutput, MusicExperiencePresentInput, MusicExperiencePresentOutput, MusicItemHandle, PlaybackQueueAppendOutput, PlaybackQueueEditOutput, PlaybackQueueReplaceOutput, PublicDisplayLink, RadioDirectionToolOutput, RadioLeanToolOutput, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, StageToolRuntimeMetadata, StageToolRuntimeQueueItemMetadata, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
+import type { LibraryImportLibraryKind, LibraryImportListSourcesInput, LibraryImportListSourcesOutput, LibraryRelationItemInput, LibraryRelationStateOutput, MaterialMusicItemHandle, MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePlaybackPlayOutput, MusicExperiencePresentInput, MusicExperiencePresentOutput, MusicItemHandle, PlaybackQueueAppendOutput, PlaybackQueueEditOutput, PlaybackQueueReplaceOutput, PublicDisplayLink, RadioDirectionToolOutput, RadioLeanToolOutput, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, StageToolRuntimeMetadata, StageToolRuntimeQueueItemMetadata, StageToolRuntimeQueueMutationMetadata, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
 import { assertRefSafe, refKey } from "../../src/contracts/kernel.js";
 import { hasPrefixToken, tokenizePrefixText } from "../../src/contracts/music_data_platform.js";
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2 ? true : false;
@@ -91,12 +91,71 @@ export type _musicExperienceStagePublicMutationOutputs = Expect<
     Equal<keyof RadioLeanToolOutput["posture"], "lean" | "stale">
 >;
 export type _stageToolRuntimeMetadataShape = Expect<
-    Equal<keyof StageToolRuntimeMetadata, "changedBasis" | "queueItems"> &
+    Equal<keyof StageToolRuntimeMetadata, "changedBasis" | "queueItems" | "queueMutation"> &
     Equal<keyof StageToolRuntimeQueueItemMetadata, "item" | "index" | "provenance"> &
+    Equal<keyof StageToolRuntimeQueueMutationMetadata, "kind" | "affectedCount"> &
+    Equal<StageToolRuntimeQueueMutationMetadata["kind"], "append" | "remove" | "replace" | "move" | "clear"> &
     Equal<StageToolRuntimeQueueItemMetadata["item"], MaterialMusicItemHandle>
 >;
 export type _concernRevisionShape = Expect<Equal<ConcernRevision, number>>;
 export type _musicExperienceTruthShapes = Expect<Equal<MusicExperiencePlaybackStatus, "playing" | "paused"> & Equal<MusicExperienceQueueItemProvenance, "main_agent" | "user" | "radio_agent"> & Equal<keyof MusicExperienceQueueItemSnapshot, "position" | "materialRef" | "provenance"> & Equal<keyof MusicExperiencePlaybackSnapshot, "status" | "materialRef"> & Equal<keyof RadioDirectionSnapshot, "motif" | "activeVariations"> & Equal<RadioDirectionValue["kind"], "text" | "material" | "scope"> & Equal<keyof EvolvedPostureSnapshot, "lean" | "commandedRevisionStamp" | "stale"> & Equal<keyof MusicExperienceRadioTruthSnapshot, "radioDirectionRevision" | "direction" | "posture"> & Equal<keyof MusicExperienceSnapshot, "queueRevision" | "radioDirectionRevision" | "radioSessionRevision" | "playbackRevision" | "queue" | "playback" | "radio">>;
+type QueueEditCommandInputs =
+    MusicExperienceQueueIndexCommandInput |
+    MusicExperienceQueueReplaceCommandInput |
+    MusicExperienceQueueMoveCommandInput |
+    MusicExperienceQueueClearCommandInput;
+export type _musicExperienceQueueEditCommandInputShapes = Expect<
+    Equal<keyof MusicExperienceQueueEditAuthority, "kind"> &
+    Equal<MusicExperienceQueueEditAuthority["kind"], "all_queued_items" | "radio_owned_queued_items"> &
+    Equal<ForbiddenKeys<MusicExperienceQueueEditAuthority, "actor" | "replacementProvenance">, never> &
+    Equal<
+        Extract<MusicExperienceQueueEditContext, { authority: { kind: "all_queued_items" } }>["actor"],
+        "user" | "main_agent"
+    > &
+    Equal<
+        Extract<MusicExperienceQueueEditContext, { authority: { kind: "radio_owned_queued_items" } }>["actor"],
+        "radio_agent"
+    > &
+    Equal<QueueEditCommandInputs["actor"], "user" | "main_agent" | "radio_agent"> &
+    Equal<ForbiddenKeys<QueueEditCommandInputs, "permission">, never> &
+    Equal<MusicExperienceQueueReplaceCommandInput["replacementProvenance"], MusicExperienceQueueItemProvenance> &
+    Equal<
+        Extract<MusicExperienceQueueReplaceContext, { authority: { kind: "all_queued_items" } }>["replacementProvenance"],
+        "user" | "main_agent"
+    > &
+    Equal<
+        Extract<MusicExperienceQueueReplaceContext, { actor: "user" }>["replacementProvenance"],
+        "user"
+    > &
+    Equal<
+        Extract<MusicExperienceQueueReplaceContext, { actor: "main_agent" }>["replacementProvenance"],
+        "main_agent"
+    > &
+    Equal<
+        Extract<MusicExperienceQueueReplaceContext, { authority: { kind: "radio_owned_queued_items" } }>["replacementProvenance"],
+        "radio_agent"
+    > &
+    Equal<
+        Extract<MusicExperienceQueueReplacementContext, { authority: { kind: "all_queued_items" } }>["replacementProvenance"],
+        "user" | "main_agent"
+    > &
+    Equal<
+        Extract<MusicExperienceQueueReplacementContext, { authority: { kind: "radio_owned_queued_items" } }>["replacementProvenance"],
+        "radio_agent"
+    >
+>;
+type RadioPostureCommandInputs =
+    MusicExperienceWriteRadioPostureCommandInput |
+    MusicExperienceRadioPostureInsertValueCommandInput |
+    MusicExperienceRadioPostureIndexCommandInput |
+    MusicExperienceRadioPostureIndexedValueCommandInput |
+    MusicExperienceRadioPostureMoveCommandInput |
+    MusicExperienceRadioPostureClearCommandInput;
+export type _musicExperienceRadioPostureCommandInputShapes = Expect<
+    Equal<RadioPostureCommandInputs["basis"], MusicExperienceRadioPostureCommandBasis> &
+    Equal<keyof MusicExperienceRadioPostureCommandBasis, "radioDirectionRevision"> &
+    Equal<ForbiddenKeys<RadioPostureCommandInputs, "commandedRevisionStamp">, never>
+>;
 export type _musicExperienceCommandPortShape = Expect<Equal<keyof MusicExperienceQueuePlaybackCommand, "append" | "remove" | "replace" | "move" | "clear" | "playNow">>;
 export type _musicExperienceCommandPortFailureChannels = Expect<Equal<Awaited<ReturnType<MusicExperienceQueuePlaybackCommand["append"]>>, Result<MusicExperienceQueueAppendCommandOutput>> & Equal<Awaited<ReturnType<MusicExperienceQueuePlaybackCommand["remove"]>>, Result<MusicExperienceQueueEditCommandOutput>> & Equal<Awaited<ReturnType<MusicExperienceQueuePlaybackCommand["replace"]>>, Result<MusicExperienceQueueReplaceCommandOutput>> & Equal<Awaited<ReturnType<MusicExperienceQueuePlaybackCommand["move"]>>, Result<MusicExperienceQueueEditCommandOutput>> & Equal<Awaited<ReturnType<MusicExperienceQueuePlaybackCommand["clear"]>>, Result<MusicExperienceQueueEditCommandOutput>> & Equal<Awaited<ReturnType<MusicExperienceQueuePlaybackCommand["playNow"]>>, Result<MusicExperiencePlaybackPlayCommandOutput>>>;
 export type _musicExperienceRadioTruthCommandPortShape = Expect<Equal<keyof MusicExperienceRadioTruthCommand, "setRadioDirection" | "setRadioMotif" | "clearRadioMotif" | "addRadioVariation" | "removeRadioVariation" | "replaceRadioVariation" | "moveRadioVariation" | "clearRadioVariations" | "writeRadioPosture" | "addRadioLean" | "removeRadioLean" | "replaceRadioLean" | "moveRadioLean" | "clearRadioLean">>;

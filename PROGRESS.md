@@ -161,7 +161,9 @@ Phase 4 implements the generic Music Database foundation:
   resolves;
 - transaction callbacks receive a transaction-scoped context that becomes
   inactive after commit/rollback;
-- schema initialization uses ordered idempotent schema contributions;
+- schema initialization uses ordered idempotent schema contributions inside one
+  Postgres transaction, so initialization failure rolls back the whole schema
+  batch;
 - default Server Host Music Data Platform runtime opens Postgres through
   explicit runtime database config or environment defaults;
 - `open(...)` and `initialize(...)` are separate, and database use requires
@@ -1532,7 +1534,9 @@ catalog integration. Design authority:
   `lean` list stamped with the commanded-direction revision). Steering writes
   bump `radio_direction_revision`; posture writes remain OCC-invisible and are
   read as stale when their stamp no longer matches the current commanded
-  revision. The Workbench Music Experience slice now includes the radio truth
+  revision. Posture command inputs carry the run's radio-direction basis and the
+  persisted stamp is derived inside Music Experience. The Workbench Music
+  Experience slice now includes the radio truth
   projection, and the PR2 harness covers late posture writes, empty stamped
   posture, value-shape validation, cap enforcement, and current-queue dedup
   reads.
@@ -1727,17 +1731,26 @@ Completed:
 - Queue/playback/radio-direction writes emit post-commit concern-revision
   events only after successful transactions. Server Host routes those events to
   Radio; PB9 cancellation is priority- and basis-filtered (`user > main_agent >
-  radio_agent`) with commit-time CAS as the final correctness boundary.
+  radio_agent`) with commit-time CAS as the final correctness boundary. No-op
+  writes are declared failures (`queue_noop`, `playback_noop`,
+  `radio_truth_noop`) and do not bump revisions, produce `changedBasis`, or emit
+  observer events. Post-commit observer delivery is non-throwing at the command
+  boundary; observer failures go to a diagnostics-only failure sink, and neither
+  observer nor sink failures convert committed writes into failed tool results.
+  Queue edit command inputs now split edit
+  authority, revision actor, and replacement item provenance, with type guards
+  preventing authority/provenance/actor recombination.
 - Public queue write results are compact. `playback.queue.append` and
   `playback.queue.replace` public outputs expose queue length only; internal
   runtime metadata and the refreshed Workspace Context diff carry queue item
-  handles, indexes, and provenance for runtime accounting and model-visible
-  after-state.
+  handles, indexes, provenance, and queue mutation facts for runtime accounting
+  and model-visible after-state.
 - Radio terminal results are recorded from Stage dispatch facts and structured
   `radio_run_finish` declarations. `voided_stale` / `operation_aborted` queue
   command results become `RadioRunResult.outcome = "voided_stale"` instead of
-  runtime failures; successful append/correction cannot be fabricated from
-  transcript scraping.
+  runtime failures; successful queue correction is recorded from explicit
+  `queueMutation` metadata, not inferred from `changedBasis.queueRevision`, and
+  successful append/correction cannot be fabricated from transcript scraping.
 
 Deferred out of Phase B:
 
@@ -1771,8 +1784,6 @@ Findings are tracked in `docs/maintenance/full-codebase-audit-2026-06-30.md`
 - P1 Stage Interface: candidate handle bindings minted without `expiresAt` and
   resolve never revalidates the backing cache (Public Handle Veil candidate-TTL
   contract gap).
-- P1 Storage: schema contributions applied non-atomically; partial DDL failure
-  can leave drift.
 - P1 Concurrency: READ COMMITTED default + implicit single-instance assumption;
   PR3.5 per-instance `transactionQueue` mitigates same-instance serialization
   but leaves residual auto-commit/multi-instance lost-update surface (identity

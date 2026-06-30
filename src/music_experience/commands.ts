@@ -3,6 +3,7 @@ import type {
   MusicExperienceQueuePlaybackCommand,
   MusicExperienceRadioSessionCommand,
   MusicExperienceRadioTruthCommand,
+  MusicExperienceRadioPostureCommandBasis,
   MusicExperienceSetRadioDirectionCommandOutput,
   MusicExperienceWriteRadioPostureCommandOutput,
   RadioDirectionScopeValue,
@@ -11,6 +12,7 @@ import type {
 } from "../contracts/music_experience.js";
 import type {
   ConcernRevisionChangeActor,
+  ConcernRevisionChange,
   ConcernRevisionObserver,
   ConcernRevisionSet,
   Ref,
@@ -31,8 +33,11 @@ import {
   QueueFullError,
   QueueEditPermissionError,
   QueueIndexError,
+  QueueNoopError,
+  PlaybackNoopError,
   createMusicExperienceQueuePlaybackRecords,
   createMusicExperienceRadioTruthRecords,
+  RadioTruthNoopError,
   RadioTruthValidationError,
   StaleCommandPreconditionError,
 } from "./records.js";
@@ -40,17 +45,25 @@ import {
 export type CreateMusicExperienceQueuePlaybackCommandInput = {
   database: MusicDatabase;
   revisionObserver?: ConcernRevisionObserver;
+  revisionObserverFailureSink?: ConcernRevisionObserverFailureSink;
 };
 
 export type CreateMusicExperienceRadioTruthCommandInput = {
   database: MusicDatabase;
   revisionObserver: ConcernRevisionObserver;
+  revisionObserverFailureSink?: ConcernRevisionObserverFailureSink;
 };
 
 export type CreateMusicExperienceRadioSessionCommandInput = {
   database: MusicDatabase;
   revisionObserver?: ConcernRevisionObserver;
+  revisionObserverFailureSink?: ConcernRevisionObserverFailureSink;
 };
+
+export type ConcernRevisionObserverFailureSink = (failure: {
+  error: unknown;
+  change: ConcernRevisionChange;
+}) => void;
 
 export function createMusicExperienceQueuePlaybackCommand(
   input: CreateMusicExperienceQueuePlaybackCommandInput,
@@ -83,7 +96,7 @@ export function createMusicExperienceQueuePlaybackCommand(
         observeQueueRevision(input, {
           ownerScope: commandInput.ownerScope,
           queueRevision: result.value.queueRevision,
-          actor: actorForQueuePermission(commandInput.permission),
+          actor: commandInput.actor,
         });
       }
       return result;
@@ -98,7 +111,7 @@ export function createMusicExperienceQueuePlaybackCommand(
         observeQueueRevision(input, {
           ownerScope: commandInput.ownerScope,
           queueRevision: result.value.queueRevision,
-          actor: actorForQueuePermission(commandInput.permission),
+          actor: commandInput.actor,
         });
       }
       return result;
@@ -112,7 +125,7 @@ export function createMusicExperienceQueuePlaybackCommand(
         observeQueueRevision(input, {
           ownerScope: commandInput.ownerScope,
           queueRevision: result.value.queueRevision,
-          actor: actorForQueuePermission(commandInput.permission),
+          actor: commandInput.actor,
         });
       }
       return result;
@@ -126,7 +139,7 @@ export function createMusicExperienceQueuePlaybackCommand(
         observeQueueRevision(input, {
           ownerScope: commandInput.ownerScope,
           queueRevision: result.value.queueRevision,
-          actor: actorForQueuePermission(commandInput.permission),
+          actor: commandInput.actor,
         });
       }
       return result;
@@ -160,7 +173,7 @@ export function createMusicExperienceRadioSessionCommand(
         return records.transitionRadioSession(commandInput);
       });
       if (result.ok) {
-        input.revisionObserver?.observe({
+        observeConcernRevision(input, {
           ownerScope: commandInput.ownerScope,
           concern: "radio-session",
           newRevision: result.value.radioSessionRevision,
@@ -187,7 +200,7 @@ function observeQueueRevision(
     actor: ConcernRevisionChangeActor;
   },
 ): void {
-  input.revisionObserver?.observe({
+  observeConcernRevision(input, {
     ownerScope: change.ownerScope,
     concern: "queue",
     newRevision: change.queueRevision,
@@ -196,14 +209,14 @@ function observeQueueRevision(
 }
 
 function observePlaybackRevision(
-  input: CreateMusicExperienceQueuePlaybackCommandInput,
+  input: CreateMusicExperienceQueuePlaybackCommandInput | CreateMusicExperienceRadioSessionCommandInput,
   change: {
     ownerScope: string;
     playbackRevision: number;
     actor: ConcernRevisionChangeActor;
   },
 ): void {
-  input.revisionObserver?.observe({
+  observeConcernRevision(input, {
     ownerScope: change.ownerScope,
     concern: "playback",
     newRevision: change.playbackRevision,
@@ -211,16 +224,49 @@ function observePlaybackRevision(
   });
 }
 
+function observeConcernRevision(
+  input: {
+    revisionObserver?: ConcernRevisionObserver;
+    revisionObserverFailureSink?: ConcernRevisionObserverFailureSink;
+  },
+  change: ConcernRevisionChange,
+): void {
+  if (input.revisionObserver === undefined) {
+    return;
+  }
+
+  try {
+    input.revisionObserver.observe(change);
+  } catch (error) {
+    notifyConcernRevisionObserverFailure(input, { error, change });
+  }
+}
+
+function notifyConcernRevisionObserverFailure(
+  input: {
+    revisionObserverFailureSink?: ConcernRevisionObserverFailureSink;
+  },
+  failure: {
+    error: unknown;
+    change: ConcernRevisionChange;
+  },
+): void {
+  if (input.revisionObserverFailureSink === undefined) {
+    return;
+  }
+
+  try {
+    input.revisionObserverFailureSink(failure);
+  } catch {
+    // The observer and its diagnostics sink are post-commit side effects. Neither
+    // may turn an already-durable command into a failed command result.
+  }
+}
+
 function actorForQueueProvenance(
   provenance: "main_agent" | "user" | "radio_agent",
 ): ConcernRevisionChangeActor {
   return provenance;
-}
-
-function actorForQueuePermission(input: {
-  replacementProvenance: "main_agent" | "user" | "radio_agent";
-}): ConcernRevisionChangeActor {
-  return input.replacementProvenance;
 }
 
 async function runQueuePlayback<T>(
@@ -278,6 +324,30 @@ async function runQueuePlayback<T>(
           area: "music_experience",
           retryable: false,
           suggestedFix: "Choose a queue item this actor is allowed to edit.",
+        },
+      };
+    }
+    if (error instanceof QueueNoopError) {
+      return {
+        ok: false,
+        error: {
+          code: "queue_noop",
+          message: error.message,
+          area: "music_experience",
+          retryable: false,
+          suggestedFix: "Choose a queue edit that changes at least one queued item.",
+        },
+      };
+    }
+    if (error instanceof PlaybackNoopError) {
+      return {
+        ok: false,
+        error: {
+          code: "playback_noop",
+          message: error.message,
+          area: "music_experience",
+          retryable: false,
+          suggestedFix: "Choose a different item to play, or stop if the current item is already desired.",
         },
       };
     }
@@ -359,7 +429,12 @@ export function createMusicExperienceRadioTruthCommand(
           const records = createMusicExperienceRadioTruthRecords({ db });
           return {
             ok: true,
-            value: await records.writePosture(commandInput),
+            value: await records.writePosture({
+              ownerScope: commandInput.ownerScope,
+              lean: commandInput.lean,
+              commandedRevisionStamp: commandInput.basis.radioDirectionRevision,
+              now: commandInput.now,
+            }),
           };
         });
       });
@@ -421,7 +496,7 @@ async function runRadioDirection(
 ): Promise<Result<MusicExperienceSetRadioDirectionCommandOutput>> {
   const result = await runRadioTruth(operation);
   if (result.ok) {
-    input.revisionObserver.observe({
+    observeConcernRevision(input, {
       ownerScope: commandInput.ownerScope,
       concern: "radio-direction",
       newRevision: result.value.radioDirectionRevision,
@@ -435,7 +510,7 @@ async function editRadioPosture(
   input: CreateMusicExperienceQueuePlaybackCommandInput,
   commandInput: {
     ownerScope: string;
-    commandedRevisionStamp: number;
+    basis: MusicExperienceRadioPostureCommandBasis;
     now: string;
   },
   edit: (lean: readonly VariationItem[]) => readonly VariationItem[],
@@ -455,7 +530,7 @@ async function editRadioPosture(
         value: await records.writePosture({
           ownerScope: commandInput.ownerScope,
           lean,
-          commandedRevisionStamp: commandInput.commandedRevisionStamp,
+          commandedRevisionStamp: commandInput.basis.radioDirectionRevision,
           now: commandInput.now,
         }),
       };
@@ -646,6 +721,19 @@ function radioTruthStaleResult() {
   };
 }
 
+function radioTruthNoopResult(message: string) {
+  return {
+    ok: false as const,
+    error: {
+      code: "radio_truth_noop",
+      message,
+      area: "music_experience" as const,
+      retryable: false,
+      suggestedFix: "Choose a radio steering or posture edit that changes the current value.",
+    },
+  };
+}
+
 // Runs a radio-truth command body, translating declared command failures at this
 // owned command boundary. Programmer errors and system failures are rethrown.
 async function runRadioTruth<T>(
@@ -662,6 +750,9 @@ async function runRadioTruth<T>(
     }
     if (error instanceof StaleCommandPreconditionError) {
       return radioTruthStaleResult();
+    }
+    if (error instanceof RadioTruthNoopError) {
+      return radioTruthNoopResult(error.message);
     }
     throw error;
   }

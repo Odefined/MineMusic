@@ -28,7 +28,9 @@ Accepted decisions:
 - root transactions have a finite deadline (60 seconds by default); timeout
   destroys the client, rolls back the open transaction, and releases the queue;
 - `MusicDatabaseContext` does not expose `transaction(...)`;
-- schema initialization uses ordered idempotent schema contributions;
+- schema initialization uses ordered idempotent schema contributions inside one
+  Postgres transaction, so initialization failure rolls back the whole schema
+  batch;
 - Server Host default Music Data Platform runtime opens Postgres from
   `database.url` / `database.schema` / `database.maxConnections` config or
   environment defaults;
@@ -70,6 +72,7 @@ Targeted storage tests cover:
 - invalid Postgres connection string rejection;
 - pre-initialization `context()` / `transaction(...)` rejection;
 - schema contribution execution and order;
+- schema initialization atomic rollback after a mid-batch contribution failure;
 - repeated `initialize(...)` rejection;
 - initialization failure terminal-state behavior;
 - root transaction commit and rollback;

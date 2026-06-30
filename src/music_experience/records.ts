@@ -8,9 +8,11 @@ import {
 import type {
   EvolvedPostureSnapshot,
   MusicExperiencePlaybackStatus,
-  MusicExperienceQueueEditPermission,
+  MusicExperienceQueueEditAuthority,
   MusicExperienceQueueItemProvenance,
   MusicExperienceQueueItemSnapshot,
+  MusicExperienceQueueMutation,
+  MusicExperienceQueueReplacementContext,
   MusicExperienceRadioTruthSnapshot,
   MusicExperienceRadioSessionOperation,
   MusicExperienceRadioSessionPlaybackEffect,
@@ -46,22 +48,23 @@ export type MusicExperienceQueuePlaybackRecords = {
     appended: readonly MusicExperienceQueueItemSnapshot[];
     queueLength: number;
     queueRevision: ConcernRevision;
+    queueMutation: MusicExperienceQueueMutation;
   }>;
   remove(input: {
     ownerScope: string;
     index: number;
-    permission: MusicExperienceQueueEditPermission;
+    authority: MusicExperienceQueueEditAuthority;
     basis?: ConcernRevisionSet;
     now: string;
   }): Promise<{
     queueLength: number;
     queueRevision: ConcernRevision;
+    queueMutation: MusicExperienceQueueMutation;
   }>;
-  replace(input: {
+  replace(input: MusicExperienceQueueReplacementContext & {
     ownerScope: string;
     index: number;
     materialRef: Ref;
-    permission: MusicExperienceQueueEditPermission;
     basis?: ConcernRevisionSet;
     now: string;
   }): Promise<{
@@ -69,26 +72,29 @@ export type MusicExperienceQueuePlaybackRecords = {
     index: number;
     queueLength: number;
     queueRevision: ConcernRevision;
+    queueMutation: MusicExperienceQueueMutation;
   }>;
   move(input: {
     ownerScope: string;
     from: number;
     to: number;
-    permission: MusicExperienceQueueEditPermission;
+    authority: MusicExperienceQueueEditAuthority;
     basis?: ConcernRevisionSet;
     now: string;
   }): Promise<{
     queueLength: number;
     queueRevision: ConcernRevision;
+    queueMutation: MusicExperienceQueueMutation;
   }>;
   clear(input: {
     ownerScope: string;
-    permission: MusicExperienceQueueEditPermission;
+    authority: MusicExperienceQueueEditAuthority;
     basis?: ConcernRevisionSet;
     now: string;
   }): Promise<{
     queueLength: number;
     queueRevision: ConcernRevision;
+    queueMutation: MusicExperienceQueueMutation;
   }>;
   playNow(input: {
     ownerScope: string;
@@ -271,6 +277,10 @@ export function createMusicExperienceQueuePlaybackRecords(
         appended,
         queueLength: countBeforeInsert + appended.length,
         queueRevision: state.queue_revision,
+        queueMutation: {
+          kind: "append",
+          affectedCount: appended.length,
+        },
       };
     },
     async remove(removeInput) {
@@ -278,7 +288,7 @@ export function createMusicExperienceQueuePlaybackRecords(
       await ensureState({ db, key, now: removeInput.now });
       await lockStateForUpdate({ db, key });
       const rows = await readQueueItems({ db, key });
-      assertEditableQueueItem(rows, removeInput.index, removeInput.permission);
+      assertEditableQueueItem(rows, removeInput.index, removeInput.authority);
 
       const removed = rows[removeInput.index];
       if (removed === undefined) {
@@ -308,14 +318,18 @@ export function createMusicExperienceQueuePlaybackRecords(
       return {
         queueLength: nextRows.length,
         queueRevision: state.queue_revision,
+        queueMutation: {
+          kind: "remove",
+          affectedCount: 1,
+        },
       };
     },
     async replace(replaceInput) {
       const key = workspaceKey(replaceInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: replaceInput.now });
-      await lockStateForUpdate({ db, key });
+      const lockedState = await lockStateForUpdate({ db, key });
       const rows = await readQueueItems({ db, key });
-      assertEditableQueueItem(rows, replaceInput.index, replaceInput.permission);
+      assertEditableQueueItem(rows, replaceInput.index, replaceInput.authority);
 
       const target = rows[replaceInput.index];
       if (target === undefined) {
@@ -324,21 +338,30 @@ export function createMusicExperienceQueuePlaybackRecords(
       const item = {
         position: target.position,
         materialRef: replaceInput.materialRef,
-        provenance: replaceInput.permission.replacementProvenance,
+        provenance: replaceInput.replacementProvenance,
       };
+      assertRevisionBasis({
+        state: lockedState,
+        basis: replaceInput.basis,
+      });
+      if (
+        refKey(target.materialRef) === refKey(replaceInput.materialRef) &&
+        target.provenance === replaceInput.replacementProvenance
+      ) {
+        throw new QueueNoopError("Replacement is identical to the current queue item.");
+      }
 
       const state = await updateQueueRevision({
         db,
         key,
         now: replaceInput.now,
-        ...(replaceInput.basis === undefined ? {} : { basis: replaceInput.basis }),
       });
       await updateQueueItemMaterial({
         db,
         key,
         position: target.position,
         materialRef: replaceInput.materialRef,
-        provenance: replaceInput.permission.replacementProvenance,
+        provenance: replaceInput.replacementProvenance,
         now: replaceInput.now,
       });
 
@@ -347,14 +370,18 @@ export function createMusicExperienceQueuePlaybackRecords(
         index: replaceInput.index,
         queueLength: rows.length,
         queueRevision: state.queue_revision,
+        queueMutation: {
+          kind: "replace",
+          affectedCount: 1,
+        },
       };
     },
     async move(moveInput) {
       const key = workspaceKey(moveInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: moveInput.now });
-      await lockStateForUpdate({ db, key });
+      const lockedState = await lockStateForUpdate({ db, key });
       const rows = await readQueueItems({ db, key });
-      assertEditableQueueItem(rows, moveInput.from, moveInput.permission);
+      assertEditableQueueItem(rows, moveInput.from, moveInput.authority);
       assertExistingQueueIndex(moveInput.to, rows.length);
 
       const nextRows = rows.slice();
@@ -364,47 +391,61 @@ export function createMusicExperienceQueuePlaybackRecords(
       }
       nextRows.splice(moveInput.to, 0, item);
       const positionedRows = nextRows.map((row, index) => ({ ...row, position: index + 1 }));
+      assertRevisionBasis({
+        state: lockedState,
+        basis: moveInput.basis,
+      });
+      if (moveInput.from === moveInput.to) {
+        throw new QueueNoopError("Move source and destination indexes are the same.");
+      }
 
       const state = await updateQueueRevision({
         db,
         key,
         now: moveInput.now,
-        ...(moveInput.basis === undefined ? {} : { basis: moveInput.basis }),
       });
-      if (moveInput.from !== moveInput.to) {
-        await moveQueueItem({
-          db,
-          key,
-          from: rows[moveInput.from]!.position,
-          to: moveInput.to + 1,
-          now: moveInput.now,
-        });
-      }
+      await moveQueueItem({
+        db,
+        key,
+        from: rows[moveInput.from]!.position,
+        to: moveInput.to + 1,
+        now: moveInput.now,
+      });
       await updateQueueNextPosition({ db, key, nextPosition: positionedRows.length + 1, now: moveInput.now });
 
       return {
         queueLength: positionedRows.length,
         queueRevision: state.queue_revision,
+        queueMutation: {
+          kind: "move",
+          affectedCount: 1,
+        },
       };
     },
     async clear(clearInput) {
       const key = workspaceKey(clearInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: clearInput.now });
-      await lockStateForUpdate({ db, key });
+      const lockedState = await lockStateForUpdate({ db, key });
       const rows = await readQueueItems({ db, key });
-      const removedRows = rows.filter((row) => canEditQueueItem(row, clearInput.permission));
+      const removedRows = rows.filter((row) => canEditQueueItem(row, clearInput.authority));
       const nextRows = rows
-        .filter((row) => !canEditQueueItem(row, clearInput.permission))
+        .filter((row) => !canEditQueueItem(row, clearInput.authority))
         .map((item, index) => ({ ...item, position: index + 1 }));
       const positionUpdates = rows
-        .filter((row) => !canEditQueueItem(row, clearInput.permission))
+        .filter((row) => !canEditQueueItem(row, clearInput.authority))
         .map((item, index) => ({ from: item.position, to: index + 1 }));
+      assertRevisionBasis({
+        state: lockedState,
+        basis: clearInput.basis,
+      });
+      if (removedRows.length === 0) {
+        throw new QueueNoopError("No queued items are editable by this clear command.");
+      }
 
       const state = await updateQueueRevision({
         db,
         key,
         now: clearInput.now,
-        ...(clearInput.basis === undefined ? {} : { basis: clearInput.basis }),
       });
       await deleteQueueItemsAtPositions({
         db,
@@ -417,16 +458,32 @@ export function createMusicExperienceQueuePlaybackRecords(
       return {
         queueLength: nextRows.length,
         queueRevision: state.queue_revision,
+        queueMutation: {
+          kind: "clear",
+          affectedCount: removedRows.length,
+        },
       };
     },
     async playNow(playInput) {
       const key = workspaceKey(playInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: playInput.now });
+      const lockedState = await lockStateForUpdate({ db, key });
+      assertRevisionBasis({
+        state: lockedState,
+        basis: playInput.basis,
+      });
+      const currentPlayback = playbackFromRow(lockedState);
+      if (
+        currentPlayback.status === "playing" &&
+        currentPlayback.materialRef !== undefined &&
+        refKey(currentPlayback.materialRef) === refKey(playInput.materialRef)
+      ) {
+        throw new PlaybackNoopError("Playback already points to that playing material item.");
+      }
       const state = await updatePlayback({
         db,
         key,
         materialRef: playInput.materialRef,
-        ...(playInput.basis === undefined ? {} : { basis: playInput.basis }),
         now: playInput.now,
       });
 
@@ -495,11 +552,24 @@ export function createMusicExperienceRadioTruthRecords(
     async setDirection(setInput) {
       const key = workspaceKey(setInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: setInput.now });
+      const lockedState = await lockStateForUpdate({ db, key });
+      assertRevisionBasis({
+        state: lockedState,
+        basis: setInput.basis,
+      });
+      const current = await readRadioTruth({
+        db,
+        key,
+        radioDirectionRevision: lockedState.radio_direction_revision,
+      });
+      if (sameRadioDirection(current.direction, setInput.direction)) {
+        throw new RadioTruthNoopError("Radio direction is already set to that value.");
+      }
+
       const state = await updateRadioDirectionRevision({
         db,
         key,
         now: setInput.now,
-        ...(setInput.basis === undefined ? {} : { basis: setInput.basis }),
       });
       await writeRadioDirection({
         db,
@@ -523,6 +593,17 @@ export function createMusicExperienceRadioTruthRecords(
       const key = workspaceKey(writeInput.ownerScope, workspaceId);
       await ensureState({ db, key, now: writeInput.now });
       const state = await lockStateForUpdate({ db, key });
+      const current = await readRadioTruth({
+        db,
+        key,
+        radioDirectionRevision: state.radio_direction_revision,
+      });
+      if (
+        sameVariationItems(current.posture.lean, writeInput.lean) &&
+        current.posture.commandedRevisionStamp === writeInput.commandedRevisionStamp
+      ) {
+        throw new RadioTruthNoopError("Radio posture lean is already set to that value.");
+      }
 
       await writeRadioPosture({
         db,
@@ -860,14 +941,14 @@ async function readQueueItems(input: {
 function assertEditableQueueItem(
   rows: readonly MusicExperienceQueueItemSnapshot[],
   index: number,
-  permission: MusicExperienceQueueEditPermission,
+  authority: MusicExperienceQueueEditAuthority,
 ): void {
   assertExistingQueueIndex(index, rows.length);
   const item = rows[index];
   if (item === undefined) {
     throw new Error("Music Experience queue item disappeared after index validation.");
   }
-  if (!canEditQueueItem(item, permission)) {
+  if (!canEditQueueItem(item, authority)) {
     throw new QueueEditPermissionError();
   }
 }
@@ -880,9 +961,9 @@ function assertExistingQueueIndex(index: number, length: number): void {
 
 function canEditQueueItem(
   item: MusicExperienceQueueItemSnapshot,
-  permission: MusicExperienceQueueEditPermission,
+  authority: MusicExperienceQueueEditAuthority,
 ): boolean {
-  switch (permission.kind) {
+  switch (authority.kind) {
     case "all_queued_items":
       return true;
     case "radio_owned_queued_items":
@@ -1020,6 +1101,28 @@ async function advanceRevision(input: {
   }
 
   return row;
+}
+
+function assertRevisionBasis(input: {
+  state: StateRow;
+  basis: ConcernRevisionSet | undefined;
+}): void {
+  if (input.basis?.radioDirectionRevision !== undefined &&
+    input.basis.radioDirectionRevision !== input.state.radio_direction_revision) {
+    throw new StaleCommandPreconditionError();
+  }
+  if (input.basis?.queueRevision !== undefined &&
+    input.basis.queueRevision !== input.state.queue_revision) {
+    throw new StaleCommandPreconditionError();
+  }
+  if (input.basis?.radioSessionRevision !== undefined &&
+    input.basis.radioSessionRevision !== input.state.radio_session_revision) {
+    throw new StaleCommandPreconditionError();
+  }
+  if (input.basis?.playbackRevision !== undefined &&
+    input.basis.playbackRevision !== input.state.playback_revision) {
+    throw new StaleCommandPreconditionError();
+  }
 }
 
 async function updateQueueRevision(input: {
@@ -1245,10 +1348,31 @@ export class QueueEditPermissionError extends Error {
   }
 }
 
+export class QueueNoopError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "QueueNoopError";
+  }
+}
+
+export class PlaybackNoopError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PlaybackNoopError";
+  }
+}
+
 export class RadioTruthValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "RadioTruthValidationError";
+  }
+}
+
+export class RadioTruthNoopError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RadioTruthNoopError";
   }
 }
 
@@ -1365,6 +1489,62 @@ function variationItemFromStoredJson(value: string | VariationItem | unknown): V
     }
     default:
       throw new Error("Stored Music Experience radio variation item kind is not supported.");
+  }
+}
+
+function sameRadioDirection(
+  left: RadioDirectionSnapshot,
+  right: RadioDirectionSnapshot,
+): boolean {
+  if (left.motif === undefined || right.motif === undefined) {
+    if (left.motif !== right.motif) {
+      return false;
+    }
+  } else if (!sameVariationItem(left.motif, right.motif)) {
+    return false;
+  }
+  return sameVariationItems(left.activeVariations, right.activeVariations);
+}
+
+function sameVariationItems(
+  left: readonly VariationItem[],
+  right: readonly VariationItem[],
+): boolean {
+  return left.length === right.length &&
+    left.every((item, index) => sameVariationItem(item, right[index]!));
+}
+
+function sameVariationItem(left: VariationItem, right: VariationItem): boolean {
+  if (left.kind !== right.kind) {
+    return false;
+  }
+  switch (left.kind) {
+    case "text":
+      return left.text === (right as Extract<VariationItem, { kind: "text" }>).text;
+    case "material":
+      return refKey(left.materialRef) === refKey((right as Extract<VariationItem, { kind: "material" }>).materialRef);
+    case "scope":
+      return sameRadioScope(left.scope, (right as Extract<VariationItem, { kind: "scope" }>).scope);
+  }
+}
+
+function sameRadioScope(
+  left: RadioDirectionScopeValue,
+  right: RadioDirectionScopeValue,
+): boolean {
+  if (left.kind !== right.kind) {
+    return false;
+  }
+  switch (left.kind) {
+    case "all":
+    case "library":
+      return true;
+    case "source_library":
+    case "relation":
+    case "collection":
+      return left.id === (right as Extract<RadioDirectionScopeValue, { kind: typeof left.kind }>).id;
+    case "provider":
+      return left.providerId === (right as Extract<RadioDirectionScopeValue, { kind: "provider" }>).providerId;
   }
 }
 

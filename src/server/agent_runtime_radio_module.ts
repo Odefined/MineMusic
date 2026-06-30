@@ -120,7 +120,7 @@ export function createAgentRuntimeRadioModule(
             const radioTruth = requirePort(input.radioTruth(), "Music Experience Radio Truth command");
             const cleared = await radioTruth.clearRadioLean({
               ownerScope,
-              commandedRevisionStamp: radioTruthSnapshot.radioDirectionRevision,
+              basis: { radioDirectionRevision: radioTruthSnapshot.radioDirectionRevision },
               now: new Date().toISOString(),
             });
             if (!cleared.ok) {

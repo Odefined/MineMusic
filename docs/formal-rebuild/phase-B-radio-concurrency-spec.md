@@ -388,12 +388,14 @@ guard. Phase B uses one internal post-commit concern-revision event shape:
 runtime/command adapter (`user | main_agent | radio_agent`) and is never supplied
 by the model. PR3.6 introduces that common event substrate and emits only the
 `radio-direction` writer needed for correction wake. The observer callback is
-synchronous and non-agent-facing: it records the wake request in the Radio
-supervisor, while pacing reads and Background Work submission happen behind the
-supervisor lifecycle boundary. A failed/stale/aborted/rolled-back direction
-command emits no event. PR4 extends the same event to every revision writer and
-adds basis-table cancellation; it does not replace this direction wake with a
-tool-result heuristic.
+synchronous, non-agent-facing, and non-throwing by construction at the command
+boundary: observer failures are routed to diagnostics/failure sinks and cannot
+turn an already-committed command into a failed command result. It records the
+wake request in the Radio supervisor, while pacing reads and Background Work
+submission happen behind the supervisor lifecycle boundary. A
+failed/stale/aborted/rolled-back direction command emits no event. PR4 extends
+the same event to every revision writer and adds basis-table cancellation; it
+does not replace this direction wake with a tool-result heuristic.
 
 Phase B scope uses only the PRD-named core vocabulary: **motif** and **active
 variations**. A richer musical-operation vocabulary is a recorded future
@@ -526,7 +528,9 @@ the `music_experience_state` row lock.
   deleting/reinserting the whole queue: replace updates one row; remove shifts the
   tail down; move shifts only the affected interval; clear deletes editable rows
   and compacts the remaining rows. Untouched items keep their row identity and
-  timestamps.
+  timestamps. A queue edit that would not change the current queue is a declared
+  no-op error and does not bump `queue_revision`, emit an observer event, or
+  produce `changedBasis`.
 - **Decoupled from the basis CAS (PB3 "checked set ≠ bumped set").** Position
   allocation is a mechanical consequence of the queue lock — neither checked nor
   bumped. Radio layers its basis CAS on top as a separate statement in the same
@@ -539,8 +543,8 @@ the `music_experience_state` row lock.
      AND radio_session_revision = :basis_session;
   ```
   Zero rows ⇒ `voided_stale` ⇒ the whole append transaction rolls back, with no
-  residual insert and no position gap. Main/user append has no basis and bumps
-  `queue_revision` unconditionally. (Prerequisite: PB3's radio concern columns
+  residual insert and no position gap. Main/user append has no basis; a committed
+  non-empty append bumps `queue_revision`. (Prerequisite: PB3's radio concern columns
   `radio_direction_revision` / `radio_session_revision` must be added to
   `music_experience_state`, which today carries only `queue_revision` +
   `playback_revision`.)
@@ -583,11 +587,13 @@ only Radio-owned musical judgement:
   summary/rationale Main can later reuse.
 
 Radio does **not** fill mechanical runtime facts: `runId`, runtime concern
-revisions, `appendedCount`, tool facts, stale/abort/failure status, severity
-floors, or one-run/one-direction suppression state. Agent Runtime derives those
-from the invocation context, the tool fact recorder, the command-basis tracker,
-and supervisor state. A declaration whose judgement conflicts with runtime facts
-fails loudly; the runtime does not "fix" it into a different judgement.
+revisions, `appendedCount`, queue mutation facts, stale/abort/failure status,
+severity floors, or one-run/one-direction suppression state. Agent Runtime
+derives those from the invocation context, Stage runtime metadata, the
+command-basis tracker, and supervisor state. Queue correction facts come from
+explicit `queueMutation` metadata, not from `changedBasis.queueRevision`; a
+declaration whose judgement conflicts with runtime facts fails loudly; the
+runtime does not "fix" it into a different judgement.
 
 **No script inference.** `candidate_exhaustion_by_direction` exists only when
 Radio declares that judgement. Discovery, selection, recorder fixtures, zero
@@ -660,8 +666,10 @@ Full rationale and OCC table in ADR-0037. In Phase B terms:
   These are separate agent-facing action tools. Workspace Context renders
   `lean:` as a numbered list, not as repeated singular `lean:` lines. Lean
   entries are list entries, not separate public identities. The runtime/command
-  boundary derives mechanical fields such as owner scope, clock time, and
-  commanded-revision stamp; Radio supplies only musical lean edits.
+  boundary derives mechanical fields such as owner scope and clock time. The
+  posture command input carries only the run's radio-direction basis; Music
+  Experience derives the persisted commanded-revision stamp from that basis.
+  Radio supplies only musical lean edits.
 - **Posture is revision-stamped, conditionally cleared, Radio-owned.** Each
   posture write is stamped with the commanded revision it was evolved under
   (posture has no revision of its own). At each run start Radio compares: stamp
@@ -835,8 +843,14 @@ one `Agent`; Agent Runtime owns the cascade across actors.
      commits**, passing `{ concern, newRevision, actor }`. `actor` is who
      triggered the command — a user button, a Main tool call, or a Radio tool
      call — taken from the invocation context; it drives the priority verdict
-     below. The command reports the change; it does not know who depends on the
-     concern. It fires post-commit, so it reports an already-durable revision; a
+     below. Queue edit commands keep this separate from edit authority and item
+     provenance: authority decides which queued rows are editable, actor reports
+     who wrote the revision, and replacement provenance labels any newly written
+     queue item. The command reports the change; it does not know who depends on
+     the concern. It fires post-commit, so it reports an already-durable revision;
+     the command boundary must catch observer failures and route them to a
+     diagnostics-only, non-throwing failure sink instead of returning a failed
+     command for committed state. A
      rolled-back transaction never fires it. All revision-writing commands fire
      it uniformly — whether an abort actually happens is decided by the table +
      priority below, not by which commands are wired.
@@ -1009,8 +1023,9 @@ phase-A pi Capability Assumptions Ledger.
   commanded-direction truth directly. Its one self-write is *evolved posture*
   (PB8), which is OCC-invisible and still goes through a Music Experience
   posture-edit command (write-boundary rule holds; the data is Music
-  Experience-owned). Radio supplies musical edits; runtime and Music Experience
-  derive mechanical fields and stamps.
+  Experience-owned). Radio supplies musical edits plus its run
+  radio-direction basis; runtime and Music Experience derive mechanical fields
+  and persisted stamps.
 
 ## Deferred
 

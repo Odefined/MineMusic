@@ -107,12 +107,18 @@ export type ToolCallOutput = {
 export type StageToolRuntimeMetadata = {
   changedBasis?: ConcernRevisionSet;
   queueItems?: readonly StageToolRuntimeQueueItemMetadata[];
+  queueMutation?: StageToolRuntimeQueueMutationMetadata;
 };
 
 export type StageToolRuntimeQueueItemMetadata = {
   item: MaterialMusicItemHandle;
   index: number;
   provenance: "main_agent" | "user" | "radio_agent";
+};
+
+export type StageToolRuntimeQueueMutationMetadata = {
+  kind: "append" | "remove" | "replace" | "move" | "clear";
+  affectedCount: number;
 };
 
 export const stageToolHandlerOutputSymbol: unique symbol = Symbol("stageToolHandlerOutput");

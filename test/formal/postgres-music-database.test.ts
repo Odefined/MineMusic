@@ -192,6 +192,24 @@ await assertDatabaseErrorAsync(async () => await createMusicDatabase({
     ],
 }), "storage.database_initialization_failed");
 assert.equal(await postgresApplicationConnectionCount(connectionString, failingFactoryApplicationName), 0);
+await resetPostgresTestSchema(connectionString);
+await assertDatabaseErrorAsync(async () => await createMusicDatabase({
+    connectionString,
+    schemas: [
+        schema("initialization_atomic_first", [], async (context) => {
+            await context.run("CREATE TABLE initialization_atomic_first (label TEXT PRIMARY KEY)");
+            await context.run("INSERT INTO initialization_atomic_first (label) VALUES (?)", ["rolled-back"]);
+        }),
+        schema("initialization_atomic_failure", [], async (context) => {
+            await context.run("CREATE TABLE initialization_atomic_failure (label TEXT PRIMARY KEY)");
+            throw new Error("schema initialization atomicity fixture failed");
+        }),
+    ],
+}), "storage.database_initialization_failed");
+assert.deepEqual(await postgresTableNames(connectionString, [
+    "initialization_atomic_first",
+    "initialization_atomic_failure",
+]), []);
 function schema(id: string, order: string[], apply: (context: PostgresMusicDatabaseContext) => Promise<void>): PostgresMusicDatabaseSchemaContribution {
     return {
         id,
@@ -231,6 +249,23 @@ async function postgresApplicationConnectionCount(connectionString: string, appl
       WHERE application_name = $1
     `, [applicationName]);
         return Number(result.rows[0]?.count ?? 0);
+    }
+    finally {
+        await client.end();
+    }
+}
+async function postgresTableNames(connectionString: string, tableNames: readonly string[]): Promise<readonly string[]> {
+    const client = new Client({ connectionString });
+    await client.connect();
+    try {
+        const result = await client.query<{ table_name: string }>(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = ANY($1::text[])
+      ORDER BY table_name
+    `, [tableNames]);
+        return result.rows.map((row) => row.table_name);
     }
     finally {
         await client.end();

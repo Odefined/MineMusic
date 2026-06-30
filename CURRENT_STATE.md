@@ -273,7 +273,9 @@ Phase 4 Storage vocabulary includes:
   callback resolves;
 - transaction callbacks receive a transaction-scoped context that becomes
   inactive after commit/rollback;
-- ordered schema contribution runner as the initialization shape;
+- ordered schema contribution runner as the initialization shape, applied inside
+  one Postgres transaction so a mid-batch schema failure rolls back the whole
+  initialization batch;
 - Storage exposes `createMusicDatabase(...)` as the production lifecycle
   factory that opens Postgres, applies the caller-provided schema list, and
   closes the pool if initialization fails;
@@ -814,9 +816,17 @@ restored as runtime bridges.
   append allocates at the current tail, and remove/replace/move/clear use local
   row or interval updates instead of whole-queue delete/reinsert rewrites.
   Commanded direction writes bump only `radio_direction_revision`; posture
-  writes are OCC-invisible and never bump revisions. The Music Experience read
+  writes are OCC-invisible and never bump revisions. Posture command inputs carry
+  the run's radio-direction basis; Music Experience derives the persisted
+  commanded-revision stamp at the command boundary. The Music Experience read
   model now exposes radio truth and a current-queue material-ref read for Phase B
   queue-internal dedup.
+- Music Experience no-op writes are explicit declared failures, not fake
+  revisions: queue no-ops return `queue_noop`, same-item playback returns
+  `playback_noop`, and radio truth/posture no-ops return `radio_truth_noop`.
+  Successful queue writes carry internal `queueMutation` metadata so Radio
+  terminal accounting uses real mutation facts instead of inferring correction
+  from `changedBasis`.
 - Phase B PR3 Radio supervisor and trigger path have landed on top of that Music
   Experience floor and now run through the shared Actor Runtime spine: Agent
   Runtime defines the internal Radio wake-gate state
@@ -880,7 +890,13 @@ restored as runtime bridges.
 - Phase B PR4 now wires the current writer inventory into the PB9 cascade core.
   Queue append/remove/replace/move/clear and playback play commands emit the
   same internal post-commit `ConcernRevisionChange` shape as commanded-direction
-  writes; stale, failed, aborted, or rolled-back commands emit none. Server Host
+  writes when they commit a real state change; no-op, stale, failed, aborted, or
+  rolled-back commands emit none. Observer delivery is non-throwing at the Music
+  Experience command boundary: observer failures are routed to a failure sink and
+  failure-sink failures still cannot turn an already-committed write into a
+  failed command result. Queue edit
+  command inputs split edit authority, revision actor, and replacement item
+  provenance; authority no longer carries actor/provenance state. Server Host
   routes queue/playback/radio-direction revision events into the Radio
   supervisor. The supervisor registers each active Radio refill with its
   direction/session basis and aborts only lower-priority in-flight runs whose
@@ -1092,11 +1108,6 @@ maintenance evidence.
   backing material-candidate cache (`:117-131`): candidate handles never
   expire and can dangle after a cache purge. The Public Handle Veil
   candidate-TTL contract is silently broken.
-- Storage schema contributions are applied non-atomically
-  (`src/storage/postgres/schema.ts:13-17` runs each contribution on the raw
-  pool with no `BEGIN`/`COMMIT`): a partial DDL failure mid-`initialize`
-  leaves drifted views/constraints/indexes that idempotent contributions will
-  not reliably self-heal.
 - Postgres transactions use a plain `BEGIN` = READ COMMITTED
   (`src/storage/postgres/database.ts:215`). PR3.5's per-instance
   `transactionQueue` serializes same-process transactions but leaves residual

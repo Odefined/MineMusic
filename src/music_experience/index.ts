@@ -17,6 +17,7 @@ export {
 export type {
   CreateMusicExperienceQueuePlaybackCommandInput,
   CreateMusicExperienceRadioSessionCommandInput,
+  ConcernRevisionObserverFailureSink,
 } from "./commands.js";
 export {
   createMusicExperienceReadModel,

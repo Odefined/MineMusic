@@ -400,7 +400,11 @@ function createCountingTranscriptStore(): {
               result: {
                 queueLength: 0,
               },
-              runtime: { changedBasis: { queueRevision: 12 }, queueItems: [] },
+              runtime: {
+                changedBasis: { queueRevision: 12 },
+                queueMutation: { kind: "append", affectedCount: 0 },
+                queueItems: [],
+              },
             },
           };
         }
@@ -412,7 +416,10 @@ function createCountingTranscriptStore(): {
               result: {
                 queueLength: 0,
               },
-              runtime: { changedBasis: { queueRevision: 13 } },
+              runtime: {
+                changedBasis: { queueRevision: 13 },
+                queueMutation: { kind: "move", affectedCount: 1 },
+              },
             },
           };
         }
@@ -801,6 +808,7 @@ function createCountingTranscriptStore(): {
         },
         runtime: {
           changedBasis: { queueRevision: 9 },
+          queueMutation: { kind: "append", affectedCount: 2 },
           queueItems: [
             { item: "[material:material:one]", index: 0, provenance: "radio_agent" },
             { item: "[material:material:two]", index: 1, provenance: "radio_agent" },
@@ -875,6 +883,7 @@ function createCountingTranscriptStore(): {
         },
         runtime: {
           changedBasis: { queueRevision: 10 },
+          queueMutation: { kind: "replace", affectedCount: 1 },
           queueItems: [{ item: "[material:material:replacement]", index: 1, provenance: "radio_agent" }],
         },
       },
@@ -930,7 +939,10 @@ function createCountingTranscriptStore(): {
           to: 1,
           queueLength: 3,
         },
-        runtime: { changedBasis: { queueRevision: 12 } },
+        runtime: {
+          changedBasis: { queueRevision: 12 },
+          queueMutation: { kind: "move", affectedCount: 1 },
+        },
       },
     },
   });
@@ -942,6 +954,49 @@ function createCountingTranscriptStore(): {
     runId: "radio-result-corrected-contradiction-test",
     payload: payloadWithRevisions({ refillGeneration: 24, radioSessionRevision: 3, radioDirectionRevision: 5 }),
   }), /declared candidate exhaustion after correcting the queue/);
+
+  const changedBasisOnlyRecorder = createRadioRunResultRecorder();
+  changedBasisOnlyRecorder.observeToolResult({
+    toolName: "playback.queue.move",
+    result: {
+      ok: true,
+      value: {
+        toolName: "playback.queue.move",
+        result: {
+          queueLength: 3,
+        },
+        runtime: { changedBasis: { queueRevision: 12 } },
+      },
+    },
+  });
+  observeFinish(changedBasisOnlyRecorder);
+  assert.throws(() => changedBasisOnlyRecorder.result({
+    runId: "radio-result-changed-basis-only-test",
+    payload: payloadWithRevisions({ refillGeneration: 25, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+  }), /refill complete without appending or correcting the queue/);
+
+  const nonQueueMutationRecorder = createRadioRunResultRecorder();
+  nonQueueMutationRecorder.observeToolResult({
+    toolName: "radio.lean.add",
+    result: {
+      ok: true,
+      value: {
+        toolName: "radio.lean.add",
+        result: {
+          posture: { lean: [], stale: false },
+        },
+        runtime: {
+          changedBasis: { radioDirectionRevision: 12 },
+          queueMutation: { kind: "move", affectedCount: 1 },
+        },
+      },
+    },
+  });
+  observeFinish(nonQueueMutationRecorder);
+  assert.throws(() => nonQueueMutationRecorder.result({
+    runId: "radio-result-non-queue-mutation-test",
+    payload: payloadWithRevisions({ refillGeneration: 26, radioSessionRevision: 3, radioDirectionRevision: 5 }),
+  }), /refill complete without appending or correcting the queue/);
 
   const correctedThenFailedRecorder = createRadioRunResultRecorder();
   correctedThenFailedRecorder.observeToolResult({
@@ -955,6 +1010,7 @@ function createCountingTranscriptStore(): {
         },
         runtime: {
           changedBasis: { queueRevision: 11 },
+          queueMutation: { kind: "replace", affectedCount: 1 },
           queueItems: [{ item: "[material:material:replacement]", index: 1, provenance: "radio_agent" }],
         },
       },

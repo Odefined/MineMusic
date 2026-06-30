@@ -92,47 +92,72 @@ export type MusicExperienceQueueAppendCommandOutput = {
   appended: readonly MusicExperienceQueueItemSnapshot[];
   queueLength: number;
   queueRevision: ConcernRevision;
+  queueMutation: MusicExperienceQueueMutation;
 };
 
-export type MusicExperienceQueueEditPermission =
+export type MusicExperienceQueueEditAuthority =
+  | { kind: "all_queued_items" }
+  | { kind: "radio_owned_queued_items" };
+
+export type MusicExperienceQueueEditContext =
   | {
-      kind: "all_queued_items";
+      authority: Extract<MusicExperienceQueueEditAuthority, { kind: "all_queued_items" }>;
+      actor: Extract<ConcernRevisionChangeActor, "user">;
+    }
+  | {
+      authority: Extract<MusicExperienceQueueEditAuthority, { kind: "all_queued_items" }>;
+      actor: Extract<ConcernRevisionChangeActor, "main_agent">;
+    }
+  | {
+      authority: Extract<MusicExperienceQueueEditAuthority, { kind: "radio_owned_queued_items" }>;
+      actor: Extract<ConcernRevisionChangeActor, "radio_agent">;
+    };
+
+export type MusicExperienceQueueReplacementContext =
+  | {
+      authority: Extract<MusicExperienceQueueEditAuthority, { kind: "all_queued_items" }>;
       replacementProvenance: Exclude<MusicExperienceQueueItemProvenance, "radio_agent">;
     }
   | {
-      kind: "radio_owned_queued_items";
+      authority: Extract<MusicExperienceQueueEditAuthority, { kind: "radio_owned_queued_items" }>;
       replacementProvenance: Extract<MusicExperienceQueueItemProvenance, "radio_agent">;
     };
 
-export type MusicExperienceQueueIndexCommandInput = {
+export type MusicExperienceQueueReplaceContext =
+  | (Extract<MusicExperienceQueueEditContext, { actor: "user" }> & {
+      replacementProvenance: Extract<MusicExperienceQueueItemProvenance, "user">;
+    })
+  | (Extract<MusicExperienceQueueEditContext, { actor: "main_agent" }> & {
+      replacementProvenance: Extract<MusicExperienceQueueItemProvenance, "main_agent">;
+    })
+  | (Extract<MusicExperienceQueueEditContext, { authority: { kind: "radio_owned_queued_items" } }> &
+      Extract<MusicExperienceQueueReplacementContext, { authority: { kind: "radio_owned_queued_items" } }>);
+
+export type MusicExperienceQueueIndexCommandInput = MusicExperienceQueueEditContext & {
   ownerScope: string;
   index: number;
-  permission: MusicExperienceQueueEditPermission;
   basis?: ConcernRevisionSet;
   now: string;
 };
 
-export type MusicExperienceQueueReplaceCommandInput = {
+export type MusicExperienceQueueReplaceCommandInput = MusicExperienceQueueReplaceContext & {
   ownerScope: string;
   index: number;
   materialRef: Ref;
-  permission: MusicExperienceQueueEditPermission;
   basis?: ConcernRevisionSet;
   now: string;
 };
 
-export type MusicExperienceQueueMoveCommandInput = {
+export type MusicExperienceQueueMoveCommandInput = MusicExperienceQueueEditContext & {
   ownerScope: string;
   from: number;
   to: number;
-  permission: MusicExperienceQueueEditPermission;
   basis?: ConcernRevisionSet;
   now: string;
 };
 
-export type MusicExperienceQueueClearCommandInput = {
+export type MusicExperienceQueueClearCommandInput = MusicExperienceQueueEditContext & {
   ownerScope: string;
-  permission: MusicExperienceQueueEditPermission;
   basis?: ConcernRevisionSet;
   now: string;
 };
@@ -140,6 +165,12 @@ export type MusicExperienceQueueClearCommandInput = {
 export type MusicExperienceQueueEditCommandOutput = {
   queueLength: number;
   queueRevision: ConcernRevision;
+  queueMutation: MusicExperienceQueueMutation;
+};
+
+export type MusicExperienceQueueMutation = {
+  kind: "append" | "remove" | "replace" | "move" | "clear";
+  affectedCount: number;
 };
 
 export type MusicExperienceQueueReplaceCommandOutput = MusicExperienceQueueEditCommandOutput & {
@@ -218,7 +249,7 @@ export type MusicExperienceSetRadioDirectionCommandOutput = {
 export type MusicExperienceWriteRadioPostureCommandInput = {
   ownerScope: string;
   lean: readonly VariationItem[];
-  commandedRevisionStamp: ConcernRevision;
+  basis: MusicExperienceRadioPostureCommandBasis;
   now: string;
 };
 
@@ -280,7 +311,7 @@ export type MusicExperienceRadioClearCommandInput = {
 export type MusicExperienceRadioPostureInsertValueCommandInput = {
   ownerScope: string;
   value: RadioDirectionValue;
-  commandedRevisionStamp: ConcernRevision;
+  basis: MusicExperienceRadioPostureCommandBasis;
   now: string;
   at?: number;
 };
@@ -289,14 +320,14 @@ export type MusicExperienceRadioPostureIndexedValueCommandInput = {
   ownerScope: string;
   index: number;
   value: RadioDirectionValue;
-  commandedRevisionStamp: ConcernRevision;
+  basis: MusicExperienceRadioPostureCommandBasis;
   now: string;
 };
 
 export type MusicExperienceRadioPostureIndexCommandInput = {
   ownerScope: string;
   index: number;
-  commandedRevisionStamp: ConcernRevision;
+  basis: MusicExperienceRadioPostureCommandBasis;
   now: string;
 };
 
@@ -304,14 +335,18 @@ export type MusicExperienceRadioPostureMoveCommandInput = {
   ownerScope: string;
   from: number;
   to: number;
-  commandedRevisionStamp: ConcernRevision;
+  basis: MusicExperienceRadioPostureCommandBasis;
   now: string;
 };
 
 export type MusicExperienceRadioPostureClearCommandInput = {
   ownerScope: string;
-  commandedRevisionStamp: ConcernRevision;
+  basis: MusicExperienceRadioPostureCommandBasis;
   now: string;
+};
+
+export type MusicExperienceRadioPostureCommandBasis = {
+  radioDirectionRevision: ConcernRevision;
 };
 
 export type MusicExperienceRadioTruthCommand = {

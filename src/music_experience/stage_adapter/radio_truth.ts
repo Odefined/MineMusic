@@ -93,6 +93,11 @@ const radioTruthErrors = [
     suggestedFixTemplate: "Retry with valid non-empty text, material, or scope values.",
   },
   {
+    code: "radio_truth_noop",
+    retryable: false,
+    suggestedFixTemplate: "Choose a radio steering or posture edit that changes the current value.",
+  },
+  {
     code: "index_out_of_range",
     retryable: false,
     suggestedFixTemplate: "Refresh Workspace Context and retry with one of the listed zero-based indexes.",
@@ -483,7 +488,7 @@ async function handleLeanAdd(
   const output = await ports.radioTruth.addRadioLean({
     ownerScope: ctx.ownerScope,
     value: value.value,
-    commandedRevisionStamp: requireRadioDirectionBasis(ctx).radioDirectionRevision,
+    basis: requireRadioDirectionBasis(ctx),
     now: ctx.clock(),
     ...(input.at === undefined ? {} : { at: input.at }),
   });
@@ -503,7 +508,7 @@ async function handleLeanRemove(
   const output = await ports.radioTruth.removeRadioLean({
     ownerScope: ctx.ownerScope,
     index: input.index,
-    commandedRevisionStamp: requireRadioDirectionBasis(ctx).radioDirectionRevision,
+    basis: requireRadioDirectionBasis(ctx),
     now: ctx.clock(),
   });
   return leanCommandOutput(ctx, output);
@@ -527,7 +532,7 @@ async function handleLeanReplace(
     ownerScope: ctx.ownerScope,
     index: input.index,
     value: value.value,
-    commandedRevisionStamp: requireRadioDirectionBasis(ctx).radioDirectionRevision,
+    basis: requireRadioDirectionBasis(ctx),
     now: ctx.clock(),
   });
   return leanCommandOutput(ctx, output);
@@ -547,7 +552,7 @@ async function handleLeanMove(
     ownerScope: ctx.ownerScope,
     from: input.from,
     to: input.to,
-    commandedRevisionStamp: requireRadioDirectionBasis(ctx).radioDirectionRevision,
+    basis: requireRadioDirectionBasis(ctx),
     now: ctx.clock(),
   });
   return leanCommandOutput(ctx, output);
@@ -563,7 +568,7 @@ async function handleLeanClear(
   }
   const output = await ports.radioTruth.clearRadioLean({
     ownerScope: ctx.ownerScope,
-    commandedRevisionStamp: requireRadioDirectionBasis(ctx).radioDirectionRevision,
+    basis: requireRadioDirectionBasis(ctx),
     now: ctx.clock(),
   });
   return leanCommandOutput(ctx, output);

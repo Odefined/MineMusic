@@ -85,6 +85,44 @@ function createRadioTruthCommand(
 
 {
   const database = await initializedMusicExperienceDatabase();
+  const observerFailures: { error: unknown; change: ConcernRevisionChange }[] = [];
+  const command = createMusicExperienceRadioTruthCommand({
+    database,
+    revisionObserver: {
+      observe() {
+        throw new Error("radio truth observer failed after commit");
+      },
+    },
+    revisionObserverFailureSink(failure) {
+      observerFailures.push(failure);
+    },
+  });
+
+  const changed = await command.setRadioMotif({
+    ownerScope,
+    actor: "main_agent",
+    value: { kind: "text", text: "observer-safe motif" },
+    basis: { radioDirectionRevision: 0 },
+    now,
+  });
+  assert.equal(changed.ok, true);
+  const truth = await createMusicExperienceRadioTruthRecords({
+    db: database.context(),
+  }).read({ ownerScope });
+  assert.equal(truth.radioDirectionRevision, 1);
+  assert.deepEqual(observerFailures.map((failure) => failure.change), [{
+    ownerScope,
+    concern: "radio-direction",
+    newRevision: 1,
+    actor: "main_agent",
+  }]);
+  assert.ok(observerFailures[0]?.error instanceof Error);
+
+  await database.close();
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
   const observedChanges: ConcernRevisionChange[] = [];
   const command = createMusicExperienceRadioTruthCommand({
     database,
@@ -266,6 +304,17 @@ assert.equal(
     motif: { kind: "text", text: "night drive" },
     activeVariations: [],
   });
+  const motifNoop = await command.setRadioMotif({
+    ownerScope,
+    actor: "main_agent",
+    value: { kind: "text", text: "night drive" },
+    basis: { radioDirectionRevision: 1 },
+    now,
+  });
+  assert.equal(motifNoop.ok, false);
+  if (!motifNoop.ok) {
+    assert.equal(motifNoop.error.code, "radio_truth_noop");
+  }
 
   const firstVariation = expectDirectionOutput(await command.addRadioVariation({
     ownerScope,
@@ -275,6 +324,30 @@ assert.equal(
     now,
   }));
   assert.equal(firstVariation.radioDirectionRevision, 2);
+  const moveSingleVariationNoop = await command.moveRadioVariation({
+    ownerScope,
+    actor: "main_agent",
+    from: 0,
+    to: 0,
+    basis: { radioDirectionRevision: 2 },
+    now,
+  });
+  assert.equal(moveSingleVariationNoop.ok, false);
+  if (!moveSingleVariationNoop.ok) {
+    assert.equal(moveSingleVariationNoop.error.code, "radio_truth_noop");
+  }
+  const replaceVariationNoop = await command.replaceRadioVariation({
+    ownerScope,
+    actor: "main_agent",
+    index: 0,
+    value: { kind: "text", text: "warmer" },
+    basis: { radioDirectionRevision: 2 },
+    now,
+  });
+  assert.equal(replaceVariationNoop.ok, false);
+  if (!replaceVariationNoop.ok) {
+    assert.equal(replaceVariationNoop.error.code, "radio_truth_noop");
+  }
 
   const insertedVariation = expectDirectionOutput(await command.addRadioVariation({
     ownerScope,
@@ -330,6 +403,16 @@ assert.equal(
     now,
   }));
   assert.deepEqual(clearedVariations.direction.activeVariations, []);
+  const clearVariationsNoop = await command.clearRadioVariations({
+    ownerScope,
+    actor: "main_agent",
+    basis: { radioDirectionRevision: 8 },
+    now,
+  });
+  assert.equal(clearVariationsNoop.ok, false);
+  if (!clearVariationsNoop.ok) {
+    assert.equal(clearVariationsNoop.error.code, "radio_truth_noop");
+  }
 
   const stale = await command.setRadioMotif({
     ownerScope,
@@ -451,6 +534,38 @@ assert.equal(
     });
   }
 
+  const variationMoveNoop = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "radio-truth-stage-session",
+    requestId: "radio-truth-stage-request-variation-noop",
+    actor: "main_agent",
+    preconditionBasis: { radioDirectionRevision: 2 },
+    clock: () => now,
+  }), {
+    toolName: "radio.variations.move",
+    payload: { from: 0, to: 0 },
+  });
+  assert.equal(variationMoveNoop.ok, false);
+  if (!variationMoveNoop.ok) {
+    assert.equal(variationMoveNoop.error.code, "radio_truth_noop");
+  }
+
+  const leanMoveNoop = await stageInterface.dispatch(createStageToolContext({
+    ownerScope,
+    sessionId: "radio-truth-stage-session",
+    requestId: "radio-truth-stage-request-lean-noop",
+    actor: "radio_agent",
+    preconditionBasis: { radioDirectionRevision: 2 },
+    clock: () => now,
+  }), {
+    toolName: "radio.lean.move",
+    payload: { from: 0, to: 0 },
+  });
+  assert.equal(leanMoveNoop.ok, false);
+  if (!leanMoveNoop.ok) {
+    assert.equal(leanMoveNoop.error.code, "radio_truth_noop");
+  }
+
   for (const [toolName, payload] of [
     ["radio.motif.set", { value: { kind: "text", text: "aborted motif" } }],
     ["radio.motif.clear", {}],
@@ -540,7 +655,7 @@ assert.equal(
     secondaryWrite = secondaryCommand.addRadioLean({
       ownerScope,
       value: { kind: "text", text: "second locked lean" },
-      commandedRevisionStamp: direction.radioDirectionRevision,
+      basis: { radioDirectionRevision: direction.radioDirectionRevision },
       now,
     });
     await sleep(25);
@@ -590,7 +705,7 @@ assert.equal(
         text: "electric piano",
       },
     ],
-    commandedRevisionStamp: firstDirection.radioDirectionRevision,
+    basis: { radioDirectionRevision: firstDirection.radioDirectionRevision },
     now,
   }));
 
@@ -639,7 +754,7 @@ assert.equal(
   const added = expectPostureOutput(await command.addRadioLean({
     ownerScope,
     value: { kind: "text", text: "dry drums" },
-    commandedRevisionStamp: direction.radioDirectionRevision,
+    basis: { radioDirectionRevision: direction.radioDirectionRevision },
     now,
   }));
   assert.equal(added.radioDirectionRevision, 1);
@@ -649,7 +764,7 @@ assert.equal(
     ownerScope,
     value: { kind: "scope", scope: { kind: "library" } },
     at: 0,
-    commandedRevisionStamp: direction.radioDirectionRevision,
+    basis: { radioDirectionRevision: direction.radioDirectionRevision },
     now,
   }));
   assert.deepEqual(inserted.posture.lean.map((value) => value.kind), ["scope", "text"]);
@@ -658,7 +773,7 @@ assert.equal(
     ownerScope,
     from: 0,
     to: 1,
-    commandedRevisionStamp: direction.radioDirectionRevision,
+    basis: { radioDirectionRevision: direction.radioDirectionRevision },
     now,
   }));
   assert.deepEqual(moved.posture.lean.map((value) => value.kind), ["text", "scope"]);
@@ -667,7 +782,7 @@ assert.equal(
     ownerScope,
     index: 1,
     value: { kind: "text", text: "less glossy" },
-    commandedRevisionStamp: direction.radioDirectionRevision,
+    basis: { radioDirectionRevision: direction.radioDirectionRevision },
     now,
   }));
   assert.deepEqual(replaced.posture.lean, [
@@ -678,14 +793,14 @@ assert.equal(
   const removed = expectPostureOutput(await command.removeRadioLean({
     ownerScope,
     index: 0,
-    commandedRevisionStamp: direction.radioDirectionRevision,
+    basis: { radioDirectionRevision: direction.radioDirectionRevision },
     now,
   }));
   assert.deepEqual(removed.posture.lean, [{ kind: "text", text: "less glossy" }]);
 
   const cleared = expectPostureOutput(await command.clearRadioLean({
     ownerScope,
-    commandedRevisionStamp: direction.radioDirectionRevision,
+    basis: { radioDirectionRevision: direction.radioDirectionRevision },
     now,
   }));
   assert.deepEqual(cleared.posture, {
@@ -693,6 +808,15 @@ assert.equal(
     commandedRevisionStamp: 1,
     stale: false,
   });
+  const clearLeanNoop = await command.clearRadioLean({
+    ownerScope,
+    basis: { radioDirectionRevision: direction.radioDirectionRevision },
+    now,
+  });
+  assert.equal(clearLeanNoop.ok, false);
+  if (!clearLeanNoop.ok) {
+    assert.equal(clearLeanNoop.error.code, "radio_truth_noop");
+  }
   assert.equal((await readStateRevisions(database)).radio_direction_revision, 1);
 
   await database.close();
@@ -730,7 +854,7 @@ assert.equal(
         text: "old run feel",
       },
     ],
-    commandedRevisionStamp: firstDirection.radioDirectionRevision,
+    basis: { radioDirectionRevision: firstDirection.radioDirectionRevision },
     now,
   }));
 
@@ -894,7 +1018,7 @@ assert.equal(
       kind: "text",
       text: `lean-${index}`,
     })),
-    commandedRevisionStamp: 0,
+    basis: { radioDirectionRevision: 0 },
     now,
   });
 
@@ -919,7 +1043,7 @@ assert.equal(
   const emptyPosture = expectPostureOutput(await command.writeRadioPosture({
     ownerScope,
     lean: [],
-    commandedRevisionStamp: 0,
+    basis: { radioDirectionRevision: 0 },
     now,
   }));
 
@@ -1011,7 +1135,7 @@ assert.equal(
         text: "drum machine",
       },
     ],
-    commandedRevisionStamp: direction.radioDirectionRevision,
+    basis: { radioDirectionRevision: direction.radioDirectionRevision },
     now,
   }));
 
@@ -1104,7 +1228,7 @@ assert.equal(
         materialRef: postureRef,
       },
     ],
-    commandedRevisionStamp: direction.radioDirectionRevision,
+    basis: { radioDirectionRevision: direction.radioDirectionRevision },
     now,
   }));
 
@@ -1185,7 +1309,7 @@ assert.equal(
         materialRef: queuedRef,
       },
     ],
-    commandedRevisionStamp: direction.radioDirectionRevision,
+    basis: { radioDirectionRevision: direction.radioDirectionRevision },
     now,
   }));
 
