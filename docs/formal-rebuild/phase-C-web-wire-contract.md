@@ -80,8 +80,10 @@ management-detail projection so the common projection stays clean.
 
 ### 1.2 `PublicObjectRef`
 
-Opaque handle, format `[kind:publicId]`. Kinds: `material`, `scope`, `batch`,
-`proposal`. Open-kind set — adding a kind later does not break the contract.
+Opaque handle, format per kind. **Object kinds**: `material`/`batch`/`proposal`
+= `[kind:publicId]`. **Scope kinds** (1:1 with live `formatMusicScopeHandle`):
+`library`=`[library]`, `source_library`/`relation`/`collection`=`[kind:id]`.
+Open-kind set — adding a kind later does not break the contract.
 Resolution requires `ownerScope + handleKind + publicId + caller` validation;
 possession alone authorizes nothing (not an object capability).
 
@@ -136,8 +138,8 @@ WorkbenchDownstreamEventEnvelope:
 ```
 
 - **Two event families** (ADR-0031): **state** (`workspace.*` — the §2 slice
-  union, RFC 6902 patch) and **messages** (`transcript.*` Speak lifecycle +
-  `activity.*` agent work). `activity.*` is **not** a separate family — AG-UI
+  union, RFC 6902 patch) and **messages** (`transcript.*` assistant message
+  lifecycle + `activity.*` agent work). `activity.*` is **not** a separate family — AG-UI
   activity is a `role:"activity"` message, so `activity.*` rides the messages
   family alongside `transcript.*`. `transcripts` and activity are **not** state
   slices; they ride their own AG-UI message event streams, not
@@ -343,13 +345,12 @@ recommendationBatches slice:
 ```
 libraryCatalog slice:
   libraryStatus: {
-    importStatus: ...                                          // PC16 source_library_import status summary
     scale: { recordings: number, albums: number, artists: number }
     recentImports: WireMaterialProjection[]                    // top-N by recentlyAddedAt
-    savedFavoriteOverview: ...                                  // PC16 from relation scope
   }
+  // PC16 adds importStatus + savedFavoriteOverview (additive fields, shaped when PC16 lands)
   visibleScopes: Array<{
-    handle: scope PublicObjectRef                               // [library] | [source_library:id] | [relation:id] | [collection:id]
+    handle: PublicObjectRef                                    // scope kind (§1.2): [library] | [source_library:id] | [relation:id] | [collection:id]
     kind: "library" | "source_library" | "relation" | "collection"
     label: string
     detailText?: string
@@ -366,12 +367,13 @@ libraryCatalog slice:
   name / kind / detailText; `itemCount` is computed separately — the port does
   not return membership counts today, so PC16 derives them via the
   membership-signals path.
-  `libraryStatus` fields are PC16 status/overview facts (`recentImports` reuses
-  `recentlyAddedAt`; `savedFavoriteOverview` reuses relation scope).
+  `libraryStatus` fields are status/overview facts (`recentImports` reuses
+  `recentlyAddedAt`). PC16 adds `importStatus` + `savedFavoriteOverview`.
 - **Phase C increment**: PC16 builds the projection (catalog exists today only
   as an agent-pulled Stage Tool, not a pushed slice). Part 1 freezes
-  `visibleScopes` + the four `libraryStatus` fields; concrete sub-shapes
-  (`importStatus` enum, `savedFavoriteOverview` fields) are PC16 plan-level.
+  `visibleScopes` + `libraryStatus` (`scale`, `recentImports`); PC16 adds
+  `importStatus` + `savedFavoriteOverview` as additive fields (shaped when PC16
+  lands, not frozen now).
 - **Materials are not in the slice**: the library is unbounded; items ride the
   workspace-scoped library query endpoint (§4). This mirrors §1.3
   (large/on-demand content stays off the slice). Queue (cap 100) is in-slice;
@@ -425,7 +427,7 @@ parkedProposalUnits slice:
 ### 2.8 `transcripts` — AG-UI message event stream (not a state slice)
 
 Carried by `transcript.*` events (§1.4: TEXT_MESSAGE_START/CONTENT/END +
-MESSAGES_SNAPSHOT), **not** by `workspace.snapshot`. The assistant Speak
+MESSAGES_SNAPSHOT), **not** by `workspace.snapshot`. The assistant message
 lifecycle streams live (pi-agent-core `message_*` → AG-UI TEXT_MESSAGE_*); a
 full `transcript.messages_snapshot` resyncs on reconnect/compact.
 
@@ -441,10 +443,11 @@ TranscriptMessage = {
 
 - **Owner**: Agent Runtime.
 - **Source**: durable (PB2 PG transcript store) + streamed live (pi `message_*`).
-- **`Speak` level only (PC13 gate)**: user messages + agent `Speak`-level
+- **Message vs activity split (PC13 gate)**: user messages + agent assistant
   messages enter `transcripts`; agent `Notify`-level activity flows to
-  `activity.*` (§2.9); `Silent`-level is dropped before emit. SpeechLevel value
-  set settled in PC13; filter rule frozen.
+  `activity.*` (§2.9); `Silent`-level is dropped before emit. SpeechLevel is a
+  backend activity-filter (Silent/Notify, live `agent_runtime.ts`), not a wire
+  field and not applied to messages; its value set settles in PC13.
 - **`actor` is the only MineMusic extension**: AG-UI messages have no actor;
   MineMusic adds it to tell main vs radio agent apart (both `role: "assistant"`).
   **On the wire**, `actor` is carried via the AG-UI `name` field — both
@@ -577,9 +580,9 @@ slice shapes above. Recorded here so a future reader does not reintroduce them.
   (`phase-C-web-boundary-spec.md` binding table) listed a fourth "direction
   summary" sub-field; the landed contract
   (`MusicExperienceRadioTruthSnapshot`) already lacks it. The NL summary is a
-  derivable rendering — it is either an agent `Speak` emission (Radio agent
-  states its understanding under Speech Level Notify/Speak, flowing into
-  `transcripts`) or a WebUI client-side render from `motif + activeVariations`
+  derivable rendering — it is either an agent assistant message (Radio agent
+  states its understanding, flowing into `transcripts`) or a WebUI client-side
+  render from `motif + activeVariations`
   (the commanded direction; `lean` is evolved posture, §2.3). It is not a
   backend slice field.
 - **3.2 `selectedObject` split.** Keep `currentFocusHandle` backend (agent
@@ -701,15 +704,17 @@ WorkbenchActionEnvelope {
   actionId: string              // client-generated idempotency key
   actionType: string            // routing map key, flat verb (§5.5)
   basis?: ConcernRevisionSet    // only concern-revisioned targets
-  payload: <per actionType>
+  payload: <per actionType — shapes in §5.6 registry>
 }
 ```
 
 - **`actionId` is client-generated**. Upstream actions must be retry-safe
   (network blips routine); the client mints `actionId` as an idempotency key
-  and the backend dedupes short-term (to `action.result` emission + TTL). A
-  retry sends the same `actionId`; the backend returns the existing `ack`
-  without re-routing. Mandatory for non-idempotent actions
+  and the backend dedupes short-term (to `action.result` emission + TTL — this
+  prevents duplicate command execution). A retry sends the same `actionId`; the
+  backend returns the existing `ack` without re-routing. The `action.result`
+  itself is **not** re-emitted on retry (best-effort, §5.4); the client reads
+  the outcome from resynced state. Mandatory for non-idempotent actions
   (`playback.queue.append`); `playback.queue.move` happens to be idempotent but
   must not rely on coincidence. Long-running actions (`library.import.start`)
   cannot rely on the short-term `actionId` dedup alone — their owning command
@@ -750,8 +755,10 @@ receives a correlated result.
   splits across the two channels by a crisp boundary: `missing_basis` is
   adapter-stage (the envelope lacks a required `basis` field entirely — a
   structural validation failure); a present-but-stale `basis` is command-stage
-  and surfaces only as `action.result(outcome: rejected, reason: basis_stale)`
-  — never as `ack.rejected`.
+  and surfaces only as `action.result(outcome: voided_stale)` — never as
+  `ack.rejected`. (Live `voided_stale` error code, `commands.ts`; basis stale
+  at commit. Wire `voided_stale` is the 1:1 pass-through of that live code, not
+  a proposal-only outcome — queue/radio/proposal all use it.)
 
 **Downstream `action.result` event** (command-stage outcome, async; the client
 correlates by `correlationId`):
@@ -773,10 +780,16 @@ correlates by `correlationId`):
   terminate the SSE run on every action. CUSTOM is AG-UI's pass-through slot
   for domain events — `onCustomEvent` does not touch the run state machine.
 - Aligns with ADR-0036 `WorkbenchActionResult(correlationId, outcome:
-  committed | rejected, reason)`; `voided_stale` is a Phase C extension for
-  proposal-resume (§5.7) — ADR-0036 currently pins `outcome` to
+  committed | rejected, reason)`; **wire adds `voided_stale`** for basis-stale-
+  at-commit — the 1:1 pass-through of the live `voided_stale` error code
+  (`commands.ts`), applying to **all** concern-revisioned actions (queue/radio/
+  proposal alike). The adapter maps live `error.code` → wire `outcome` by code
+  literal, no owning-command branching. ADR-0036 currently pins `outcome` to
   `committed | rejected` (closed), so adopting `voided_stale` requires amending
-  ADR-0036 to add the value (tracked as a Phase C follow-up).
+  ADR-0036 (tracked as a Phase C follow-up). **Retry vs give-up is read from
+  slice state, not outcome**: queue/radio stale → resync shows target still in
+  slice → retry; proposal stale → `parkedProposalUnits` unit `.state=
+  voided_stale`/removed → give up confirm.
 - **Every actionType emits `action.result`, including instant actions.** An
   instant action's command runs synchronously, so its `action.result` follows
   the POST immediately (no async gap) — but the model is uniform: `ack` is
@@ -802,9 +815,16 @@ They are orthogonal:
 
 `action.result` carries **no state pointer** (no `affectedRevision` / sequence).
 The frontend optimistically updates local state, confirms on `committed`, and
-lets authoritative `StateDelta` overwrite. Area revision is OCC-driven, not
+lets authoritative `StateDelta` overwrite.
+
+`action.result` is a **best-effort real-time notification** — fire-and-forget,
+not redelivered on client reconnect. If the client misses it (disconnect
+between POST and SSE delivery), it resyncs state (§0 gap recovery) and reads
+whether the action took effect from the slice (state changed → committed;
+state unchanged → failed → retry/give-up per the rule above). `state` is the
+authority; `action.result` is the timely signal, not a redeliverable truth. Area revision is OCC-driven, not
 action-scoped; under multi-tab interleaving a "pointer" would not be unique
-anyway. On `outcome: rejected`(basis_stale) the frontend's local state is stale;
+anyway. On `outcome: voided_stale` the frontend's local state is stale;
 it triggers a full resnapshot (§0 gap recovery) to fetch the current revision
 before retrying. This resnapshot-then-retry is bounded: under multi-tab
 equal-writer contention a client must back off after a small fixed number of
@@ -850,7 +870,7 @@ not retry in a tight loop.
 | `playback.play` | yes (`MusicExperienceQueuePlaybackCommand.playNow`) | — | `action.result` |
 | `library.relation.save`/`.unsave`/`.favorite`/`.unfavorite`/`.block`/`.unblock` | yes | — | `action.result` |
 | `library.collection.add` | yes (`CollectionCommands.addCollectionItem`) | — | `action.result` |
-| `library.import.start` | yes (`LibraryImportStartCommand`) | — | `action.result`; committed on batch+first-job submitted (progress via `libraryCatalog.libraryStatus.importStatus` slice) |
+| `library.import.start` | yes (`LibraryImportStartCommand`) | — | `action.result`; committed on batch+first-job submitted (progress via `libraryCatalog.libraryStatus.importStatus` slice, PC16) |
 | `selection.set` | PC15 | — | `action.result` (instant — command synchronous) |
 | `main.abort` | yes (`AgentRuntimeUserTurnController.abort`) | — | `action.result` (instant — command synchronous) |
 | `proposal.confirm`/`.reject` | PC8 (Effect Boundary resume) | — (basis is on the frozen parked unit) | `action.result` (instant; committed on success / voided_stale on confirm-resume) |
@@ -888,7 +908,7 @@ not retry in a tight loop.
   (no async gap). The model is still uniform (§5.3): `ack` = adapter receipt,
   `outcome` = command result. State change flows as `StateDelta` as usual.
 
-Follow-up actionType (additive, not Phase C): `library.import.cancel` (PC16 must
+Follow-up actionType (additive, not in Part 2 frozen 29; later PC increments shape them): `library.import.cancel` (PC16 must
 define owner command + payload + result semantics — live import has only
 `start`/`status`/`list_sources`, no cancel); `recommendation.batch.dismiss`/
 `.clear` (PC14 must define dismiss-vs-clear semantics, payload, and whether
@@ -956,7 +976,7 @@ The six `library.relation.*` verbs share one payload (the agent uses one shared
 `PublicObjectRef` (§2.6 `visibleScopes` handle); `item` is material-kind. No
 position field on `collection.add` — it appends (the live `inputSchema` defines
 none; positioned insert is a follow-up, not invented here). `collection.move`
-(follow-up, not Phase C) uses 1-based `toPosition`, distinct from the
+(follow-up, not in Part 2 frozen 29) uses 1-based `toPosition`, distinct from the
 queue/radio dense `at`/`index` axis — frozen when it lands.
 
 **Import group — frozen:**
