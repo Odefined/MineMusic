@@ -1,10 +1,11 @@
 # Phase C — Web Wire Contract (Frontend↔Backend Interface Specification)
 
-> Status: **Owning container; Part 1 frozen** — downstream event envelope,
-> Snapshot slice layer (downstream SSE payload), shared types,
+> Status: **Owning container; Parts 1–2 frozen** — Part 1: downstream event
+> envelope, snapshot slice layer (downstream SSE payload), shared types,
 > UI-neutrality corrections, and the workspace-scoped library query endpoint.
-> Parts 2–5 pending (upstream envelope, audio GET, connection protocol, shared
-> enums/errors).
+> Part 2: upstream envelope family, POST response + `action.result` channel,
+> `actionType` taxonomy. Parts 3–5 pending (audio GET, connection protocol,
+> shared enums/errors).
 > Authority: The owning container for the Phase C frontend↔backend wire
 > contract. Only completed parts marked frozen are implementation-ready contract
 > truth; pending parts are placeholders until their sections are completed.
@@ -589,17 +590,224 @@ GET /workspaces/:workspaceId/library/query
   enter `WireMaterialProjection`; they ride a future management-detail
   projection so the common projection stays clean.
 
-## 5. Pending parts
+## 5. Upstream Envelope (Part 2 frozen)
 
-- **Part 2 — Upstream envelope**: `WorkbenchActionEnvelope` actionType taxonomy
-  (radio lifecycle, radio-direction mutation, dislike/block, queue/playback/
-  selection, `main.abort`, `library.import.cancel`) + Signal Class assignment +
-  `ConcernRevisionSet` basis (only for concern-revisioned targets) +
-  correlated `WorkbenchActionResult`; the four-envelope taxonomy
-  (`WorkbenchActionEnvelope`, `StageToolRequestEnvelope`,
-  `A2UISurfaceEnvelope`, `ProposalResolutionEnvelope`) + common metadata
-  header; the "owning command never receives a mixed envelope;
-  translate-before-command" invariant.
+The upstream POST family. Two envelope types carry user-initiated semantics;
+the lease heartbeat is connection-layer (Part 4), not an envelope here.
+
+### 5.1 Envelope family
+
+- **`WorkbenchActionEnvelope`** — user action (button / card). Adapter → owning
+  command / Effect Boundary resume / instant op. Response: sync verdict + async
+  `action.result` (§5.3).
+- **`ChatMessageEnvelope`** — user chat message. Triggers a Main run, stamps
+  `issuedFromUserActionId`. Response: ack + `runId`; run output flows as slice
+  deltas (§5.8).
+
+Merged or excluded from the wire family:
+
+- `StageToolRequestEnvelope` / `A2UISurfaceEnvelope` (consensus taxonomy) = agent
+  path / in-process card emission; not Web POSTs. `StageToolRequestEnvelope` is
+  already served by `StageInterface.dispatch` + `StageToolHandlerOutputEnvelope`;
+  PC1 Confirm card is a parked-unit projection, not an agent surface request.
+- `ProposalResolutionEnvelope` (consensus) merges into `WorkbenchActionEnvelope`
+  as `proposal.confirm`/`.reject` — wire shape is identical
+  (`workspaceId + actionId + payload`); the routing difference (Effect Boundary
+  resume vs direct command) is backend-internal (§5.7).
+- Lease heartbeat = liveness signal, not a user action → Part 4 (§5 of the
+  former pending list).
+
+### 5.2 `WorkbenchActionEnvelope`
+
+```
+WorkbenchActionEnvelope {
+  workspaceId: string
+  actionId: string              // client-generated idempotency key
+  actionType: string            // routing map key, flat verb (§5.5)
+  basis?: ConcernRevisionSet    // only concern-revisioned targets
+  payload: <per actionType>
+}
+```
+
+- **`actionId` is client-generated**. Upstream actions must be retry-safe
+  (network blips routine); the client mints `actionId` as an idempotency key
+  and the backend dedupes short-term (to `action.result` emission + TTL). A
+  retry sends the same `actionId`; the backend returns the existing verdict
+  without re-routing. Mandatory for non-idempotent actions (`queue.append`);
+  `queue.move` happens to be idempotent but must not rely on coincidence.
+- **`basis` only for concern-revisioned targets** (C2): `queue` / `playback` /
+  `radio-direction` / `radio-session`. The client carries the area revision it
+  last observed; the owning command accepts or rejects on stale basis.
+  Relation / Collection / import / selection / abort / proposal carry none.
+- **Adapter-injected, never client-written**: `caller` / `ownerScope` (auth),
+  `clientId` (lease association), `actor` (a Web envelope is always `"user"` — a
+  constant, not a field), `issuedFromUserActionId` (run-level provenance; only
+  chat-trigger-Main produces it, stamped onto the run input, not an envelope
+  field).
+
+### 5.3 POST response + downstream `action.result` (split channel)
+
+The action verdict is split across a sync POST response and an async downstream
+event. Business outcome never blocks the POST.
+
+**POST sync response** (adapter-stage verdict, ms-level):
+
+```
+{ actionId, verdict: "accepted" | "rejected", reason?: ... }
+```
+
+- `accepted` = envelope passed routing + handle resolve + basis presence +
+  structural validation and is routed to the owning command. **Does not mean
+  the command succeeded** — the business outcome rides the downstream
+  `action.result`.
+- `rejected` reasons (`unknown_action_type` / `unresolvable_handle` /
+  `missing_basis` / `malformed`) are Part 5 shared-enum detail.
+
+**Downstream `action.result` event** (command-stage verdict, async; the client
+correlates by `actionId`):
+
+```
+{ type: "action.result", actionId, status: "accepted"|"rejected"|"voided_stale", reason?: "basis_stale"|... }
+```
+
+- Added to the `WorkbenchDownstreamEventEnvelope.event` union (§1.4 reserved the
+  slot).
+- `voided_stale` is proposal-resume-only (§5.7).
+
+**Why split (over sync-block or async-only)**: slow actions
+(`library.import.start`, radio cascade) must not block HTTP; fast and slow
+actions share one outcome channel so the frontend has a single correlation
+path. The sync layer covers only adapter-front validation
+(routing/resolve/basis-presence/structure); the command business outcome
+(success / basis stale / `voided_stale`) is async.
+
+### 5.4 `action.result` ⊥ `StateDelta`
+
+A successful `queue.move` emits **two** downstream events: a `StateDelta` (queue
+slice, queueRevision bump) and an `action.result`(actionId, accepted). They are
+orthogonal:
+
+- `action.result` carries the **verdict** (did my action succeed / is it stale).
+- `StateDelta` carries the **state change** (what the workspace looks like now).
+
+`action.result` carries **no state pointer** (no `affectedRevision` / sequence).
+The frontend optimistically updates local state, confirms on `accepted`, and
+lets authoritative `StateDelta` overwrite. Area revision is OCC-driven, not
+action-scoped; under multi-tab interleaving a "pointer" would not be unique
+anyway. On `rejected`(basis_stale) the frontend's local state is stale; it
+triggers a full resnapshot (§0 gap recovery) to fetch the current revision
+before retrying.
+
+### 5.5 `actionType` — flat verb, open enum, backend-internal Signal Class
+
+- **Flat (one actionType per command operation)**. The radio session command has
+  `start`/`pause`/`resume`/`shutdown` operations → four actionType
+  (`radio.session.start`/`.pause`/`.resume`/`.shutdown`), not one
+  `radio.session.transition` + `operation` field. actionType is the frontend
+  intent verb ("I want to pause"), not the domain operation ("transition
+  session"); payload carries data parameters only, never routing fields.
+- **Naming**: first segment is the area/entity — `radio.session` / `radio.motif`
+  / `radio.variation` / `radio.lean` / `queue` / `playback` / `relation` /
+  `collection` / `selection` / `main` / `library.import`. No `library.*`
+  aggregate prefix (relation/collection are MDP top-level areas, not library
+  submodules; `library.import.*` is the exception — import is a library
+  subprocess and Phase C does `.start` + `.cancel`).
+- **Open enum**: adding an actionType is an additive routing-map entry, never a
+  contract change (§4 reserves the same extensibility).
+- **Signal Class is NOT on the wire**. The backend resolves
+  `{owning command, signalClass}` from a static map (C2); the client sends only
+  `actionType`. Signal Class (CONTEXT.md `User Signal Class`: cleanup /
+  playback-queue / session-steering / explicit-preference) and the
+  `translate-before-command` invariant are adapter-internal and do not appear in
+  this wire contract.
+
+### 5.6 actionType registry (Phase C: 37)
+
+| area | actionType | landed | basis | result channel |
+|---|---|---|---|---|
+| radio.session | `.start`/`.pause`/`.resume`/`.shutdown` | yes (`transitionRadioSession`) | radioSession | `action.result` |
+| radio.motif | `.set`/`.clear` | yes | radioDirection | `action.result` |
+| radio.variation | `.add`/`.remove`/`.replace`/`.move`/`.clear` | yes | radioDirection | `action.result` |
+| radio.lean | `.add`/`.remove`/`.replace`/`.move`/`.clear` | yes | radioDirection | `action.result` |
+| queue | `.append`/`.remove`/`.replace`/`.move`/`.clear` | yes (`MusicExperienceQueuePlaybackCommand`) | queue | `action.result` |
+| playback | `.playNow` | yes | playback | `action.result` |
+| relation | `.save`/`.unsave`/`.favorite`/`.unfavorite`/`.block`/`.unblock` | yes | — | `action.result` |
+| collection | `.add` | yes (`AddCollectionItem`) | — | `action.result` |
+| library.import | `.start`/`.cancel` | start yes (`LibraryImportStartCommand`) / cancel PC16 | — | instant; progress via `libraryCatalog.libraryStatus.importStatus` slice |
+| recommendation.batch | `.dismiss`/`.clear` | PC14 | — | instant |
+| selection | `.set` | PC15 | — | instant |
+| main | `.abort` | yes (`AgentRuntimeUserTurnController.abort`) | — | instant |
+| proposal | `.confirm`/`.reject` | PC8 (Effect Boundary resume) | — (basis is on the frozen parked unit) | confirm → `action.result`(accepted/voided_stale); reject → instant |
+
+- **`playback.playNow` is the only playback actionType.** play/pause/skip are
+  player-local controls; verified actual state flows back via the lease
+  heartbeat `actualState` (C5 / Part 4), not an upstream action.
+- **`library.import.start` is dual-path** (agent tool + Web action, share
+  `LibraryImportStartCommand`): determinate parameterized operations with long
+  progress benefit from a Web entry (tap-through beats typing; progress
+  visible). Effect gate does not apply to the Web path (actor = user,
+  ADR-0038 constrains the agent only). `library.import.continue`/`.status`/
+  `.list_sources` remain agent-only (continue auto-runs as background chained
+  job, ADR-0029; status rides the slice; list_sources rides libraryCatalog slice
+  / query endpoint).
+- **Instant actions** (`selection.set`, `main.abort`, `recommendation.batch.
+dismiss`/`.clear`, `library.import.cancel`, `proposal.reject`) have no async
+  command → no `action.result`; the POST sync verdict carries the final outcome
+  and any state change flows as `StateDelta`.
+
+Follow-up actionType (additive, not Phase C): `collection.remove`/`.reorder`/
+`.create`; `library.material.edit`/`.delete`, `library.scope.organize`,
+`library.merge`/`.dedupe`; server-side `playback.play`/`.pause`/`.skip` if ever
+introduced.
+
+### 5.7 `proposal.confirm`/`.reject` (Effect Boundary resume)
+
+```
+proposal.confirm | proposal.reject   payload: { proposalHandle: [proposal:publicId] }
+```
+
+Routing target = Effect Boundary (resume / discard the frozen parked unit), not
+a direct owning command. The wire shape is identical to any other actionType;
+the routing difference is backend-internal.
+
+- **No `basis` in the envelope**: the parked unit carries its own frozen
+  `ConcernRevisionSet` (Agent Work Basis); on confirm the Effect Boundary
+  re-checks that basis, not one the client supplies.
+- **confirm → `action.result`**: status `accepted` (basis still valid, frozen
+  command executed) or `voided_stale` (basis expired; CONTEXT.md Proposal Unit).
+  The unit's own `confirmed` state is a `parkedProposalUnits` slice field
+  (§2.7), not an `action.result` status — `accepted` is the unified success
+  status across all actionType.
+- **reject → instant, no `action.result`**: discarding a parked unit is an
+  immediate operation with no async command; the POST sync verdict is final and
+  the unit's state change (pending → rejected / removed) flows as a
+  `parkedProposalUnits` slice delta. The earlier `ProposalResolutionEnvelope` /
+  (R)-(S) split is dissolved: reject is simply an instant
+  `WorkbenchActionEnvelope` action, same shape as `selection.set`.
+
+### 5.8 `ChatMessageEnvelope`
+
+```
+ChatMessageEnvelope {
+  workspaceId: string
+  actionId: string            // client-generated, idempotency (same rule as §5.2)
+  messageContent: string
+}
+```
+
+- Triggers a Main run; the adapter stamps `issuedFromUserActionId` on the run
+  input (provenance spine). This is the **only** Phase C Main-run trigger.
+- **Response model differs from `WorkbenchActionEnvelope`**: POST returns ack +
+  `runId` (run started, not completed). The run's output is not a single
+  `action.result`; it flows as slice deltas across `transcripts` / `workTrace` /
+  `parkedProposalUnits`. Chat has **no `action.result` event**.
+- **Why not `chat.send` under `WorkbenchActionEnvelope`**: chat's response
+  contract (a continuous run-output stream) is fundamentally different from the
+  verdict + `action.result` model. Folding chat in would make
+  `WorkbenchActionEnvelope`'s response contract non-uniform.
+
+## 6. Pending parts
+
 - **Part 3 — Audio GET**: range endpoint URL shape + Public-Handle-Veil opaque
   playback token (resolves to `rootId + relativePath + ownerScope + expiry`;
   possession ≠ capability) + `206 Partial Content` / `Accept-Ranges` /
@@ -613,7 +821,7 @@ GET /workspaces/:workspaceId/library/query
   Signal Class, action verb, card/`effectKind`, `statusKind`; the typed
   `WorkbenchActionResult`; reject/`voided_stale`/gap outcomes.
 
-## 6. Phase C implementation provenance (slice → PC)
+## 7. Phase C implementation provenance (slice → PC)
 
 | slice | owner | source | builds in |
 |---|---|---|---|
