@@ -6,7 +6,7 @@
 > Part 2: upstream envelope family, POST response + `action.result` channel,
 > `actionType` registry (29 names), and per-action payload shapes (§5.6).
 > Envelope structure, result channel, actionType names, and all 29 payloads
-> are frozen. Parts 3–5 pending (audio GET, connection protocol, shared
+> are frozen. **Part 3 (audio GET, §6) frozen 2026-07-02**; Parts 4–5 pending (connection protocol, shared
 > enums/errors). §1.4/§2.8/§3.5/§5.8 revised 2026-07-02: transcripts are per-run
 > (no wire-level merge, no per-message `actor`); transport C — the Main run rides
 > the chat POST response, the Radio run + state + `action.result` ride the
@@ -32,8 +32,8 @@
 - **Transport scope of this document**: downstream — two channels (§1.4,
   transport C): the workspace persistent SSE stream (`StateSnapshot`/`StateDelta`
   + `action.result` + Radio-run messages) and the chat POST response (the Main
-  run's AG-UI stream). Upstream POST (Part 2) is frozen; audio GET and the
-  connection protocol are Parts 3–4 (pending).
+  run's AG-UI stream). Upstream POST (Part 2) is frozen; audio GET is Part 3
+  (§6, frozen); the connection protocol is Part 4 (pending).
 - **Encoding**: AG-UI `StateSnapshot`/`StateDelta` (RFC 6902 JSON Patch scoped
   to the changed area subtree) over a MineMusic-owned DTO (anti-corruption
   layer isolating the `@ag-ui/encoder` pin and the future A2UI v1.0 swap).
@@ -257,8 +257,11 @@ nowPlaying slice:
   adds it.
 - **Two-layer split**: logical intent (want-to-play) vs verified actual (really
   playing). Agent may not claim "now playing" until `verifiedActualState`
-  arrives (PC11 gate). `failed` must be visible (provider CORS/account/404 →
-  reconcile → surfaced to agent, not silenced).
+  arrives (PC11 gate). `failed` means the player exhausted every source in
+  the ordered `PlaybackSource` list (§6.4) — a single source failing is the
+  expected fallback path, not `failed`; only when all sources are exhausted is
+  it visible (provider CORS/account/404 → reconcile → surfaced to agent, not
+  silenced).
 - **Verified material = handle only**: to avoid projecting the same material
   twice; the full projection stays in `logicalIntent.material`. The verified
   handle covers the rare boundary where the player is still on the previous
@@ -1129,12 +1132,110 @@ ChatMessageEnvelope {
   adapter-receipt + `action.result` model. Folding chat in would make
   `WorkbenchActionEnvelope`'s response contract non-uniform.
 
-## 6. Pending parts
+## 6. Audio GET endpoint (Part 3 — frozen)
 
-- **Part 3 — Audio GET**: range endpoint URL shape + Public-Handle-Veil opaque
-  playback token (resolves to `rootId + relativePath + ownerScope + expiry`;
-  possession ≠ capability) + `206 Partial Content` / `Accept-Ranges` /
-  `Content-Disposition` (play vs download).
+On-demand audio delivery for a material. Two endpoints: a workspace-scoped
+**source resolver** (returns ordered `PlaybackSource`s for a material) and a
+**capability-based audio stream** (serves bytes for a local-source token).
+Provider audio is fetched directly by the player and never touches the Server
+Host audio route.
+
+**`PlaybackSource`** (returned by §6.1, tried in order by the client per §6.4):
+
+```
+PlaybackSource =
+  | { kind: "local",    url: string }   // url = GET /audio/:token (§6.2), minted at resolve time
+  | { kind: "provider", url: string }   // url = the provider's playableLink (player fetches directly)
+```
+
+`kind` drives fallback (a provider source may CORS/account-fail, a local source
+will not). No `sourceRef` on the wire — it is MDP-internal; the client only
+needs `kind + url`. The shared `url` field lets the player treat both kinds
+uniformly (`fetch` / `<audio src>`).
+
+### 6.1 `GET /workspaces/:workspaceId/materials/:handle/playback-source`
+
+```
+GET /workspaces/:workspaceId/materials/:handle/playback-source
+  → { sources: PlaybackSource[] }      // ordered; client tries in order (§6.4)
+```
+
+- **Owner**: Music Data Platform (`PlaybackSourceResolver` read port — greenfield,
+  built in Phase C). Resolves the material's bound sources, ranks them with the
+  Source Preference Policy at `purpose:"playback"`, returns the ordered list.
+  Server Host (C3) hosts the route and calls the port; it does not rank sources.
+- **Workspace-scoped authorization**: same model as §4 —
+  `workspaceId + ownerScope + caller + handle` revalidated before reading.
+- **On-demand, not in slice**: the audio URL and provider `playableLink` are
+  time-sensitive (short-lived token, expiring provider URL) — they stay off the
+  snapshot slice by the same rule as §1.3 presentation resources. The client
+  fetches a source at play time, not before.
+
+### 6.2 `GET /audio/:token` (capability-based, not workspace-scoped)
+
+```
+GET /audio/:token                  → 206 Partial Content, Content-Disposition: inline (play)
+GET /audio/:token?mode=download    → 206, Content-Disposition: attachment (download)
+```
+
+- **Capability, not workspace lookup**: the token resolves (Public Handle Veil)
+  to `{ rootId, relativePath, ownerScope, expiry }`; authorization is the token
+  itself, so the route carries no `workspaceId` — the audio endpoint's essential
+  difference from the workspace-scoped routes (§4, §6.1).
+- **token in path, not header**: `<audio src>` / `<video src>` browser media
+  elements fetch the URL directly and **cannot inject an `Authorization`
+  header**, so the token must ride the URL. The token is **opaque — a random
+  string, not a JWT**, so it leaks no `relativePath` / `ownerScope` if logged;
+  resolution is server-side only.
+- **Range is standard HTTP**: `Accept-Ranges: bytes`; `Range` → `206 Partial
+  Content` + `Content-Range: bytes start-end/total`; no `Range` → `200`. Nothing
+  MineMusic-specific.
+- **play vs download = `Content-Disposition`**: default `inline`;
+  `?mode=download` → `attachment; filename="<title>.<ext>"`. Same endpoint, same
+  token, same ownerScope — response-header only.
+- **Server resolves then serves**: `token → {rootId, relativePath, ownerScope,
+  expiry}` → expiry check → `LocalSourceScanRootDirResolver.resolveRootId(rootId)`
+  → `resolveUnderRoot(rootDir, relativePath)` containment → stream with range.
+  `ownerScope` comes from the token, never the request.
+
+### 6.3 token — opaque, short-lived, in-memory (v1)
+
+- **Opaque + stateful** (Public Handle Veil, same pattern family as
+  `HandleMintingPort`): a random token string server-side-mapped to `{rootId,
+  relativePath, ownerScope, expiry}`. Not a self-contained JWT — a lookup, which
+  keeps `relativePath` / `ownerScope` out of the wire string.
+- **Short-lived** (exact TTL is PC plan-level): a stale token → `410 Gone`.
+- **In-memory store, v1 single Server Host process** — same liveness tier as
+  `playbackControllerLease` (§2.11): restart drops all tokens, the client
+  re-resolves a fresh source on next play. Multi-instance would need a
+  shared/durable token store — deferred follow-up, same boundary as the lease
+  authority (boundary-spec C3a).
+
+### 6.4 Source fallback — `actualState:"failed"` only when exhausted
+
+- The client tries `sources[]` in order. A single source failing (provider CORS
+  / 404 / account) is the **expected** path — it tries the next source.
+- `nowPlaying.verifiedActualState.state:"failed"` (§2.2) is raised only when the
+  list is **exhausted**, not on a single-source failure. This refines §2.2's
+  "failed must be visible": the failure that surfaces is "no playable source at
+  all," not "the first source didn't load."
+- Provider audio never touches the Server Host audio endpoint — the player
+  fetches `kind:"provider".url` directly; a CORS/account/404 failure there is
+  reported through the lease heartbeat `actualState` (C5 / Part 4) and
+  reconciled, never silently swallowed.
+
+### 6.5 Phase C scope vs follow-ups
+
+- **In Phase C**: local audio serving (fastify range endpoint + token +
+  `resolveUnderRoot`), provider direct-fetch + `actualState` reconciliation, the
+  `playback-source` resolver route, the `PlaybackSource` shape.
+- **Follow-ups (not Part 3)**: a server-side provider proxy (if browser
+  direct-fetch is CORS/account-blocked in practice — surfaced by verification,
+  not pre-built, boundary-spec C5); output-device authority / per-action
+  controller-token gating (§2.11); multi-instance durable token store (§6.3).
+
+## 7. Pending parts (Part 4–5)
+
 - **Part 4 — Connection protocol**: AG-UI Profile v1 handshake (capability id,
   sequence baseline, gap-recovery = full resnapshot, unsupported-profile
   rejection); workspace-presence + playback-controller lease heartbeat (carries
@@ -1144,7 +1245,7 @@ ChatMessageEnvelope {
   Signal Class, action verb, card/`effectKind`, `statusKind`; the typed
   `WorkbenchActionResult`; reject/`voided_stale`/gap outcomes.
 
-## 7. Phase C implementation provenance (slice / event-stream → PC)
+## 8. Phase C implementation provenance (slice / event-stream → PC)
 
 | slice | owner | source | builds in |
 |---|---|---|---|
