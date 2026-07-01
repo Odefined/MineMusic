@@ -12,6 +12,7 @@ export const musicExperienceQueuePlaybackSchema: MusicDatabaseSchemaContribution
         queue_revision INTEGER NOT NULL DEFAULT 0,
         radio_direction_revision INTEGER NOT NULL DEFAULT 0,
         radio_session_revision INTEGER NOT NULL DEFAULT 0,
+        radio_session_lifecycle TEXT NOT NULL DEFAULT 'Shutdown',
         playback_revision INTEGER NOT NULL DEFAULT 0,
         queue_next_position INTEGER NOT NULL DEFAULT 1,
         now_playing_material_ref_key TEXT,
@@ -23,6 +24,7 @@ export const musicExperienceQueuePlaybackSchema: MusicDatabaseSchemaContribution
         CHECK (queue_revision >= 0),
         CHECK (radio_direction_revision >= 0),
         CHECK (radio_session_revision >= 0),
+        CHECK (radio_session_lifecycle IN ('Running', 'Paused', 'Shutdown')),
         CHECK (playback_revision >= 0),
         CHECK (queue_next_position >= 1),
         CHECK (playback_status IN ('playing', 'paused')),
@@ -36,6 +38,27 @@ export const musicExperienceQueuePlaybackSchema: MusicDatabaseSchemaContribution
           (now_playing_material_ref_key IS NOT NULL AND now_playing_material_ref_json IS NOT NULL)
         )
       )
+    `);
+
+    await context.run(`
+      ALTER TABLE music_experience_state
+      ADD COLUMN IF NOT EXISTS radio_session_lifecycle TEXT NOT NULL DEFAULT 'Shutdown'
+    `);
+
+    await context.run(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'music_experience_state_radio_session_lifecycle_check'
+            AND conrelid = 'music_experience_state'::regclass
+        ) THEN
+          ALTER TABLE music_experience_state
+          ADD CONSTRAINT music_experience_state_radio_session_lifecycle_check
+          CHECK (radio_session_lifecycle IN ('Running', 'Paused', 'Shutdown'));
+        END IF;
+      END $$;
     `);
 
     await context.run(`

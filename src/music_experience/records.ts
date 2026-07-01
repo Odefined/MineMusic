@@ -18,6 +18,7 @@ import type {
   MusicExperienceRadioSessionPlaybackEffect,
   MusicExperienceSnapshot,
   MusicExperienceWorkspaceKey,
+  RadioWakeGateState,
   RadioDirectionScopeValue,
   RadioDirectionSnapshot,
   VariationItem,
@@ -112,6 +113,7 @@ export type MusicExperienceQueuePlaybackRecords = {
     now: string;
   }): Promise<{
     radioSessionRevision: ConcernRevision;
+    lifecycle: RadioWakeGateState;
     playbackRevision: ConcernRevision;
     playbackStatus: MusicExperiencePlaybackStatus;
     playbackEffect: MusicExperienceRadioSessionPlaybackEffect;
@@ -153,6 +155,7 @@ type StateRow = {
   queue_revision: number;
   radio_direction_revision: number;
   radio_session_revision: number;
+  radio_session_lifecycle: RadioWakeGateState;
   playback_revision: number;
   queue_next_position: number;
   now_playing_material_ref_key: string | null;
@@ -166,6 +169,7 @@ const STATE_ROW_COLUMNS = [
   "queue_revision",
   "radio_direction_revision",
   "radio_session_revision",
+  "radio_session_lifecycle",
   "playback_revision",
   "queue_next_position",
   "now_playing_material_ref_key",
@@ -226,6 +230,7 @@ export function createMusicExperienceQueuePlaybackRecords(
         queueRevision: state.queue_revision,
         radioDirectionRevision: state.radio_direction_revision,
         radioSessionRevision: state.radio_session_revision,
+        radioSessionLifecycle: state.radio_session_lifecycle,
         playbackRevision: state.playback_revision,
         queue: rows.map(queueItemFromRow),
         playback: playbackFromRow(state),
@@ -511,6 +516,7 @@ export function createMusicExperienceQueuePlaybackRecords(
 
       return {
         radioSessionRevision: state.radio_session_revision,
+        lifecycle: state.radio_session_lifecycle,
         playbackRevision: state.playback_revision,
         playbackStatus: state.playback_status,
         playbackEffect,
@@ -1189,9 +1195,25 @@ async function updateRadioSession(input: {
     now: input.now,
     setClause: [
       "radio_session_revision = radio_session_revision + 1",
+      "radio_session_lifecycle = ?",
       ...playbackSetClause,
     ].join(",\n        "),
+    setParams: [radioSessionLifecycleForOperation(input.operation)],
   });
+}
+
+function radioSessionLifecycleForOperation(
+  operation: MusicExperienceRadioSessionOperation,
+): RadioWakeGateState {
+  switch (operation) {
+    case "start":
+    case "resume":
+      return "Running";
+    case "pause":
+      return "Paused";
+    case "shutdown":
+      return "Shutdown";
+  }
 }
 
 function radioSessionPlaybackEffect(input: {
@@ -1607,6 +1629,7 @@ function emptySnapshot(): MusicExperienceSnapshot {
     queueRevision: 0,
     radioDirectionRevision: 0,
     radioSessionRevision: 0,
+    radioSessionLifecycle: "Shutdown",
     playbackRevision: 0,
     queue: [],
     playback: {

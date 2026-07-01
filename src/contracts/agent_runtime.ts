@@ -1,9 +1,11 @@
 // Agent Runtime contract surface.
 
 import type { ConcernRevision } from "./kernel.js";
-import type { MusicExperienceWorkspaceMaterialHandle } from "./music_experience.js";
-
-export type RadioWakeGateState = "Running" | "Paused" | "Shutdown";
+import type {
+  MusicExperienceWorkspaceMaterialHandle,
+  RadioWakeGateState,
+} from "./music_experience.js";
+export type { RadioWakeGateState } from "./music_experience.js";
 
 export type SpeechLevel = "Silent" | "Notify";
 

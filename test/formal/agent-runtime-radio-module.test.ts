@@ -156,6 +156,37 @@ const FIXED_NOW = "2026-06-30T00:00:00.000Z";
 
 {
   const harness = await createHarness({
+    async beforeInitialize(database) {
+      await database.context().run(
+        `
+          INSERT INTO music_experience_state (
+            owner_scope,
+            workspace_id,
+            radio_session_revision,
+            radio_session_lifecycle,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?)
+        `,
+        ["local", "default", 7, "Paused", FIXED_NOW, FIXED_NOW],
+      );
+    },
+  });
+  try {
+    const initial = await dispatchRadioTool(harness, "radio.session.status");
+    assert.ok(initial.ok);
+    assert.equal(readState(initial), "Paused");
+
+    const wakeDecision = await harness.module.wake("low_watermark");
+    assert.deepEqual(wakeDecision, { kind: "not_running", wakeGateState: "Paused" });
+  } finally {
+    await closeHarness(harness);
+  }
+}
+
+{
+  const harness = await createHarness({
     radioSession: createScriptedRadioSessionCommand({
       async transition({ operation, next }) {
         if (operation === "pause") {
@@ -179,7 +210,7 @@ const FIXED_NOW = "2026-06-30T00:00:00.000Z";
 }
 
 {
-  let failedWakeRead = false;
+  let stateReadCount = 0;
   const harness = await createHarness({
     databaseContextFactory(database) {
       const base = database.context();
@@ -191,8 +222,10 @@ const FIXED_NOW = "2026-06-30T00:00:00.000Z";
           return base.all(sql, params);
         },
         get(sql, params) {
-          if (!failedWakeRead && sql.includes("FROM music_experience_state")) {
-            failedWakeRead = true;
+          if (sql.includes("FROM music_experience_state")) {
+            stateReadCount += 1;
+          }
+          if (stateReadCount === 2 && sql.includes("FROM music_experience_state")) {
             throw new Error("pacing read failed");
           }
           return base.get(sql, params);
@@ -357,6 +390,7 @@ async function createHarness(input: {
   radioSession?: MusicExperienceRadioSessionCommand;
   databaseContextFactory?: (database: MusicDatabase) => MusicDatabaseContext;
   agentOptions?: MineMusicPiAgentAdapterOptions;
+  beforeInitialize?: (database: MusicDatabase) => Promise<void>;
 } = {}): Promise<Harness> {
   const database = await openPostgresTestMusicDatabase({
     schemas: [
@@ -364,6 +398,7 @@ async function createHarness(input: {
       ...musicExperienceSchemas,
     ],
   });
+  await input.beforeInitialize?.(database);
   const db = input.databaseContextFactory?.(database) ?? database.context();
   const module = createAgentRuntimeRadioModule({
     database: () => db,
@@ -604,6 +639,7 @@ function transitionResult(
     case "start":
       return {
         radioSessionRevision: next,
+        lifecycle: "Running",
         playbackRevision: 100 + next,
         playbackStatus: "paused",
         playbackEffect: "unchanged",
@@ -611,6 +647,7 @@ function transitionResult(
     case "pause":
       return {
         radioSessionRevision: next,
+        lifecycle: "Paused",
         playbackRevision: 100 + next,
         playbackStatus: "paused",
         playbackEffect: "paused_existing",
@@ -618,6 +655,7 @@ function transitionResult(
     case "shutdown":
       return {
         radioSessionRevision: next,
+        lifecycle: "Shutdown",
         playbackRevision: 100 + next,
         playbackStatus: "paused",
         playbackEffect: "unchanged",
@@ -625,6 +663,7 @@ function transitionResult(
     case "resume":
       return {
         radioSessionRevision: next,
+        lifecycle: "Running",
         playbackRevision: 100 + next,
         playbackStatus: "playing",
         playbackEffect: "resumed_existing",
@@ -634,6 +673,7 @@ function transitionResult(
 
 type TestTransitionOutput = {
   radioSessionRevision: number;
+  lifecycle: "Running" | "Paused" | "Shutdown";
   playbackRevision: number;
   playbackStatus: "playing" | "paused";
   playbackEffect: "unchanged" | "paused_existing" | "resumed_existing";

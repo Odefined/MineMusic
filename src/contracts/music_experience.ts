@@ -22,6 +22,8 @@ export type MusicExperienceWorkspaceKey = {
 
 export type MusicExperiencePlaybackStatus = "playing" | "paused";
 
+export type RadioWakeGateState = "Running" | "Paused" | "Shutdown";
+
 export type MusicExperienceQueueItemProvenance =
   | "main_agent"
   | "user"
@@ -74,6 +76,7 @@ export type MusicExperienceSnapshot = {
   queueRevision: ConcernRevision;
   radioDirectionRevision: ConcernRevision;
   radioSessionRevision: ConcernRevision;
+  radioSessionLifecycle: RadioWakeGateState;
   playbackRevision: ConcernRevision;
   queue: readonly MusicExperienceQueueItemSnapshot[];
   playback: MusicExperiencePlaybackSnapshot;
@@ -212,6 +215,7 @@ export type MusicExperienceRadioSessionCommandInput = {
 
 export type MusicExperienceRadioSessionCommandOutput = {
   radioSessionRevision: ConcernRevision;
+  lifecycle: RadioWakeGateState;
   playbackRevision: ConcernRevision;
   playbackStatus: MusicExperiencePlaybackStatus;
   playbackEffect: MusicExperienceRadioSessionPlaybackEffect;

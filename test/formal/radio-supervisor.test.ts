@@ -592,7 +592,7 @@ function createHarness(input: {
     ...(input.lowWatermark === undefined ? {} : { lowWatermark: input.lowWatermark }),
     ...(input.fillTarget === undefined ? {} : { fillTarget: input.fillTarget }),
     ...(input.scheduleWake === undefined ? {} : { scheduleWake: input.scheduleWake }),
-    ...(input.wakeGateState === undefined ? {} : { initialWakeGateState: input.wakeGateState }),
+    initialWakeGateState: input.wakeGateState ?? "Running",
   });
 
   return {

@@ -30,6 +30,7 @@ import type {
   MusicExperienceRadioSessionCommand,
   MusicExperienceRadioTruthCommand,
   MusicExperienceWorkspaceProjectionPort,
+  RadioWakeGateState,
 } from "../contracts/music_experience.js";
 import {
   createMusicExperienceQueuePlaybackRecords,
@@ -66,7 +67,7 @@ export function createAgentRuntimeRadioModule(
   const workspaceId = input.workspaceId ?? DEFAULT_MUSIC_EXPERIENCE_WORKSPACE_ID;
   let supervisor: RadioSupervisor | undefined;
   let activeSession: Awaited<ReturnType<typeof createActorRuntimeSession>> | undefined;
-  let lifecycleState: "Running" | "Paused" | "Shutdown" = "Shutdown";
+  let lifecycleState: RadioWakeGateState = "Shutdown";
   let transitionSerialization: Promise<void> = Promise.resolve();
 
   return {
@@ -87,6 +88,8 @@ export function createAgentRuntimeRadioModule(
       const transcriptStore = createPostgresAgentRuntimeTranscriptStore({ db });
       const queuePlaybackRecords = createMusicExperienceQueuePlaybackRecords({ db, workspaceId });
       const radioTruthRecords = createMusicExperienceRadioTruthRecords({ db, workspaceId });
+      const initialSnapshot = await queuePlaybackRecords.read({ ownerScope });
+      lifecycleState = initialSnapshot.radioSessionLifecycle;
       const workspaceContext = createWorkspaceContextAssembler({
         musicExperience: musicExperienceRead,
       });
@@ -147,7 +150,7 @@ export function createAgentRuntimeRadioModule(
             };
           },
         },
-        initialWakeGateState: "Shutdown",
+        initialWakeGateState: lifecycleState,
       });
 
       return {
@@ -210,8 +213,8 @@ export function createAgentRuntimeRadioModule(
               return transitioned;
             }
             activeSession = session;
-            lifecycleState = "Running";
-            supervisor?.transitionWakeGate("Running");
+            lifecycleState = transitioned.value.lifecycle;
+            supervisor?.transitionWakeGate(transitioned.value.lifecycle);
             try {
               await supervisor?.wake("low_watermark");
             } catch {
@@ -255,8 +258,8 @@ export function createAgentRuntimeRadioModule(
             if (!transitioned.ok) {
               return transitioned;
             }
-            lifecycleState = "Paused";
-            supervisor?.transitionWakeGate("Paused");
+            lifecycleState = transitioned.value.lifecycle;
+            supervisor?.transitionWakeGate(transitioned.value.lifecycle);
             activeSession?.abort();
             return radioSessionControlOutput({
               previousState,
@@ -287,8 +290,8 @@ export function createAgentRuntimeRadioModule(
             if (!transitioned.ok) {
               return transitioned;
             }
-            lifecycleState = "Shutdown";
-            supervisor?.transitionWakeGate("Shutdown");
+            lifecycleState = transitioned.value.lifecycle;
+            supervisor?.transitionWakeGate(transitioned.value.lifecycle);
             const session = activeSession;
             activeSession = undefined;
             session?.abort();
@@ -344,8 +347,8 @@ export function createAgentRuntimeRadioModule(
               return transitioned;
             }
             activeSession = session;
-            lifecycleState = "Running";
-            supervisor?.transitionWakeGate("Running");
+            lifecycleState = transitioned.value.lifecycle;
+            supervisor?.transitionWakeGate(transitioned.value.lifecycle);
             try {
               await supervisor?.wake("low_watermark");
             } catch {
@@ -437,7 +440,7 @@ function cleanupWarning(): StageWarning {
 
 function invalidTransition(
   toolName: string,
-  current: "Running" | "Paused" | "Shutdown",
+  current: RadioWakeGateState,
   required: string,
 ): {
   ok: false;
@@ -462,8 +465,8 @@ function invalidTransition(
 }
 
 function radioSessionControlOutput(input: {
-  previousState: "Running" | "Paused" | "Shutdown";
-  state: "Running" | "Paused" | "Shutdown";
+  previousState: RadioWakeGateState;
+  state: RadioWakeGateState;
   wakeRequested: boolean;
   warnings?: readonly StageWarning[];
   transitioned: {

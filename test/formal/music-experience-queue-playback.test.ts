@@ -153,6 +153,47 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
 
 {
   const database = await initializedMusicExperienceDatabase();
+  try {
+    const lifecycleColumn = await database.context().get<{
+      column_default: string | null;
+      is_nullable: "YES" | "NO";
+    }>(
+      `
+        SELECT column_default, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'music_experience_state'
+          AND column_name = 'radio_session_lifecycle'
+      `,
+    );
+    assert.deepEqual(lifecycleColumn, {
+      column_default: "'Shutdown'::text",
+      is_nullable: "NO",
+    });
+
+    await assert.rejects(
+      () => database.context().run(
+        `
+          INSERT INTO music_experience_state (
+            owner_scope,
+            workspace_id,
+            radio_session_lifecycle,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?)
+        `,
+        ["invalid-lifecycle-owner", "default", "Sleeping", now, now],
+      ),
+      /violates check constraint/u,
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+{
+  const database = await initializedMusicExperienceDatabase();
   await seedRecording(database, materialRef, "Session Song", ["Session Artist"]);
   const observedChanges: ConcernRevisionChange[] = [];
   const queuePlayback = createMusicExperienceQueuePlaybackCommand({
@@ -195,6 +236,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(started.ok, true);
   if (started.ok) {
     assert.equal(started.value.radioSessionRevision, 1);
+    assert.equal(started.value.lifecycle, "Running");
     assert.equal(started.value.playbackEffect, "unchanged");
     assert.equal(started.value.playbackStatus, "playing");
   }
@@ -208,6 +250,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(paused.ok, true);
   if (paused.ok) {
     assert.equal(paused.value.radioSessionRevision, 2);
+    assert.equal(paused.value.lifecycle, "Paused");
     assert.equal(paused.value.playbackEffect, "paused_existing");
     assert.equal(paused.value.playbackStatus, "paused");
   }
@@ -221,6 +264,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(resumed.ok, true);
   if (resumed.ok) {
     assert.equal(resumed.value.radioSessionRevision, 3);
+    assert.equal(resumed.value.lifecycle, "Running");
     assert.equal(resumed.value.playbackEffect, "resumed_existing");
     assert.equal(resumed.value.playbackStatus, "playing");
   }
@@ -234,6 +278,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(shutDown.ok, true);
   if (shutDown.ok) {
     assert.equal(shutDown.value.radioSessionRevision, 4);
+    assert.equal(shutDown.value.lifecycle, "Shutdown");
     assert.equal(shutDown.value.playbackEffect, "paused_existing");
     assert.equal(shutDown.value.playbackStatus, "paused");
   }
@@ -243,6 +288,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(snapshot.queue.length, 1);
   assert.equal(refKey(snapshot.queue[0]!.materialRef), refKey(materialRef));
   assert.equal(snapshot.radioSessionRevision, 4);
+  assert.equal(snapshot.radioSessionLifecycle, "Shutdown");
   assert.equal(snapshot.playback.status, "paused");
   assert.deepEqual(observedChanges.filter((change) => change.concern === "radio-session").map((change) => change.newRevision), [
     1,
@@ -397,6 +443,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     queueRevision: 0,
     radioDirectionRevision: 0,
     radioSessionRevision: 0,
+    radioSessionLifecycle: "Shutdown",
     playbackRevision: 0,
     queue: [],
     playback: {

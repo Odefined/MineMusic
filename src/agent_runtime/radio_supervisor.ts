@@ -48,7 +48,7 @@ export type CreateRadioSupervisorInput = {
     signal: AbortSignal;
     wake: () => Promise<void>;
   }): void;
-  initialWakeGateState?: RadioWakeGateState;
+  initialWakeGateState: RadioWakeGateState;
 };
 
 export type RadioWakeDecision =
@@ -117,7 +117,7 @@ function defaultScheduleWake(input: {
 }
 
 export function createRadioSupervisor(input: CreateRadioSupervisorInput): RadioSupervisor {
-  let wakeGateState = input.initialWakeGateState ?? "Running";
+  let wakeGateState = input.initialWakeGateState;
   let refilling = false;
   let refillGeneration = 0;
   let exhaustedRadioDirectionRevision: ConcernRevision | undefined;
