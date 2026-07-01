@@ -119,7 +119,7 @@ assert.equal(
         tool.name.startsWith("library.relation.") ||
         tool.name.startsWith("library.collection.") ||
         tool.name === "stage.runtime.status" ||
-        tool.name === "music.experience.playback.play"
+        tool.name === "playback.play"
     ),
     false,
 );
@@ -224,7 +224,7 @@ assert.deepEqual(host.snapshot().interfaceContract.tools.map((tool) => tool.name
     "playback.queue.replace",
     "playback.queue.move",
     "playback.queue.clear",
-    "music.experience.playback.play",
+    "playback.play",
     "radio.motif.set",
     "radio.motif.clear",
     "radio.variations.add",

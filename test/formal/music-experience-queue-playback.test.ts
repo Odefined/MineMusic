@@ -147,7 +147,7 @@ assertQueueIndexSchema(playbackQueueRemoveInputSchema, "index");
 assertQueueIndexSchema(playbackQueueReplaceInputSchema, "index");
 assertQueueIndexSchema(playbackQueueMoveInputSchema, "from");
 assertQueueIndexSchema(playbackQueueMoveInputSchema, "to");
-assert.equal(musicExperiencePlaybackPlayDescriptor.name, "music.experience.playback.play");
+assert.equal(musicExperiencePlaybackPlayDescriptor.name, "playback.play");
 assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.runtimeStateWrite, true);
 assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, false);
 
@@ -1201,7 +1201,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assertPublicToolOutput(appendOutput);
 
   const playResult = await stageInterface.dispatch(ctx, {
-    toolName: "music.experience.playback.play",
+    toolName: "playback.play",
     payload: {
       item: `[material:${materialHandleId}]`,
     },
@@ -1220,7 +1220,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     handleMinting,
     preconditionBasis: { playbackRevision: 0 },
   }), {
-    toolName: "music.experience.playback.play",
+    toolName: "playback.play",
     payload: {
       item: `[material:${materialHandleId}]`,
     },
@@ -1235,7 +1235,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     handleMinting,
     preconditionBasis: { playbackRevision: 1 },
   }), {
-    toolName: "music.experience.playback.play",
+    toolName: "playback.play",
     payload: {
       item: `[material:${materialHandleId}]`,
     },
@@ -1793,7 +1793,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
   assert.equal(appendHandleAnchor.materialRef, refKey(winnerRef));
 
   const playResult = await stageInterface.dispatch(ctx, {
-    toolName: "music.experience.playback.play",
+    toolName: "playback.play",
     payload: {
       item: `[candidate:${candidateHandleId}]`,
     },
@@ -2035,7 +2035,7 @@ assert.equal(musicExperiencePlaybackPlayDescriptor.sideEffect.externalCall, fals
     abortSignal: controller.signal,
     handleMinting,
   }), {
-    toolName: "music.experience.playback.play",
+    toolName: "playback.play",
     payload: {
       item: `[material:${materialHandleId}]`,
     },

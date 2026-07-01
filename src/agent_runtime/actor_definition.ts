@@ -169,7 +169,7 @@ export const mainDefinition: ActorDefinition = {
       "playback.queue.replace",
       "playback.queue.move",
       "playback.queue.clear",
-      "music.experience.playback.play",
+      "playback.play",
       "radio.motif.set",
       "radio.motif.clear",
       "radio.variations.add",

@@ -890,7 +890,7 @@ assert.match(observedProviderContexts[1]?.messagesJson ?? "", /turn 1 done/u);
     "music.discovery.lookup",
     "music.experience.present",
     "playback.queue.append",
-    "music.experience.playback.play",
+    "playback.play",
   ]);
   assert.deepEqual(lookupCalls, [
     {

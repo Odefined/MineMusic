@@ -133,7 +133,7 @@ try {
         "playback_queue_replace",
         "playback_queue_move",
         "playback_queue_clear",
-        "music_experience_playback_play",
+        "playback_play",
         "radio_motif_set",
         "radio_motif_clear",
         "radio_variations_add",

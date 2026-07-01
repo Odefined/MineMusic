@@ -218,7 +218,7 @@ export const playbackQueueAppendDescriptor: ToolDeclaration = {
     {
       prompt: "play this right now",
       expects: "avoid",
-      note: "use music.experience.playback.play for logical now-playing selection",
+      note: "use playback.play for logical now-playing selection",
     },
   ],
   sideEffect: runtimeWriteSideEffect,
@@ -333,7 +333,7 @@ export const playbackQueueClearDescriptor: ToolDeclaration = queueEditDescriptor
 });
 
 export const musicExperiencePlaybackPlayDescriptor: ToolDeclaration = {
-  name: "music.experience.playback.play",
+  name: "playback.play",
   instrumentId: musicExperienceInstrument.id,
   label: "Play Now",
   ownerArea: "music_experience",
