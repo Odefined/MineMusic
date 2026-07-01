@@ -439,24 +439,25 @@ forbids.
 
 ### Reused (the AG-UI protocol seam) — two layers
 
-The client consumes the AG-UI stream at **two different depths** (wire-contract
-§1.4 "Two-layer protocol fit"):
+The client consumes AG-UI events over **two transport channels** (wire-contract
+§1.4, transport C):
 
-- **Chat run (Main/Radio turn) — deep fit, via `HttpAgent`**: the run-scoped
-  stream (`transcript.*` Speak + `activity.*` work + tool/step events inside a
-  `RUN_STARTED`/`RUN_FINISHED` bracket) is consumed by `@ag-ui/client`'s
-  `HttpAgent` + `verifyEvents`, subscribing to `onTextMessage*` /
-  `onMessagesSnapshot` / `onActivitySnapshot` / `onToolCall*`. Main-run and
-  Radio-run are independent runs (distinct `runId`); their outputs are isolated
-  by run bracket (Radio activity → Radio panel, Main activity → Chat).
-  `agent.state`/`agent.messages` stay read-only.
-- **Workspace persistent stream — skin fit, self-built consumer**: state slices
-  (`workspace.*`, RFC 6902 patch) + `action.result` (CUSTOM) are consumed by a
+- **Main run — deep fit, via `HttpAgent`**: the chat POST response **is** the
+  Main run's AG-UI event stream (`transcript.*` + `activity.*` + tool/step
+  events inside a `RUN_STARTED`/`RUN_FINISHED` bracket), consumed by
+  `@ag-ui/client`'s `HttpAgent` + `verifyEvents`, subscribing to `onTextMessage*`
+  / `onMessagesSnapshot` / `onActivitySnapshot` / `onToolCall*`. One-POST-one-run:
+  the response *is* this run, no runId to match. Main output → Chat. Main is the
+  only chat-triggered run (§5.8). `agent.state`/`agent.messages` stay read-only.
+- **Workspace persistent stream — skin fit, self-built consumer**: a long-lived
+  SSE GET carrying state slices (`workspace.*`, RFC 6902 patch) + `action.result`
+  (CUSTOM) + **the Radio run's** `transcript.*`/`activity.*` (Radio is autonomous
+  — no user POST, so it rides this stream, not a POST response). Consumed by a
   self-built SSE consumer (`parseSSEStream` + a hand-written reducer +
   `applyPatch`), **not** via `HttpAgent`/`verifyEvents` — `HttpAgent` is
-  one-POST-one-run and cannot consume a long-lived workspace stream. The
-  off-the-shelf part is `applyPatch` (fast-json-patch) + the AG-UI schema types;
-  the hand-written part is per-workspace sequence gap-detection
+  one-POST-one-run and cannot consume a long-lived stream. Radio output → Radio
+  panel. The off-the-shelf part is `applyPatch` (fast-json-patch) + the AG-UI
+  schema types; the hand-written part is per-workspace sequence gap-detection
   (`baseSequence` ≠ `lastAppliedSequence` → resync POST) and CUSTOM dispatch.
 - **Server** — MineMusic's fastify (C3) imports `@ag-ui/encoder` `EventEncoder`
   to emit AG-UI events (`STATE_SNAPSHOT`/`STATE_DELTA`, `TEXT_MESSAGE_*`,
@@ -481,11 +482,13 @@ The sounding player + `PlaybackSourceResolver` + verified-actualState (C5); the
 singleton liveness (C3a); the ADR-0038 provenance-derived gate + basis-recheck /
 `voided_stale` (C4); the **workspace-persistent-stream self-built consumer**
 (per-workspace `baseSequence` gap-detection → resync POST, `applyPatch`
-catch-path resync trigger, CUSTOM `action.result` dispatch — §1.4); the Main +
-Radio transcript/activity routing (by run bracket, to Chat vs Radio panel); Chat
-(built on the AG-UI message events, not CopilotKit's `CopilotChat`, because
-`CopilotChat` requires the `<CopilotKit>` provider and is single-agent-per-call
-— incompatible with the no-runtime stance and the two-writer transcript).
+catch-path resync trigger, CUSTOM `action.result` dispatch — §1.4) which also
+carries the Radio run's transcript/activity; Main-run transcript/activity via
+`HttpAgent` (chat POST response) → Chat, Radio-run via the self-built consumer →
+Radio panel (routing by carrying channel, §1.4 — not by runId); Chat (built on
+the AG-UI message events, not CopilotKit's `CopilotChat`, because `CopilotChat`
+requires the `<CopilotKit>` provider and is single-agent-per-call —
+incompatible with the no-runtime stance and with per-run transcripts §2.8).
 
 ### Fight (do not use CopilotKit here)
 
@@ -540,7 +543,7 @@ serializer.
 | `recommendationBatches` | Recommendations Card |
 | `libraryCatalog` projection | Library Card |
 | parked Proposal Units (C4) | Confirm Action Cards (auto-emitted, A2UI) |
-| Main + Radio transcripts (AG-UI messages) | Chat (custom, merged) |
+| Main transcript (chat POST response) + Radio transcript (workspace stream) | Chat (Main) + Radio panel (Radio); a merged Chat view is a WebUI choice, not the wire shape (§2.8/§3.5) |
 | AG-UI `ACTIVITY_*` (messages family, `role:"activity"`) | Chat folded activity cards (Main-run) + Radio panel activity (Radio-run) |
 | `selectedObject` handle | WebUI selected-object affordance (any surface) |
 | `playbackControllerLease` | workspace presence + playback liveness |

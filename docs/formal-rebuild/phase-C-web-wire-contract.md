@@ -7,7 +7,12 @@
 > `actionType` registry (29 names), and per-action payload shapes (§5.6).
 > Envelope structure, result channel, actionType names, and all 29 payloads
 > are frozen. Parts 3–5 pending (audio GET, connection protocol, shared
-> enums/errors).
+> enums/errors). §1.4/§2.8/§3.5/§5.8 revised 2026-07-02: transcripts are per-run
+> (no wire-level merge, no per-message `actor`); transport C — the Main run rides
+> the chat POST response, the Radio run + state + `action.result` ride the
+> workspace persistent stream. §5.6/§5.8 also revised 2026-07-02: `main.abort`
+> termination — the aborted run's POST response ends with `TEXT_MESSAGE_END`
+> (any in-flight message) + `RUN_ERROR(code:"aborted")`.
 > Authority: The owning container for the Phase C frontend↔backend wire
 > contract. Only completed parts marked frozen are implementation-ready contract
 > truth; pending parts are placeholders until their sections are completed.
@@ -24,9 +29,11 @@
 
 ## 0. General
 
-- **Transport scope of this document**: downstream SSE — the Workspace Snapshot
-  `StateSnapshot`/`StateDelta` payload. Upstream POST (Part 2) is frozen; audio
-  GET and the connection protocol are Parts 3–4 (pending).
+- **Transport scope of this document**: downstream — two channels (§1.4,
+  transport C): the workspace persistent SSE stream (`StateSnapshot`/`StateDelta`
+  + `action.result` + Radio-run messages) and the chat POST response (the Main
+  run's AG-UI stream). Upstream POST (Part 2) is frozen; audio GET and the
+  connection protocol are Parts 3–4 (pending).
 - **Encoding**: AG-UI `StateSnapshot`/`StateDelta` (RFC 6902 JSON Patch scoped
   to the changed area subtree) over a MineMusic-owned DTO (anti-corruption
   layer isolating the `@ag-ui/encoder` pin and the future A2UI v1.0 swap).
@@ -111,27 +118,42 @@ owning-area truth and operation semantics, not by UI display needs.
 
 ### 1.4 Downstream event envelope (frozen: state + messages + action.result)
 
-The downstream SSE stream sends a Workbench-owned event envelope over the AG-UI
-event primitives (ADR-0031). One per-workspace transport sequence covers all
-event types. MineMusic logical names map to AG-UI EventType literals at the
-serializer seam — the encoder does **not** rewrite `type`, so the server must
-emit the literal AG-UI EventType. Dispatch is two-layer (boundary-spec §reused):
-chat-run events via standard `@ag-ui/client` subscribers, the workspace
-persistent stream via a self-built consumer (see "Two-layer protocol fit" below).
+Downstream delivery uses **two transport channels** (transport C):
+
+1. **Chat POST response** — when a `ChatMessageEnvelope` (§5.8) triggers a Main
+   run, that run's AG-UI event stream is the HTTP response body of the POST:
+   `RUN_STARTED` … `transcript.*` / `activity.*` … `RUN_FINISHED`. It is
+   consumed by `@ag-ui/client`'s `HttpAgent` + `verifyEvents` (the standard
+   one-POST-one-run fit — the response *is* this run's stream). This channel
+   carries **only the Main run** (the only chat-triggered run).
+2. **Workspace persistent stream** (SSE GET, long-lived) — carries everything
+   that is not the Main run's live output: `workspace.snapshot` /
+   `workspace.delta` (state), `action.result` (CUSTOM, §5.3), and the **Radio
+   run's** `transcript.*` / `activity.*`. Radio is autonomous (supervisor-wake,
+   no user POST), so it has no POST-response channel and rides this stream. It
+   is consumed by a self-built SSE consumer (`parseSSEStream` + a hand-written
+   reducer + `applyPatch`), **not** `HttpAgent` / `verifyEvents`.
+
+The envelope below is the **workspace persistent stream** event family. The
+event *types* are AG-UI-standard; `transcript.*` / `activity.*` appear on this
+stream only for the Radio run — the Main run emits the same event types inside
+its chat POST response (§5.8), not on this stream. MineMusic logical names map
+to AG-UI EventType literals at the serializer seam — the encoder does **not**
+rewrite `type`, so the server must emit the literal AG-UI EventType.
 
 ```
-WorkbenchDownstreamEventEnvelope:
+WorkbenchDownstreamEventEnvelope:            // workspace persistent stream only
   eventId: string
   workspaceId: string
-  sequence: number                         // per-workspace transport sequence; all families share it
+  sequence: number                         // per-workspace transport sequence; shared across this stream's families
   emittedAt: string
   event:
     | { type: "workspace.snapshot", snapshot: WorkspaceSnapshot }                       → STATE_SNAPSHOT
     | { type: "workspace.delta", baseSequence: number, patch: JsonPatchOperation[] }   → STATE_DELTA
-    | { type: "transcript.message_start", messageId, role?, name?(actor) }             → TEXT_MESSAGE_START
+    | { type: "transcript.message_start", messageId, role? }                            → TEXT_MESSAGE_START   (Radio run only, on this stream)
     | { type: "transcript.message_content", messageId, delta: string }                 → TEXT_MESSAGE_CONTENT
     | { type: "transcript.message_end", messageId }                                    → TEXT_MESSAGE_END
-    | { type: "transcript.messages_snapshot", messages: TranscriptMessage[] }          → MESSAGES_SNAPSHOT (resync)
+    | { type: "transcript.messages_snapshot", messages: TranscriptMessage[] }          → MESSAGES_SNAPSHOT (Radio resync)
     | { type: "activity.snapshot", messageId, activityType, content, replace? }        → ACTIVITY_SNAPSHOT
     | { type: "activity.delta", messageId, activityType, patch }                      → ACTIVITY_DELTA
     | { type: "action.result", correlationId, outcome, reason? }                      → CUSTOM (name:"workbench.action_result", §5.3)
@@ -144,34 +166,36 @@ WorkbenchDownstreamEventEnvelope:
   family alongside `transcript.*`. `transcripts` and activity are **not** state
   slices; they ride their own AG-UI message event streams, not
   `workspace.snapshot`.
-- **Two-layer protocol fit**: the **chat run** (Main/Radio turn) is consumed
-  via `@ag-ui/client` `HttpAgent` + `verifyEvents` (standard
-  `onTextMessage*`/`onMessagesSnapshot`/`onActivity*` subscribers, run-scoped,
-  one-POST-one-run); the **workspace persistent stream** (state +
-  `action.result`) is consumed by a self-built SSE consumer
-  (`parseSSEStream` + a hand-written reducer + `applyPatch`), **not** via
-  `verifyEvents`. Main-run and Radio-run are independent runs (distinct
-  `runId`); their messages/activities are isolated by run bracket — the
-  frontend routes Radio-run activity to the Radio panel, Main-run activity to
-  the Chat, by run (not by a wire-level channel split).
+- **Routing is by carrying channel, not runId** (transport C): Main-run
+  `transcript.*` / `activity.*` arrive on the chat POST response → Chat;
+  Radio-run `transcript.*` / `activity.*` arrive on the workspace persistent
+  stream → Radio panel. The channel the event arrived on *is* the route — no
+  per-message `actor` field and no runId dispatch (§2.8). Main and Radio are
+  still independent runs with distinct `runId`, but the frontend does not
+  inspect `runId` to route — it inspects which stream carried the event.
 - **Streaming**: `transcript.message_*` carries the assistant message lifecycle
   (pi-agent-core `message_*` → AG-UI TEXT_MESSAGE_*); the frontend concatenates
   `message_content.delta` by `messageId`. `message_start` carries only
-  `messageId`(+`role`+`name` for actor), `message_end` only `messageId` —
-  content arrives via `message_content`. `messages_snapshot` is the full resync
+  `messageId` (+`role`), `message_end` only `messageId` — content arrives via
+  `message_content`. `messages_snapshot` resyncs that run's thread
   (reconnect/compact). `activity.snapshot` updates the `role:"activity"`
   message for the current run (`replace` swaps content).
-- **Sequence**: transport ordering/gap detection only, shared across all
-  families. Assigned by a per-workspace emit serializer (process-local mutex,
-  single Server Host v1) — sequence-then-write is atomic, so concurrent slice
-  commits cannot tear the sequence. Distinct from `ConcernRevisionSet`, never OCC.
-- **Gap recovery** (client-pull, self-built): the workspace-stream consumer
-  tracks `lastAppliedSequence`; on a `workspace.delta` whose `baseSequence` ≠
-  `lastAppliedSequence`, or on an `applyPatch` failure (the client does not
-  throw — it silently `console.warn`s), the client POSTs a resync and receives
-  a fresh `workspace.snapshot` + `transcript.messages_snapshot` (activity rides
-  inside messages). `@ag-ui/client`'s `defaultApplyEvents` does **not** read
-  `baseSequence` — gap detection is MineMusic's, on the self-built consumer.
+- **Sequence (workspace persistent stream only)**: transport ordering/gap
+  detection, shared across that stream's families. Assigned by a per-workspace
+  emit serializer (process-local mutex, single Server Host v1) —
+  sequence-then-write is atomic, so concurrent slice commits cannot tear the
+  sequence. Distinct from `ConcernRevisionSet`, never OCC. The chat POST
+  response carries **no** MineMusic transport sequence — it is a one-shot AG-UI
+  run stream; a broken Main-run response is recovered by transcript resync
+  (§5.8), not by sequence gap-replay.
+- **Gap recovery (workspace persistent stream, client-pull, self-built)**: the
+  consumer tracks `lastAppliedSequence`; on a `workspace.delta` whose
+  `baseSequence` ≠ `lastAppliedSequence`, or on an `applyPatch` failure (the
+  client does not throw — it silently `console.warn`s), the client POSTs a
+  resync and receives a fresh `workspace.snapshot` + the Radio-run
+  `transcript.messages_snapshot`. `@ag-ui/client`'s `defaultApplyEvents` does
+  **not** read `baseSequence` — gap detection is MineMusic's, on the self-built
+  consumer.
 - **No business-event truth for state**: queue/radio/proposal/playback/library
   changes become state in `workspace.snapshot` + RFC 6902 deltas; the frontend
   must not reconstruct workspace state by replaying events. (The message and
@@ -424,18 +448,20 @@ parkedProposalUnits slice:
   PC1 spec decision consistent with ADR-0034's DTO ownership, not a decision
   ADR-0034 itself establishes.
 
-### 2.8 `transcripts` — AG-UI message event stream (not a state slice)
+### 2.8 `transcripts` — per-run AG-UI message stream (not a state slice)
 
-Carried by `transcript.*` events (§1.4: TEXT_MESSAGE_START/CONTENT/END +
-MESSAGES_SNAPSHOT), **not** by `workspace.snapshot`. The assistant message
-lifecycle streams live (pi-agent-core `message_*` → AG-UI TEXT_MESSAGE_*); a
-full `transcript.messages_snapshot` resyncs on reconnect/compact.
+Transcripts are **per-run** — one AG-UI message thread per run, carried by
+`transcript.*` events (§1.4: TEXT_MESSAGE_START/CONTENT/END + MESSAGES_SNAPSHOT),
+**not** by `workspace.snapshot`, and **not merged across runs**. The Main run
+and the Radio run are independent AG-UI threads (distinct `runId`); activity is
+per-run the same way (§2.9). The assistant message lifecycle streams live
+(pi-agent-core `message_*` → AG-UI TEXT_MESSAGE_*); a full
+`transcript.messages_snapshot` resyncs **that run's** thread on reconnect/compact.
 
 ```
 TranscriptMessage = {
   messageId: string                                          // AG-UI id; threads start/content/end
   role: "user" | "assistant"                                 // AG-UI standard
-  actor?: "main_agent" | "radio_agent"                       // MineMusic extension (assistant only)
   content: string
   timestamp: string
 }
@@ -443,23 +469,27 @@ TranscriptMessage = {
 
 - **Owner**: Agent Runtime.
 - **Source**: durable (PB2 PG transcript store) + streamed live (pi `message_*`).
+- **Per-run, not merged**: each run is its own AG-UI thread with its own
+  `MESSAGES_SNAPSHOT`. The wire never merges Main + Radio messages into one
+  stream. A merged Chat view is a WebUI consumption choice (§3.5), not a wire
+  shape — the same UI-neutrality rule as activity's per-run isolation (§2.9
+  "independent runs never share a messages array").
+- **No per-message `actor` field**: run membership is the actor. Under transport
+  C (§1.4), the Main run rides its chat POST response and the Radio run rides
+  the workspace stream — the carrying channel tells Main from Radio, so no
+  MineMusic extension field is needed on each message. (The prior
+  `actor: "main_agent"|"radio_agent"` carried via the AG-UI `name` field is
+  dropped: it existed only to disambiguate writers inside a merged stream, which
+  no longer exists.)
 - **Message vs activity split (PC13 gate)**: user messages + agent assistant
   messages enter `transcripts`; agent `Notify`-level activity flows to
   `activity.*` (§2.9); `Silent`-level is dropped before emit. SpeechLevel is a
   backend activity-filter (Silent/Notify, live `agent_runtime.ts`), not a wire
   field and not applied to messages; its value set settles in PC13.
-- **`actor` is the only MineMusic extension**: AG-UI messages have no actor;
-  MineMusic adds it to tell main vs radio agent apart (both `role: "assistant"`).
-  **On the wire**, `actor` is carried via the AG-UI `name` field — both
-  `TextMessageStartEvent` and `AssistantMessage` keep `name` under the
-  `MESSAGES_SNAPSHOT` strip mode (a plain `actor` field would be stripped on
-  resync). `TranscriptMessage.actor` above is the logical type, projected to
-  `name` at the serializer seam.
 - **No association metadata**: messages stay AG-UI-standard. "Agent recommended
   these → Recommendations Card updated" is aligned by time + content, not by
   embedding a batch/proposal handle.
-- **Name is `transcripts`, not "Chat"** (§3.5). Two-writer merge kept; "Chat"
-  is a WebUI consumption note.
+- **Name is `transcripts`, not "Chat"** (§3.5).
 - **UI-neutrality**: agent-owned messages; a voice surface speaks them, a log
   viewer dumps them.
 
@@ -483,12 +513,12 @@ ACTIVITY_DELTA: messageId + activityType + patch (RFC 6902 on the activity messa
 ```
 
 - **Owner**: Agent Runtime.
-- **Main vs Radio — isolated by run, not by channel**: Main-run and Radio-run
-  are independent runs (distinct `runId`, §1.4 "Two-layer protocol fit"). Both
-  emit `ACTIVITY_*` for their own run; the frontend routes Main-run activity to
-  the Chat (folded, expandable cards) and Radio-run activity to the Radio panel
-  by run bracket. Radio activity does **not** enter the Main chat — independent
-  runs never share a messages array.
+- **Main vs Radio — separated by carrying channel** (transport C, §1.4):
+  Main-run `ACTIVITY_*` ride the chat POST response → Chat (folded, expandable
+  cards); Radio-run `ACTIVITY_*` ride the workspace persistent stream → Radio
+  panel. The frontend routes by which stream carried the event, not by runId.
+  Radio activity does **not** enter the Main chat — Main and Radio are
+  independent runs that never share a messages array (§2.8).
 - **`statusKind` (→ `activityType`) is typed, never a raw tool name**:
   pi-agent-core `tool_execution_*` is translated to `statusKind` at the adapter;
   raw tool names ride a debug/developer endpoint (PRD), not this message. The
@@ -600,9 +630,13 @@ slice shapes above. Recorded here so a future reader does not reintroduce them.
   channel is a WebUI-sink concept, not a transport primitive. (If a dedicated
   event stream is ever introduced, name it by source — "proposal channel" /
   "confirmation-request channel" — not by the WebUI sink.)
-- **3.5 `transcripts` renamed from "Chat".** The stream is the agent-owned
-  message transcript; the "Chat (custom, merged)" framing is a WebUI
-  consumption note. The two-writer merge semantic is kept.
+- **3.5 `transcripts` renamed from "Chat", and per-run (not merged).** The
+  stream is the agent-owned message transcript — one thread per run, never
+  merged across runs on the wire (§2.8). The "Chat (custom, merged)" framing is
+  a WebUI consumption note only: a Chat component may choose to render messages
+  from the Main run and the Radio run together, but that is the component's
+  choice, not the wire shape. The prior "two-writer merge semantic is kept" is
+  retracted — there is no wire-level merge.
 - **3.6 `libraryCatalog` "selectable" wording removed.** Materials ride the
   workspace-scoped library query endpoint (§4); the slice carries
   `visibleScopes` (area-truth wording) and status.
@@ -892,7 +926,12 @@ not retry in a tight loop.
   the workspace's active Main turn. The pi-internal run id
   (`session.run({ runId })`, line 49) is not exposed on
   `AgentRuntimeUserTurnResult`, so the Web action cannot target a specific run
-  id; it aborts the workspace's active Main turn unconditionally.
+  id; it aborts the workspace's active Main turn unconditionally. The abort's
+  effect on the run's POST response is defined in §5.8 (Run termination:
+  `RUN_ERROR` with `code:"aborted"`, preceded by `TEXT_MESSAGE_END` on any
+  in-flight message). `action.result(committed)` for the abort itself rides the
+  workspace stream as for any instant action; the two events travel separate
+  channels and do not conflict.
 - **`library.import.start` is dual-path** (agent tool + Web action, share
   `LibraryImportStartCommand`): determinate parameterized operations with long
   progress benefit from a Web entry (tap-through beats typing; progress
@@ -1041,20 +1080,50 @@ ChatMessageEnvelope {
 
 - Triggers a Main run; the adapter stamps `issuedFromUserActionId` on the run
   input (provenance spine). This is the **only** Phase C Main-run trigger.
-- **Response model differs from `WorkbenchActionEnvelope`**: POST returns
-  `{actionId}` (run started, not completed — the pi-internal run id is not
-  exposed on `AgentRuntimeUserTurnResult` as an action target). The run's output
-  is not a single `action.result`; it flows as `transcript.*` (transcripts) +
-  `activity.*` (agent activity, §2.9) + `workspace.delta` (parkedProposalUnits
-  slice). The chat run rides the workspace SSE stream as a
-  `RUN_STARTED(threadId: workspaceId, runId: <pi-internal>)` ...
-  `RUN_FINISHED(success)` bracket — `transcript.*` and `activity.*` events for
-  that run are nested inside the bracket (required by the chat-run
-  `verifyEvents` state machine: the first event must be `RUN_STARTED`, and any
-  event after `RUN_FINISHED` is rejected). The pi-internal `runId` is **not**
-  exposed as an action target, but **is** carried as `RUN_STARTED.runId` so the
-  frontend can bracket the run output; Main-run and Radio-run are independent
-  brackets (distinct `runId`).
+- **Response model differs from `WorkbenchActionEnvelope`** (transport C): the
+  POST response body **is** the Main run's AG-UI event stream —
+  `RUN_STARTED(threadId: workspaceId, runId: <pi-internal>)` … `transcript.*` /
+  `activity.*` … `RUN_FINISHED(success)` — consumed by `@ag-ui/client`'s
+  `HttpAgent` + `verifyEvents` (one-POST-one-run; §1.4 channel 1). `{actionId}`
+  is returned as the POST ack; there is no separate "fetch the run" step and no
+  runId to match — the response *is* this run. The pi-internal `runId` rides
+  `RUN_STARTED.runId` for bracketing/logging only; it is **not** an action
+  target (`main.abort` targets the workspace's active Main turn unconditionally,
+  §5.6).
+- **Run output vs state side-effects split across channels**: the run's
+  `transcript.*` + `activity.*` ride the POST response (this run, this tab);
+  the run's **state side-effects** (parked proposals, queue/radio commits) ride
+  the **workspace persistent stream** as `workspace.delta` (§1.4 channel 2) so
+  every tab sees them. The POST response carries no `workspace.delta`.
+- **Run termination — three outcomes on the POST response**: the run ends in
+  exactly one of (a) `RUN_FINISHED` with `outcome:"success"` (normal
+  completion); (b) `RUN_ERROR` with `code:"aborted"` (user `main.abort`, §5.6 —
+  the adapter first emits `TEXT_MESSAGE_END` for any in-flight assistant message
+  to close it cleanly, retaining the partial content already streamed, then
+  `RUN_ERROR`); (c) `RUN_ERROR` with another `code`/`message` (pi error,
+  unadapted boundary failure). AG-UI `RunFinishedOutcome` has only
+  `success`|`interrupt`; `interrupt` is the AG-UI HITL slot (whether Phase C
+  proposal resume reuses it is a PC8 decision, boundary-spec), and abort is not
+  it in any case — so abort rides `RUN_ERROR`, and the frontend distinguishes
+  "user cancelled" (`code:"aborted"`, no error UI, just stop the stream) from a
+  real failure (other `code`, surface the error). This is the adapter's 1:1
+  mapping of the session-layer `aborted` outcome
+  (`src/agent_runtime/actor_runtime_session.ts:45`); the `skipped` outcome
+  (cascade jump) is a separate termination, not grilled here.
+- **Broken-response recovery** (AG-UI standard `MESSAGES_SNAPSHOT` resync): the
+  POST response is a one-shot stream with no MineMusic transport sequence; a
+  drop mid-run is **not** recovered by continuing the live stream — it is
+  recovered by reconnecting and pulling a fresh transcript snapshot
+  (`MESSAGES_SNAPSHOT`, AG-UI's standard resync primitive) over the PB2
+  transcript store, served by a `GET /workspaces/:id/transcript` route (Server
+  Host, C3). The run's already-streamed partial assistant message and its final
+  message both live in the transcript; resync surfaces them, and the presence of
+  the final message is how the client knows the run ended — no separate
+  `workbench.run_ended` signal. This is the same full-resnapshot philosophy as
+  the workspace-stream gap recovery (§0), not a new mechanism, and not a
+  sequence gap-replay. The run's state side-effects (parked proposals,
+  queue/radio commits) never rode this channel — they rode the workspace
+  persistent stream and are unaffected by a chat-response drop.
 - **Why not `chat.send` under `WorkbenchActionEnvelope`**: chat's response
   contract (a continuous run-output stream) is fundamentally different from the
   adapter-receipt + `action.result` model. Folding chat in would make
@@ -1086,7 +1155,7 @@ ChatMessageEnvelope {
 | recommendationBatches | Music Experience | durable (new) | PC14 |
 | libraryCatalog | Music Data Platform | durable (new projection) | PC16 |
 | parkedProposalUnits | Effect Boundary | durable (new) | PC8 |
-| transcripts | Agent Runtime | durable (PB2) | PC9/PC13 (AG-UI surface + actor) |
+| transcripts | Agent Runtime | durable (PB2) | PC9/PC13 (AG-UI surface, per-run) |
 | activity | Agent Runtime | runtime emission (new) | PC13 |
 | selectedObject | Workbench Interface | interaction-state (new) | PC15 |
 | playbackControllerLease | Workbench Interface | in-memory (new) | PC3 + PC6; current-client view only |
