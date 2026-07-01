@@ -437,20 +437,41 @@ or running CopilotRuntime. The ~50% custom is everything MineMusic-semantic; the
 ~15% fight is the queue, where `useCoAgent` is the literal anti-pattern ADR-0036
 forbids.
 
-### Reused (the AG-UI protocol seam)
+### Reused (the AG-UI protocol seam) — two layers
 
-- **Server** — MineMusic's fastify (C3) imports `@ag-ui/encoder` `EventEncoder` to
-  emit `StateSnapshot`/`StateDelta` (RFC 6902) + AG-UI message/tool/step/interrupt
-  events. ~40 lines of handler; **zero CopilotKit code server-side.**
-- **Client read side** — `@ag-ui/client` `HttpAgent` pointed at the fastify
-  endpoint; subscribe to `onStateSnapshotEvent`/`onStateDeltaEvent`/
-  `onMessagesSnapshot`/`onToolCall*`. `agent.state`/`agent.messages` are read-only
-  (the ADR-0031 download-only consumer, off-the-shelf — not hand-rolled).
+The client consumes the AG-UI stream at **two different depths** (wire-contract
+§1.4 "Two-layer protocol fit"):
+
+- **Chat run (Main/Radio turn) — deep fit, via `HttpAgent`**: the run-scoped
+  stream (`transcript.*` Speak + `activity.*` work + tool/step events inside a
+  `RUN_STARTED`/`RUN_FINISHED` bracket) is consumed by `@ag-ui/client`'s
+  `HttpAgent` + `verifyEvents`, subscribing to `onTextMessage*` /
+  `onMessagesSnapshot` / `onActivitySnapshot` / `onToolCall*`. Main-run and
+  Radio-run are independent runs (distinct `runId`); their outputs are isolated
+  by run bracket (Radio activity → Radio panel, Main activity → Chat).
+  `agent.state`/`agent.messages` stay read-only.
+- **Workspace persistent stream — skin fit, self-built consumer**: state slices
+  (`workspace.*`, RFC 6902 patch) + `action.result` (CUSTOM) are consumed by a
+  self-built SSE consumer (`parseSSEStream` + a hand-written reducer +
+  `applyPatch`), **not** via `HttpAgent`/`verifyEvents` — `HttpAgent` is
+  one-POST-one-run and cannot consume a long-lived workspace stream. The
+  off-the-shelf part is `applyPatch` (fast-json-patch) + the AG-UI schema types;
+  the hand-written part is per-workspace sequence gap-detection
+  (`baseSequence` ≠ `lastAppliedSequence` → resync POST) and CUSTOM dispatch.
+- **Server** — MineMusic's fastify (C3) imports `@ag-ui/encoder` `EventEncoder`
+  to emit AG-UI events (`STATE_SNAPSHOT`/`STATE_DELTA`, `TEXT_MESSAGE_*`,
+  `ACTIVITY_*`, `CUSTOM` for `action.result`). The encoder does not rewrite
+  `event.type`; the server emits the literal AG-UI EventType. ~40 lines of
+  handler; **zero CopilotKit code server-side.**
 - **Cards** — `@copilotkit/a2ui-renderer` + `createCatalog` with BYOC React
   components for the fixed ADR-0034 catalog. A2UI is a declarative one-way push
   model independent of the rejected `useCoAgent` reducer.
-- **Proposal transport** — only the AG-UI `RunFinished.interrupt` outcome +
-  `resume[]` envelope are borrowed as the park/approve transport.
+- **Proposal transport** — `action.result` (including proposal outcomes) rides
+  the CUSTOM channel (§5.3); `RunFinished.interrupt` is **not** borrowed for
+  action results. Whether proposal park→confirm reuses the AG-UI HITL
+  (`RunFinished.interrupt` + `resume[]`) or also rides CUSTOM + an A2UI Confirm
+  card is a PC8 decision (§5.7); the Confirm card itself is an A2UI card from
+  the fixed catalog either way (PC1).
 
 ### Custom (everything MineMusic-semantic)
 
@@ -458,10 +479,13 @@ The sounding player + `PlaybackSourceResolver` + verified-actualState (C5); the
 `WorkbenchActionEnvelope` write path + per-concern OCC + optimistic rollback
 (C2); multi-tab equal-writer serialization + the CAS-guarded controller-lease
 singleton liveness (C3a); the ADR-0038 provenance-derived gate + basis-recheck /
-`voided_stale` (C4); the Main + Radio transcript merge; Chat (built on the AG-UI
-message events, not CopilotKit's `CopilotChat`, because `CopilotChat` requires
-the `<CopilotKit>` provider and is single-agent-per-call — incompatible with the
-no-runtime stance and the two-writer transcript).
+`voided_stale` (C4); the **workspace-persistent-stream self-built consumer**
+(per-workspace `baseSequence` gap-detection → resync POST, `applyPatch`
+catch-path resync trigger, CUSTOM `action.result` dispatch — §1.4); the Main +
+Radio transcript/activity routing (by run bracket, to Chat vs Radio panel); Chat
+(built on the AG-UI message events, not CopilotKit's `CopilotChat`, because
+`CopilotChat` requires the `<CopilotKit>` provider and is single-agent-per-call
+— incompatible with the no-runtime stance and the two-writer transcript).
 
 ### Fight (do not use CopilotKit here)
 
@@ -502,19 +526,24 @@ serializer.
 
 ### snapshot ↔ component binding (derived, mechanical)
 
+> This table is a WebUI consumption guide, not an ownership statement — every
+> slice is owned by its named area (see ARCHITECTURE.md), and a slice's wire
+> shape is fixed in `phase-C-web-wire-contract.md`. Component names are one
+> projection of the truth, not the truth.
+
 | Workspace Snapshot slice | PRD component it drives |
 | --- | --- |
 | `queue` (+ `queueRevision`) | Queue Card (compact tile + expanded cover grid) + Music Playback "Up Next" affordance — one truth, three projections |
 | `nowPlaying` + verified `actualState` | Music Playback → now-playing / scrubber / error state |
-| `radioTruth` (motif / variations / lean / direction summary) | Radio Card |
+| `radioTruth` (motif / variations / lean) | Radio Card |
 | `radioSession` lifecycle state | Radio Card controls (start/resume/pause/shutdown per state) |
 | `recommendationBatches` | Recommendations Card |
 | `libraryCatalog` projection | Library Card |
 | parked Proposal Units (C4) | Confirm Action Cards (auto-emitted, A2UI) |
 | Main + Radio transcripts (AG-UI messages) | Chat (custom, merged) |
-| AG-UI `TOOL_CALL_*`/`STEP_*` (Speech-Level-gated) | Agent work trace (optional, result-first) |
-| `selectedObject` handle | Selected-Object-in-Chat strip |
-| `playbackControllerLease` | per-tab controller/observer UI |
+| AG-UI `ACTIVITY_*` (messages family, `role:"activity"`) | Chat folded activity cards (Main-run) + Radio panel activity (Radio-run) |
+| `selectedObject` handle | WebUI selected-object affordance (any surface) |
+| `playbackControllerLease` | workspace presence + playback liveness |
 
 ### Layout (Workbench — grilled)
 

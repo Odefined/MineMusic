@@ -1,11 +1,13 @@
 # Phase C — Web Wire Contract (Frontend↔Backend Interface Specification)
 
 > Status: **Owning container; Parts 1–2 frozen** — Part 1: downstream event
-> envelope, snapshot slice layer (downstream SSE payload), shared types,
+> envelope (state slices + message/activity event streams), shared types,
 > UI-neutrality corrections, and the workspace-scoped library query endpoint.
 > Part 2: upstream envelope family, POST response + `action.result` channel,
-> `actionType` taxonomy. Parts 3–5 pending (audio GET, connection protocol,
-> shared enums/errors).
+> `actionType` registry (29 names), and per-action payload shapes (§5.6).
+> Envelope structure, result channel, actionType names, and all 29 payloads
+> are frozen. Parts 3–5 pending (audio GET, connection protocol, shared
+> enums/errors).
 > Authority: The owning container for the Phase C frontend↔backend wire
 > contract. Only completed parts marked frozen are implementation-ready contract
 > truth; pending parts are placeholders until their sections are completed.
@@ -23,8 +25,8 @@
 ## 0. General
 
 - **Transport scope of this document**: downstream SSE — the Workspace Snapshot
-  `StateSnapshot`/`StateDelta` payload. Upstream POST, audio GET, and the
-  connection protocol are Parts 2–4 (pending).
+  `StateSnapshot`/`StateDelta` payload. Upstream POST (Part 2) is frozen; audio
+  GET and the connection protocol are Parts 3–4 (pending).
 - **Encoding**: AG-UI `StateSnapshot`/`StateDelta` (RFC 6902 JSON Patch scoped
   to the changed area subtree) over a MineMusic-owned DTO (anti-corruption
   layer isolating the `@ag-ui/encoder` pin and the future A2UI v1.0 swap).
@@ -105,39 +107,83 @@ expiring URLs (broken images) or force MDP to store a stable picture identity
 it does not have today (a schema change). The slice fields are governed by
 owning-area truth and operation semantics, not by UI display needs.
 
-### 1.4 Downstream event envelope (Parts 1–2 frozen)
+### 1.4 Downstream event envelope (frozen: state + messages + action.result)
 
-The downstream SSE stream sends a Workbench-owned event envelope. The
-`workspace.snapshot` / `workspace.delta` family is Part 1; the `action.result`
-family is Part 2 (§5.3). Both are frozen in the union below.
+The downstream SSE stream sends a Workbench-owned event envelope over the AG-UI
+event primitives (ADR-0031). One per-workspace transport sequence covers all
+event types. MineMusic logical names map to AG-UI EventType literals at the
+serializer seam — the encoder does **not** rewrite `type`, so the server must
+emit the literal AG-UI EventType. Dispatch is two-layer (boundary-spec §reused):
+chat-run events via standard `@ag-ui/client` subscribers, the workspace
+persistent stream via a self-built consumer (see "Two-layer protocol fit" below).
 
 ```
 WorkbenchDownstreamEventEnvelope:
   eventId: string
   workspaceId: string
-  sequence: number                         // per-workspace transport sequence
+  sequence: number                         // per-workspace transport sequence; all families share it
   emittedAt: string
   event:
-    | { type: "workspace.snapshot", snapshot: WorkspaceSnapshot }                       // Part 1
-    | { type: "workspace.delta", baseSequence: number, patch: JsonPatchOperation[] }   // Part 1
-    | { type: "action.result", correlationId: string, outcome: "committed"|"rejected"|"voided_stale", reason?: string }  // Part 2 (§5.3)
+    | { type: "workspace.snapshot", snapshot: WorkspaceSnapshot }                       → STATE_SNAPSHOT
+    | { type: "workspace.delta", baseSequence: number, patch: JsonPatchOperation[] }   → STATE_DELTA
+    | { type: "transcript.message_start", messageId, role?, name?(actor) }             → TEXT_MESSAGE_START
+    | { type: "transcript.message_content", messageId, delta: string }                 → TEXT_MESSAGE_CONTENT
+    | { type: "transcript.message_end", messageId }                                    → TEXT_MESSAGE_END
+    | { type: "transcript.messages_snapshot", messages: TranscriptMessage[] }          → MESSAGES_SNAPSHOT (resync)
+    | { type: "activity.snapshot", messageId, activityType, content, replace? }        → ACTIVITY_SNAPSHOT
+    | { type: "activity.delta", messageId, activityType, patch }                      → ACTIVITY_DELTA
+    | { type: "action.result", correlationId, outcome, reason? }                      → CUSTOM (name:"workbench.action_result", §5.3)
 ```
 
-- **Sequence**: transport ordering/gap detection only. It is distinct from
-  `ConcernRevisionSet` and never participates in OCC.
-- **Gap recovery**: if a client detects a sequence gap, it requests or receives
-  a fresh `workspace.snapshot` with a new baseline; Part 1 does not add a delta
-  replay buffer.
-- **No business-event truth**: queue, radio, proposal, playback, and library
-  changes become new snapshot state plus RFC 6902 deltas. The frontend must not
-  reconstruct workspace truth by replaying domain-style events.
+- **Two event families** (ADR-0031): **state** (`workspace.*` — the §2 slice
+  union, RFC 6902 patch) and **messages** (`transcript.*` Speak lifecycle +
+  `activity.*` agent work). `activity.*` is **not** a separate family — AG-UI
+  activity is a `role:"activity"` message, so `activity.*` rides the messages
+  family alongside `transcript.*`. `transcripts` and activity are **not** state
+  slices; they ride their own AG-UI message event streams, not
+  `workspace.snapshot`.
+- **Two-layer protocol fit**: the **chat run** (Main/Radio turn) is consumed
+  via `@ag-ui/client` `HttpAgent` + `verifyEvents` (standard
+  `onTextMessage*`/`onMessagesSnapshot`/`onActivity*` subscribers, run-scoped,
+  one-POST-one-run); the **workspace persistent stream** (state +
+  `action.result`) is consumed by a self-built SSE consumer
+  (`parseSSEStream` + a hand-written reducer + `applyPatch`), **not** via
+  `verifyEvents`. Main-run and Radio-run are independent runs (distinct
+  `runId`); their messages/activities are isolated by run bracket — the
+  frontend routes Radio-run activity to the Radio panel, Main-run activity to
+  the Chat, by run (not by a wire-level channel split).
+- **Streaming**: `transcript.message_*` carries the assistant message lifecycle
+  (pi-agent-core `message_*` → AG-UI TEXT_MESSAGE_*); the frontend concatenates
+  `message_content.delta` by `messageId`. `message_start` carries only
+  `messageId`(+`role`+`name` for actor), `message_end` only `messageId` —
+  content arrives via `message_content`. `messages_snapshot` is the full resync
+  (reconnect/compact). `activity.snapshot` updates the `role:"activity"`
+  message for the current run (`replace` swaps content).
+- **Sequence**: transport ordering/gap detection only, shared across all
+  families. Assigned by a per-workspace emit serializer (process-local mutex,
+  single Server Host v1) — sequence-then-write is atomic, so concurrent slice
+  commits cannot tear the sequence. Distinct from `ConcernRevisionSet`, never OCC.
+- **Gap recovery** (client-pull, self-built): the workspace-stream consumer
+  tracks `lastAppliedSequence`; on a `workspace.delta` whose `baseSequence` ≠
+  `lastAppliedSequence`, or on an `applyPatch` failure (the client does not
+  throw — it silently `console.warn`s), the client POSTs a resync and receives
+  a fresh `workspace.snapshot` + `transcript.messages_snapshot` (activity rides
+  inside messages). `@ag-ui/client`'s `defaultApplyEvents` does **not** read
+  `baseSequence` — gap detection is MineMusic's, on the self-built consumer.
+- **No business-event truth for state**: queue/radio/proposal/playback/library
+  changes become state in `workspace.snapshot` + RFC 6902 deltas; the frontend
+  must not reconstruct workspace state by replaying events. (The message and
+  activity streams ARE event logs by nature — appended, not state-patched.)
 
 ## 2. Snapshot slice union (Part 1)
 
-Every slice below records fields, owning area, source (durable vs in-memory),
-Phase C increment, UI-neutrality, and code provenance. The slice union is the
-`StateSnapshot` payload; `StateDelta` carries RFC 6902 patches scoped to the
-changed slice subtree.
+The **state** slice union — 9 slices (§2.1–§2.7, §2.10–§2.11), the
+`workspace.snapshot` payload. §2.8 `transcripts` and §2.9 `activity` are
+listed under §2 for proximity but are **not state slices** — they ride AG-UI
+message event streams (`transcript.*` / `activity.*`, §1.4). Every slice below records
+fields, owning area, source (durable vs in-memory), Phase C increment,
+UI-neutrality, and code provenance. `StateDelta` carries RFC 6902 patches scoped
+to the changed slice subtree.
 
 ### 2.1 `queue`
 
@@ -316,7 +362,10 @@ libraryCatalog slice:
 - **Owner**: Music Data Platform.
 - **Source**: durable projection. `visibleScopes` reuses the existing
   `LibraryCatalogScopeAvailabilityPort.listCatalogScopes`
-  (`src/music_data_platform/stage_adapter/catalog.ts`) + membership counts.
+  (`src/music_data_platform/stage_adapter/catalog.ts`) for scope identity /
+  name / kind / detailText; `itemCount` is computed separately — the port does
+  not return membership counts today, so PC16 derives them via the
+  membership-signals path.
   `libraryStatus` fields are PC16 status/overview facts (`recentImports` reuses
   `recentlyAddedAt`; `savedFavoriteOverview` reuses relation scope).
 - **Phase C increment**: PC16 builds the projection (catalog exists today only
@@ -337,7 +386,6 @@ parkedProposalUnits slice:
   units: Array<{
     handle: [proposal:publicId]
     effectKind: "library.relation.save" | "library.collection.add" | ...   // = actionType; TYPED, never a localized string
-    effectCategory: "ownerCurationWrite"
     structuredFacts: discriminated-by-effectKind {              // deterministic projection of the frozen command
       // library.relation.save:   { verb: "save", target: WireMaterialProjection, ... }
       // library.collection.add:  { verb: "add", collection: scope PublicObjectRef, target: WireMaterialProjection, position?, ... }
@@ -367,71 +415,91 @@ parkedProposalUnits slice:
   renders Confirm cards from this slice; new park / state changes flow as
   `StateDelta`. No transport-level "card channel."
 - **UI-neutrality**: a typed pending-decision state; surface-neutral.
-- **Provenance**: ADR-0034/ADR-0038.
+- **Provenance**: ADR-0034 (card = fixed-now agent-generated, MineMusic-owned DTO
+  shape — why the slice, not an A2UI live surface) / ADR-0038 (effect boundary
+  ask policy, impact class, `ownerCurationWrite` marker). The
+  "`structuredFacts` = deterministic projection, never hand-authored" rule is a
+  PC1 spec decision consistent with ADR-0034's DTO ownership, not a decision
+  ADR-0034 itself establishes.
 
-### 2.8 `transcripts`
+### 2.8 `transcripts` — AG-UI message event stream (not a state slice)
+
+Carried by `transcript.*` events (§1.4: TEXT_MESSAGE_START/CONTENT/END +
+MESSAGES_SNAPSHOT), **not** by `workspace.snapshot`. The assistant Speak
+lifecycle streams live (pi-agent-core `message_*` → AG-UI TEXT_MESSAGE_*); a
+full `transcript.messages_snapshot` resyncs on reconnect/compact.
 
 ```
-transcripts slice:
-  messages: Array<{
-    id: string                                                  // AG-UI message id
-    role: "user" | "assistant"                                  // AG-UI standard
-    actor?: "main_agent" | "radio_agent"                        // MineMusic extension: which agent wrote it (assistant only)
-    content: string
-    timestamp: string
-  }>
+TranscriptMessage = {
+  messageId: string                                          // AG-UI id; threads start/content/end
+  role: "user" | "assistant"                                 // AG-UI standard
+  actor?: "main_agent" | "radio_agent"                       // MineMusic extension (assistant only)
+  content: string
+  timestamp: string
+}
 ```
 
 - **Owner**: Agent Runtime.
-- **Source**: durable (PB2 PG transcript store).
-- **Phase C increment**: surface as AG-UI messages; add `actor`.
-- **`Speak` level only (PC13 gate)**: user messages plus agent `Speak`-level
-  messages enter `transcripts`. Agent `Silent`/`Notify` activity does not — it
-  flows to `workTrace` and UI-state surfaces. The SpeechLevel value set is
-  settled in PC13; the filter rule is frozen here.
+- **Source**: durable (PB2 PG transcript store) + streamed live (pi `message_*`).
+- **`Speak` level only (PC13 gate)**: user messages + agent `Speak`-level
+  messages enter `transcripts`; agent `Notify`-level activity flows to
+  `activity.*` (§2.9); `Silent`-level is dropped before emit. SpeechLevel value
+  set settled in PC13; filter rule frozen.
+- **`actor` is the only MineMusic extension**: AG-UI messages have no actor;
+  MineMusic adds it to tell main vs radio agent apart (both `role: "assistant"`).
+  **On the wire**, `actor` is carried via the AG-UI `name` field — both
+  `TextMessageStartEvent` and `AssistantMessage` keep `name` under the
+  `MESSAGES_SNAPSHOT` strip mode (a plain `actor` field would be stripped on
+  resync). `TranscriptMessage.actor` above is the logical type, projected to
+  `name` at the serializer seam.
 - **No association metadata**: messages stay AG-UI-standard. "Agent recommended
   these → Recommendations Card updated" is aligned by time + content, not by
-  embedding a batch/proposal handle in the message.
-- **Slice name is `transcripts`, not "Chat"** (§3.5). The two-writer merge
-  semantic is kept; the "Chat" component framing is a WebUI consumption note.
+  embedding a batch/proposal handle.
+- **Name is `transcripts`, not "Chat"** (§3.5). Two-writer merge kept; "Chat"
+  is a WebUI consumption note.
 - **UI-neutrality**: agent-owned messages; a voice surface speaks them, a log
   viewer dumps them.
 
-### 2.9 `workTrace`
+### 2.9 `activity` — AG-UI activity message (role:"activity", in the messages family)
+
+Agent work activity rides `activity.*` events (§1.4: ACTIVITY_SNAPSHOT /
+ACTIVITY_DELTA), which are AG-UI messages with `role:"activity"` — **not** a
+separate slice, **not** a separate stream family. Activity and transcripts
+(§2.8) together form the messages family. There is no `workTrace` slice and no
+MineMusic-specific activity-log type: AG-UI activity messages are the activity
+truth, resynced by `MESSAGES_SNAPSHOT` (which carries `role:"activity"` messages
+alongside text messages).
 
 ```
-workTrace slice:
-  events: Array<{
-    id: string
-    kind: "tool_call_start" | "tool_call_end" | "step_start" | "step_end" | ...   // AG-UI standard
-    actor: "main_agent" | "radio_agent"
-    statusKind: "searching_library" | "building_radio_batch" | "checking_playable_options" | "analyzing_selection" | ...
-    speechLevel: "Silent" | "Notify"
-    timestamp: string
-  }>
+ACTIVITY_SNAPSHOT fields (AG-UI standard; no MineMusic extension type):
+  messageId: string                 // = MineMusic activityId; the activity's own message id
+  activityType: string              // = MineMusic statusKind (typed enum, value set PC13)
+  content: Record<string, any>      // activity payload (e.g. lookup text, batch size)
+  replace?: boolean                 // default true — swap content vs accumulate
+ACTIVITY_DELTA: messageId + activityType + patch (RFC 6902 on the activity message)
 ```
 
 - **Owner**: Agent Runtime.
-- **Source**: runtime emission from the dispatch/agent loop (greenfield — Phase
-  B left only a stub: `speech_level.ts` is one hard-coded helper,
-  `main_radio_channel` is fire-and-forget with no consumer, and zero AG-UI
-  ToolCall/Step emission exists; PC13 builds it).
-- **Phase C increment**: entire slice is new (PC13), including the
-  producer→surfacer chain (Radio produces work events + severity; Main
-  consumes the channel and owns interrupt-now; high-impact raise has a Notify
-  floor Main cannot suppress).
-- **`Silent`/`Notify` only** (the complement of `transcripts`): agent `Speak`
-  goes to `transcripts`. PRD "Chat should not become a full tool log" — tool
-  calls do not enter transcripts. The SpeechLevel value set is PC13 plan-level;
-  the split rule is frozen here.
-- **`statusKind` is typed, not localized, and never a raw tool name**: PRD
-  places raw tool names in debug/developer views, not the default experience.
-  The frontend i18n-maps `statusKind` to "搜索资料库" etc. Raw tool names ride
-  a developer/debug endpoint, not this slice.
-- **Semantics**: active + recent work events (sliding window, not unbounded
-  history); exact window size is PC13 plan-level.
-- **UI-neutrality**: an optional agent-facing layer governed by Speech-Level
-  policy; any surface consumes the same trace.
+- **Main vs Radio — isolated by run, not by channel**: Main-run and Radio-run
+  are independent runs (distinct `runId`, §1.4 "Two-layer protocol fit"). Both
+  emit `ACTIVITY_*` for their own run; the frontend routes Main-run activity to
+  the Chat (folded, expandable cards) and Radio-run activity to the Radio panel
+  by run bracket. Radio activity does **not** enter the Main chat — independent
+  runs never share a messages array.
+- **`statusKind` (→ `activityType`) is typed, never a raw tool name**:
+  pi-agent-core `tool_execution_*` is translated to `statusKind` at the adapter;
+  raw tool names ride a debug/developer endpoint (PRD), not this message. The
+  frontend i18n-maps `statusKind` to "搜索资料库" etc. PC13 settles the value set.
+- **Speech-Level filter is backend-internal, not on the wire**: `Silent`-level
+  activity is dropped by the backend before emit; only `Notify`-level activity
+  becomes an `ACTIVITY_*` message. There is no `speechLevel` field on the wire
+  (same rule as the §5.5 Signal Class exclusion — backend filtering policy is
+  not user-visible music-experience info).
+- **PRD "Chat should not become a full tool log"**: this holds because what
+  enters the chat is the **abstract `statusKind` card** (folded, expandable),
+  not a raw tool-call log. Raw tool names stay off the wire.
+- **UI-neutrality**: Main chat shows folded activity cards; a Radio panel shows
+  Radio-run activity; both consume the same `ACTIVITY_*` message type.
 
 ### 2.10 `selectedObject`
 
@@ -511,7 +579,8 @@ slice shapes above. Recorded here so a future reader does not reintroduce them.
   (`MusicExperienceRadioTruthSnapshot`) already lacks it. The NL summary is a
   derivable rendering — it is either an agent `Speak` emission (Radio agent
   states its understanding under Speech Level Notify/Speak, flowing into
-  `transcripts`) or a WebUI client-side render from `motif + lean`. It is not a
+  `transcripts`) or a WebUI client-side render from `motif + activeVariations`
+  (the commanded direction; `lean` is evolved posture, §2.3). It is not a
   backend slice field.
 - **3.2 `selectedObject` split.** Keep `currentFocusHandle` backend (agent
   context). Strip strip-state + the "Selected-Object-in-Chat strip" binding to
@@ -528,7 +597,7 @@ slice shapes above. Recorded here so a future reader does not reintroduce them.
   channel is a WebUI-sink concept, not a transport primitive. (If a dedicated
   event stream is ever introduced, name it by source — "proposal channel" /
   "confirmation-request channel" — not by the WebUI sink.)
-- **3.5 `transcripts` renamed from "Chat".** The slice is the agent-owned
+- **3.5 `transcripts` renamed from "Chat".** The stream is the agent-owned
   message transcript; the "Chat (custom, merged)" framing is a WebUI
   consumption note. The two-writer merge semantic is kept.
 - **3.6 `libraryCatalog` "selectable" wording removed.** Materials ride the
@@ -580,18 +649,22 @@ GET /workspaces/:workspaceId/library/query
 - **Extensibility**: `query`/`filter` are reserved optional fields; adding them
   is additive. Output uses full `WireMaterialProjection`, natively supporting
   future full-preview and management views.
-- **Operations ride the envelope action map (Part 2)**: Phase C exposes
-  `library.import.cancel` only. Future library management
-  (`library.material.edit`/`delete`, `library.collection.create`/`add`/
-  `remove`/`reorder`, `library.scope.organize`, `library.merge`/`dedupe`) is
-  additive map entries, not a contract change.
+- **Operations ride the envelope action map (Part 2)**: Phase C Web actions on
+  library content are `library.relation.*`, `library.collection.add`, and
+  `library.import.start` (see §5.6 registry). `library.import.cancel` is **not**
+  Phase C — the live import surface has only `start`/`status`/`list_sources` and
+  no cancel owner command; it is deferred to PC16 (§5.6 follow-up). Future
+  library management (`library.material.edit`/`delete`,
+  `library.collection.create`/`remove`/`move`/`delete`/`rename`,
+  `library.scope.organize`, `library.merge`/`dedupe`) is additive map entries,
+  not a contract change.
 - **`scope.kind` open enum**: the four kinds in §2.6 can grow
   (`playlist`/`smart_collection`/`folder`/`tag_group`) without breaking.
 - **Management attributes**: import source / quality / dupe state / tags do not
   enter `WireMaterialProjection`; they ride a future management-detail
   projection so the common projection stays clean.
 
-## 5. Upstream Envelope (Part 2 frozen)
+## 5. Upstream Envelope (Part 2 — frozen: envelope + result channel + actionType registry + all 29 payloads, §5.6)
 
 The upstream POST family. Two envelope types carry user-initiated semantics;
 the lease heartbeat is connection-layer (Part 4), not an envelope here.
@@ -638,11 +711,17 @@ WorkbenchActionEnvelope {
   retry sends the same `actionId`; the backend returns the existing `ack`
   without re-routing. Mandatory for non-idempotent actions
   (`playback.queue.append`); `playback.queue.move` happens to be idempotent but
-  must not rely on coincidence.
-- **`basis` only for concern-revisioned targets** (C2): `queue` / `playback` /
+  must not rely on coincidence. Long-running actions (`library.import.start`)
+  cannot rely on the short-term `actionId` dedup alone — their owning command
+  (`LibraryImportStartCommand`) is itself idempotent beyond the TTL by reusing
+  an already-running batch (`findRunningBatch`), so a post-TTL retry resumes the
+  same batch instead of starting a duplicate.
+- **`basis` only for concern-revisioned targets** (C2): `queue` /
   `radio-direction` / `radio-session`. The client carries the area revision it
   last observed; the owning command accepts or rejects on stale basis.
-  Relation / Collection / import / selection / abort / proposal carry none.
+  `playback.play`, Relation, Collection, import, selection, abort, and proposal
+  carry none — `playback.play` is a now-playing intent (last-writer-wins), not
+  an OCC-guarded write.
 - **Adapter-injected, never client-written**: `caller` / `ownerScope` (auth),
   `clientId` (lease association), `actor` (a Web envelope is always `"user"` — a
   constant, not a field), `issuedFromUserActionId` (run-level provenance; only
@@ -667,22 +746,37 @@ receives a correlated result.
   receipt only** — it never means the command succeeded. The command business
   outcome rides the downstream `action.result` (`outcome.committed`).
 - `ack.rejected` reasons (`unknown_action_type` / `unresolvable_handle` /
-  `missing_basis` / `malformed`) are Part 5 shared-enum detail.
+  `missing_basis` / `malformed`) are Part 5 shared-enum detail. Basis rejection
+  splits across the two channels by a crisp boundary: `missing_basis` is
+  adapter-stage (the envelope lacks a required `basis` field entirely — a
+  structural validation failure); a present-but-stale `basis` is command-stage
+  and surfaces only as `action.result(outcome: rejected, reason: basis_stale)`
+  — never as `ack.rejected`.
 
 **Downstream `action.result` event** (command-stage outcome, async; the client
 correlates by `correlationId`):
 
 ```
-{ type: "action.result", correlationId, outcome: "committed" | "rejected" | "voided_stale", reason?: "basis_stale" | ... }
+{ type: "action.result", correlationId, outcome: "committed" | "rejected" | "voided_stale", reason?: "basis_stale" | <Part 5 detail> }
 ```
 
 - `correlationId` = the envelope's `actionId` (§5.2). ADR-0036 names the result
   field `correlationId`; the envelope field stays `actionId` (its
   idempotency-key semantic is stronger).
-- In the `WorkbenchDownstreamEventEnvelope.event` union (§1.4, third variant).
-  Aligns with ADR-0036 `WorkbenchActionResult(correlationId, outcome:
+- **AG-UI mapping**: `action.result` is the last variant in the §1.4 envelope
+  union and maps to an AG-UI **CUSTOM** event (`name: "workbench.action_result"`,
+  `value: {correlationId, outcome, reason}`) at the serializer seam — **not**
+  `RunFinished.interrupt`. `RunFinished` is the chat-run terminal
+  (`RunFinishedOutcome` is `success | interrupt`, requires `threadId`+`runId`,
+  and `verifyEvents` rejects any event after it); per-action outcomes
+  (`committed`/`rejected`/`voided_stale`) have no place in that union and would
+  terminate the SSE run on every action. CUSTOM is AG-UI's pass-through slot
+  for domain events — `onCustomEvent` does not touch the run state machine.
+- Aligns with ADR-0036 `WorkbenchActionResult(correlationId, outcome:
   committed | rejected, reason)`; `voided_stale` is a Phase C extension for
-  proposal-resume (§5.7), not an ADR violation.
+  proposal-resume (§5.7) — ADR-0036 currently pins `outcome` to
+  `committed | rejected` (closed), so adopting `voided_stale` requires amending
+  ADR-0036 to add the value (tracked as a Phase C follow-up).
 - **Every actionType emits `action.result`, including instant actions.** An
   instant action's command runs synchronously, so its `action.result` follows
   the POST immediately (no async gap) — but the model is uniform: `ack` is
@@ -712,7 +806,10 @@ lets authoritative `StateDelta` overwrite. Area revision is OCC-driven, not
 action-scoped; under multi-tab interleaving a "pointer" would not be unique
 anyway. On `outcome: rejected`(basis_stale) the frontend's local state is stale;
 it triggers a full resnapshot (§0 gap recovery) to fetch the current revision
-before retrying.
+before retrying. This resnapshot-then-retry is bounded: under multi-tab
+equal-writer contention a client must back off after a small fixed number of
+consecutive `basis_stale` rejections (exact bound/backoff is PC plan-level),
+not retry in a tight loop.
 
 ### 5.5 `actionType` — flat verb, open enum, backend-internal Signal Class
 
@@ -727,7 +824,7 @@ before retrying.
   the agent or by a Web button, so the frontend and the tool registry share one
   set. Aligned to live descriptor names: `radio.session.*` / `radio.motif.*` /
   `radio.variations.*` (plural, per descriptor) / `playback.queue.*` /
-  `music.experience.playback.play` / `library.relation.*` /
+  `playback.play` / `library.relation.*` /
   `library.collection.*` / `library.import.*`. Web-only actions with no Stage
   tool yet (greenfield PC8/PC15) use the same area-then-entity convention:
   `selection.set` / `main.abort` / `proposal.confirm`/`.reject`. Adding the
@@ -744,19 +841,19 @@ before retrying.
 
 ### 5.6 actionType registry (Phase C: 29)
 
-| area | actionType | landed | basis | result channel |
-|---|---|---|---|---|
-| radio.session | `.start`/`.pause`/`.resume`/`.shutdown` | yes (`transitionRadioSession`) | radioSession | `action.result` |
-| radio.motif | `.set`/`.clear` | yes | radioDirection | `action.result` |
-| radio.variations | `.add`/`.remove`/`.replace`/`.move`/`.clear` | yes | radioDirection | `action.result` |
-| playback.queue | `.append`/`.remove`/`.replace`/`.move`/`.clear` | yes (`MusicExperienceQueuePlaybackCommand`) | queue | `action.result` |
-| music.experience.playback | `.play` | yes (`MusicExperiencePlaybackPlayCommand`) | playback | `action.result` |
-| library.relation | `.save`/`.unsave`/`.favorite`/`.unfavorite`/`.block`/`.unblock` | yes | — | `action.result` |
-| library.collection | `.add` | yes (`AddCollectionItem`) | — | `action.result` |
-| library.import | `.start` | yes (`LibraryImportStartCommand`) | — | `action.result`; committed on batch+first-job submitted (progress via `libraryCatalog.libraryStatus.importStatus` slice) |
-| selection | `.set` | PC15 | — | instant |
-| main | `.abort` | yes (`AgentRuntimeUserTurnController.abort`) | — | instant |
-| proposal | `.confirm`/`.reject` | PC8 (Effect Boundary resume) | — (basis is on the frozen parked unit) | `action.result`(committed on success / voided_stale on confirm-resume) |
+| actionType | landed | basis | result |
+|---|---|---|---|
+| `radio.session.start`/`.pause`/`.resume`/`.shutdown` | yes (`transitionRadioSession`) | radioSession | `action.result` |
+| `radio.motif.set`/`.clear` | yes | radioDirection | `action.result` |
+| `radio.variations.add`/`.remove`/`.replace`/`.move`/`.clear` | yes | radioDirection | `action.result` |
+| `playback.queue.append`/`.remove`/`.replace`/`.move`/`.clear` | yes (`MusicExperienceQueuePlaybackCommand`) | queue | `action.result` |
+| `playback.play` | yes (`MusicExperienceQueuePlaybackCommand.playNow`) | — | `action.result` |
+| `library.relation.save`/`.unsave`/`.favorite`/`.unfavorite`/`.block`/`.unblock` | yes | — | `action.result` |
+| `library.collection.add` | yes (`CollectionCommands.addCollectionItem`) | — | `action.result` |
+| `library.import.start` | yes (`LibraryImportStartCommand`) | — | `action.result`; committed on batch+first-job submitted (progress via `libraryCatalog.libraryStatus.importStatus` slice) |
+| `selection.set` | PC15 | — | `action.result` (instant — command synchronous) |
+| `main.abort` | yes (`AgentRuntimeUserTurnController.abort`) | — | `action.result` (instant — command synchronous) |
+| `proposal.confirm`/`.reject` | PC8 (Effect Boundary resume) | — (basis is on the frozen parked unit) | `action.result` (instant; committed on success / voided_stale on confirm-resume) |
 
 - **`radio.lean.*` is excluded from the registry** — it is not a user action.
   The live descriptor (`src/music_experience/stage_adapter/radio_truth.ts:290`)
@@ -767,7 +864,7 @@ before retrying.
   (§2.3) but is not writable from a `WorkbenchActionEnvelope`. Frontend changes
   to user intent go through `radio.motif.*` / `radio.variations.*` (commanded
   direction).
-- **`music.experience.playback.play` is the only playback actionType.** play/pause/skip are
+- **`playback.play` is the only playback actionType.** play/pause/skip are
   player-local controls; verified actual state flows back via the lease
   heartbeat `actualState` (C5 / Part 4), not an upstream action.
 - **`main.abort` carries no payload** — the live controller `abort()` is
@@ -780,10 +877,12 @@ before retrying.
   `LibraryImportStartCommand`): determinate parameterized operations with long
   progress benefit from a Web entry (tap-through beats typing; progress
   visible). Effect gate does not apply to the Web path (actor = user,
-  ADR-0038 constrains the agent only). `library.import.continue`/`.status`/
-  `.list_sources` remain agent-only (continue auto-runs as background chained
-  job, ADR-0029; status rides the slice; list_sources rides libraryCatalog slice
-  / query endpoint).
+  ADR-0038 constrains the agent only). The remaining import tools
+  (`library.import.status`, `library.import.list_sources`) are agent-only and
+  not on the Web action map: status rides the `libraryCatalog.libraryStatus`
+  slice; list_sources rides the libraryCatalog slice / query endpoint. There is
+  no `library.import.continue` — chained self-driving background jobs replaced
+  caller-driven advancement (ADR-0029), leaving a `start`/`status` surface.
 - **Instant actions** (`selection.set`, `main.abort`, `proposal.reject`) execute their
   command synchronously, so their `action.result` follows the POST immediately
   (no async gap). The model is still uniform (§5.3): `ack` = adapter receipt,
@@ -793,10 +892,93 @@ Follow-up actionType (additive, not Phase C): `library.import.cancel` (PC16 must
 define owner command + payload + result semantics — live import has only
 `start`/`status`/`list_sources`, no cancel); `recommendation.batch.dismiss`/
 `.clear` (PC14 must define dismiss-vs-clear semantics, payload, and whether
-`clear` is user-initiated or system cleanup); `library.collection.remove`/
-`.reorder`/`.create`; `library.material.edit`/`.delete`, `library.scope.organize`,
+`clear` is user-initiated or system cleanup); `library.collection.create`/
+`.remove`/`.move`/`.delete`/`.rename` (live descriptors, not yet Web actions);
+`library.material.edit`/`.delete`, `library.scope.organize`,
 `library.merge`/`.dedupe`; server-side `playback.play`/`.pause`/`.skip` if ever
 introduced.
+
+#### Payload shapes (frozen incrementally per group)
+
+Per-`actionType` payloads are grilled/frozen group by group. Field names align
+1:1 with the live agent tool `inputSchema` — same name whether the operation is
+invoked by the agent or a Web button. Position fields come in exactly three
+semantics, shared across the queue and radio groups: `index` locates an
+existing item (remove/replace); `at` is the insert position for new items
+(append, variations.add); `from`/`to` is a move source/target (move). All
+`index`/`at`/`from`/`to` values are the dense `position` of the owning slice
+(§2.1 queue; §2.3 radio direction variations). Material refs in a payload are
+always `PublicObjectRef` handles (§1.2) — the slice's `WireMaterialProjection`
+is the down-stream projection, never the up-stream reference. `basis` rides
+the envelope top-level (§5.2), never the payload.
+
+**Queue group — frozen:**
+
+```
+playback.queue.append    { items: PublicObjectRef[], at?: number }
+                         // at omit = append to end; present = insert at <at>
+                         // (items at/after <at> shift down; same <at> axis as variations.add)
+playback.queue.remove    { index: number }
+playback.queue.replace   { index: number, item: PublicObjectRef }
+playback.queue.move      { from: number, to: number }
+playback.queue.clear     {}
+playback.play            { item: PublicObjectRef }        // no basis — intent, not OCC
+```
+
+**Radio group — frozen:**
+
+```
+radio.session.start/.pause/.resume/.shutdown   {}            // lifecycle transition, no params
+radio.motif.set     { value: RadioDirectionValue }
+radio.motif.clear   {}
+radio.variations.add      { value: RadioDirectionValue, at?: number }
+radio.variations.remove   { index: number }
+radio.variations.replace  { index: number, value: RadioDirectionValue }
+radio.variations.move     { from: number, to: number }
+radio.variations.clear    {}
+```
+
+`value` = §2.3 `RadioDirectionValue`: `{kind:"text", text}` |
+`{kind:"material", item: PublicObjectRef}` | `{kind:"scope", scope}`. The
+`item` field name follows the live agent `inputSchema`; the down-stream slice
+(§2.3) spells the same material kind as `material: WireMaterialProjection` —
+handle up, projection down.
+
+**Library group — frozen:**
+
+```
+library.relation.save/.unsave/.favorite/.unfavorite/.block/.unblock   { item: PublicObjectRef }
+library.collection.add    { collection: PublicObjectRef, item: PublicObjectRef }
+```
+
+The six `library.relation.*` verbs share one payload (the agent uses one shared
+`inputSchema`); only the `actionType` differs. `collection` is a scope-kind
+`PublicObjectRef` (§2.6 `visibleScopes` handle); `item` is material-kind. No
+position field on `collection.add` — it appends (the live `inputSchema` defines
+none; positioned insert is a follow-up, not invented here). `collection.move`
+(follow-up, not Phase C) uses 1-based `toPosition`, distinct from the
+queue/radio dense `at`/`index` axis — frozen when it lands.
+
+**Import group — frozen:**
+
+```
+library.import.start    { providerId: string, libraryKind: enum, limit?: number }
+                        // libraryKind = saved_source_track | saved_source_album | followed_source_artist
+                        // limit 1-100 (adapter maps to the command's maxNewItems)
+                        // providerId is sourced from the libraryCatalog slice (§5.6 dual-path note)
+```
+
+**Selection group — frozen (greenfield — no live `inputSchema`, shaped here):**
+
+```
+selection.set    { focus: PublicObjectRef | null }    // handle = set focus; null = clear (back to general chat, §2.10)
+```
+
+`playback.queue.append.at?` is the one Phase C addition over the live agent
+append `inputSchema` (which today appends to end only); the agent descriptor
+gains the same optional `at` for dual-path parity with `variations.add` (PC
+implementation). All 29 Phase C actionType payloads are now frozen; `main.abort`
+carries no payload (§5.6) and `proposal.confirm`/`.reject` is shaped in §5.7.
 
 ### 5.7 `proposal.confirm`/`.reject` (Effect Boundary resume)
 
@@ -841,11 +1023,18 @@ ChatMessageEnvelope {
   input (provenance spine). This is the **only** Phase C Main-run trigger.
 - **Response model differs from `WorkbenchActionEnvelope`**: POST returns
   `{actionId}` (run started, not completed — the pi-internal run id is not
-  exposed on `AgentRuntimeUserTurnResult`). The run's output is not a single
-  `action.result`; it flows as slice deltas across `transcripts` / `workTrace` /
-  `parkedProposalUnits`. Chat has **no `action.result` event and no `runId`** —
-  the client correlates run output by the per-workspace transport sequence and
-  slice content, not by a run id.
+  exposed on `AgentRuntimeUserTurnResult` as an action target). The run's output
+  is not a single `action.result`; it flows as `transcript.*` (transcripts) +
+  `activity.*` (agent activity, §2.9) + `workspace.delta` (parkedProposalUnits
+  slice). The chat run rides the workspace SSE stream as a
+  `RUN_STARTED(threadId: workspaceId, runId: <pi-internal>)` ...
+  `RUN_FINISHED(success)` bracket — `transcript.*` and `activity.*` events for
+  that run are nested inside the bracket (required by the chat-run
+  `verifyEvents` state machine: the first event must be `RUN_STARTED`, and any
+  event after `RUN_FINISHED` is rejected). The pi-internal `runId` is **not**
+  exposed as an action target, but **is** carried as `RUN_STARTED.runId` so the
+  frontend can bracket the run output; Main-run and Radio-run are independent
+  brackets (distinct `runId`).
 - **Why not `chat.send` under `WorkbenchActionEnvelope`**: chat's response
   contract (a continuous run-output stream) is fundamentally different from the
   adapter-receipt + `action.result` model. Folding chat in would make
@@ -866,7 +1055,7 @@ ChatMessageEnvelope {
   Signal Class, action verb, card/`effectKind`, `statusKind`; the typed
   `WorkbenchActionResult`; reject/`voided_stale`/gap outcomes.
 
-## 7. Phase C implementation provenance (slice → PC)
+## 7. Phase C implementation provenance (slice / event-stream → PC)
 
 | slice | owner | source | builds in |
 |---|---|---|---|
@@ -878,11 +1067,14 @@ ChatMessageEnvelope {
 | libraryCatalog | Music Data Platform | durable (new projection) | PC16 |
 | parkedProposalUnits | Effect Boundary | durable (new) | PC8 |
 | transcripts | Agent Runtime | durable (PB2) | PC9/PC13 (AG-UI surface + actor) |
-| workTrace | Agent Runtime | runtime emission (new) | PC13 |
+| activity | Agent Runtime | runtime emission (new) | PC13 |
 | selectedObject | Workbench Interface | interaction-state (new) | PC15 |
 | playbackControllerLease | Workbench Interface | in-memory (new) | PC3 + PC6; current-client view only |
 
 Shared types build in PC0 (`WireMaterialProjection`, `PublicObjectRef` resolve
 signature, two-envelope wire family — `WorkbenchActionEnvelope` +
-`ChatMessageEnvelope`). Downstream snapshot/delta envelope is Part 1. Slice-origin
-+ StateDelta-path guards build in PC4.
+`ChatMessageEnvelope`). Downstream snapshot/delta envelope is Part 1.
+`transcripts`/`activity` are AG-UI message event streams (§1.4), not state
+slices — their PC build (PC9/PC13) emits `transcript.*`/`activity.*` events
+(`ACTIVITY_*` are `role:"activity"` messages), not slice projections.
+Slice-origin + StateDelta-path guards build in PC4.
