@@ -504,7 +504,7 @@ serializer.
 
 | Workspace Snapshot slice | PRD component it drives |
 | --- | --- |
-| `queue` (+ `queueRevision`) | Music Playback → queue panel |
+| `queue` (+ `queueRevision`) | Queue Card (compact tile + expanded cover grid) + Music Playback "Up Next" affordance — one truth, three projections |
 | `nowPlaying` + verified `actualState` | Music Playback → now-playing / scrubber / error state |
 | `radioTruth` (motif / variations / lean / direction summary) | Radio Card |
 | `radioSession` lifecycle state | Radio Card controls (start/resume/pause/shutdown per state) |
@@ -516,14 +516,32 @@ serializer.
 | `selectedObject` handle | Selected-Object-in-Chat strip |
 | `playbackControllerLease` | per-tab controller/observer UI |
 
-### Layout (deliberately not fixed here)
+### Layout (Workbench — grilled)
 
-Per the PRD, "visual layout is adjustable and should not block product
-requirements." Panel arrangement, sizing, and the expanded-card region shape are
-implementation-level. The fixed constraints are the PRD's own: Chat and Music
-Playback are always-present cores; Functional Cards are compact on the surface
-with at most one expanded at a time (preserving Chat + Playback); Action Cards
-appear in Chat or in the originating Functional Card.
+Spatial organization is fixed at the spec level; finer details (sizing, exact
+proportions, mobile-responsive breakpoints) remain implementation-level per the
+PRD's "visual layout is adjustable" stance.
+
+- **Workbench layout** — Chat (left, wide, always-present) + Functional Cards
+  rail (right: compact cards + one expanded into the remaining workspace,
+  preserving Chat + Playback) + Music Playback bar (bottom, always-present:
+  now-playing, controls, minimal "Up Next" affordance). Chat and Music Playback
+  are the co-equal always-present cores; neither is primary (PRD: "Chat must not
+  become the only main experience, and Radio must not become an isolated mode").
+- **Queue is a Functional Card, not a player-internal panel.** Queue is the 4th
+  Functional Card (alongside Radio / Recommendations / Library): compact on the
+  surface (next-cover thumbnail + count + state + "open"), expanding into a full
+  cover-art grid with object actions (play / remove / reorder / send-to-Radio-
+  motif). The Music Playback bar keeps a minimal queue affordance ("Up Next: N" /
+  next cover, clickable → expands the Queue Card) so the PRD's "queue is part of
+  Music Playback" still holds. Compact card, player affordance, and expanded grid
+  all project the same queue truth (download-only); writes flow through the
+  Workbench Action Adapter (C2) with per-concern OCC — unchanged by the card
+  being a card (it is a view, not a writer).
+- **One Functional Card expanded at a time** (PRD rule) — expanding Queue compacts
+  Radio / Recommendations / Library.
+- **Action Cards** (Confirm / Choose / Apply To / Open) appear in Chat or in the
+  originating Functional Card.
 
 ## Handle Reuse (Web vs Agent)
 
