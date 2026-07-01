@@ -342,8 +342,8 @@ structured facts present but collapsed by default.
   of the frozen command's typed fields — never hand-authored.
 - **Shape every Confirm card carries:** `action verb` + `target handle → public
   description` + `owner-curation effect` + optional `scope`/`position`.
-- **Examples:** `relation.save` → `{ action: "save", target: [material:abc] →
-  "歌曲 X / 艺人 Y", effect: "加入你的收藏库" }`; `collection.add` →
+- **Examples:** `library.relation.save` → `{ action: "save", target: [material:abc] →
+  "歌曲 X / 艺人 Y", effect: "加入你的收藏库" }`; `library.collection.add` →
   `{ action: "add", collection: [scope:…] → "我的歌单 Z", target: [material:abc]
   → "歌曲 X", position: 3, effect: "加入该歌单" }`.
 - Per-command-type field enumeration (relation 6 + collection 7) is plan-level,
