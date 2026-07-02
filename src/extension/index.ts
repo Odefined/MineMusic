@@ -43,10 +43,13 @@ export type {
   PluginActivationContext,
 } from "./plugin_runtime.js";
 export {
+  getSourceProviderPlayableLinks,
   sourceProviderSlot,
   validateSourceProviderRegistration,
 } from "./source_provider_slot.js";
 export type {
+  SourceProviderPlayableLinksInput,
+  SourceProviderPlayableLinksResult,
   SourceProviderSearchInput,
   SourceProviderSearchResult,
   SourceProviderRegistration,

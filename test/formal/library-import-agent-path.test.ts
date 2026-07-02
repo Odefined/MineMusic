@@ -301,6 +301,9 @@ function extensionRuntimeForPages(pages: readonly (readonly string[])[]): Extens
         async searchSourceProvider() {
             return error("extension.source_provider_not_found");
         },
+        async getSourceProviderPlayableLinks() {
+            return error("extension.source_provider_not_found");
+        },
         async getSourceProviderDownloadSource() {
             return error("extension.source_provider_not_found");
         },

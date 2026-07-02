@@ -117,12 +117,21 @@ export {
   createMaterialProjection,
   rankBoundSources,
 } from "./material_projection.js";
+export {
+  createPlaybackSourceResolver,
+} from "./playback_source_resolver.js";
 export type {
   CreateMaterialProjectionInput,
   MaterialProjection,
   ProjectMusicMaterialInput,
   ProjectMusicMaterialsInput,
 } from "./material_projection.js";
+export type {
+  CreatePlaybackSourceResolverInput,
+  PlaybackSourceResolution,
+  PlaybackSourceResolver,
+  ResolvePlaybackSourcesInput,
+} from "./playback_source_resolver.js";
 export type {
   BindMaterialToCanonicalInput,
   BindSourceToMaterialInput,

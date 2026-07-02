@@ -16,6 +16,7 @@ import type {
   LocalSourceScanInspectResult,
 } from "../music_data_platform/local_source_scan_filesystem_port.js";
 import type { LocalSourceScanRootDirResolver } from "./local_source_scan_config.js";
+import { resolveUnderRoot } from "./local_source_path_resolver.js";
 
 // Node + music-metadata adapter for the Phase 26 Local Source Scan filesystem
 // port (D28). Server Host owns root-id-to-absolute-path resolution and the
@@ -188,35 +189,6 @@ function entryStat(absoluteDir: string, name: string): { sizeBytes?: number; mod
     // available" for this entry, not a swallowed system failure for the list.
     return {};
   }
-}
-
-// Resolve a MineMusic-normalized root-relative path (forward slashes, no leading
-// slash, no ".."/".") under its absolute root. The normalizer guarantees no
-// root escape, so splitting on "/" and joining with the OS-aware path.join is
-// safe and cross-platform. The containment check below is defense-in-depth at
-// the fs boundary: if a future change ever routes an un-normalized path here
-// (e.g. "../etc/passwd"), path.resolve detects the lexical escape and throws
-// loudly instead of reading outside the root. (This is lexical — path.resolve
-// does not follow symlinks; symlink descent is blocked upstream at dirent
-// classification, so a symlink swap is not how a `..` would reach this point.)
-function resolveUnderRoot(rootDir: string, relativePath: string): string {
-  const resolved = relativePath.length === 0
-    ? rootDir
-    : path.join(rootDir, ...relativePath.split("/"));
-  const rootResolved = path.resolve(rootDir);
-  const targetResolved = path.resolve(resolved);
-  // Containment: the target must be the root itself or live under it. When the
-  // configured root IS the filesystem root (path.sep), every absolute path is
-  // genuinely under it, so the startsWith(rootResolved + sep) check — which
-  // would otherwise look for a "//" prefix and reject everything — is skipped.
-  if (
-    targetResolved !== rootResolved
-    && rootResolved !== path.sep
-    && !targetResolved.startsWith(rootResolved + path.sep)
-  ) {
-    throw new Error(`Scan path '${relativePath}' resolves outside root '${rootDir}'.`);
-  }
-  return resolved;
 }
 
 // Drain one Web ReadableStream branch (from the inspectAudioFile tee) into an

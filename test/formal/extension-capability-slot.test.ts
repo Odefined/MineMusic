@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { PlatformLibraryCandidate, PlatformLibraryProvider, ProviderMaterialCandidate, SourceProvider } from "../../src/contracts/music_data_platform.js";
 import type { Result, StageError } from "../../src/contracts/kernel.js";
 import { createCapabilityRegistry, createExtensionRuntime, defineCapabilitySlot, type CapabilityRegistry, isPluginIdSafe, platformLibraryProviderSlot, sourceProviderSlot, validatePluginManifest, validatePlatformLibraryProviderRegistration, validateSourceProviderRegistration, type CapabilitySlot, type MineMusicPlugin, type PlatformLibraryProviderRegistration, type PluginActivationContext, type PlatformLibraryProviderReadResult, type SourceProviderSearchResult, type SourceProviderRegistration, } from "../../src/extension/index.js";
-import { getSourceProviderDownloadSource } from "../../src/extension/source_provider_slot.js";
+import { getSourceProviderDownloadSource, getSourceProviderPlayableLinks } from "../../src/extension/source_provider_slot.js";
 // Test-local helpers that mirror the removed per-slot register/list/get wrappers
 // (collapsed in ADR-0018). They keep the registry-direct assertions below terse.
 async function registerSourceProvider(registry: CapabilityRegistry, registration: SourceProviderRegistration): Promise<Result<void>> {
@@ -1317,4 +1317,81 @@ function fail(code: string, message: string, retryable = false): Result<never> {
     });
     assert.equal(matched.ok, true);
     assert.equal(invoked, true);
+}
+
+// playable_links mirrors download_source namespace ownership and capability
+// dispatch: mismatched provider/ref pairs are rejected before invocation, while
+// matching refs return validated domain playable links.
+{
+    const playableRegistry = createCapabilityRegistry({ slots: [sourceProviderSlot] });
+    let invoked = false;
+    registerSourceProvider(playableRegistry, {
+        pluginId: "test.playable-links",
+        providerId: "netease",
+        provider: {
+            descriptor: { providerId: "netease", label: "NetEase", capabilities: ["playable_links"] },
+            async getPlayableLinks() {
+                invoked = true;
+                return { ok: true, value: [{ url: "http://test/a.m4a", label: "standard", requiresAccount: true }] };
+            },
+        },
+    });
+    const mismatched = await getSourceProviderPlayableLinks(playableRegistry, {
+        providerId: "netease",
+        sourceRef: { namespace: "source_spotify", kind: "track", id: "1" },
+    });
+    assert.equal(mismatched.ok, false);
+    if (!mismatched.ok) {
+        assert.equal(mismatched.error.code, "extension.invalid_source_provider_playable_links_input");
+    }
+    assert.equal(invoked, false);
+    const matched = await getSourceProviderPlayableLinks(playableRegistry, {
+        providerId: "netease",
+        sourceRef: { namespace: "source_netease", kind: "track", id: "1" },
+    });
+    assert.deepEqual(matched, {
+        ok: true,
+        value: {
+            providerId: "netease",
+            sourceRef: { namespace: "source_netease", kind: "track", id: "1" },
+            playableLinks: [{ url: "http://test/a.m4a", label: "standard", requiresAccount: true }],
+        },
+    });
+    assert.equal(invoked, true);
+}
+
+{
+    const playableRegistry = createCapabilityRegistry({ slots: [sourceProviderSlot] });
+    registerSourceProvider(playableRegistry, {
+        pluginId: "test.playable-links-unsupported",
+        providerId: "netease",
+        provider: {
+            descriptor: { providerId: "netease", label: "NetEase", capabilities: ["download_source"] },
+            async getDownloadSource() {
+                return { ok: true, value: { url: "http://test/a.flac", container: "flac" } };
+            },
+        },
+    });
+    assertErrorCode(await getSourceProviderPlayableLinks(playableRegistry, {
+        providerId: "netease",
+        sourceRef: { namespace: "source_netease", kind: "track", id: "1" },
+    }), "extension.source_provider_playable_links_unsupported");
+}
+
+{
+    const playableRegistry = createCapabilityRegistry({ slots: [sourceProviderSlot] });
+    registerSourceProvider(playableRegistry, {
+        pluginId: "test.playable-links-invalid",
+        providerId: "netease",
+        provider: {
+            descriptor: { providerId: "netease", label: "NetEase", capabilities: ["playable_links"] },
+            async getPlayableLinks() {
+                return { ok: true, value: [{ url: "" }] };
+            },
+        },
+    });
+    assertErrorCode(await getSourceProviderPlayableLinks(playableRegistry, {
+        providerId: "netease",
+        sourceRef: { namespace: "source_netease", kind: "track", id: "1" },
+    }), "extension.invalid_source_provider_playable_links_output");
 }

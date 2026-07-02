@@ -1,6 +1,6 @@
 import { isRecord, isStageErrorLike, isSourceEntityKind } from "./type_guards.js";
 import { assertRefSafe, isRefComponentSafe, type Ref, type Result } from "../contracts/kernel.js";
-import type { DownloadSource, ProviderMaterialCandidate, SourceEntityKind, SourceQuery, SourceProvider, SourceProviderCapability } from "../contracts/music_data_platform.js";
+import type { DownloadSource, PlayableLink, ProviderMaterialCandidate, SourceEntityKind, SourceQuery, SourceProvider, SourceProviderCapability } from "../contracts/music_data_platform.js";
 import type { CapabilityRegistry } from "./capability_registry.js";
 import { defineCapabilitySlot } from "./capability_slot.js";
 import { invokeCapability } from "./capability_dispatch.js";
@@ -96,6 +96,68 @@ export type SourceProviderDownloadSourceResult = {
   providerId: string;
   downloadSource: DownloadSource;
 };
+
+export type SourceProviderPlayableLinksInput = {
+  providerId: string;
+  sourceRef: Ref;
+  sessionId?: string;
+};
+
+export type SourceProviderPlayableLinksResult = {
+  providerId: string;
+  sourceRef: Ref;
+  playableLinks: readonly PlayableLink[];
+};
+
+export async function getSourceProviderPlayableLinks(
+  registry: CapabilityRegistry,
+  input: SourceProviderPlayableLinksInput,
+): Promise<Result<SourceProviderPlayableLinksResult>> {
+  const inputValidation = validateSourceProviderPlayableLinksInput(input);
+
+  if (!inputValidation.ok) {
+    return inputValidation;
+  }
+
+  return invokeCapability<SourceProvider, SourceProviderPlayableLinksResult>(
+    registry,
+    sourceProviderSlot,
+    input.providerId,
+    {
+      label: "Source provider",
+      notFoundCode: "extension.source_provider_not_found",
+      failedCode: "extension.source_provider_playable_links_failed",
+      capabilityCheck: (registration) => {
+        const provider = registration.value;
+        if (
+          !provider.descriptor.capabilities.includes("playable_links") ||
+          provider.getPlayableLinks === undefined
+        ) {
+          return failExtension(
+            "extension.source_provider_playable_links_unsupported",
+            `Source provider '${input.providerId}' does not support playable_links.`,
+          );
+        }
+        return ok(undefined);
+      },
+      invoke: (registration) =>
+        registration.value.getPlayableLinks!({
+          sourceRef: input.sourceRef,
+          ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+        }),
+      validateOutput: (value) =>
+        validateSourceProviderPlayableLinksResult({
+          providerId: input.providerId,
+          playableLinks: value,
+        }),
+      shapeResult: (value) => ({
+        providerId: input.providerId,
+        sourceRef: input.sourceRef,
+        playableLinks: value as readonly PlayableLink[],
+      }),
+    },
+  );
+}
 
 export async function getSourceProviderDownloadSource(
   registry: CapabilityRegistry,
@@ -572,6 +634,72 @@ function validateSourceProviderDownloadSourceInput(input: SourceProviderDownload
   return ok(undefined);
 }
 
+function validateSourceProviderPlayableLinksInput(input: SourceProviderPlayableLinksInput): Result<void> {
+  if (!isRecord(input)) {
+    return failExtension(
+      "extension.invalid_source_provider_playable_links_input",
+      "Source provider playable_links input must be an object.",
+    );
+  }
+
+  if (!isRefComponentSafe(input.providerId)) {
+    return failExtension(
+      "extension.invalid_source_provider_playable_links_input",
+      "Source provider id must be a non-empty string and must not contain ':'.",
+    );
+  }
+
+  const sourceRef = input.sourceRef;
+
+  if (!isRecord(sourceRef)) {
+    return failExtension(
+      "extension.invalid_source_provider_playable_links_input",
+      "Source provider playable_links sourceRef must be an object.",
+    );
+  }
+
+  if (
+    typeof sourceRef.namespace !== "string" ||
+    typeof sourceRef.kind !== "string" ||
+    typeof sourceRef.id !== "string"
+  ) {
+    return failExtension(
+      "extension.invalid_source_provider_playable_links_input",
+      "Source provider playable_links sourceRef must have string namespace, kind, and id.",
+    );
+  }
+
+  try {
+    assertRefSafe({
+      namespace: sourceRef.namespace,
+      kind: sourceRef.kind,
+      id: sourceRef.id,
+    });
+  } catch {
+    return failExtension(
+      "extension.invalid_source_provider_playable_links_input",
+      "Source provider playable_links sourceRef must be a safe ref.",
+    );
+  }
+
+  const expectedNamespace = `source_${input.providerId}`;
+  if (sourceRef.namespace !== expectedNamespace) {
+    return failExtension(
+      "extension.invalid_source_provider_playable_links_input",
+      `Source provider playable_links sourceRef namespace '${sourceRef.namespace}' must match '${expectedNamespace}'.`,
+    );
+  }
+
+  if (input.sessionId !== undefined && typeof input.sessionId !== "string") {
+    return failExtension(
+      "extension.invalid_source_provider_playable_links_input",
+      "Source provider playable_links sessionId must be a string when present.",
+    );
+  }
+
+  return ok(undefined);
+}
+
 function validateSourceProviderDownloadSourceResult(result: {
   providerId: string;
   downloadSource: unknown;
@@ -639,9 +767,56 @@ function validateSourceProviderDownloadSourceResult(result: {
   return ok(undefined);
 }
 
+function validateSourceProviderPlayableLinksResult(result: {
+  providerId: string;
+  playableLinks: unknown;
+}): Result<void> {
+  if (!Array.isArray(result.playableLinks)) {
+    return invalidPlayableLinksOutput(
+      `Source provider '${result.providerId}' returned a non-array playable links list.`,
+    );
+  }
+
+  for (const playableLink of result.playableLinks) {
+    if (!isRecord(playableLink)) {
+      return invalidPlayableLinksOutput(
+        `Source provider '${result.providerId}' returned a malformed playable link.`,
+      );
+    }
+
+    if (typeof playableLink.url !== "string" || playableLink.url.trim().length === 0) {
+      return invalidPlayableLinksOutput(
+        `Source provider '${result.providerId}' returned a playable link without a usable url.`,
+      );
+    }
+
+    if (
+      playableLink.label !== undefined &&
+      (typeof playableLink.label !== "string" || playableLink.label.trim().length === 0)
+    ) {
+      return invalidPlayableLinksOutput(
+        `Source provider '${result.providerId}' returned a playable link with an invalid label.`,
+      );
+    }
+
+    if (
+      playableLink.requiresAccount !== undefined &&
+      typeof playableLink.requiresAccount !== "boolean"
+    ) {
+      return invalidPlayableLinksOutput(
+        `Source provider '${result.providerId}' returned a playable link with an invalid requiresAccount flag.`,
+      );
+    }
+  }
+
+  return ok(undefined);
+}
+
 function invalidDownloadSourceOutput(message: string): Result<never> {
   return failExtension("extension.invalid_source_provider_download_source_output", message);
 }
 
-
+function invalidPlayableLinksOutput(message: string): Result<never> {
+  return failExtension("extension.invalid_source_provider_playable_links_output", message);
+}
 

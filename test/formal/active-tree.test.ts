@@ -123,6 +123,8 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/server")))
     "src/server/library_collection_runtime_module.ts",
     "src/server/library_import_runtime_module.ts",
     "src/server/library_relation_runtime_module.ts",
+    "src/server/local_audio_serving.ts",
+    "src/server/local_source_path_resolver.ts",
     "src/server/local_source_scan_config.ts",
     "src/server/local_source_scan_filesystem_adapter.ts",
     "src/server/mcp_stdio_entrypoint.ts",

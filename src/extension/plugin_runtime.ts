@@ -20,10 +20,13 @@ import {
 } from "./platform_library_provider_slot.js";
 import {
   getSourceProviderDownloadSource,
+  getSourceProviderPlayableLinks,
   searchSourceProvider,
   sourceProviderSlot,
   type SourceProviderDownloadSourceInput,
   type SourceProviderDownloadSourceResult,
+  type SourceProviderPlayableLinksInput,
+  type SourceProviderPlayableLinksResult,
   type SourceProviderSearchInput,
   type SourceProviderSearchResult,
   type SourceProviderRegistration,
@@ -69,6 +72,7 @@ export type ExtensionRuntime = {
   listSourceProviders(): readonly SourceProviderRegistration[];
   getSourceProvider(providerId: string): SourceProviderRegistration | undefined;
   searchSourceProvider(input: SourceProviderSearchInput): Promise<Result<SourceProviderSearchResult>>;
+  getSourceProviderPlayableLinks(input: SourceProviderPlayableLinksInput): Promise<Result<SourceProviderPlayableLinksResult>>;
   getSourceProviderDownloadSource(input: SourceProviderDownloadSourceInput): Promise<Result<SourceProviderDownloadSourceResult>>;
   listPlatformLibraryProviders(): readonly PlatformLibraryProviderRegistration[];
   getPlatformLibraryProvider(providerId: string): PlatformLibraryProviderRegistration | undefined;
@@ -137,6 +141,30 @@ export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}):
       }
 
       return searchSourceProvider(registry, input);
+    },
+    getSourceProviderPlayableLinks(input) {
+      if (status === "failed") {
+        return Promise.resolve(failExtension(
+          "extension.runtime_failed",
+          "Extension runtime failed and cannot resolve playable links.",
+        ));
+      }
+
+      if (status === "stopped") {
+        return Promise.resolve(failExtension(
+          "extension.runtime_stopped",
+          "Extension runtime has stopped and cannot resolve playable links.",
+        ));
+      }
+
+      if (status !== "ready") {
+        return Promise.resolve(failExtension(
+          "extension.runtime_not_ready",
+          "Extension runtime must be ready before source-provider playable_links.",
+        ));
+      }
+
+      return getSourceProviderPlayableLinks(registry, input);
     },
     getSourceProviderDownloadSource(input) {
       if (status === "failed") {

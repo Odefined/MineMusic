@@ -268,6 +268,15 @@ function idleExtensionRuntime(): ExtensionRuntime {
                 retryable: false,
             },
         }),
+        getSourceProviderPlayableLinks: async () => ({
+            ok: false,
+            error: {
+                code: "extension.source_provider_not_found",
+                message: "No source providers are registered.",
+                area: "extension",
+                retryable: false,
+            },
+        }),
         getSourceProviderDownloadSource: async () => ({
             ok: false,
             error: {

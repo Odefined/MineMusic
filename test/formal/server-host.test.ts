@@ -581,6 +581,10 @@ function extensionRuntimeWithSearch(searchSourceProvider: ExtensionRuntime["sear
         listSourceProviders: () => [],
         getSourceProvider: () => undefined,
         searchSourceProvider,
+        getSourceProviderPlayableLinks: async () => ({
+            ok: false,
+            error: stageError("extension.source_provider_not_found"),
+        }),
         getSourceProviderDownloadSource: async () => ({
             ok: false,
             error: stageError("extension.source_provider_not_found"),
