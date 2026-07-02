@@ -249,7 +249,14 @@ stub is insufficient. Phase C builds the gate to a minimum viable ADR-0038 form:
 - **The "ask before source-of-truth edits" user toggle**, which upgrades the
   `local-bounded × user-intent-backed` cell from `allow` to `ask` for tools
   declaring `ownerCurationWrite`. Strictly tightening; the dangerous reverse
-  (auto-accept) is a separate opt-in mode, never this toggle.
+  (auto-accept) is a separate opt-in mode, never this toggle. **Phase C:
+  in-memory toggle, default on** — it does NOT wait for a durable user-settings
+  store (issue #115 explicitly defers that); the toggle lives in memory and
+  resets on restart. Durable user settings + a persistent toggle preference
+  land later (PC8+). A restart dropping in-flight parked Proposal Units (their
+  Confirm cards) is an accepted Phase C degradation, same grade as the
+  best-effort `action.result` (§5.4 wire-contract) — closed out when the
+  durable parked-unit store lands (PC8).
 - A separate **denylist pre-gate** for categorically forbidden actions.
 
 The four existing per-scenario auto-pass qualifiers (ADR-0021/0022/0023 + Phase

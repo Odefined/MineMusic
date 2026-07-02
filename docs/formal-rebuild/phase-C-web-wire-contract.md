@@ -275,6 +275,24 @@ nowPlaying slice:
   expected fallback path, not `failed`; only when all sources are exhausted is
   it visible (provider CORS/account/404 → reconcile → surfaced to agent, not
   silenced).
+- **`ended` reconcile — who advances the queue** (PC11): `actualState:"ended"`
+  on the presence heartbeat (§7.2) is reconciled server-side by Music
+  Experience, not just recorded as a label — (i) drop if the reported
+  `material` no longer matches `logicalIntent.material` (a stale tab reporting
+  ended for an old track); (ii) record the listening outcome; (iii) advance
+  the queue to the next item, or flip logical intent to `paused`/`ended` when
+  the queue is empty; (iv) emit the `nowPlaying` delta. **Idempotency**: an
+  `ended` for the same logical material is processed at most once — any
+  playback transition that intervenes (`playNow` to a different material,
+  **or** a pause/resume on the same one) voids a pending `ended`. The guard
+  reuses the existing per-playback concern revision (`playbackRevision`,
+  `kernel.ts:36` / `records.ts:159,1083`, already CAS-plumbed) — **no new
+  `playbackEpoch` column or basis key**. "Any transition voids" (pause/resume
+  included) is the chosen reading; it is the safe reuse, whereas a
+  per-material-identity reading would over-invalidate a legitimate `ended`
+  across a same-track pause/resume. Whether the heartbeat echoes an
+  `observedPlaybackRevision` field vs the server keys an ended-flag on the
+  material is a PC11 implementation detail, not a wire decision fixed here.
 - **Verified material = handle only**: to avoid projecting the same material
   twice; the full projection stays in `logicalIntent.material`. The verified
   handle covers the rare boundary where the player is still on the previous
@@ -369,19 +387,22 @@ recommendationBatches slice:
 ```
 
 - **Owner**: Music Experience.
-- **Source**: durable append-only (greenfield — zero persistence today; PC14
-  builds it).
-- **Phase C increment**: entire slice is new (PC14). The field shape is frozen;
-  PC14 builds the durable append-only store, stale-basis append prevention, and
-  the `dismiss`/`clear` action routing.
+- **Source**: durable append-only (greenfield — zero persistence today; post-C
+  follow-up builds it).
+- **Post-C follow-up** (NOT in Phase C): the slice shape below is frozen, but
+  implementation is deferred out of Phase C — the durable append-only store,
+  stale-basis append prevention, and the `dismiss`/`clear` action routing all
+  land post-C. Until then Radio recommendations ride transcript/activity
+  (§2.8/§2.9), not this slice. The slice is defined here so the post-C build
+  has a frozen target — not so Phase C ships it.
 - **Append-only**: batches accumulate, never replace. `sourceTag` drives agent
   reasoning; `directionRevisionStamp` + `staleMark` mark older batches when
   direction/variations change; the agent must not keep expanding a stale
   batch (stale-basis append prevention, the `voided_stale` analog).
-- **Upper bound** (PC14 plan-level): unbounded accumulation is a memory +
+- **Upper bound** (post-C plan-level): unbounded accumulation is a memory +
   slice-delta pressure risk under long-running Radio. A cap (count or bytes)
   with LRU eviction of the oldest non-stale batch, or a per-`sourceTag`
-  recent-N retention, settles in the PC14 plan — the frozen slice shape does
+  recent-N retention, settles in the post-C plan — the frozen slice shape does
   not pin a specific bound.
 - **`reason` is agent-authored NL** (an emission, like `parkedProposalUnits
   .agentSummary`) — it is independent reasoning that cannot be derived from
@@ -759,9 +780,10 @@ the lease heartbeat is connection-layer (Part 4), not an envelope here.
   async `action.result` carrying the `outcome` (§5.3). Every envelope —
   including instant actions — receives a correlated `action.result` (ADR-0036).
 - **`ChatMessageEnvelope`** — user chat message. Triggers a Main run, stamps
-  `issuedFromUserActionId`. Response: `{actionId}` (run started, not completed;
-  the pi-internal run id is not exposed); run output flows as
-  slice deltas (§5.8).
+  `issuedFromUserActionId`. Response: `text/event-stream` — the Main run's
+  AG-UI event stream (§5.8); the `actionId` ack is a stream event
+  (`minemusic.chat_ack` CUSTOM, event #2), **not** a standalone JSON body.
+  Run output flows as slice deltas on the workspace stream (§5.8).
 
 Merged or excluded from the wire family:
 
@@ -851,7 +873,7 @@ receives a correlated result.
 correlates by `correlationId`):
 
 ```
-{ type: "action.result", correlationId, outcome: "committed" | "rejected" | "voided_stale" | "noop", reason?: string }
+{ type: "action.result", correlationId, outcome: "committed" | "rejected" | "voided_stale" | "noop", reason?: string, retryHint?: "retry_after_resync" | "do_not_retry" | "retry_later" | "reassess" }
 ```
 
 - `correlationId` = the envelope's `actionId` (§5.2). ADR-0036 names the result
@@ -859,7 +881,7 @@ correlates by `correlationId`):
   idempotency-key semantic is stronger).
 - **AG-UI mapping**: `action.result` is the last variant in the §1.4 envelope
   union and maps to an AG-UI **CUSTOM** event (`name: "workbench.action_result"`,
-  `value: {correlationId, outcome, reason}`) at the serializer seam — **not**
+  `value: {correlationId, outcome, reason, retryHint}`) at the serializer seam — **not**
   `RunFinished.interrupt`. `RunFinished` is the chat-run terminal
   (`RunFinishedOutcome` is `success | interrupt`, requires `threadId`+`runId`,
   and `verifyEvents` rejects any event after it); per-action outcomes
@@ -878,10 +900,13 @@ correlates by `correlationId`):
   `error.code` → wire `outcome` by code literal, no owning-command branching.
   ADR-0036 currently pins `outcome` to `committed | rejected` (closed), so
   adopting `voided_stale` + `noop` requires amending ADR-0036 (tracked as one
-  Phase C follow-up). **Retry vs give-up is read from
-  slice state, not outcome**: queue/radio stale → resync shows target still in
-  slice → retry; proposal stale → `parkedProposalUnits` unit `.state=
-  voided_stale`/removed → give up confirm.
+  Phase C follow-up). **Recovery strategy**: when `action.result` is received,
+  its optional `retryHint` (§8.2 closed 4-value enum) gives the structured
+  recovery — `retry_after_resync` / `do_not_retry` / `retry_later` /
+  `reassess`. When `action.result` is missed (best-effort, §5.4), the
+  two-state slice heuristic is the fallback: queue/radio stale → resync shows
+  target still in slice → retry; proposal stale → `parkedProposalUnits` unit
+  `.state= voided_stale`/removed → give up confirm.
 - **Every actionType emits `action.result`, including instant actions.** An
   instant action's command runs synchronously, so its `action.result` follows
   the POST immediately (no async gap) — but the model is uniform: `ack` is
@@ -921,6 +946,10 @@ already-achieved target (harmless); `voided_stale` missed → the other writer's
 state usually changed → reads as "committed", client does not retry — the one
 real degradation (a stale-at-commit action silently treated as committed),
 bounded by rarity (miss × multi-writer contention) and manual retry fallback.
+This is an **accepted Phase C degradation** (single-tab assumption +
+best-effort `action.result`), not a defect — the durable-receipt alternative
+was weighed and declined (new store + table + resync fields + cleanup vs. a
+rarity-bounded miss); it is closed for re-filing as a bug.
 `state` is the authority; `action.result` is the timely signal, not a
 redeliverable truth. Area revision is OCC-driven, not
 action-scoped; under multi-tab interleaving a "pointer" would not be unique
@@ -939,17 +968,21 @@ not retry in a tight loop.
   `radio.session.transition` + `operation` field. actionType is the frontend
   intent verb ("I want to pause"), not the domain operation ("transition
   session"); payload carries data parameters only, never routing fields.
-- **Naming**: Web actionType aligns with the existing Stage tool vocabulary
-  (the agent path) — the same operation has the same name whether invoked by
-  the agent or by a Web button, so the frontend and the tool registry share one
-  set. Aligned to live descriptor names: `radio.session.*` / `radio.motif.*` /
-  `radio.variations.*` (plural, per descriptor) / `playback.queue.*` /
-  `playback.play` / `library.relation.*` /
+- **Naming**: a Web actionType binds to the **owning command's verb**, not to a
+  Stage tool label. The agent path (`StageInterface.dispatch`) and the Web path
+  (Workbench Action Adapter) are two callers of the same owning command, so the
+  same operation shares one name across both surfaces — the frontend and the
+  tool registry share one set because both project the command, not because
+  the Web actionType is derived from the Stage tool name. (Renaming a Stage
+  tool for model comprehension does not force a Web actionType rename; both
+  track the command verb.) Aligned to live command verbs: `radio.session.*` /
+  `radio.motif.*` / `radio.variations.*` (plural, per descriptor) /
+  `playback.queue.*` / `playback.play` / `library.relation.*` /
   `library.collection.*` / `library.import.*`. Web-only actions with no Stage
   tool yet (greenfield PC8/PC15) use the same area-then-entity convention:
   `selection.set` / `main.abort` / `proposal.confirm`/`.reject`. Adding the
-  agent-path tool later reuses the Web
-  actionType verbatim (no second vocabulary).
+  agent-path tool later reuses the Web actionType verbatim (no second
+  vocabulary).
 - **Open enum**: adding an actionType is an additive routing-map entry, never a
   contract change (§4 reserves the same extensibility).
 - **Signal Class is NOT on the wire**. The backend resolves
@@ -1027,11 +1060,19 @@ not retry in a tight loop.
 Follow-up actionType (additive, not in Part 2 frozen 32; later PC increments shape them): `library.import.cancel` (PC16 must
 define owner command + payload + result semantics — live import has only
 `start`/`status`/`list_sources`, no cancel); `recommendation.batch.dismiss`/
-`.clear` (PC14 must define dismiss-vs-clear semantics, payload, and whether
+`.clear` (post-C — must define dismiss-vs-clear semantics, payload, and whether
 `clear` is user-initiated or system cleanup); `library.collection.create`/
 `.remove`/`.move`/`.delete`/`.rename` (live descriptors, not yet Web actions);
 `library.material.edit`/`.delete`, `library.scope.organize`,
 `library.merge`/`.dedupe`.
+- **Static action-map guard (PC fixture)**: a frozen test asserts the
+  `actionType → { owning command, basis requirement, payload schema,
+  signalClass }` map does not drift — every registered actionType resolves to
+  exactly one owning command + basis rule, and adding an actionType without a
+  map entry fails the test. This is the project-native guard for the open enum
+  (no runtime `/actions` discovery endpoint — the map is static,
+  build-time-validated; runtime discovery is over-engineering for a fixed
+  Workbench surface).
 
 #### Payload shapes (frozen incrementally per group)
 
@@ -1058,9 +1099,9 @@ playback.queue.replace   { index: number, item: PublicObjectRef }
 playback.queue.move      { from: number, to: number }
 playback.queue.clear     {}
 playback.play            { item: PublicObjectRef }        // no basis — intent, not OCC
-playback.pause           {}                                // logical status → paused (§2.2)
-playback.resume          {}                                // logical status → playing
-playback.skip            {}                                // logical → queue next (current position tracked server-side, PC plan-level)
+playback.pause           {}   // PC4 — name frozen; payload {} provisional until MusicExperienceQueuePlaybackCommand gains pause/resume
+playback.resume          {}   // PC4 — name frozen; payload {} provisional (same PC4 extension)
+playback.skip            {}   // PC4 — name frozen; payload provisional; queue-next semantics in §2.2 ended reconcile
 ```
 
 **Radio group — frozen:**
@@ -1106,7 +1147,7 @@ library.import.start    { providerId: string, libraryKind: enum, limit?: number 
                         // providerId is sourced from the libraryCatalog slice (§5.6 dual-path note)
 ```
 
-**Selection group — frozen (greenfield — no live `inputSchema`, shaped here):**
+**Selection group — name frozen; payload lands with PC15 (greenfield — no live `inputSchema` yet; shape below is planned, freezes when the selection command lands):**
 
 ```
 selection.set    { focus: PublicObjectRef | null }    // handle = set focus; null = clear (back to general chat, §2.10)
@@ -1115,8 +1156,16 @@ selection.set    { focus: PublicObjectRef | null }    // handle = set focus; nul
 `playback.queue.append.at?` is the one Phase C addition over the live agent
 append `inputSchema` (which today appends to end only); the agent descriptor
 gains the same optional `at` for dual-path parity with `variations.add` (PC
-implementation). All 32 Phase C actionType payloads are now frozen; `main.abort`
-carries no payload (§5.6) and `proposal.confirm`/`.reject` is shaped in §5.7.
+implementation). **All 32 Phase C actionType *names* are frozen; payloads for
+landed groups (queue core / radio / library / import / `main.abort`) are
+frozen.** Not-yet-landed payloads — `playback.pause`/`.resume`/`.skip` (PC4),
+`selection.set` (PC15), `proposal.confirm`/`.reject` (§5.7, PC8) — freeze
+their **actionType name + result channel only**; their concrete payload shape
+freezes when the owning command / descriptor `inputSchema` lands (the
+descriptor is then the source of truth — freezing the payload before the
+command exists makes the document substitute for the type system). `main.abort`
+carries no payload (§5.6); `proposal.confirm`/`.reject` in §5.7 is provisional
+until PC8.
 
 ### 5.7 `proposal.confirm`/`.reject` (Effect Boundary resume)
 
@@ -1160,15 +1209,22 @@ ChatMessageEnvelope {
 - Triggers a Main run; the adapter stamps `issuedFromUserActionId` on the run
   input (provenance spine). This is the **only** Phase C Main-run trigger.
 - **Response model differs from `WorkbenchActionEnvelope`** (transport C): the
-  POST response body **is** the Main run's AG-UI event stream —
-  `RUN_STARTED(threadId: workspaceId, runId: <pi-internal>)` … `transcript.*` /
-  `activity.*` … `RUN_FINISHED(success)` — consumed by `@ag-ui/client`'s
-  `HttpAgent` + `verifyEvents` (one-POST-one-run; §1.4 channel 1). `{actionId}`
-  is returned as the POST ack; there is no separate "fetch the run" step and no
-  runId to match — the response *is* this run. The pi-internal `runId` rides
-  `RUN_STARTED.runId` for bracketing/logging only; it is **not** an action
-  target (`main.abort` targets the workspace's active Main turn unconditionally,
-  §5.6).
+  POST response body **is** the Main run's AG-UI event stream, consumed by
+  `@ag-ui/client`'s `HttpAgent` + `verifyEvents` (one-POST-one-run; §1.4
+  channel 1). The stream shape is fixed by AG-UI's `verifyEvents` first-event
+  rule: **event #1 is `RUN_STARTED(threadId: workspaceId, runId:
+  <pi-internal>)`** — `verifyEvents` rejects any other first event ("First
+  event must be 'RUN_STARTED'"), so the `actionId` ack **cannot** be event #1.
+  **Event #2 is `CUSTOM name:"minemusic.chat_ack" value:{actionId}`** — the
+  POST ack is this stream event, not a standalone JSON response and not a
+  `RUN_STARTED.metadata` field (the AG-UI `RunStartedEventSchema` carries no
+  `metadata`/extension field — only threadId/runId/parentRunId/input/timestamp/
+  rawEvent). There is no separate "fetch the run" step and no runId to match —
+  the response *is* this run. The pi-internal `runId` rides `RUN_STARTED.runId`
+  for bracketing/logging only; it is **not** an action target (`main.abort`
+  targets the workspace's active Main turn unconditionally, §5.6). After the
+  ack, the stream continues `transcript.*` / `activity.*` …
+  `RUN_FINISHED(success)` (or the run-termination outcomes below).
 - **Run output vs state side-effects split across channels**: the run's
   `transcript.*` + `activity.*` ride the POST response (this run, this tab);
   the run's **state side-effects** (parked proposals, queue/radio commits) ride
@@ -1330,6 +1386,14 @@ GET /audio/:token?mode=download    → 200 / 206 by Range, Content-Disposition: 
 
 Workspace connection lifecycle. Presence-only — no controller (§2.11).
 
+- **Profile fixture, not a handshake**: MineMusic AG-UI Profile v1 (ADR-0031)
+  is a self-connect profile — one client, one server, version pinned by
+  lockfile. There is **no runtime `Accept-Profile` negotiation, no
+  multi-version coexistence, no unsupported-profile flow** on the wire. The
+  profile is enforced by a **serializer compatibility fixture** that asserts
+  emitted events conform to the `MINEMUSIC_AGUI_PROFILE_V1` EventType set and
+  field shapes — a build-time guard, not a wire handshake field.
+
 ### 7.1 `GET /workspaces/:workspaceId/stream` (SSE downstream)
 
 Long-lived SSE GET; the workspace persistent stream (§1.4 channel 2). First
@@ -1416,6 +1480,31 @@ The downstream `action.result` event (§5.3) carries `correlationId`,
   passes the live `error.code` through verbatim (same pass-through strategy as
   `voided_stale` and the §5.5 `actionType` open enum). The frontend does NOT
   branch on `reason`: `rejected` is handled uniformly (surface + resync).
+- **`retryHint` is a closed 4-value enum** (`retry_after_resync` |
+  `do_not_retry` | `retry_later` | `reassess`), optional on `action.result`,
+  exposing **only the recovery strategy** — not the error ontology (which
+  stays in open `reason`). It lets the frontend pick the recovery UX without
+  branching on `reason`: `retry_after_resync` → resnapshot then retry (stale
+  state/handle: `voided_stale`, `candidate_expired`, `queue_index_invalid`,
+  `index_out_of_range`, `*_not_found`); `do_not_retry` → surface and stop
+  (validation/hard-permission: `invalid_input`, `queue_full`,
+  `queue_item_not_editable`, `radio_truth_invalid`,
+  `owner_scope_unsupported`, all `*_noop`); `retry_later` → transient backoff
+  (`provider_unavailable`, `radio_session_runtime_failed`, `write_failed`);
+  `reassess` → superseded/cancelled, re-evaluate intent then retry unchanged
+  only if still wanted (`operation_aborted`).
+- **`retryHint` is declared per-code on each descriptor's `errors[]`**
+  (`queue_playback.ts:57`, `radio_truth.ts:69`, `import_control.ts:77`,
+  `relation_edit.ts:80`, `collection_edit.ts:134`, `radio_session_tools.ts:42`),
+  **not derived from the live `retryable` boolean** — that boolean is
+  inconsistent: `index_out_of_range` is `retryable:false` yet its fix is
+  refresh-and-retry, while `queue_index_invalid` is `retryable:true` with the
+  identical fix. A mechanical `retryable ? retry_later : do_not_retry` would
+  misclassify `index_out_of_range`. Each code declares its hint explicitly;
+  genuinely ambiguous codes (`account_unavailable`,
+  `scope_availability_failed`, `provider_not_found`) declare a primary.
+- The `retryHint` enum is a **Part 5 amendment** (added 2026-07-02 to frozen
+  §8); additive (optional field), does not alter the outcome mapping above.
 - **`ack` vs `action.result` reason sets differ by producer**: `ack.rejected
   .reason` is a **closed** 4-value enum (adapter-produced: routing / handle /
   basis-presence / structure); `action.result.reason` is an **open** string
@@ -1459,9 +1548,9 @@ The downstream `action.result` event (§5.3) carries `correlationId`,
 | nowPlaying | Music Experience | durable + heartbeat | PC4 (status), PC11 (verified) |
 | radioTruth | Music Experience | durable | PC4 (full projection) |
 | radioSession | Music Experience | durable (after PC6) | PC6 (persist lifecycle), PC4 (expose) |
-| recommendationBatches | Music Experience | durable (new) | PC14 |
+| recommendationBatches | Music Experience | durable (new) | post-C follow-up (slice + depth both deferred; Radio recommendations ride transcript/activity until the slice lands) |
 | libraryCatalog | Music Data Platform | durable (new projection) | PC16 |
-| parkedProposalUnits | Effect Boundary | process-volatile (current #146 backend) | PC8 |
+| parkedProposalUnits | Effect Boundary | in-memory (Phase C, toggle default on); durable PC8 | PC8 (Phase C runs the confirm loop on the in-memory toggle + #146 store; restart drops pending units = accepted degradation, fixed when durable store lands) |
 | transcripts | Agent Runtime | durable (PB2) | PC9/PC13 (AG-UI surface, per-run) |
 | activity | Agent Runtime | runtime emission (new) | PC13 |
 | selectedObject | Workbench Interface | interaction-state (new) | PC15 |
