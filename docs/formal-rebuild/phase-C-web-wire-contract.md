@@ -686,8 +686,8 @@ workspacePresence slice:                         // presence-only; no controller
   makes sound. Audio **follows logical** — when a tab's `play` is superseded by
   a newer `play` from another tab (logical `nowPlaying` changes), that tab
   stops its own audio on the next `workspace.delta`. So at any moment only the
-  tab that issued the current logical `play` is actually playing. `actualState`
-  is therefore single-source (only that tab reports); last-write-wins is the
+  tab that issued the current logical `play` is actually playing. Player events
+  are therefore single-source (only that tab reports); last-write-wins is the
   backstop for a misbehaving client. Multi-tab simultaneous play is the user's
   responsibility (single-tab is the assumed norm); the backend neither
   serializes nor de-duplicates audio output.
@@ -1456,9 +1456,9 @@ separate call. Reconnect = standard EventSource + full resnapshot on gap (§0).
 
 Two separate POSTs, decoupled: presence is low-frequency liveness (tolerates
 delay, drives the unattended transition); player events are event-driven
-playback facts (need `eventId` dedup + `playbackRevision` idempotency +
-source-fallback semantics). They were previously one `actualState?` field on
-the heartbeat; splitting them is a Part 4 amendment.
+playback facts (need `eventId` dedup + `playbackRevision` idempotency). They
+were previously one `actualState?` field on the heartbeat; splitting them is a
+Part 4 amendment.
 
 **Heartbeat — liveness only:**
 
@@ -1481,7 +1481,6 @@ POST /workspaces/:workspaceId/player/events
     state: "playing" | "buffering" | "ended" | "failed"
     material?: PublicObjectRef
     observedPlaybackRevision?: ConcernRevision                  // ended idempotency CAS (§2.2)
-    failedSourceAttemptIds?: string[]                           // optional; sources exhausted on "failed" (debug)
   }
   → 200: { accepted: true }
 ```
@@ -1631,7 +1630,7 @@ The downstream `action.result` event (§5.3) carries `correlationId`,
 | slice | owner | source | builds in |
 |---|---|---|---|
 | queue | Music Experience | durable | truth existing; wire projection PC4 |
-| nowPlaying | Music Experience | durable + heartbeat | PC4 (status), PC11 (verified) |
+| nowPlaying | Music Experience | durable + player events | PC4 (status), PC11 (verified) |
 | radioTruth | Music Experience | durable | PC4 (full projection) |
 | radioSession | Music Experience | durable (after PC6) | PC6 (persist lifecycle), PC4 (expose) |
 | recommendationBatches | Music Experience | durable (new) | post-C follow-up (slice + depth both deferred; Radio recommendations ride transcript/activity until the slice lands) |
