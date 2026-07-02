@@ -50,7 +50,11 @@ in-process reality. Code-state facts that shape every decision below:
   declare `impactClass` and `ownerCurationWrite`; runtime context supplies
   boundary-derived `actorTrustBasis` and `askBeforeSourceOfTruthEdits`. Current
   Server Host contexts default to `user-intent-backed` and the tightening toggle
-  off until durable user settings and full Agent Runtime provenance are wired.
+  off until durable user settings and full Agent Runtime provenance are wired —
+  this is the **current code-state fact** (Phase B leaves it off). **Phase C
+  revises it**: C4 introduces an in-memory toggle, default on, that does NOT
+  wait for the durable user-settings store (see C4); durable user settings +
+  persistent toggle preference remain deferred to PC8+.
 - NCM **implements** `getPlayableLinks` (`extension/plugins/ncm.ts`) and the
   Extension Runtime now exposes `getSourceProviderPlayableLinks` dispatch over
   the registered source-provider slot. Material Projection reserves a
@@ -178,8 +182,10 @@ Experience lifecycle command boundary, with `actor = "user"`:
   events, and verified playback state (C5). AG-UI-aligned; `EventSource`-style
   reconnect.
 - **POST upstream** — `WorkbenchActionEnvelope` (C2), chat-trigger-Main (stamps
-  `issuedFromUserActionId`), and the lease heartbeat (which also carries the
-  player's `actualState` for C5 verification).
+  `issuedFromUserActionId`), the presence heartbeat (liveness only), and
+  `POST /player/events` (the player's `actualState` for C5 verification —
+  split from the heartbeat: presence is cadence-driven, player events are
+  event-driven with `eventId` dedup + `playbackRevision` idempotency).
 - **GET audio range endpoint** (C5) — separate route, HTTP Range / `206 Partial
   Content` for seeking/buffering, ownerScope-auth'd via a short-lived opaque
   playback token (Public Handle Veil pattern).
@@ -288,7 +294,7 @@ basis re-check loop is the standard Effect-Boundary human-in-the-loop.
 **Default presentation:** music-assistant-first — the summary is primary, the
 structured facts present but collapsed by default.
 
-### Confirm card fact groups (locked: shape + examples, enumeration in plan)
+### Confirm card fact groups (locked: shape + first-producer fields)
 
 - **Derivation rule:** the structured fact block is a deterministic projection
   of the frozen command's typed fields — never hand-authored.
@@ -298,9 +304,12 @@ structured facts present but collapsed by default.
   "歌曲 X / 艺人 Y", effect: "加入你的收藏库" }`; `library.collection.add` →
   `{ action: "add", collection: [scope:…] → "我的歌单 Z", target: [material:abc]
   → "歌曲 X", position: 3, effect: "加入该歌单" }`.
-- Per-command-type field enumeration (relation 6 + collection 7) is plan-level,
-  not spec-level, so the spec is not coupled to the full command set or frozen
-  field names.
+- **First-producer field enumeration is frozen** (`library.relation.*` 6 verbs
+  + `library.collection.add`): `{ verb, target, effectTextKey }` for relation;
+  `{ verb:"add", collection, collectionLabel, target, position?, effectTextKey }`
+  for collection.add (wire-contract §2.7). Effect kinds beyond these first
+  producers freeze when their command lands (PC8) — the spec is not coupled to
+  the full future command set.
 
 ### Falls out / determined by authority (no separate work)
 
@@ -332,7 +341,11 @@ A resolved `PlaybackSource` is a short-lived, non-persisted discriminated value:
 - `{ kind: "local", sourceRef, rootId, relativePath }` — served by the Server
   Host local-source HTTP range endpoint.
 - `{ kind: "provider", sourceRef, playableLink: PlayableLink }` — the player
-  fetches the provider URL directly.
+  fetches the provider URL directly. The resolver filters by
+  `playableLink.browserPlayable` / `containsCredential` before emitting: a
+  non-browser-safe source (credential-bearing, CORS-bound, or account-required)
+  is dropped from the resolved order or marked (`proxyRequiredReason`) for a
+  future provider proxy, not handed raw to the browser.
 
 ### Local audio serving (Server Host)
 
@@ -367,10 +380,11 @@ into two states:
 
 - **Logical intent** — `playNow` sets `playback_status = "playing"` (want-to-play).
 - **Verified actual state** — the Web player reports actual events
-  (`playing | buffering | ended | failed` + `materialRef`) **by riding the C3a
-  presence heartbeat** (it is already a liveness heartbeat; it carries one more
-  field, `actualState`). The owning Music Experience command reconciles verified
-  truth from the heartbeat.
+  (`playing | buffering | ended | failed` + `materialRef`) **via a dedicated
+  `POST /player/events`** (not the presence heartbeat — presence is
+  cadence-driven liveness; player events are event-driven, with `eventId`
+  dedup and `observedPlaybackRevision` idempotency). The owning Music
+  Experience command reconciles verified truth from these events.
 
 Workspace Context exposes the **verified** state to the agent; the agent may not
 claim "now playing" until verified. A provider direct-fetch failure (CORS,
@@ -568,11 +582,14 @@ reach the Web.
 
 - **Per-tool impact-class assignment + the concrete denylist contents**
   (ADR-0038). The two-dimensional gate shape is fixed; the assignments are not.
-- **Lease numbers:** `TTL`, `grace`, fast-reconnect window `K`, heartbeat
-  cadence — constrained only by `TTL + grace ≫` audio buffer depth.
+- **Lease numbers:** presence `TTL`, `grace`, heartbeat cadence — constrained
+  only by `presence TTL + grace ≫` heartbeat round-trip / reconnect jitter
+  (C3a; the controller-era `audio buffer depth` coupling and the
+  fast-reconnect window `K` are dropped — audio is tab-local, no
+  fast-reconnect un-pause machinery).
 - **fastify version + plugins** (e.g. `@fastify/static` for range), route shape.
 - **PlaybackSourceResolver exact read-port shape** and whether `purpose:
   "playback"` gets a `purposeOverrides` entry distinct from the default
   `local_file > netease > qq` order.
 - **Verified-playback Music Experience schema columns** (a verified-state field
-  / timestamp) and the exact `actualState` enum carried on the lease heartbeat.
+  / timestamp) and the exact `actualState` enum carried on `POST /player/events`.

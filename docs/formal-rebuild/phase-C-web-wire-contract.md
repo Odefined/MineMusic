@@ -5,8 +5,11 @@
 > UI-neutrality corrections, and the workspace-scoped library query endpoint.
 > Part 2: upstream envelope family, POST response + `action.result` channel,
 > `actionType` registry (32 names), and per-action payload shapes (§5.6).
-> Envelope structure, result channel, actionType names, and all 32 payloads
-> are frozen. **Part 3 (audio GET, §6) frozen 2026-07-02**; **Part 4 (connection,
+> Envelope structure, result channel, and all 32 actionType **names** are
+> frozen; payloads are frozen for **landed** groups only — not-yet-landed
+> payloads (`playback.pause`/`.resume`/`.skip`, `selection.set`,
+> `proposal.confirm`/`.reject`) freeze when their owning command / descriptor
+> `inputSchema` lands (§5.6). **Part 3 (audio GET, §6) frozen 2026-07-02**; **Part 4 (connection,
 > §7) frozen 2026-07-02**; **Part 5 (shared enums + outcome mapping, §8) frozen
 > 2026-07-02**. §1.4/§2.8/§3.5/§5.8 revised 2026-07-02: transcripts are per-run
 > (no wire-level merge, no per-message `actor`); transport C — the Main run rides
@@ -20,7 +23,10 @@
 > unattended stops playback, Radio untouched.
 > Authority: The owning container for the Phase C frontend↔backend wire
 > contract. Only completed parts marked frozen are implementation-ready contract
-> truth; pending parts are placeholders until their sections are completed.
+> truth; pending parts are placeholders until their sections are completed. A
+> frozen slice **shape** is contract truth, but does not mean Phase C ships the
+> slice — `recommendationBatches` is post-C shape-only (§2.5); not-yet-landed
+> actionType payloads are name-frozen only (§5.6).
 > Boundary decisions live in
 > [`phase-C-web-boundary-spec.md`](phase-C-web-boundary-spec.md); this document
 > fixes their concrete interface shape part by part. Every frozen field here is
@@ -82,6 +88,16 @@ Fields by kind (after transform):
 superseded by this full projection; PC0 lifts it to a shared contract and PC4
 switches `MusicExperienceWorkspaceProjection` and the catalog path to emit it
 instead of the narrow summary.
+
+- **Anti-corruption allowlist (PC guard)**: the projector derives from
+  `MusicMaterial`, but the wire projection is **not** a type-level alias — a
+  frozen test asserts the emitted JSON contains only the allowlisted fields
+  above (handle/kind/title/name/artistLabels/albumLabel/releaseDate/
+  trackPosition/durationMs/availability/versionInfo/aliases). Adding a field to
+  `MusicMaterial` does NOT automatically appear in `WireMaterialProjection`; the
+  projector must explicitly allowlist it or the test fails. This keeps the DTO
+  decoupled from domain-contract growth (picture/lyrics/navigation/source
+  technical metadata never enter the wire).
 
 **Explicitly not in `WireMaterialProjection`**: cover/picture URL, lyrics,
 navigation URLs (presentation resources — §1.3); internal identity keys
@@ -263,8 +279,9 @@ nowPlaying slice:
 
 - **Owner**: Music Experience.
 - **Source**: durable (logical) + reconciled from the active tab's `actualState`
-  on the presence heartbeat (verified — single-source, §2.11; the controller-era
-  "lease heartbeat" is gone).
+  on `POST /player/events` (§7.2; verified single-source, §2.11; the
+  controller-era "lease heartbeat" is gone — `actualState` has its own event
+  endpoint, it does not ride the presence heartbeat).
 - **Phase C increment**: `verifiedActualState` is new (PC11). Existing
   projection lacks even `logicalIntent.status` on the workspace slice; PC4
   adds it.
@@ -276,23 +293,31 @@ nowPlaying slice:
   it visible (provider CORS/account/404 → reconcile → surfaced to agent, not
   silenced).
 - **`ended` reconcile — who advances the queue** (PC11): `actualState:"ended"`
-  on the presence heartbeat (§7.2) is reconciled server-side by Music
+  on `POST /player/events` (§7.2) is reconciled server-side by Music
   Experience, not just recorded as a label — (i) drop if the reported
   `material` no longer matches `logicalIntent.material` (a stale tab reporting
   ended for an old track); (ii) record the listening outcome; (iii) advance
-  the queue to the next item, or flip logical intent to `paused`/`ended` when
-  the queue is empty; (iv) emit the `nowPlaying` delta. **Idempotency**: an
+  the queue to the next item, or set `logicalIntent.status = "paused"` when
+  the queue is empty (`ended` is a verified-actual state, not a logical one —
+  §2.2 enum is `playing`|`paused`; queue-empty parks logical intent at
+  `paused` while `verifiedActualState.state` holds `ended`); (iv) emit the
+  `nowPlaying` delta. **Idempotency**: an
   `ended` for the same logical material is processed at most once — any
   playback transition that intervenes (`playNow` to a different material,
   **or** a pause/resume on the same one) voids a pending `ended`. The guard
   reuses the existing per-playback concern revision (`playbackRevision`,
   `kernel.ts:36` / `records.ts:159,1083`, already CAS-plumbed) — **no new
   `playbackEpoch` column or basis key**. "Any transition voids" (pause/resume
-  included) is the chosen reading; it is the safe reuse, whereas a
-  per-material-identity reading would over-invalidate a legitimate `ended`
-  across a same-track pause/resume. Whether the heartbeat echoes an
-  `observedPlaybackRevision` field vs the server keys an ended-flag on the
-  material is a PC11 implementation detail, not a wire decision fixed here.
+  included) is the chosen reading. A per-material-only guard would
+  **under-invalidate** stale `ended` events when the same material remains
+  current across a pause/resume or repeated queue entries (queue A→A: the
+  second A's `ended` is indistinguishable from the first's by material alone),
+  so ended reconciliation keys on `playbackRevision` identity, not material
+  identity. The heartbeat echoes the `playbackRevision` it last observed as an
+  optional `observedPlaybackRevision` field (§7.2); the server runs the ended
+  reconcile through the same CAS predicate `playNow`/pause/resume bump
+  (`advanceRevision`), so any transition since the client last looked rejects
+  a stale `ended` via the existing `StaleCommandPreconditionError` path.
 - **Verified material = handle only**: to avoid projecting the same material
   twice; the full projection stays in `logicalIntent.material`. The verified
   handle covers the rare boundary where the player is still on the previous
@@ -365,8 +390,10 @@ radioSession slice:
   — Autoplay = Radio refill (Phase B), Preview = `recommendationBatches` +
   queue actions. User intent emerges from interaction; a session-level mode
   toggle is a GUI concept that fails the voice/CLI overturn test.
-- **UI-neutrality**: PB9/PB10/wake-gate/C2a buttons/C3a unattended-PAUSE all
-  depend on lifecycle; a headless Radio needs it with no Radio Card.
+- **UI-neutrality**: PB9/PB10/wake-gate/C2a buttons all depend on lifecycle; a
+  headless Radio needs it with no Radio Card. (C3a's unattended transition
+  stops playback only and leaves Radio untouched — it does NOT transition
+  Radio lifecycle; the retracted "unattended-PAUSE" wording is gone.)
 - **Provenance**: `MusicExperienceRadioSessionOperation`
 (`src/contracts/music_experience.ts`).
 
@@ -462,9 +489,12 @@ parkedProposalUnits slice:
     handle: [proposal:publicId]
     effectKind: "library.relation.save" | "library.collection.add" | ...   // = actionType; TYPED, never a localized string
     structuredFacts: discriminated-by-effectKind {              // deterministic projection of the frozen command
-      // library.relation.save:   { verb: "save", target: WireMaterialProjection, ... }
-      // library.collection.add:  { verb: "add", collection: scope PublicObjectRef, target: WireMaterialProjection, position?, ... }
-      // per-command field enumeration is PC8 plan-level
+      // FROZEN (first producers, Phase C):
+      // library.relation.{save|unsave|favorite|unfavorite|block|unblock}:
+      //   { verb, target: WireMaterialProjection, effectTextKey }
+      // library.collection.add:
+      //   { verb:"add", collection: scope PublicObjectRef, collectionLabel, target: WireMaterialProjection, position?, effectTextKey }
+      // remaining effectKinds freeze when their command lands (PC8)
     }
     agentSummary: string                                        // agent-authored NL (emission)
     basis: ConcernRevisionSet                                   // Agent Work Basis for staleness
@@ -474,10 +504,11 @@ parkedProposalUnits slice:
 ```
 
 - **Owner**: Effect Boundary.
-- **Source**: durable (greenfield — the Effect Boundary today is only the
-  conservative stub `src/effect_boundary/stage_tool_execution_gate.ts`; PC8
-  builds the parked-unit store and the ask→park conversion).
-- **Phase C increment**: entire slice is new (PC8).
+- **Source**: **in-memory in Phase C** (the #146 process-volatile backend under
+  the in-memory toggle, default on — C4), **durable after PC8** (the parked-unit
+  store + ask→park conversion). The Effect Boundary today is only the
+  conservative stub `src/effect_boundary/stage_tool_execution_gate.ts`.
+- **Phase C increment**: slice is new — Phase C runs the confirm loop on the in-memory toggle + #146 store; the durable parked-unit store is post-C (PC8).
 - **Restart recovery (PC8 pre-durable interim)**: the current backend (#146)
   is process-volatile — a Server Host restart drops all pending units; the
   `parkedProposalUnits` slice resyncs empty (no tombstone delta, the slice is
@@ -489,8 +520,11 @@ parkedProposalUnits slice:
 - **`agentSummary` is agent-authored NL** (an emission) — distinct from the
   typed `effectKind`. It may be localized because the agent authored it.
 - **`structuredFacts` = deterministic projection** of the frozen typed command
-  (spec PC1: never hand-authored); discriminated by `effectKind`, field
-  enumeration settled in the PC8 plan.
+  (spec PC1: never hand-authored); discriminated by `effectKind`. The first
+  producers (`library.relation.*` 6 verbs + `library.collection.add`) are
+  **frozen** (verb + target/collection + collectionLabel + effectTextKey +
+  optional position); remaining effectKinds freeze when their command lands
+  (PC8).
 - **Confirm card = slice render, not a separate channel** (§3.4): the frontend
   renders Confirm cards from this slice; new park / state changes flow as
   `StateDelta`. No transport-level "card channel."
@@ -727,8 +761,8 @@ extensible query-parameter object so search/filter (follow-up) add as optional
 fields without breaking the contract.
 
 ```
-GET /workspaces/:workspaceId/library/query
-  input: {
+POST /workspaces/:workspaceId/library/query
+  body: {
     scope: scope PublicObjectRef                               // Phase C
     sort?: "time" | "dictionary" | ...                          // Phase C, open enum
     limit?: number
@@ -768,7 +802,7 @@ GET /workspaces/:workspaceId/library/query
   enter `WireMaterialProjection`; they ride a future management-detail
   projection so the common projection stays clean.
 
-## 5. Upstream Envelope (Part 2 — frozen: envelope + result channel + actionType registry + all 32 payloads, §5.6)
+## 5. Upstream Envelope (Part 2 — frozen: envelope + result channel + actionType registry + 32 names + landed-group payloads, §5.6)
 
 The upstream POST family. Two envelope types carry user-initiated semantics;
 the lease heartbeat is connection-layer (Part 4), not an envelope here.
@@ -783,7 +817,9 @@ the lease heartbeat is connection-layer (Part 4), not an envelope here.
   `issuedFromUserActionId`. Response: `text/event-stream` — the Main run's
   AG-UI event stream (§5.8); the `actionId` ack is a stream event
   (`minemusic.chat_ack` CUSTOM, event #2), **not** a standalone JSON body.
-  Run output flows as slice deltas on the workspace stream (§5.8).
+  Run transcript/activity output flows on this chat POST response; run state
+  side-effects flow as `workspace.delta` on the workspace persistent stream
+  (§5.8).
 
 Merged or excluded from the wire family:
 
@@ -1225,6 +1261,11 @@ ChatMessageEnvelope {
   targets the workspace's active Main turn unconditionally, §5.6). After the
   ack, the stream continues `transcript.*` / `activity.*` …
   `RUN_FINISHED(success)` (or the run-termination outcomes below).
+- **Chat-ack fixture (PC9)**: the stream shape `RUN_STARTED` → `CUSTOM
+  minemusic.chat_ack` → `TEXT_MESSAGE_*` → `RUN_FINISHED` must pass
+  `@ag-ui/client`'s `verifyEvents` (CUSTOM is unconditional pass-through after
+  RUN_STARTED, per the verifyEvents state machine) — this is the guard that the
+  ack placement survives a real client reducer, not just a document claim.
 - **Run output vs state side-effects split across channels**: the run's
   `transcript.*` + `activity.*` ride the POST response (this run, this tab);
   the run's **state side-effects** (parked proposals, queue/radio commits) ride
@@ -1293,7 +1334,13 @@ PlaybackSource =
 `kind` drives fallback (a provider source may CORS/account-fail, a local source
 will not). No `sourceRef` on the wire — it is MDP-internal; the client only
 needs `kind + url`. The shared `url` field lets the player treat both kinds
-uniformly (`fetch` / `<audio src>`).
+uniformly (`fetch` / `<audio src>`). The resolver (§6.1) filters provider
+sources by `PlayableLink.browserPlayable` / `containsCredential`
+(`src/contracts/music_data_platform.ts`) before emitting — a non-browser-safe
+source is dropped from the resolved order or marked for a future provider
+proxy, so the wire `PlaybackSource` the client receives is already
+browser-safe; the `failed` fallback path (§6.4) is for runtime fetch failure,
+not for the resolver's pre-filter.
 
 ### 6.1 `GET /workspaces/:workspaceId/materials/:handle/playback-source`
 
@@ -1368,7 +1415,7 @@ GET /audio/:token?mode=download    → 200 / 206 by Range, Content-Disposition: 
   all," not "the first source didn't load."
 - Provider audio never touches the Server Host audio endpoint — the player
   fetches `kind:"provider".url` directly; a CORS/account/404 failure there is
-  reported through the lease heartbeat `actualState` (C5 / Part 4) and
+  reported through `POST /player/events` (§7.2; C5 / Part 4) and
   reconciled, never silently swallowed.
 
 ### 6.5 Phase C scope vs follow-ups
@@ -1378,9 +1425,12 @@ GET /audio/:token?mode=download    → 200 / 206 by Range, Content-Disposition: 
   `playback-source` resolver route, the `PlaybackSource` shape.
 - **Follow-ups (not Part 3)**: a server-side provider proxy (if browser
   direct-fetch is CORS/account-blocked in practice — surfaced by verification,
-  not pre-built, boundary-spec C5); backend arbitration of audio output / which
-  tab makes sound (§2.11 — not done in Phase C, single-tab assumed); multi-
-  instance durable token store (§6.3).
+  not pre-built, boundary-spec C5). Adding `{kind:"provider_proxy"}` later is
+  an additive `PlaybackSource` kind — Phase C intentionally does **not** reserve
+  it until a direct-fetch failure is actually observed (both NCM and QQ return
+  external CDN URLs, so the risk is provider-wide, not QQ-specific). Backend
+  arbitration of audio output / which tab makes sound (§2.11 — not done in
+  Phase C, single-tab assumed); multi-instance durable token store (§6.3).
 
 ## 7. Connection protocol (Part 4 — frozen)
 
@@ -1402,19 +1452,50 @@ event is `workspace.snapshot` (sequence baseline, §0). The connecting client's
 rides that snapshot's §2.11 slice — presence is minted at connect, not by a
 separate call. Reconnect = standard EventSource + full resnapshot on gap (§0).
 
-### 7.2 `POST /workspaces/:workspaceId/heartbeat` (presence upstream)
+### 7.2 Presence upstream — heartbeat (liveness) + player/events (playback facts)
+
+Two separate POSTs, decoupled: presence is low-frequency liveness (tolerates
+delay, drives the unattended transition); player events are event-driven
+playback facts (need `eventId` dedup + `playbackRevision` idempotency +
+source-fallback semantics). They were previously one `actualState?` field on
+the heartbeat; splitting them is a Part 4 amendment.
+
+**Heartbeat — liveness only:**
 
 ```
 POST /workspaces/:workspaceId/heartbeat
-  body:  { clientId, actualState?: { state, material: PublicObjectRef? } }
+  body:  { clientId }
   → 200: { expiresAt }
 ```
 
-Refreshes the presence lease. `actualState` rides the heartbeat (§2.2 verified
-layer): only the active tab — the one whose `playback.play` is the current
-logical intent — reports (others stopped their audio, §2.11). Single-source;
-last-write-wins backstop. Cadence / TTL / grace are PC plan-level (boundary-spec
-C3a; `TTL + grace ≫` heartbeat round-trip).
+Refreshes the presence lease. Cadence / TTL / grace are PC plan-level
+(boundary-spec C3a; `presence TTL + grace ≫` heartbeat round-trip).
+
+**Player events — playback facts:**
+
+```
+POST /workspaces/:workspaceId/player/events
+  body: {
+    clientId: string
+    eventId: string                                              // client-minted; idempotent dedup
+    state: "playing" | "buffering" | "ended" | "failed"
+    material?: PublicObjectRef
+    observedPlaybackRevision?: ConcernRevision                  // ended idempotency CAS (§2.2)
+    failedSourceAttemptIds?: string[]                           // optional; sources exhausted on "failed" (debug)
+  }
+  → 200: { accepted: true }
+```
+
+The Web player's playback facts come here, **not** on the presence heartbeat.
+Event-driven (one POST per actual transition). The owning Music Experience
+command reconciles verified truth: `ended` → queue-advance + listening
+outcome + `nowPlaying` delta, idempotent on `eventId` + guarded by
+`observedPlaybackRevision` (§2.2 ended reconcile); `failed` → raised only when
+the ordered `PlaybackSource` list is exhausted (§6.4); `playing`/`buffering`
+flip `verifiedActualState`. Only the tab whose `playback.play` is the current
+logical intent should report (others stopped their audio, §2.11);
+`observedPlaybackRevision` lets the server void a stale tab's report via the
+existing CAS.
 
 ### 7.3 Unattended → stop playback (Radio untouched)
 
@@ -1493,16 +1574,21 @@ The downstream `action.result` event (§5.3) carries `correlationId`,
   (`provider_unavailable`, `radio_session_runtime_failed`, `write_failed`);
   `reassess` → superseded/cancelled, re-evaluate intent then retry unchanged
   only if still wanted (`operation_aborted`).
-- **`retryHint` is declared per-code on each descriptor's `errors[]`**
-  (`queue_playback.ts:57`, `radio_truth.ts:69`, `import_control.ts:77`,
-  `relation_edit.ts:80`, `collection_edit.ts:134`, `radio_session_tools.ts:42`),
-  **not derived from the live `retryable` boolean** — that boolean is
-  inconsistent: `index_out_of_range` is `retryable:false` yet its fix is
-  refresh-and-retry, while `queue_index_invalid` is `retryable:true` with the
-  identical fix. A mechanical `retryable ? retry_later : do_not_retry` would
-  misclassify `index_out_of_range`. Each code declares its hint explicitly;
-  genuinely ambiguous codes (`account_unavailable`,
-  `scope_availability_failed`, `provider_not_found`) declare a primary.
+- **`retryHint` is NOT derived from the live `retryable` boolean** — that
+  boolean is inconsistent: `index_out_of_range` is `retryable:false` yet its
+  fix is refresh-and-retry, while `queue_index_invalid` is `retryable:true`
+  with the identical fix. A mechanical `retryable ? retry_later :
+  do_not_retry` would misclassify `index_out_of_range`. Today's
+  `ToolDeclaredError` carries only `code` / `retryable` / `suggestedFixTemplate`
+  (no `retryHint` field), so the PC action-result adapter maintains a
+  `code → retryHint` mapping table keyed on the error codes each descriptor
+  already declares (`queue_playback.ts:57`, `radio_truth.ts:69`,
+  `import_control.ts:77`, `relation_edit.ts:80`, `collection_edit.ts:134`,
+  `radio_session_tools.ts:42`). Extending `ToolDeclaredError` with a `retryHint`
+  field is a later consolidation (moves the table into the descriptor), not a
+  Phase C blocker; genuinely ambiguous codes (`account_unavailable`,
+  `scope_availability_failed`, `provider_not_found`) declare a primary in the
+  adapter table.
 - The `retryHint` enum is a **Part 5 amendment** (added 2026-07-02 to frozen
   §8); additive (optional field), does not alter the outcome mapping above.
 - **`ack` vs `action.result` reason sets differ by producer**: `ack.rejected
@@ -1538,7 +1624,7 @@ The downstream `action.result` event (§5.3) carries `correlationId`,
 | value set | deferred to | why |
 |---|---|---|
 | `activity.statusKind` (→ `activityType`) value set | PC13 | the enum is frozen (typed, never a raw tool name); the value list settles when activity emission lands |
-| `parkedProposalUnits[].structuredFacts` per-`effectKind` fields | PC8 | discriminated-by-`effectKind` is frozen; per-command field enumeration settles in the Effect Boundary build |
+| `parkedProposalUnits[].structuredFacts` — effectKinds beyond first producers | PC8 | first producers (relation.* 6 + collection.add) frozen; remaining effectKinds settle in the Effect Boundary build |
 
 ## 9. Phase C implementation provenance (slice / event-stream → PC)
 
@@ -1550,7 +1636,7 @@ The downstream `action.result` event (§5.3) carries `correlationId`,
 | radioSession | Music Experience | durable (after PC6) | PC6 (persist lifecycle), PC4 (expose) |
 | recommendationBatches | Music Experience | durable (new) | post-C follow-up (slice + depth both deferred; Radio recommendations ride transcript/activity until the slice lands) |
 | libraryCatalog | Music Data Platform | durable (new projection) | PC16 |
-| parkedProposalUnits | Effect Boundary | in-memory (Phase C, toggle default on); durable PC8 | PC8 (Phase C runs the confirm loop on the in-memory toggle + #146 store; restart drops pending units = accepted degradation, fixed when durable store lands) |
+| parkedProposalUnits | Effect Boundary | in-memory (Phase C); durable post-C (PC8) | Phase C (in-memory toggle + #146 store, confirm loop runs); durable store post-C (PC8) — restart drops pending units = accepted degradation |
 | transcripts | Agent Runtime | durable (PB2) | PC9/PC13 (AG-UI surface, per-run) |
 | activity | Agent Runtime | runtime emission (new) | PC13 |
 | selectedObject | Workbench Interface | interaction-state (new) | PC15 |

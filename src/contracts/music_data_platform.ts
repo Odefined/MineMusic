@@ -40,6 +40,16 @@ export type PlayableLink = {
   url: string;
   label?: string;
   requiresAccount?: boolean;
+  // Browser-fetch safety — consumed by the Phase C PlaybackSourceResolver to
+  // filter or mark non-browser-safe sources before handing them to the Web
+  // player (boundary-spec C5). Prevents credential-bearing or CORS-bound URLs
+  // from leaking straight to the browser; a source flagged not-browser-playable
+  // is either dropped from the resolved order or surfaced as needing a future
+  // provider proxy. Providers populate these when they know their URL shape;
+  // absent = unknown (resolver treats conservatively).
+  browserPlayable?: boolean;
+  containsCredential?: boolean;
+  proxyRequiredReason?: "cors" | "credential" | "provider_policy";
 };
 
 export type SourceNavigationLink = {
