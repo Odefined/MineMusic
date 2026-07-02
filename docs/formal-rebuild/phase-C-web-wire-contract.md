@@ -171,6 +171,12 @@ WorkbenchDownstreamEventEnvelope:            // workspace persistent stream only
   family alongside `transcript.*`. `transcripts` and activity are **not** state
   slices; they ride their own AG-UI message event streams, not
   `workspace.snapshot`.
+- **Serializer-seam field renames** (wire DTO → AG-UI event, applied at the
+  `@ag-ui/encoder` boundary): `workspace.delta.patch` → STATE_DELTA's `delta`
+  field; `TranscriptMessage.messageId` → MESSAGES_SNAPSHOT Message's `id`
+  field. The wire keeps its own field names (anti-corruption layer, §0); the
+  serializer renames at the boundary. (TEXT_MESSAGE_* is `messageId` both
+  sides — no rename; ACTIVITY_DELTA is `patch` both sides — no rename.)
 - **Routing is by carrying channel, not runId** (transport C): Main-run
   `transcript.*` / `activity.*` arrive on the chat POST response → Chat;
   Radio-run `transcript.*` / `activity.*` arrive on the workspace persistent
@@ -458,15 +464,20 @@ parkedProposalUnits slice:
   PC1 spec decision consistent with ADR-0034's DTO ownership, not a decision
   ADR-0034 itself establishes.
 
-### 2.8 `transcripts` — per-run AG-UI message stream (not a state slice)
+### 2.8 `transcripts` — run-separated AG-UI message stream (not a state slice)
 
-Transcripts are **per-run** — one AG-UI message thread per run, carried by
-`transcript.*` events (§1.4: TEXT_MESSAGE_START/CONTENT/END + MESSAGES_SNAPSHOT),
-**not** by `workspace.snapshot`, and **not merged across runs**. The Main run
-and the Radio run are independent AG-UI threads (distinct `runId`); activity is
-per-run the same way (§2.9). The assistant message lifecycle streams live
-(pi-agent-core `message_*` → AG-UI TEXT_MESSAGE_*); a full
-`transcript.messages_snapshot` resyncs **that run's** thread on reconnect/compact.
+Transcripts are **separated by run** — Main and Radio never merge into one
+message stream (Main rides its chat POST response, Radio rides the workspace
+stream, §1.4 transport C). Within each channel: the **Main run is a per-turn
+thread** (one user POST = one AG-UI run, its own `runId`); the **Radio run is a
+continuous flow** — Radio is a long-lived autonomous agent whose repeated
+supervisor-wake runs accumulate into one continuous Radio transcript the
+frontend consumes as a single stream (it does **not** slice by wake/run).
+`transcript.*` events (§1.4: TEXT_MESSAGE_START/CONTENT/END + MESSAGES_SNAPSHOT)
+carry both; activity follows the same separation (§2.9). The assistant message
+lifecycle streams live (pi-agent-core `message_*` → AG-UI TEXT_MESSAGE_*); a
+full `transcript.messages_snapshot` resyncs that channel's thread on
+reconnect/compact — Main's per-turn thread, or Radio's continuous thread.
 
 ```
 TranscriptMessage = {
@@ -510,8 +521,10 @@ ACTIVITY_DELTA), which are AG-UI messages with `role:"activity"` — **not** a
 separate slice, **not** a separate stream family. Activity and transcripts
 (§2.8) together form the messages family. There is no `workTrace` slice and no
 MineMusic-specific activity-log type: AG-UI activity messages are the activity
-truth, resynced by `MESSAGES_SNAPSHOT` (which carries `role:"activity"` messages
-alongside text messages).
+truth. Activity is **ephemeral, not resynced** — a disconnect drops in-flight
+activity; the client only receives new activity after reconnect
+(`MESSAGES_SNAPSHOT` carries only transcript messages; AG-UI's snapshot
+messages have no `role:"activity"` variant).
 
 ```
 ACTIVITY_SNAPSHOT fields (AG-UI standard; no MineMusic extension type):
@@ -874,10 +887,18 @@ lets authoritative `StateDelta` overwrite.
 
 `action.result` is a **best-effort real-time notification** — fire-and-forget,
 not redelivered on client reconnect. If the client misses it (disconnect
-between POST and SSE delivery), it resyncs state (§0 gap recovery) and reads
-whether the action took effect from the slice (state changed → committed;
-state unchanged → failed → retry/give-up per the rule above). `state` is the
-authority; `action.result` is the timely signal, not a redeliverable truth. Area revision is OCC-driven, not
+between POST and SSE delivery), it resyncs state (§0 gap recovery) and infers
+the outcome from the resynced slice with a two-state heuristic: **state
+changed → committed; state unchanged → retry/give-up**. This heuristic cannot
+distinguish all four outcomes from state alone; the degradations are accepted
+(best-effort, not upgraded to at-least-once for Phase C): `noop` missed →
+state unchanged → retry is idempotent (self-heals) or give-up on an
+already-achieved target (harmless); `voided_stale` missed → the other writer's
+state usually changed → reads as "committed", client does not retry — the one
+real degradation (a stale-at-commit action silently treated as committed),
+bounded by rarity (miss × multi-writer contention) and manual retry fallback.
+`state` is the authority; `action.result` is the timely signal, not a
+redeliverable truth. Area revision is OCC-driven, not
 action-scoped; under multi-tab interleaving a "pointer" would not be unique
 anyway. On `outcome: voided_stale` the frontend's local state is stale;
 it triggers a full resnapshot (§0 gap recovery) to fetch the current revision
@@ -923,8 +944,8 @@ not retry in a tight loop.
 | `radio.variations.add`/`.remove`/`.replace`/`.move`/`.clear` | yes | radioDirection | `action.result` |
 | `playback.queue.append`/`.remove`/`.replace`/`.move`/`.clear` | yes (`MusicExperienceQueuePlaybackCommand`) | queue | `action.result` |
 | `playback.play` | yes (`MusicExperienceQueuePlaybackCommand.playNow`) | — | `action.result` |
-| `playback.pause`/`.resume` | yes (`MusicExperienceQueuePlaybackCommand`) | — | `action.result` (logical status → paused/playing) |
-| `playback.skip` | yes (`MusicExperienceQueuePlaybackCommand`) | — | `action.result` (logical → queue next; current position PC plan-level) |
+| `playback.pause`/`.resume` | not-yet-landed (PC: extend `MusicExperienceQueuePlaybackCommand` with pause/resume) | — | `action.result` (logical status → paused/playing) |
+| `playback.skip` | not-yet-landed (PC: extend `MusicExperienceQueuePlaybackCommand` with skip) | — | `action.result` (logical → queue next; current position PC plan-level) |
 | `library.relation.save`/`.unsave`/`.favorite`/`.unfavorite`/`.block`/`.unblock` | yes | — | `action.result` |
 | `library.collection.add` | yes (`CollectionCommands.addCollectionItem`) | — | `action.result` |
 | `library.import.start` | yes (`LibraryImportStartCommand`) | — | `action.result`; committed on batch+first-job submitted (progress via `libraryCatalog.libraryStatus.importStatus` slice, PC16) |
@@ -1205,8 +1226,8 @@ GET /workspaces/:workspaceId/materials/:handle/playback-source
 ### 6.2 `GET /audio/:token` (capability-based, not workspace-scoped)
 
 ```
-GET /audio/:token                  → 206 Partial Content, Content-Disposition: inline (play)
-GET /audio/:token?mode=download    → 206, Content-Disposition: attachment (download)
+GET /audio/:token                  → 200 / 206 by Range (see below), Content-Disposition: inline (play)
+GET /audio/:token?mode=download    → 200 / 206 by Range, Content-Disposition: attachment (download)
 ```
 
 - **Capability, not workspace lookup**: the token resolves (Public Handle Veil)
