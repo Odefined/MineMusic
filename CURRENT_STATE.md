@@ -181,8 +181,8 @@ inventory; they are preserved by git history and archive docs only.
 - Music Experience owns radio/listening interaction behavior and durable music
   experience state.
 - Memory is an independent long-term user/music relationship area.
-- Effect Boundary owns side-effect permission, approval, audit, and execution
-  policy.
+- Effect Boundary owns side-effect permission, approval, audit, execution
+  policy, and the process-volatile Proposal Unit lifecycle.
 
 ## Formal Vocabulary State
 
@@ -585,6 +585,9 @@ The active TypeScript tree is now a formal skeleton:
 - `src/effect_boundary/stage_tool_execution_gate.ts` owns the
   `StageToolExecutionGate` policy, audit recording seam, ADR-0038
   impact-class × actor-trust table, and owner-curation tightening setting;
+- `src/effect_boundary/proposal_unit_store.ts` owns the process-volatile
+  Proposal Unit lifecycle store: park, confirm/reject resolve, expiry, basis
+  recheck to `voided_stale`, and release-port handoff of the frozen command;
 - `src/stage_core/runtime_module.ts` owns the Stage Core-only
   `RuntimeModule` contribution boundary, now using `StageToolRegistration`
   entries instead of separate descriptor/handler maps;

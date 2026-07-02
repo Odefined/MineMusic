@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
+import { createMemoryProposalUnitStore } from "../../src/effect_boundary/index.js";
 
 import {
   createAgentRuntimeRadioRefillRunPort as createProductionRadioRefillRunPort,
@@ -1700,6 +1701,9 @@ function createMinimalContext(
         return false;
       },
     },
+    proposalUnits: createMemoryProposalUnitStore({
+      clock: () => "2026-06-28T00:00:00.000Z",
+    }),
     executionGate: {
       async preflight() {
         return {

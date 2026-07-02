@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { PlatformLibraryCandidate, } from "../../src/contracts/music_data_platform.js";
 import type { LibraryImportDriveOutput, StageToolContext, } from "../../src/contracts/stage_interface.js";
+import { createMemoryProposalUnitStore } from "../../src/effect_boundary/index.js";
 import type { SourceLibraryImportBatchRecord, SourceLibraryReadPort, } from "../../src/music_data_platform/index.js";
 import { createLibraryImportStartRegistration, createLibraryImportStatusRegistration, libraryImportInstrument, libraryImportStartDescriptor, libraryImportStatusDescriptor, type LibraryImportControlPort, } from "../../src/music_data_platform/stage_adapter/index.js";
 import { assertSampleOutputHasNoInternalAnchors, createStageInterface, } from "../../src/stage_interface/index.js";
@@ -458,6 +459,9 @@ function testStageToolContext(): StageToolContext {
                 return true;
             },
         },
+        proposalUnits: createMemoryProposalUnitStore({
+            clock: () => now,
+        }),
         executionGate: {
             async preflight() {
                 return {

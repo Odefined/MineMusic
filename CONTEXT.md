@@ -258,7 +258,9 @@ A short-lived agent work unit for a high-impact action that needs user
 confirmation (PRD "agent proposes"). It parks at the confirmation point with the
 intended owning-area command captured frozen, along with its Agent Work Basis,
 without freezing the spawning agent: Main's main conversation and Radio's loop
-keep running. On resume (approval) the owning area re-checks the Agent Work Basis; a stale
+keep running. The current backend store is process-volatile: a server restart may
+drop pending units, and a later confirm resolves as unknown/not found rather than
+as `expired`. On resume (approval) the owning area re-checks the Agent Work Basis; a stale
 basis voids the unit — a `voided_stale` outcome distinct from user rejection and
 timeout — and routes the void to Main agent, which speaks the outcome and may
 re-propose. This is agent-driven recovery: Effect Boundary emits the void fact,

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Ref } from "../../src/contracts/kernel.js";
 import { createStageInterface, } from "../../src/stage_interface/index.js";
 import type { StageToolContext, } from "../../src/contracts/stage_interface.js";
+import { createMemoryProposalUnitStore } from "../../src/effect_boundary/index.js";
 import { createInMemoryMusicScopeAvailabilityPort, createMusicDiscoveryListScopesRegistration, createMusicDiscoveryRuntimeModule, musicDiscoveryInstrument, } from "../../src/music_intelligence/stage_adapter/index.js";
 let providerAvailabilityCalls = 0;
 const scopeAvailability = createInMemoryMusicScopeAvailabilityPort({
@@ -231,6 +232,9 @@ function testStageToolContext(): StageToolContext {
                 return true;
             },
         },
+        proposalUnits: createMemoryProposalUnitStore({
+            clock: () => "2026-06-17T00:00:00.000Z",
+        }),
         executionGate: {
             async preflight() {
                 return {

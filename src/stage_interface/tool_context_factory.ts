@@ -15,6 +15,7 @@ import type {
   AgentActorKind,
   ConcernRevisionSet,
 } from "../contracts/kernel.js";
+import type { ProposalUnitParkingPort } from "../contracts/effect_boundary.js";
 import type {
   ActorTrustBasis,
   HandleMintingPort,
@@ -35,6 +36,7 @@ export type CreateStageToolContextFactoryInput = {
   handleMinting: HandleMintingPort;
   lookupCursors: LookupCursorStore;
   executionGate: StageToolExecutionGate;
+  proposalUnits: ProposalUnitParkingPort;
   audit?: StageToolAuditPort;
 };
 
@@ -73,6 +75,7 @@ export function createStageToolContextFactory(
         handleMinting: input.handleMinting,
         lookupCursors: input.lookupCursors,
         executionGate: input.executionGate,
+        proposalUnits: input.proposalUnits,
         ...(input.audit === undefined ? {} : { audit: input.audit }),
         ...(perCall.abortSignal === undefined ? {} : { abortSignal: perCall.abortSignal }),
       });

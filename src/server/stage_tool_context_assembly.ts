@@ -10,10 +10,12 @@
 // the owning module on first use (after `start()`). This mirrors the lazy-port
 // pattern used by the Music Experience server module (`lazyCandidateCommitCommand`).
 
+import type { ProposalUnitParkingPort } from "../contracts/effect_boundary.js";
 import type { HandleMintingPort, LookupCursorStore } from "../contracts/stage_interface.js";
 import {
   createConservativeStageToolExecutionGate,
   createMemoryStageToolAuditPort,
+  createMemoryProposalUnitStore,
 } from "../effect_boundary/index.js";
 import {
   createStageToolContextFactory,
@@ -23,6 +25,7 @@ import {
 export type StageToolContextAssemblyPorts = {
   handleMinting(): HandleMintingPort | undefined;
   lookupCursorStore(): LookupCursorStore | undefined;
+  proposalUnits?: ProposalUnitParkingPort;
 };
 
 export type CreateStageToolContextAssemblyInput = {
@@ -72,12 +75,14 @@ export function createStageToolContextAssembly(
   // A single audit port is shared by the conservative gate and the per-call
   // context so gate decisions and ctx.audit records land in the same buffer.
   const audit = createMemoryStageToolAuditPort();
+  const proposalUnits = input.ports.proposalUnits ?? createMemoryProposalUnitStore();
   return createStageToolContextFactory({
     ownerScope: input.ownerScope ?? "local",
     clock: () => new Date().toISOString(),
     handleMinting: lazyHandleMinting,
     lookupCursors: lazyLookupCursors,
     executionGate: createConservativeStageToolExecutionGate({ audit }),
+    proposalUnits,
     audit,
   });
 }

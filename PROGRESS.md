@@ -1812,13 +1812,35 @@ GitHub issue #115 lands the ADR-0038 Effect Boundary gate contract:
   `ownerCurationWrite`.
 - Current Server Host contexts default to
   `actorTrustBasis: "user-intent-backed"` and
-  `askBeforeSourceOfTruthEdits: false`; Proposal Unit persistence, Confirm card
-  UI, durable settings, and full Agent Runtime provenance remain later work.
+  `askBeforeSourceOfTruthEdits: false`; durable Proposal Unit persistence,
+  Confirm card UI, durable settings, and full Agent Runtime provenance remain
+  later work.
 
 `music.experience.present` remains `durableUserStateWrite: true` because
 candidate presentation can commit durable material identity, but it declares
 `ownerCurationWrite: false`. Library import start, relation edits, and
 collection edits declare `ownerCurationWrite: true`.
+
+## 2026-07-02: Volatile Proposal Unit Lifecycle Store
+
+GitHub issue #146 lands the first Effect Boundary Proposal Unit backend with the
+product decision that pending units are process-volatile and may be lost across
+server restart.
+
+- `src/contracts/effect_boundary.ts` defines the Proposal Unit record,
+  frozen owning-command snapshot, lifecycle states (`pending`, `confirmed`,
+  `rejected`, `expired`, `voided_stale`), and the parking/resolve/expiry/basis
+  recheck/release ports.
+- `src/effect_boundary/proposal_unit_store.ts` implements an in-memory store
+  with ownerScope isolation, TTL expiry, OCC basis re-check, confirm/reject
+  resolution, and release-port handoff. Restart loss surfaces as
+  `effect_boundary.proposal_unit_not_found`, not `expired`.
+- Stage Interface dispatch now parks a Proposal Unit when the execution gate
+  returns `ask` or `raise-to-conversation`, while preserving the existing public
+  `stage_interface.ask_required` failure surface and keeping proposal details
+  out of agent-facing tool output.
+- The store remains deliberately projection-free: no `effectKind`,
+  `structuredFacts`, stale flag, or action outcome enum is produced here.
 
 ## Next Formal Milestones
 

@@ -24,6 +24,7 @@ import type {
   StageToolContext,
   ToolDeclaration,
 } from "../../src/contracts/stage_interface.js";
+import { createMemoryProposalUnitStore } from "../../src/effect_boundary/index.js";
 import {
   assistantMessageWithToolCall,
   assistantTextMessage,
@@ -445,6 +446,9 @@ function createMinimalContext(input: Parameters<AgentRuntimeStageToolContextFact
         return false;
       },
     },
+    proposalUnits: createMemoryProposalUnitStore({
+      clock: () => "2026-06-30T00:00:00.000Z",
+    }),
     executionGate: {
       async preflight() {
         return { decision: "allow", auditLevel: "none" };

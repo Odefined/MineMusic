@@ -7,6 +7,7 @@ import type {
 import type { StageError } from "../../src/contracts/kernel.js";
 import type { ProviderMaterialCandidate } from "../../src/contracts/music_data_platform.js";
 import type { StageToolContext } from "../../src/contracts/stage_interface.js";
+import { createMemoryProposalUnitStore } from "../../src/effect_boundary/index.js";
 import type { ExtensionRuntime, ExtensionRuntimeSnapshot, MineMusicPlugin, PluginActivationContext, } from "../../src/extension/index.js";
 import { createExtensionRuntime, sourceProviderSlot } from "../../src/extension/index.js";
 import { createCollectionRecords, createOwnerMaterialRelationRecords, createSourceLibraryReadPort, musicDataPlatformSchemas } from "../../src/music_data_platform/index.js";
@@ -654,6 +655,9 @@ function testStageToolContext(): StageToolContext {
                 return true;
             },
         },
+        proposalUnits: createMemoryProposalUnitStore({
+            clock: () => "2026-06-18T00:00:00.000Z",
+        }),
         executionGate: {
             async preflight() {
                 return {

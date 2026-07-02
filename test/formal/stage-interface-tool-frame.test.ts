@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { Ajv, type AnySchema } from "ajv";
 import type { Result } from "../../src/contracts/kernel.js";
+import type { ParkProposalUnitInput, ProposalUnitParkingPort } from "../../src/contracts/effect_boundary.js";
 import { musicCardSchema, musicDiscoveryLookupInputSchema, musicExperiencePresentInputSchema, musicExperiencePresentOutputSchema, musicItemHandleSchema, musicScopeSchema, stageRuntimeStatusInputSchema, } from "../../src/contracts/generated/stage_interface_schemas.js";
 import type { InstrumentDescriptor, JsonSchema, StageToolContext, StageToolRegistration, ToolDeclaration, } from "../../src/contracts/stage_interface.js";
-import { createConservativeStageToolExecutionGate, createMemoryStageToolAuditPort, } from "../../src/effect_boundary/index.js";
+import { createConservativeStageToolExecutionGate, createMemoryProposalUnitStore, createMemoryStageToolAuditPort, } from "../../src/effect_boundary/index.js";
 import { assertSampleOutputHasNoInternalAnchors, createStageInterface, createStageInterfaceHandleMintingPort, createStageInterfaceHandleRegistryRecords, createStageToolContext, stageInterfaceHandleRegistrySchema, } from "../../src/stage_interface/index.js";
 import { stageRuntimeStatusDescriptor } from "../../src/stage_core/runtime_status.js";
 import type { MusicDatabase } from "../../src/storage/index.js";
@@ -622,14 +623,32 @@ assert.equal(invalidOutputResult.ok, false);
 if (!invalidOutputResult.ok) {
     assert.equal(invalidOutputResult.error.code, "stage_interface.invalid_output");
 }
-const askResult = await stageInterface.dispatch(testStageToolContext("ask"), {
+const askParkInputs: ParkProposalUnitInput[] = [];
+const askProposalUnits: ProposalUnitParkingPort = {
+    async park(input) {
+        askParkInputs.push(input);
+        return {
+            proposalUnitId: "pu_stage_interface_ask",
+            state: "pending",
+            expiresAt: "2026-06-17T00:15:00.000Z",
+        };
+    },
+};
+const askResult = await stageInterface.dispatch(testStageToolContext("ask", askProposalUnits), {
     toolName: descriptor.name,
     payload: {},
 });
 assert.equal(askResult.ok, false);
 if (!askResult.ok) {
     assert.equal(askResult.error.code, "stage_interface.ask_required");
+    assert.equal(JSON.stringify(askResult.error).includes("pu_stage_interface_ask"), false);
 }
+assert.equal(askParkInputs.length, 1);
+assert.equal(askParkInputs[0]?.basis.radioDirectionRevision, undefined);
+assert.equal(askParkInputs[0]?.frozenOwningCommand.descriptor.name, descriptor.name);
+assert.deepEqual(askParkInputs[0]?.frozenOwningCommand.arguments, {});
+assert.equal("resultSummary" in (askParkInputs[0]?.frozenOwningCommand.descriptor ?? {}), false);
+assert.equal("agentResultText" in (askParkInputs[0]?.frozenOwningCommand.descriptor ?? {}), false);
 const raiseResult = await stageInterface.dispatch(testStageToolContext("raise-to-conversation"), {
     toolName: descriptor.name,
     payload: {},
@@ -644,6 +663,10 @@ const internalGateReasonResult = await stageInterface.dispatch(createStageToolCo
     sessionId: "stage-interface-test-session",
     requestId: "stage-interface-test-request",
     clock: () => "2026-06-17T00:00:00.000Z",
+    proposalUnits: createMemoryProposalUnitStore({
+        clock: () => "2026-06-17T00:00:00.000Z",
+        proposalUnitIdFactory: () => "pu_internal_gate_reason",
+    }),
     executionGate: {
         async preflight() {
             return {
@@ -902,6 +925,10 @@ const leakingPublicReasonContext = createStageToolContext({
     sessionId: "stage-interface-test-session",
     requestId: "stage-interface-test-request",
     clock: () => "2026-06-17T00:00:00.000Z",
+    proposalUnits: createMemoryProposalUnitStore({
+        clock: () => "2026-06-17T00:00:00.000Z",
+        proposalUnitIdFactory: () => "pu_public_reason_leak",
+    }),
     executionGate: {
         async preflight() {
             return {
@@ -956,12 +983,19 @@ await upsertDatabase.close();
 function compiled(schema: JsonSchema) {
     return ajv.compile(schema as AnySchema);
 }
-function testStageToolContext(decision: "allow" | "ask" | "raise-to-conversation" | "deny" = "allow"): StageToolContext {
+function testStageToolContext(
+    decision: "allow" | "ask" | "raise-to-conversation" | "deny" = "allow",
+    proposalUnits: ProposalUnitParkingPort = createMemoryProposalUnitStore({
+        clock: () => "2026-06-17T00:00:00.000Z",
+        proposalUnitIdFactory: () => `pu_stage_interface_${decision}`,
+    }),
+): StageToolContext {
     return createStageToolContext({
         ownerScope: "local",
         sessionId: "stage-interface-test-session",
         requestId: "stage-interface-test-request",
         clock: () => "2026-06-17T00:00:00.000Z",
+        proposalUnits,
         executionGate: {
             async preflight() {
                 return {

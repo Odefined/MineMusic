@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createStageInterface, } from "../../src/stage_interface/index.js";
 import type { LibraryImportListSourcesOutput, StageToolContext, } from "../../src/contracts/stage_interface.js";
+import { createMemoryProposalUnitStore } from "../../src/effect_boundary/index.js";
 import { createExtensionRuntime, } from "../../src/extension/index.js";
 import { createLibraryImportRuntimeModule, createLibraryImportListSourcesRegistration, libraryImportInstrument, } from "../../src/music_data_platform/stage_adapter/index.js";
 import { createLibraryImportServerRuntimeModule, createMineMusicExtensionRuntime, type LibraryImportServerPorts, } from "../../src/server/index.js";
@@ -230,6 +231,9 @@ function testStageToolContext(): StageToolContext {
                 return true;
             },
         },
+        proposalUnits: createMemoryProposalUnitStore({
+            clock: () => "2026-06-18T00:00:00.000Z",
+        }),
         executionGate: {
             async preflight() {
                 return {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import type { LibraryRelationStateOutput, StageToolContext, } from "../../src/contracts/stage_interface.js";
+import { createMemoryProposalUnitStore } from "../../src/effect_boundary/index.js";
 import { MusicDataPlatformError, } from "../../src/music_data_platform/index.js";
 import { createLibraryRelationBlockRegistration, createLibraryRelationFavoriteRegistration, createLibraryRelationGetRegistration, createLibraryRelationSaveRegistration, createLibraryRelationUnblockRegistration, createLibraryRelationUnfavoriteRegistration, createLibraryRelationUnsaveRegistration, libraryRelationBlockDescriptor, libraryRelationFavoriteDescriptor, libraryRelationGetDescriptor, libraryRelationInstrument, libraryRelationSaveDescriptor, libraryRelationUnblockDescriptor, libraryRelationUnfavoriteDescriptor, libraryRelationUnsaveDescriptor, type LibraryRelationControlPort, } from "../../src/music_data_platform/stage_adapter/index.js";
 import { assertSampleOutputHasNoInternalAnchors, createStageInterface, } from "../../src/stage_interface/index.js";
@@ -303,6 +304,9 @@ function testStageToolContext(input: {
                 return true;
             },
         },
+        proposalUnits: createMemoryProposalUnitStore({
+            clock: () => now,
+        }),
         executionGate: {
             async preflight() {
                 return {

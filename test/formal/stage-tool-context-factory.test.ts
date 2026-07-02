@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { HandleMintingPort, LookupCursorStore, StageToolAuditPort, StageToolExecutionGate, } from "../../src/contracts/stage_interface.js";
+import { createMemoryProposalUnitStore } from "../../src/effect_boundary/index.js";
 import { createStageToolContextFactory } from "../../src/stage_interface/index.js";
 import { createServerHost, createStageToolContextAssembly, type StageToolContextAssemblyPorts, } from "../../src/server/index.js";
 import { createPostgresTestSchema, postgresTestDatabaseUrl } from "../support/postgres.js";
@@ -36,6 +37,10 @@ const stubAudit: StageToolAuditPort = {
         return { ok: true, value: undefined };
     },
 };
+const stubProposalUnits = createMemoryProposalUnitStore({
+    clock: () => fixedNow,
+    proposalUnitIdFactory: () => "pu_factory_stub",
+});
 // createStageToolContextFactory closes over the real ports and threads only the
 // per-call scalars through. providerAvailability is intentionally NOT bound (no
 // shipped handler reads it), so the context keeps the conservative default.
@@ -46,6 +51,7 @@ const stubAudit: StageToolAuditPort = {
         handleMinting: stubHandleMinting,
         lookupCursors: stubLookupCursors,
         executionGate: stubGate,
+        proposalUnits: stubProposalUnits,
         audit: stubAudit,
     });
     const ctx = await factory.createToolContext({
@@ -59,6 +65,7 @@ const stubAudit: StageToolAuditPort = {
     assert.equal(ctx.handleMinting, stubHandleMinting);
     assert.equal(ctx.lookupCursors, stubLookupCursors);
     assert.equal(ctx.executionGate, stubGate);
+    assert.equal(ctx.proposalUnits, stubProposalUnits);
     assert.equal(ctx.audit, stubAudit);
     assert.equal(ctx.abortSignal, undefined);
     assert.equal(await ctx.providerAvailability.isProviderAvailable({ providerId: "netease", ownerScope: "local" }), false);

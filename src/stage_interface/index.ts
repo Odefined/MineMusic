@@ -1,6 +1,7 @@
 import { Ajv, type AnySchema, type ValidateFunction } from "ajv";
 
 import type { Result, StageError } from "../contracts/kernel.js";
+import type { FrozenOwningCommand } from "../contracts/effect_boundary.js";
 import type {
   InstrumentDescriptor,
   JsonSchema,
@@ -225,6 +226,28 @@ export function createStageInterface(input: CreateStageInterfaceInput): StageInt
       }
 
       if (gateDecision.decision !== "allow") {
+        if (gateDecision.decision === "ask" || gateDecision.decision === "raise-to-conversation") {
+          try {
+            await ctx.proposalUnits.park({
+              ownerScope: ctx.ownerScope,
+              frozenOwningCommand: frozenOwningCommandFor(registration.descriptor, call.payload),
+              basis: ctx.preconditionBasis ?? {},
+              provenance: {
+                gateDecision: gateDecision.decision,
+                sessionId: ctx.sessionId,
+                requestId: ctx.requestId,
+                ...(ctx.actor === undefined ? {} : { actor: ctx.actor }),
+              },
+            });
+          } catch {
+            return fail(
+              "stage_interface.proposal_unit_parking_failed",
+              `Tool '${call.toolName}' could not be parked for approval.`,
+              false,
+            );
+          }
+        }
+
         return fail(
           gateDecision.decision === "deny"
             ? "stage_interface.denied_by_policy"
@@ -311,6 +334,67 @@ export function createStageInterface(input: CreateStageInterfaceInput): StageInt
         ...(handled.warnings === undefined ? {} : { warnings: handled.warnings }),
       };
     },
+  };
+}
+
+function frozenOwningCommandFor(
+  descriptor: ToolDeclaration,
+  args: unknown,
+): FrozenOwningCommand {
+  return {
+    descriptor: {
+      name: descriptor.name,
+      instrumentId: descriptor.instrumentId,
+      label: descriptor.label,
+      ownerArea: descriptor.ownerArea,
+      description: descriptor.description,
+      usage: {
+        useWhen: descriptor.usage.useWhen,
+        doNotUseWhen: descriptor.usage.doNotUseWhen,
+        outputSemantics: descriptor.usage.outputSemantics,
+      },
+      examples: descriptor.examples.map((example) => ({
+        prompt: example.prompt,
+        expects: example.expects,
+        ...(example.note === undefined ? {} : { note: example.note }),
+      })),
+      sideEffect: {
+        durableUserStateWrite: descriptor.sideEffect.durableUserStateWrite,
+        ownerCurationWrite: descriptor.sideEffect.ownerCurationWrite,
+        runtimeStateWrite: descriptor.sideEffect.runtimeStateWrite,
+        externalCall: descriptor.sideEffect.externalCall,
+      },
+      invocationPolicy: {
+        defaultDecision: descriptor.invocationPolicy.defaultDecision,
+        impactClass: descriptor.invocationPolicy.impactClass,
+        dataEgress: descriptor.invocationPolicy.dataEgress,
+        readOnlyHint: descriptor.invocationPolicy.readOnlyHint,
+        destructiveHint: descriptor.invocationPolicy.destructiveHint,
+        ...(descriptor.invocationPolicy.maxCallsPerTurn === undefined
+          ? {}
+          : { maxCallsPerTurn: descriptor.invocationPolicy.maxCallsPerTurn }),
+      },
+      inputSchema: structuredClone(descriptor.inputSchema),
+      outputSchema: structuredClone(descriptor.outputSchema),
+      errors: descriptor.errors.map((error) => ({
+        code: error.code,
+        retryable: error.retryable,
+        suggestedFixTemplate: error.suggestedFixTemplate,
+      })),
+      ...(descriptor.allowedActions === undefined
+        ? {}
+        : {
+            allowedActions: descriptor.allowedActions.map((action) => ({
+              handleKind: action.handleKind,
+              action: action.action,
+              toolName: action.toolName,
+            })),
+          }),
+      ...(descriptor.requiresProvider === undefined
+        ? {}
+        : { requiresProvider: [...descriptor.requiresProvider] }),
+    },
+    arguments: structuredClone(args),
   };
 }
 

@@ -1391,7 +1391,7 @@ The downstream `action.result` event (§5.3) carries `correlationId`,
 | radioSession | Music Experience | durable (after PC6) | PC6 (persist lifecycle), PC4 (expose) |
 | recommendationBatches | Music Experience | durable (new) | PC14 |
 | libraryCatalog | Music Data Platform | durable (new projection) | PC16 |
-| parkedProposalUnits | Effect Boundary | durable (new) | PC8 |
+| parkedProposalUnits | Effect Boundary | process-volatile (current #146 backend) | PC8 |
 | transcripts | Agent Runtime | durable (PB2) | PC9/PC13 (AG-UI surface, per-run) |
 | activity | Agent Runtime | runtime emission (new) | PC13 |
 | selectedObject | Workbench Interface | interaction-state (new) | PC15 |

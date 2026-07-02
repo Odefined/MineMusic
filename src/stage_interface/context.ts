@@ -1,6 +1,7 @@
 import {
   createConservativeStageToolExecutionGate,
   createMemoryStageToolAuditPort,
+  createUnavailableProposalUnitParkingPort,
 } from "../effect_boundary/index.js";
 import type {
   AgentActorKind,
@@ -15,6 +16,7 @@ import type {
   StageToolContext,
   StageToolExecutionGate,
 } from "../contracts/stage_interface.js";
+import type { ProposalUnitParkingPort } from "../contracts/effect_boundary.js";
 import { createUnavailableHandleMintingPort } from "./handle_minting.js";
 import { createUnavailableLookupCursorStore } from "./lookup_cursor_store.js";
 
@@ -33,6 +35,7 @@ export type CreateStageToolContextInput = {
   providerAvailability?: ProviderAvailabilityPort;
   audit?: StageToolAuditPort;
   executionGate?: StageToolExecutionGate;
+  proposalUnits?: ProposalUnitParkingPort;
 };
 
 export function createStageToolContext(input: CreateStageToolContextInput): StageToolContext {
@@ -52,6 +55,7 @@ export function createStageToolContext(input: CreateStageToolContextInput): Stag
     lookupCursors: input.lookupCursors ?? createUnavailableLookupCursorStore(),
     providerAvailability: input.providerAvailability ?? unavailableProviderAvailability,
     executionGate: input.executionGate ?? createConservativeStageToolExecutionGate({ audit }),
+    proposalUnits: input.proposalUnits ?? createUnavailableProposalUnitParkingPort(),
     audit,
   };
 }

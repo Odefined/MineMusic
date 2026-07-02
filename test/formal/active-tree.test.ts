@@ -141,8 +141,9 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/effect_bounda
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
     "src/effect_boundary/index.ts",
+    "src/effect_boundary/proposal_unit_store.ts",
     "src/effect_boundary/stage_tool_execution_gate.ts",
-], "formal Effect Boundary root must stay focused on StageToolExecutionGate policy/audit seams");
+], "formal Effect Boundary root must stay focused on StageToolExecutionGate policy/audit seams and Proposal Unit lifecycle state");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/agent_runtime")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
@@ -202,12 +203,13 @@ assert.deepEqual(architectureGraph.unresolvedRelativeSpecifiers.map(formatEdge).
 // one-directional DAG.
 const contractsDagAllowlist: Readonly<Record<string, readonly string[]>> = {
     "src/contracts/kernel.ts": [],
+    "src/contracts/effect_boundary.ts": ["./kernel.js"],
     "src/contracts/agent_runtime.ts": ["./kernel.js", "./music_experience.js"],
     "src/contracts/music_experience.ts": ["./kernel.js"],
     "src/contracts/music_data_platform.ts": ["./kernel.js"],
     "src/contracts/storage.ts": ["./kernel.js", "./music_data_platform.js"],
     "src/contracts/public_music_description.ts": ["./music_data_platform.js", "./stage_interface.js"],
-    "src/contracts/stage_interface.ts": ["./kernel.js"],
+    "src/contracts/stage_interface.ts": ["./effect_boundary.js", "./kernel.js"],
     "src/contracts/stage_core.ts": ["./kernel.js", "./stage_interface.js"],
     "src/contracts/workbench_interface.ts": [],
     "src/contracts/generated/stage_interface_schemas.ts": ["../stage_interface.js"],

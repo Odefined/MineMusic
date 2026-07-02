@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { LookupCursorStore, MusicDiscoveryLookupOutput, StageToolContext, } from "../../src/contracts/stage_interface.js";
+import { createMemoryProposalUnitStore } from "../../src/effect_boundary/index.js";
 import { MusicIntelligenceError, type RetrievalQueryHit, type RetrievalQueryInput, type RetrievalQueryResult, type RetrievalQueryService, } from "../../src/music_intelligence/index.js";
 import { createInMemoryMusicScopeAvailabilityPort, createMusicDiscoveryLookupRegistration, musicDiscoveryInstrument, musicDiscoveryLookupDescriptor, } from "../../src/music_intelligence/stage_adapter/index.js";
 import { createStageInterface, } from "../../src/stage_interface/index.js";
@@ -713,6 +714,9 @@ function testStageToolContext(input: {
                 return true;
             },
         },
+        proposalUnits: createMemoryProposalUnitStore({
+            clock: input.clock ?? (() => "2026-06-17T00:00:00.000Z"),
+        }),
         executionGate: {
             async preflight() {
                 return {

@@ -1,7 +1,6 @@
 // Stage Interface contract surface — agent-facing instrument and tool
-// descriptors. Reads only the shared kernel. The contracts DAG guard forbids
-// importing stage_core (stage_core assembles Stage Interface contributions,
-// not the reverse).
+// descriptors. Reads the shared kernel plus the Effect Boundary parking port
+// that the Tool Call Router uses when policy returns ask/raise.
 
 import type {
   AgentActorKind,
@@ -9,6 +8,7 @@ import type {
   FormalArea,
   Result,
 } from "./kernel.js";
+import type { ProposalUnitParkingPort } from "./effect_boundary.js";
 
 export type InstrumentDescriptor = {
   id: string;
@@ -161,6 +161,7 @@ export type StageToolContext = {
   lookupCursors: LookupCursorStore;
   providerAvailability: ProviderAvailabilityPort;
   executionGate: StageToolExecutionGate;
+  proposalUnits: ProposalUnitParkingPort;
   audit?: StageToolAuditPort;
 };
 

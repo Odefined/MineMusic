@@ -4,6 +4,7 @@ import { performance } from "node:perf_hooks";
 const testModules = [
     "./formal/postgres-test-support.test.js",
     "./formal/formal-contracts.test.js",
+    "./formal/effect-boundary-proposal-unit-store.test.js",
     "./formal/stage-interface-tool-frame.test.js",
     "./formal/music-experience-present.test.js",
     "./formal/music-experience-radio-truth.test.js",

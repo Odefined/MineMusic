@@ -14,6 +14,7 @@ import type {
   LibraryCatalogReadScope,
   MaterialProjection,
 } from "../../src/music_data_platform/index.js";
+import { createMemoryProposalUnitStore } from "../../src/effect_boundary/index.js";
 import {
   createLibraryCatalogReadPort,
   createMaterialProjection,
@@ -591,6 +592,9 @@ function testStageToolContext(): StageToolContext {
         throw new Error("library catalog tests must not read provider availability");
       },
     },
+    proposalUnits: createMemoryProposalUnitStore({
+      clock: () => "2026-06-21T00:00:00.000Z",
+    }),
     executionGate: {
       async preflight() {
         return {

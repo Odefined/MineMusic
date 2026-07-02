@@ -449,11 +449,15 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   contracts; imports only the kernel.
 - `src/contracts/storage.ts`: source/material/canonical record contracts; imports
   the kernel and music_data_platform.
+- `src/contracts/effect_boundary.ts`: Effect Boundary Proposal Unit contract,
+  including the volatile approval lifecycle state machine, frozen owning-command
+  snapshot, basis recheck, parking, release, and resolve ports.
 - `src/contracts/stage_interface.ts`: instrument/tool and Stage Interface
   contracts, including the Phase 16A Tool Declaration mandatory core,
   `StageToolRegistration`, cross-cutting Stage Tool context ports, declared
   error vocabulary, public Music Scope / Music Item Handle DTOs, and
-  `library.catalog.*` public contracts; imports only the kernel.
+  `library.catalog.*` public contracts; imports the kernel and Effect Boundary
+  Proposal Unit parking port.
 - `src/contracts/generated/stage_interface_schemas.ts`: generated JSON Schema
   artifacts derived from TypeScript source for Stage Interface tool inputs and
   outputs; refreshed by `npm run generate:stage-interface-schemas`.
@@ -471,7 +475,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   and router-owned `ToolCallOutput.toolName` wrapping.
 - `src/stage_interface/context.ts`: canonical `StageToolContext` factory wiring
   the conservative execution gate, audit port, provider availability default,
-  handle-minting port dependency, and lookup cursor port dependency.
+  handle-minting port dependency, lookup cursor port dependency, and Proposal
+  Unit parking port dependency.
 - `src/stage_interface/handle_registry_schema.ts`: Stage Interface-owned
   owner-bound public handle registry schema over Storage.
 - `src/stage_interface/handle_registry_records.ts`: Stage Interface handle
@@ -490,10 +495,12 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   `MusicDatabaseContext` plus a narrow material-candidate cache read port.
 - `src/stage_interface/veil_guard.ts`: output-schema and sample-output internal
   anchor leak guards for the Public Agent Protocol veil.
-- `src/effect_boundary/index.ts` and
-  `src/effect_boundary/stage_tool_execution_gate.ts`: Effect Boundary
+- `src/effect_boundary/index.ts`,
+  `src/effect_boundary/stage_tool_execution_gate.ts`, and
+  `src/effect_boundary/proposal_unit_store.ts`: Effect Boundary
   `StageToolExecutionGate` implementation for ADR-0038 impact-class ×
-  actor-trust policy, owner-curation tightening, and in-memory audit port.
+  actor-trust policy, owner-curation tightening, in-memory audit port, and
+  process-volatile Proposal Unit lifecycle store.
 - `src/extension/capability_slot.ts`: capability slot definition with typed
   registration validation (`validateRegistration`) and write policy.
 - `src/extension/capability_registry.ts`: registration-only capability registry

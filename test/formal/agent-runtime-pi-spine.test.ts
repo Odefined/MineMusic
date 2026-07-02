@@ -10,6 +10,7 @@ import type {
   ToolCallOutput,
   ToolDeclaration,
 } from "../../src/contracts/stage_interface.js";
+import { createMemoryProposalUnitStore } from "../../src/effect_boundary/index.js";
 import type {
   RetrievalQueryHit,
   RetrievalQueryInput,
@@ -995,6 +996,9 @@ function createMinimalContext(
         return false;
       },
     },
+    proposalUnits: createMemoryProposalUnitStore({
+      clock: () => "2026-06-26T00:00:00.000Z",
+    }),
     executionGate: {
       async preflight() {
         return {

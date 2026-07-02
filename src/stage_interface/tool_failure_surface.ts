@@ -21,6 +21,7 @@ export function classifyStageToolFailure(error: StageError): StageToolFailureSur
     case "stage_interface.invalid_output":
     case "stage_interface.undeclared_tool_error":
     case "stage_interface.execution_gate_failed":
+    case "stage_interface.proposal_unit_parking_failed":
     case "stage_interface.tool_handler_failed":
       return "internal_failure";
     default:
