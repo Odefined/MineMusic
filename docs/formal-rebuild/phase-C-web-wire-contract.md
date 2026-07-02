@@ -309,6 +309,13 @@ RadioDirectionValue =
 - **Source**: durable (radio direction + posture rows).
 - **Phase C increment**: material variant uses `WireMaterialProjection`
   (replaces narrow `ItemSummary`).
+- **Upstream vs downstream `material` field** (high-frequency adapter gotcha):
+  the downstream slice uses `{ kind: "material", material: WireMaterialProjection }`
+  (full projection, this slice); the **upstream payload** (§5.6 `radio.motif.set`
+  / `radio.variations.*`) uses `{ kind: "material", item: PublicObjectRef }`
+  (handle only, aligns with the live `inputSchema`). Same `RadioDirectionValue`
+  type name, different field on the `material` variant — the Workbench Action
+  Adapter resolves `item` → `material` when projecting to the slice.
 - **`direction-summary` is stripped** (§3.1) — it was a leak. The slice carries
   only `motif + activeVariations + posture`, which is exactly the landed
   contract shape.
@@ -371,6 +378,11 @@ recommendationBatches slice:
   reasoning; `directionRevisionStamp` + `staleMark` mark older batches when
   direction/variations change; the agent must not keep expanding a stale
   batch (stale-basis append prevention, the `voided_stale` analog).
+- **Upper bound** (PC14 plan-level): unbounded accumulation is a memory +
+  slice-delta pressure risk under long-running Radio. A cap (count or bytes)
+  with LRU eviction of the oldest non-stale batch, or a per-`sourceTag`
+  recent-N retention, settles in the PC14 plan — the frozen slice shape does
+  not pin a specific bound.
 - **`reason` is agent-authored NL** (an emission, like `parkedProposalUnits
   .agentSummary`) — it is independent reasoning that cannot be derived from
   material facts, so it must be stored. This is distinct from the stripped
@@ -445,6 +457,11 @@ parkedProposalUnits slice:
   conservative stub `src/effect_boundary/stage_tool_execution_gate.ts`; PC8
   builds the parked-unit store and the ask→park conversion).
 - **Phase C increment**: entire slice is new (PC8).
+- **Restart recovery (PC8 pre-durable interim)**: the current backend (#146)
+  is process-volatile — a Server Host restart drops all pending units; the
+  `parkedProposalUnits` slice resyncs empty (no tombstone delta, the slice is
+  just empty), Confirm cards disappear, and the agent re-parks on its next
+  relevant turn. PC8's durable parked-unit store removes this once it lands.
 - **`effectKind` is typed, not localized** (§3.3): the wire carries
   `library.relation.save`/`library.collection.add`, never `"加入你的收藏库"`. The localized
   phrase is produced at the WebUI i18n boundary from `effectKind + locale`.
@@ -822,6 +839,13 @@ receives a correlated result.
   `ack.rejected`. (Live `voided_stale` error code, `commands.ts`; basis stale
   at commit. Wire `voided_stale` is the 1:1 pass-through of that live code, not
   a proposal-only outcome — queue/radio/proposal all use it.)
+- **Auth failures do not reach `ack.rejected`**: workspace-ownership mismatch
+  (`workspaceId` not under the session's `ownerScope`) and session
+  expiry/missing are HTTP 401/403 at the transport routing layer — they never
+  enter the adapter path. `ack.rejected` is produced only at the adapter layer
+  **after** the session is authenticated, for adapter-front validation
+  (routing/resolve/basis-presence/structure). There is no `auth` value in the
+  `ack.rejected` enum by design.
 
 **Downstream `action.result` event** (command-stage outcome, async; the client
 correlates by `correlationId`):
@@ -944,8 +968,8 @@ not retry in a tight loop.
 | `radio.variations.add`/`.remove`/`.replace`/`.move`/`.clear` | yes | radioDirection | `action.result` |
 | `playback.queue.append`/`.remove`/`.replace`/`.move`/`.clear` | yes (`MusicExperienceQueuePlaybackCommand`) | queue | `action.result` |
 | `playback.play` | yes (`MusicExperienceQueuePlaybackCommand.playNow`) | — | `action.result` |
-| `playback.pause`/`.resume` | not-yet-landed (PC: extend `MusicExperienceQueuePlaybackCommand` with pause/resume) | — | `action.result` (logical status → paused/playing) |
-| `playback.skip` | not-yet-landed (PC: extend `MusicExperienceQueuePlaybackCommand` with skip) | — | `action.result` (logical → queue next; current position PC plan-level) |
+| `playback.pause`/`.resume` | not-yet-landed (PC4: extend `MusicExperienceQueuePlaybackCommand` with pause/resume — flips `nowPlaying.logicalIntent.status`) | — | `action.result` (logical status → paused/playing) |
+| `playback.skip` | not-yet-landed (PC4: extend `MusicExperienceQueuePlaybackCommand` with skip) | — | `action.result` (logical → queue next; current position PC plan-level) |
 | `library.relation.save`/`.unsave`/`.favorite`/`.unfavorite`/`.block`/`.unblock` | yes | — | `action.result` |
 | `library.collection.add` | yes (`CollectionCommands.addCollectionItem`) | — | `action.result` |
 | `library.import.start` | yes (`LibraryImportStartCommand`) | — | `action.result`; committed on batch+first-job submitted (progress via `libraryCatalog.libraryStatus.importStatus` slice, PC16) |
@@ -1150,24 +1174,34 @@ ChatMessageEnvelope {
   the run's **state side-effects** (parked proposals, queue/radio commits) ride
   the **workspace persistent stream** as `workspace.delta` (§1.4 channel 2) so
   every tab sees them. The POST response carries no `workspace.delta`.
-- **Run termination — three outcomes on the POST response**: the run ends in
+- **Run termination — four outcomes on the POST response**: the run ends in
   exactly one of (a) `RUN_FINISHED` with `outcome:"success"` (normal
   completion); (b) `RUN_ERROR` with `code:"aborted"` (user `main.abort`, §5.6 —
   the adapter first emits `TEXT_MESSAGE_END` for any in-flight assistant message
   to close it cleanly, retaining the partial content already streamed, then
-  `RUN_ERROR`); (c) `RUN_ERROR` with another `code`/`message` (pi error,
-  unadapted boundary failure). AG-UI `RunFinishedOutcome` has only
-  `success`|`interrupt`; `interrupt` is the AG-UI HITL slot (whether Phase C
-  proposal resume reuses it is a PC8 decision, boundary-spec), and abort is not
-  it in any case — so abort rides `RUN_ERROR`, and the frontend distinguishes
-  "user cancelled" (`code:"aborted"`, no error UI, just stop the stream) from a
-  real failure (other `code`, surface the error). This is the adapter's 1:1
-  mapping of the session-layer `aborted` outcome
-  (`src/agent_runtime/actor_runtime_session.ts:45`); the `skipped` outcome
-  (cascade jump) is a separate termination, not grilled here.
+  `RUN_ERROR`); (c) `RUN_ERROR` with `code:"skipped"` (the `prepareRun` hook
+  returned `kind:"skip"` — a pre-run decision not to execute this turn, e.g. a
+  cascade precludes it; the run did not actually run; distinct from `aborted`,
+  which is a cascade abort-signal); (d) `RUN_ERROR` with another
+  `code`/`message` (pi error, unadapted boundary failure). AG-UI
+  `RunFinishedOutcome` has only `success`|`interrupt`; `interrupt` is the AG-UI
+  HITL slot (whether Phase C proposal resume reuses it is a PC8 decision,
+  boundary-spec), and abort/skip are not it in any case — so both ride
+  `RUN_ERROR`, and the frontend distinguishes "user cancelled"
+  (`code:"aborted"`, no error UI, just stop the stream), "system skipped"
+  (`code:"skipped"`, same non-error treatment — the run was deliberately not
+  executed, not failed), and a real failure (other `code`, surface the error).
+  This is the adapter's 1:1 mapping of the session-layer outcomes
+  (`src/agent_runtime/actor_runtime_session.ts:45`: `completed`→success,
+  `aborted`/`skipped`→`RUN_ERROR` with the matching code).
 - **Broken-response recovery** (AG-UI standard `MESSAGES_SNAPSHOT` resync): the
-  POST response is a one-shot stream with no MineMusic transport sequence; a
-  drop mid-run is **not** recovered by continuing the live stream — it is
+  POST response is a one-shot stream with no MineMusic transport sequence. A
+  **retry of the same `actionId`** (client timeout, run in-flight or already
+  done) is **not** re-attached — one-POST-one-run cannot resume a live stream —
+  the client takes the same path as a mid-run drop: reconnect and resync the
+  transcript (`MESSAGES_SNAPSHOT`), where the presence/absence of the run's
+  final message tells it whether the run already concluded. A drop mid-run is
+  **not** recovered by continuing the live stream — it is
   recovered by reconnecting and pulling a fresh transcript snapshot
   (`MESSAGES_SNAPSHOT`, AG-UI's standard resync primitive) over the PB2
   transcript store, served by a `GET /workspaces/:id/transcript` route (Server
@@ -1257,6 +1291,11 @@ GET /audio/:token?mode=download    → 200 / 206 by Range, Content-Disposition: 
   relativePath, ownerScope, expiry}`. Not a self-contained JWT — a lookup, which
   keeps `relativePath` / `ownerScope` out of the wire string.
 - **Short-lived** (exact TTL is PC plan-level): a stale token → `410 Gone`.
+  Mid-stream expiry (a `<audio>` range request during seek/buffer hitting 410
+  after the initial play) is **not** "next play" — the player re-fetches
+  `GET /workspaces/:id/materials/:handle/playback-source` (§6.1) for a fresh
+  token, then re-issues the Range request at the current playback offset to
+  resume. `nowPlaying` is unaffected (the material didn't change, only the token).
 - **In-memory store, v1 single Server Host process** — same liveness tier as
   `workspacePresence` (§2.11): restart drops all tokens, the client
   re-resolves a fresh source on next play. Multi-instance would need a
@@ -1327,6 +1366,16 @@ Every connected tab is an equal workspace writer: writes go through owning
 commands with per-concern OCC (ADR-0036); no single-controller write token, no
 audio-output arbitration. Audio follows logical (§2.11); multi-tab simultaneous
 play is the user's responsibility (single-tab assumed).
+
+### 7.5 `GET /workspaces/:workspaceId/transcript` (transcript resync route)
+
+Returns the workspace's Main-run transcript for the §5.8 broken-response
+recovery (a dropped chat POST stream is recovered by pulling this, not by
+resuming the live stream). Response: `{ messages: TranscriptMessage[] }`
+(§2.8 shape) — a direct projection of the PB2 transcript store. Radio's
+continuous transcript is not carried here (Radio rides the workspace stream,
+§2.8; its resync is the workspace-stream `MESSAGES_SNAPSHOT`, not this route).
+Builds in PC9/PC13.
 
 ## 8. Shared enums and outcome mapping (Part 5 — frozen 2026-07-02)
 
