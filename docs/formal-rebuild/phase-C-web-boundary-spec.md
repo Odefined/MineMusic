@@ -185,108 +185,53 @@ Experience lifecycle command boundary, with `actor = "user"`:
   playback token (Public Handle Veil pattern).
 - **Gap recovery = full resnapshot** (ADR-0036); no delta-replay buffer in v1.
 
-## C3a — Workspace Presence + Playback Controller Leases (fully grilled)
+## C3a — Workspace Presence (presence-only, no controller)
 
-C3a introduces explicit liveness leases at the Web boundary — the authority that
-keeps Radio and logical playback from continuing after the workspace has no
-active Web surface. A grilling + adversarial pass over seven concrete races
-fixed the design; six were uncovered by the named guards and are closed below,
-one (`unattended-mid-refill`) was verified already-closed by PB3 CAS + the
-`music_experience_state` row lock + the Postgres transaction queue + the atomic
-in-transaction co-pause.
+C3a introduces **workspace presence** at the Web boundary — the signal that
+stops playback once the workspace has no active Web surface. There is **no
+playback controller lease**: audio output is not backend-arbitrated (single-tab
+is the assumed norm; multi-tab is the user's responsibility, §2.11 wire-contract).
 
-### Lease model and location
+### Presence model and location
 
 - **Workspace presence lease** `{ ownerScope, workspaceId, clientId, leaseId,
   expiresAt }`, heartbeat-refreshed; normal disconnect releases, abnormal
   disconnect expires by TTL.
-- **Playback controller lease** — at most one Web client per workspace owns it;
-  others observe. In Phase C this is a **liveness anchor** (its expiry without
-  replacement triggers unattended), **not** an action-gating authority.
-  Output-device authority (which speaker plays) and server-side per-action
-  controller-token gating remain a separate follow-up; per ADR-0036 the lease is
-  "the minimum Phase C contract that prevents headless Radio or logical
-  playback." UI-level controller-only buttons are a client choice; the server
-  treats all present tabs as equal workspace writers.
 - **Location: in-memory** (Workbench Interface runtime interaction state), v1
-  single Server Host process. This makes the controller-lease authority a
-  process-local serialized authority (mutex + monotonic generation) so the
-  compare-and-release below is provably atomic. Restart safety is covered by
-  startup reconciliation as a synchronous gatekeeper (below). Multi-instance
-  deployment would require a durable/shared lease authority — a deferred
-  follow-up.
+  single Server Host process. Restart loses all presence; the backstop is that
+  a restart with no connected tab simply leaves playback paused (no one is
+  present to play). Multi-instance deployment would require a durable/shared
+  presence authority — a deferred follow-up.
 
-### Controller-lease singleton (closes stale-timer + split-brain)
+### Unattended-workspace transition → stop playback, Radio untouched
 
-The spec's named "generation/token check" is a placeholder unless the lease is a
-CAS-guarded singleton at **every** transition:
+- When the last workspace presence lease expires (every tab gone), Workbench
+  stops playback: logical `nowPlaying.status` → `paused`,
+  `verifiedActualState` cleared (§2.2). Audio has stopped (the player tab is
+  gone).
+- **Radio is NOT paused.** The Radio session stays `Running`. Audio stopped →
+  the queue stops draining → Radio's wake gate (queue-low / direction-change
+  triggers, `src/agent_runtime/radio_supervisor.ts`) does not fire → Radio
+  naturally does not run. Radio session transitions (`pause` / `shutdown`)
+  remain explicit user actions only.
+- **Retracted (2026-07-02):** the earlier "unattended → Radio PAUSE +
+  false-positive recovery + startup reconciliation (Running → Paused)" design.
+  It existed to manage a Radio that would otherwise keep running headless — but
+  with audio stopped, the wake gate already prevents that, so the machinery
+  (CAS controller-lease singleton, fast-reconnect un-pause, startup gatekeeper)
+  is unnecessary and is dropped.
+- **No close-vs-crash differentiation** needed: unattended only stops playback
+  (PAUSE-grade — retains agent + transcript); a deliberate Radio `shutdown` is
+  still a user button only.
 
-- One serialized authority performs **compare-and-act atomically** for every
-  grant, handoff, take, and expiry-release (process-local mutex + monotonic
-  generation, e.g. `compareExchange(controllerLease, expected = capturedToken,
-  desired = …)`). A stale T1 timer can release only if it is still the current
-  token.
-- **Granting a new lease cancels/invalidates timers for the prior token**; on
-  fire, a timer re-checks under the same authority.
-- **Take path is atomic** — a CAS predicate on the prior holder (`WHERE holder
-  IS NULL OR holder = prev`, rows-affected == 1) or a `UNIQUE(workspaceId,
-  role=controller)` partial constraint — and the take response carries an
-  explicit **win/lose verdict** plus a demotion event that flips the loser to
-  observer. Without this, "at most one controller" holds only by eventual TTL
-  convergence.
-- **ADR-0036 cross-reference:** the "No single-controller token" wording is
-  explicitly scoped to **equal-workspace-writer concurrency** (multi-tab queue
-  edits serializing through the owning command); it does **not** forbid this
-  liveness controller-lease singleton.
+### Presence-TTL invariant
 
-### Unattended-workspace transition → Radio PAUSE
-
-- When the last workspace presence lease expires, or the active playback
-  controller lease expires without a replacement, Workbench emits a typed
-  unattended-workspace event routed through owning commands.
-- **Radio fate = PAUSE for all unattended triggers** (release and TTL-expiry
-  alike). No close-vs-crash differentiation: a bare lease-release on unload is
-  ambiguous (navigate-away / tab-close / OS-killed page all fire it), so the
-  deliberate-vs-crash intent is not reliably knowable at the lease layer.
-  **SHUTDOWN is reserved for an explicit user lifecycle button only.** PAUSE is
-  strictly safer for v1 (retains agent instance + transcript; PB8 floor
-  survives), and is the only fate compatible with the false-positive recovery
-  below; SHUTDOWN-on-unattended would be catastrophic transcript loss on a
-  network hiccup. PB10 makes PAUSE and SHUTDOWN OCC-equivalent on `radio-session`
-  (both bump + co-pause), so mid-refill correctness is unchanged.
-- **Startup reconciliation is a synchronous gatekeeper.** Server startup with no
-  valid Web presence or playback-controller lease must reconcile durable Radio
-  lifecycle `Running → Paused` and playback `playing → paused` through owning
-  commands **to completion before any pacing-watcher or actor-turn evaluation
-  may start.** Without this ordering lock, PB1a's wake gate reads pre-reconcile
-  durable `Running` truth and starts a turn it never should. The PB1a exhaustion
-  record being in-process (lost on restart) is a secondary wasteful-rewake
-  concern, not a correctness gap.
-
-### False-positive recovery contract (closes false-positive-expiry)
-
-No named guard touches a heartbeat that is in-flight but delayed past TTL — the
-timer fires against the still-current lease. The contract is three layers:
-
-1. **Liveness hedge (mandatory).** Fire the unattended transition only after
-   `expiresAt + grace`, with `grace ≥` the maximum expected heartbeat
-   round-trip (or equivalently refresh-ahead-of-TTL). Short blips never
-   interrupt.
-2. **Fast-reconnect un-pause.** A controller lease re-acquired within `K`
-   seconds of a just-fired unattended transition auto-issues the inverse command
-   (resume Radio + un-pause playback). It applies **only to PAUSE** and never
-   resurrects a deliberately-SHUTDOWN Radio (satisfied naturally: a user who
-   wants Radio off presses the shutdown button = SHUTDOWN, not close-tab =
-   PAUSE).
-3. **Recovery floor.** When both above fail, recovery is a single manual resume
-   tap (PAUSE fate guarantees a tap, not a fresh start).
-
-### Lease-TTL invariant for the player
-
-`lease TTL + grace ≫` audio buffer depth. Short blips the player's buffer covers
-must not also trip the lease into unattended; only genuinely long disconnections
-(by which point the audio buffer is also exhausted) pause the music. The two
-layers must not fight.
+`presence TTL + grace ≫` heartbeat round-trip. Grace is mandatory — fire the
+unattended transition only after `expiresAt + grace`, so short blips do not trip
+it. There is **no fast-reconnect un-pause machinery**: playback was only stopped
+(not Radio PAUSE), so a returning tab simply issues a new `playback.play` to
+resume. (The earlier `lease TTL + grace ≫ audio buffer depth` coupling is gone
+— audio is tab-local now, not lease-coupled.)
 
 ## C4 — Proposal Unit + A2UI Cards
 
@@ -416,9 +361,9 @@ into two states:
 - **Logical intent** — `playNow` sets `playback_status = "playing"` (want-to-play).
 - **Verified actual state** — the Web player reports actual events
   (`playing | buffering | ended | failed` + `materialRef`) **by riding the C3a
-  playback-controller lease heartbeat** (the lease is already a liveness
-  heartbeat; it carries one more field, `actualState`). The owning Music
-  Experience command reconciles verified truth from the heartbeat.
+  presence heartbeat** (it is already a liveness heartbeat; it carries one more
+  field, `actualState`). The owning Music Experience command reconciles verified
+  truth from the heartbeat.
 
 Workspace Context exposes the **verified** state to the agent; the agent may not
 claim "now playing" until verified. A provider direct-fetch failure (CORS,
@@ -478,8 +423,9 @@ The client consumes AG-UI events over **two transport channels** (wire-contract
 
 The sounding player + `PlaybackSourceResolver` + verified-actualState (C5); the
 `WorkbenchActionEnvelope` write path + per-concern OCC + optimistic rollback
-(C2); multi-tab equal-writer serialization + the CAS-guarded controller-lease
-singleton liveness (C3a); the ADR-0038 provenance-derived gate + basis-recheck /
+(C2); multi-tab equal-writer serialization through owning commands (ADR-0036, no
+controller — audio output is not backend-arbitrated, §2.11); the ADR-0038
+provenance-derived gate + basis-recheck /
 `voided_stale` (C4); the **workspace-persistent-stream self-built consumer**
 (per-workspace `baseSequence` gap-detection → resync POST, `applyPatch`
 catch-path resync trigger, CUSTOM `action.result` dispatch — §1.4) which also
@@ -546,7 +492,7 @@ serializer.
 | Main transcript (chat POST response) + Radio transcript (workspace stream) | Chat (Main) + Radio panel (Radio); a merged Chat view is a WebUI choice, not the wire shape (§2.8/§3.5) |
 | AG-UI `ACTIVITY_*` (messages family, `role:"activity"`) | Chat folded activity cards (Main-run) + Radio panel activity (Radio-run) |
 | `selectedObject` handle | WebUI selected-object affordance (any surface) |
-| `playbackControllerLease` | workspace presence + playback liveness |
+| `workspacePresence` | workspace presence (no controller concept) |
 
 ### Layout (Workbench — grilled)
 
@@ -601,9 +547,10 @@ reach the Web.
   makes full resnapshot felt). Not pulled in by the C3a fast-reconnect path —
   fast-reconnect is agent/playback state recovery; view resync is orthogonal and
   still full-resnapshot.
-- **Per-action controller-token gating / playback output-device authority:** the
-  C3a controller lease is a liveness anchor only in Phase C; server-side gating
-  of controller-scoped actions graduates with the output-device follow-up.
+- **Backend arbitration of audio output / which tab makes sound:** dropped from
+  Phase C — the controller lease is cut (single-tab assumed, §2.11 wire-contract).
+  Backend-side audio-output arbitration graduates with a future output-device
+  follow-up only if multi-tab play becomes a real need.
 - **Provider audio server-proxy:** if browser direct-fetch of provider URLs is
   CORS/account-blocked in practice; surfaced by the verification layer, not
   pre-built.

@@ -4,15 +4,19 @@
 > envelope (state slices + message/activity event streams), shared types,
 > UI-neutrality corrections, and the workspace-scoped library query endpoint.
 > Part 2: upstream envelope family, POST response + `action.result` channel,
-> `actionType` registry (29 names), and per-action payload shapes (§5.6).
-> Envelope structure, result channel, actionType names, and all 29 payloads
-> are frozen. **Part 3 (audio GET, §6) frozen 2026-07-02**; Parts 4–5 pending (connection protocol, shared
-> enums/errors). §1.4/§2.8/§3.5/§5.8 revised 2026-07-02: transcripts are per-run
+> `actionType` registry (32 names), and per-action payload shapes (§5.6).
+> Envelope structure, result channel, actionType names, and all 32 payloads
+> are frozen. **Part 3 (audio GET, §6) frozen 2026-07-02**; **Part 4 (connection,
+> §7) frozen 2026-07-02**; Part 5 pending (shared enums/errors). §1.4/§2.8/§3.5/§5.8 revised 2026-07-02: transcripts are per-run
 > (no wire-level merge, no per-message `actor`); transport C — the Main run rides
 > the chat POST response, the Radio run + state + `action.result` ride the
 > workspace persistent stream. §5.6/§5.8 also revised 2026-07-02: `main.abort`
 > termination — the aborted run's POST response ends with `TEXT_MESSAGE_END`
-> (any in-flight message) + `RUN_ERROR(code:"aborted")`.
+> (any in-flight message) + `RUN_ERROR(code:"aborted")`. §2.2/§2.11/§5.6/§7 +
+> boundary-spec C3a revised 2026-07-02: **controller lease cut** (presence-only,
+> §2.11/§7); audio is not backend-arbitrated — single-tab assumed, follows
+> logical; play/pause/resume/skip promoted to logical actions (registry 29→32);
+> unattended stops playback, Radio untouched.
 > Authority: The owning container for the Phase C frontend↔backend wire
 > contract. Only completed parts marked frozen are implementation-ready contract
 > truth; pending parts are placeholders until their sections are completed.
@@ -33,7 +37,7 @@
   transport C): the workspace persistent SSE stream (`StateSnapshot`/`StateDelta`
   + `action.result` + Radio-run messages) and the chat POST response (the Main
   run's AG-UI stream). Upstream POST (Part 2) is frozen; audio GET is Part 3
-  (§6, frozen); the connection protocol is Part 4 (pending).
+  (§6, frozen); the connection protocol is Part 4 (§7, frozen).
 - **Encoding**: AG-UI `StateSnapshot`/`StateDelta` (RFC 6902 JSON Patch scoped
   to the changed area subtree) over a MineMusic-owned DTO (anti-corruption
   layer isolating the `@ag-ui/encoder` pin and the future A2UI v1.0 swap).
@@ -251,7 +255,9 @@ nowPlaying slice:
 ```
 
 - **Owner**: Music Experience.
-- **Source**: durable (logical) + reconciled from lease heartbeat (verified).
+- **Source**: durable (logical) + reconciled from the active tab's `actualState`
+  on the presence heartbeat (verified — single-source, §2.11; the controller-era
+  "lease heartbeat" is gone).
 - **Phase C increment**: `verifiedActualState` is new (PC11). Existing
   projection lacks even `logicalIntent.status` on the workspace slice; PC4
   adds it.
@@ -565,44 +571,49 @@ selectedObject slice:
   presentation-adjacent posture (workspace focus, attention posture,
   visible/dismissed card state).
 
-### 2.11 `playbackControllerLease`
+### 2.11 `workspacePresence`
 
 ```
-playbackControllerLease slice:
+workspacePresence slice:                         // presence-only; no controller concept (single-tab assumption)
   workspacePresent: boolean
   thisClient?: {
     clientId: string
     presenceLeaseId: string
     expiresAt: string
-    controller: boolean
-    controllerLeaseId?: string
-    controllerGeneration?: number
   }
 ```
 
-- **Owner**: Workbench Interface (in-memory lease authority).
+- **Owner**: Workbench Interface (in-memory presence authority).
 - **Source**: **in-memory** (not durable). v1 single Server Host process. This
   differs from the other ten slices — it is session/liveness truth, not
-  persistent area truth. Restart loses all leases; PC6 startup reconciliation
-  (durable Radio `Running → Paused`) is the backstop.
-- **Phase C increment**: PC3 (CAS-guarded singleton primitive + 7-race suite)
-  + PC6 (unattended→PAUSE lifecycle + startup reconciliation gatekeeper).
-- **No full lease table on the wire**: the server may keep full
-  `presenceLeases` / `controllerLease` internals, but the frozen wire contract
-  exposes only aggregate workspace liveness plus the current client's lease
-  view. This prevents UI code from depending on the internal multi-tab lease
-  table shape.
-- **`controllerLease` is a liveness anchor, not action-gating**: its
-  expiry-without-replacement triggers unattended → Radio PAUSE (PC6). Phase C
-  does **not** use it to gate which tab may act — concurrent tabs serialize
-  through owning commands as equal writers (ADR-0036). Output-device authority
-  and per-action controller-token gating are follow-ups, not in this slice.
-- **`controllerGeneration`**: current-client view of the monotonic CAS counter
-  (PC3 singleton's stale-timer / split-brain protection), present only when this
-  client owns the controller lease.
+  persistent area truth. Restart loses all presence; the backstop is simply
+  that a restart with no connected tab leaves playback paused (no one is
+  present to play).
+- **Phase C increment**: PC3 (presence heartbeat + tab-close detection) + PC6
+  (unattended → stop playback, Radio untouched).
+- **No full presence table on the wire**: the server may keep full presence
+  internals, but the frozen wire contract exposes only aggregate workspace
+  presence plus the current client's lease view. This prevents UI code from
+  depending on the internal multi-tab table shape.
+- **No controller concept (single-tab assumption)**: audio output is **not**
+  arbitrated by the backend. Whichever tab the user plays in is the tab that
+  makes sound. Audio **follows logical** — when a tab's `play` is superseded by
+  a newer `play` from another tab (logical `nowPlaying` changes), that tab
+  stops its own audio on the next `workspace.delta`. So at any moment only the
+  tab that issued the current logical `play` is actually playing. `actualState`
+  is therefore single-source (only that tab reports); last-write-wins is the
+  backstop for a misbehaving client. Multi-tab simultaneous play is the user's
+  responsibility (single-tab is the assumed norm); the backend neither
+  serializes nor de-duplicates audio output.
+- **Unattended = no presence, not controller expiry**: when the last presence
+  lease expires (every tab gone), playback is stopped (logical status →
+  paused, `verifiedActualState` cleared). Radio is **not** paused — audio has
+  stopped, so the queue stops draining, and Radio's wake gate (queue-low /
+  direction-change triggers) does not fire (boundary-spec C3a). Radio session
+  stays `Running` until the user explicitly pauses/shuts it down.
 - **UI-neutrality**: a headless harness or single-window native app still needs
-  the lease to gate the unattended transition. The "per-tab
-  controller/observer UI" is a WebUI projection of this truth, not the truth.
+  presence to gate the unattended transition. "Which tab is playing" is a
+  client / user concern, not wire truth.
 
 ## 3. UI-shape-neutrality corrections (affecting the slices)
 
@@ -645,9 +656,10 @@ slice shapes above. Recorded here so a future reader does not reintroduce them.
   `visibleScopes` (area-truth wording) and status.
 - **3.7 Binding-table relabel.** Row "selectedObject → Selected-Object-in-Chat
   strip" → "WebUI selected-object affordance (any surface)"; row
-  "playbackControllerLease → per-tab controller/observer UI" → "workspace
-  presence + playback liveness". Add a header note: the binding table is a
-  WebUI consumption guide; every slice is owned by its named area.
+  "workspacePresence → per-tab controller/observer UI" → "workspace presence"
+  (no controller concept; audio output is not wire-arbitrated, §2.11). Add a
+  header note: the binding table is a WebUI consumption guide; every slice is
+  owned by its named area.
 - **3.8 Guards (PC4).** (a) Slice-origin test: each snapshot slice traces to a
   named owning area / contract type; slice fields with no owning-area origin
   fail the build (catches a future "cardNeedsThis" field). (b)
@@ -704,7 +716,7 @@ GET /workspaces/:workspaceId/library/query
   enter `WireMaterialProjection`; they ride a future management-detail
   projection so the common projection stays clean.
 
-## 5. Upstream Envelope (Part 2 — frozen: envelope + result channel + actionType registry + all 29 payloads, §5.6)
+## 5. Upstream Envelope (Part 2 — frozen: envelope + result channel + actionType registry + all 32 payloads, §5.6)
 
 The upstream POST family. Two envelope types carry user-initiated semantics;
 the lease heartbeat is connection-layer (Part 4), not an envelope here.
@@ -896,7 +908,7 @@ not retry in a tight loop.
   `translate-before-command` invariant are adapter-internal and do not appear in
   this wire contract.
 
-### 5.6 actionType registry (Phase C: 29)
+### 5.6 actionType registry (Phase C: 32)
 
 | actionType | landed | basis | result |
 |---|---|---|---|
@@ -905,6 +917,8 @@ not retry in a tight loop.
 | `radio.variations.add`/`.remove`/`.replace`/`.move`/`.clear` | yes | radioDirection | `action.result` |
 | `playback.queue.append`/`.remove`/`.replace`/`.move`/`.clear` | yes (`MusicExperienceQueuePlaybackCommand`) | queue | `action.result` |
 | `playback.play` | yes (`MusicExperienceQueuePlaybackCommand.playNow`) | — | `action.result` |
+| `playback.pause`/`.resume` | yes (`MusicExperienceQueuePlaybackCommand`) | — | `action.result` (logical status → paused/playing) |
+| `playback.skip` | yes (`MusicExperienceQueuePlaybackCommand`) | — | `action.result` (logical → queue next; current position PC plan-level) |
 | `library.relation.save`/`.unsave`/`.favorite`/`.unfavorite`/`.block`/`.unblock` | yes | — | `action.result` |
 | `library.collection.add` | yes (`CollectionCommands.addCollectionItem`) | — | `action.result` |
 | `library.import.start` | yes (`LibraryImportStartCommand`) | — | `action.result`; committed on batch+first-job submitted (progress via `libraryCatalog.libraryStatus.importStatus` slice, PC16) |
@@ -921,9 +935,18 @@ not retry in a tight loop.
   (§2.3) but is not writable from a `WorkbenchActionEnvelope`. Frontend changes
   to user intent go through `radio.motif.*` / `radio.variations.*` (commanded
   direction).
-- **`playback.play` is the only playback actionType.** play/pause/skip are
-  player-local controls; verified actual state flows back via the lease
-  heartbeat `actualState` (C5 / Part 4), not an upstream action.
+- **Playback actions are logical; player-local is audio-only.**
+  `playback.play` / `.pause` / `.resume` / `.skip` are logical actions (POST) —
+  they change logical intent (`nowPlaying.material` or `.status`, §2.2) and sync
+  to every tab + the agent. Only **seek position / volume / mute** are
+  player-local: they affect only the local `<audio>` element, never cross the
+  wire, are not synchronized. `actualState` (`playing`/`buffering`/`ended`/
+  `failed`) is the verified layer, reported by whichever tab is actually
+  playing — single source, because audio follows logical (a tab whose `play`
+  lost to a newer `play` stops its own audio on the next `workspace.delta`);
+  last-write-wins is the backstop for a misbehaving client. (The earlier
+  "`play` is the only playback actionType; play/pause/skip flow back via
+  heartbeat" framing was a controller-era artifact.)
 - **`main.abort` carries no payload** — the live controller `abort()` is
   parameterless (`src/agent_runtime/agent_user_turn_trigger.ts:39`) and targets
   the workspace's active Main turn. The pi-internal run id
@@ -950,15 +973,14 @@ not retry in a tight loop.
   (no async gap). The model is still uniform (§5.3): `ack` = adapter receipt,
   `outcome` = command result. State change flows as `StateDelta` as usual.
 
-Follow-up actionType (additive, not in Part 2 frozen 29; later PC increments shape them): `library.import.cancel` (PC16 must
+Follow-up actionType (additive, not in Part 2 frozen 32; later PC increments shape them): `library.import.cancel` (PC16 must
 define owner command + payload + result semantics — live import has only
 `start`/`status`/`list_sources`, no cancel); `recommendation.batch.dismiss`/
 `.clear` (PC14 must define dismiss-vs-clear semantics, payload, and whether
 `clear` is user-initiated or system cleanup); `library.collection.create`/
 `.remove`/`.move`/`.delete`/`.rename` (live descriptors, not yet Web actions);
 `library.material.edit`/`.delete`, `library.scope.organize`,
-`library.merge`/`.dedupe`; server-side `playback.play`/`.pause`/`.skip` if ever
-introduced.
+`library.merge`/`.dedupe`.
 
 #### Payload shapes (frozen incrementally per group)
 
@@ -985,6 +1007,9 @@ playback.queue.replace   { index: number, item: PublicObjectRef }
 playback.queue.move      { from: number, to: number }
 playback.queue.clear     {}
 playback.play            { item: PublicObjectRef }        // no basis — intent, not OCC
+playback.pause           {}                                // logical status → paused (§2.2)
+playback.resume          {}                                // logical status → playing
+playback.skip            {}                                // logical → queue next (current position tracked server-side, PC plan-level)
 ```
 
 **Radio group — frozen:**
@@ -1018,7 +1043,7 @@ The six `library.relation.*` verbs share one payload (the agent uses one shared
 `PublicObjectRef` (§2.6 `visibleScopes` handle); `item` is material-kind. No
 position field on `collection.add` — it appends (the live `inputSchema` defines
 none; positioned insert is a follow-up, not invented here). `collection.move`
-(follow-up, not in Part 2 frozen 29) uses 1-based `toPosition`, distinct from the
+(follow-up, not in Part 2 frozen 32) uses 1-based `toPosition`, distinct from the
 queue/radio dense `at`/`index` axis — frozen when it lands.
 
 **Import group — frozen:**
@@ -1039,7 +1064,7 @@ selection.set    { focus: PublicObjectRef | null }    // handle = set focus; nul
 `playback.queue.append.at?` is the one Phase C addition over the live agent
 append `inputSchema` (which today appends to end only); the agent descriptor
 gains the same optional `at` for dual-path parity with `variations.add` (PC
-implementation). All 29 Phase C actionType payloads are now frozen; `main.abort`
+implementation). All 32 Phase C actionType payloads are now frozen; `main.abort`
 carries no payload (§5.6) and `proposal.confirm`/`.reject` is shaped in §5.7.
 
 ### 5.7 `proposal.confirm`/`.reject` (Effect Boundary resume)
@@ -1206,7 +1231,7 @@ GET /audio/:token?mode=download    → 206, Content-Disposition: attachment (dow
   keeps `relativePath` / `ownerScope` out of the wire string.
 - **Short-lived** (exact TTL is PC plan-level): a stale token → `410 Gone`.
 - **In-memory store, v1 single Server Host process** — same liveness tier as
-  `playbackControllerLease` (§2.11): restart drops all tokens, the client
+  `workspacePresence` (§2.11): restart drops all tokens, the client
   re-resolves a fresh source on next play. Multi-instance would need a
   shared/durable token store — deferred follow-up, same boundary as the lease
   authority (boundary-spec C3a).
@@ -1231,21 +1256,58 @@ GET /audio/:token?mode=download    → 206, Content-Disposition: attachment (dow
   `playback-source` resolver route, the `PlaybackSource` shape.
 - **Follow-ups (not Part 3)**: a server-side provider proxy (if browser
   direct-fetch is CORS/account-blocked in practice — surfaced by verification,
-  not pre-built, boundary-spec C5); output-device authority / per-action
-  controller-token gating (§2.11); multi-instance durable token store (§6.3).
+  not pre-built, boundary-spec C5); backend arbitration of audio output / which
+  tab makes sound (§2.11 — not done in Phase C, single-tab assumed); multi-
+  instance durable token store (§6.3).
 
-## 7. Pending parts (Part 4–5)
+## 7. Connection protocol (Part 4 — frozen)
 
-- **Part 4 — Connection protocol**: AG-UI Profile v1 handshake (capability id,
-  sequence baseline, gap-recovery = full resnapshot, unsupported-profile
-  rejection); workspace-presence + playback-controller lease heartbeat (carries
-  `actualState`); reconnect; multi-tab equal-writer serialization through
-  owning commands (no single-controller write token).
+Workspace connection lifecycle. Presence-only — no controller (§2.11).
+
+### 7.1 `GET /workspaces/:workspaceId/stream` (SSE downstream)
+
+Long-lived SSE GET; the workspace persistent stream (§1.4 channel 2). First
+event is `workspace.snapshot` (sequence baseline, §0). The connecting client's
+`workspacePresence.thisClient` (`clientId` + `presenceLeaseId` + `expiresAt`)
+rides that snapshot's §2.11 slice — presence is minted at connect, not by a
+separate call. Reconnect = standard EventSource + full resnapshot on gap (§0).
+
+### 7.2 `POST /workspaces/:workspaceId/heartbeat` (presence upstream)
+
+```
+POST /workspaces/:workspaceId/heartbeat
+  body:  { clientId, actualState?: { state, material: PublicObjectRef? } }
+  → 200: { expiresAt }
+```
+
+Refreshes the presence lease. `actualState` rides the heartbeat (§2.2 verified
+layer): only the active tab — the one whose `playback.play` is the current
+logical intent — reports (others stopped their audio, §2.11). Single-source;
+last-write-wins backstop. Cadence / TTL / grace are PC plan-level (boundary-spec
+C3a; `TTL + grace ≫` heartbeat round-trip).
+
+### 7.3 Unattended → stop playback (Radio untouched)
+
+Last presence lease expires (after `expiresAt + grace`): logical
+`nowPlaying.status` → `paused`, `verifiedActualState` cleared. **Radio session
+stays `Running`** — audio stopped → queue stops draining → wake gate does not
+fire → Radio naturally does not run (boundary-spec C3a). A returning tab issues
+`playback.play` to resume; no fast-reconnect un-pause machinery.
+
+### 7.4 Multi-tab equal-writer (no controller)
+
+Every connected tab is an equal workspace writer: writes go through owning
+commands with per-concern OCC (ADR-0036); no single-controller write token, no
+audio-output arbitration. Audio follows logical (§2.11); multi-tab simultaneous
+play is the user's responsibility (single-tab assumed).
+
+## 8. Pending parts (Part 5)
+
 - **Part 5 — Shared enums/errors**: `actualState`, `radioSession lifecycle`,
   Signal Class, action verb, card/`effectKind`, `statusKind`; the typed
   `WorkbenchActionResult`; reject/`voided_stale`/gap outcomes.
 
-## 8. Phase C implementation provenance (slice / event-stream → PC)
+## 9. Phase C implementation provenance (slice / event-stream → PC)
 
 | slice | owner | source | builds in |
 |---|---|---|---|
@@ -1259,7 +1321,7 @@ GET /audio/:token?mode=download    → 206, Content-Disposition: attachment (dow
 | transcripts | Agent Runtime | durable (PB2) | PC9/PC13 (AG-UI surface, per-run) |
 | activity | Agent Runtime | runtime emission (new) | PC13 |
 | selectedObject | Workbench Interface | interaction-state (new) | PC15 |
-| playbackControllerLease | Workbench Interface | in-memory (new) | PC3 + PC6; current-client view only |
+| workspacePresence | Workbench Interface | in-memory (new) | PC3 (presence) + PC6 (unattended → stop playback) |
 
 Shared types build in PC0 (`WireMaterialProjection`, `PublicObjectRef` resolve
 signature, two-envelope wire family — `WorkbenchActionEnvelope` +
