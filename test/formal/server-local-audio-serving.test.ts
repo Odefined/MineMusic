@@ -43,6 +43,33 @@ import { resolveUnderRoot } from "../../src/server/local_source_path_resolver.js
 }
 
 {
+  let now = "2026-07-02T00:00:00.000Z";
+  const store = createInMemoryLocalAudioTokenStore({
+    ttlMs: 1000,
+    clock: () => now,
+    tokenFactory: () => "reused-expired-token",
+  });
+
+  const minted = await store.mint({
+    ownerScope: "owner-a",
+    rootId: "main",
+    relativePath: "tracks/never-fetched.mp3",
+  });
+  assert.equal(minted.token, "reused-expired-token");
+
+  now = "2026-07-02T00:00:01.000Z";
+  const reused = await store.mint({
+    ownerScope: "owner-a",
+    rootId: "main",
+    relativePath: "tracks/reused-after-sweep.mp3",
+  });
+  assert.deepEqual(reused, {
+    token: "reused-expired-token",
+    expiresAt: "2026-07-02T00:00:02.000Z",
+  });
+}
+
+{
   const resolveRootDir = createLocalAudioRootDirResolver({
     mainRootDir: "/music/main",
     scanRoots: [{ rootId: "scan-a", rootDir: "/music/scan-a" }],

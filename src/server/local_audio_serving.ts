@@ -98,6 +98,7 @@ export function createInMemoryLocalAudioTokenStore(
       assertNormalizedLocalSourceRelativePath(mintInput.relativePath);
 
       const now = assertComparableClock(clock());
+      sweepExpiredBindings(bindings, now);
       const expiresAt = new Date(Date.parse(now) + input.ttlMs).toISOString();
 
       for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -124,17 +125,31 @@ export function createInMemoryLocalAudioTokenStore(
       const anchor = bindings.get(resolveInput.token);
 
       if (anchor === undefined) {
+        sweepExpiredBindings(bindings, now);
         return { kind: "not_found" };
       }
 
       if (anchor.expiresAt <= now) {
         bindings.delete(resolveInput.token);
+        sweepExpiredBindings(bindings, now);
         return { kind: "expired" };
       }
 
+      sweepExpiredBindings(bindings, now);
       return { kind: "resolved", anchor };
     },
   };
+}
+
+function sweepExpiredBindings(
+  bindings: Map<string, LocalAudioTokenAnchor>,
+  now: string,
+): void {
+  for (const [token, anchor] of bindings.entries()) {
+    if (anchor.expiresAt <= now) {
+      bindings.delete(token);
+    }
+  }
 }
 
 export function createLocalAudioFileResolver(

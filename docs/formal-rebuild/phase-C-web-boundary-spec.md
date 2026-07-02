@@ -51,10 +51,11 @@ in-process reality. Code-state facts that shape every decision below:
   boundary-derived `actorTrustBasis` and `askBeforeSourceOfTruthEdits`. Current
   Server Host contexts default to `user-intent-backed` and the tightening toggle
   off until durable user settings and full Agent Runtime provenance are wired.
-- NCM **implements** `getPlayableLinks` (`extension/plugins/ncm.ts`) and can
-  return a real audio URL from the local NCM service, but there are **zero
-  runtime callers** and no `getSourceProviderPlayableLinks` dispatch. Material
-  Projection reserves a `"playback"` Source Preference Purpose that is unused.
+- NCM **implements** `getPlayableLinks` (`extension/plugins/ncm.ts`) and the
+  Extension Runtime now exposes `getSourceProviderPlayableLinks` dispatch over
+  the registered source-provider slot. Material Projection reserves a
+  `"playback"` Source Preference Purpose; Phase C's remaining playback work is
+  the Music Data Platform `PlaybackSourceResolver` and Web player consumption.
 
 ## C1–C3 — Already Decided In ADR-0036
 
@@ -330,8 +331,9 @@ A resolved `PlaybackSource` is a short-lived, non-persisted discriminated value:
 
 The Server Host owns a **fastify** HTTP range endpoint that serves local audio
 files with `206 Partial Content` / `Accept-Ranges` for seeking and buffering. It
-resolves `rootId → rootDir` via the existing `LocalSourceScanRootDirResolver`
-(with the `resolveUnderRoot` containment check) and enforces ownerScope. The
+resolves `rootId → rootDir` via the Server Host local-audio root resolver
+(main local source root plus configured scan roots, with the `resolveUnderRoot`
+containment check) and enforces ownerScope. The
 client-facing URL carries a **short-lived opaque playback token** minted via the
 Public Handle Veil pattern (resolves to `rootId + relativePath + ownerScope +
 expiry`), so no path/root id leaks into the wire URL. Playback vs download is a
@@ -339,11 +341,10 @@ expiry`), so no path/root id leaks into the wire URL. Playback vs download is a
 
 ### Provider audio (Extension dispatch + best-effort direct fetch)
 
-Add `getSourceProviderPlayableLinks(registry, { providerId, sourceRef,
-sessionId? })` to `extension/source_provider_slot.ts`, following the
-`searchSourceProvider` / `getSourceProviderDownloadSource` pattern. NCM already
-implements `getPlayableLinks` (hits the local NCM service `/song/url`); only the
-dispatch plumbing is missing. **Scope is local + provider** — the queue is
+`getSourceProviderPlayableLinks(registry, { providerId, sourceRef,
+sessionId? })` is implemented in `extension/source_provider_slot.ts`, following
+the `searchSourceProvider` pattern. NCM already implements `getPlayableLinks`
+(hits the local NCM service `/song/url`). **Scope is local + provider** — the queue is
 Radio-filled from provider search, so local-only would leave most of the queue
 unplayable. The player fetches the provider URL directly; if CORS or account
 requirements block it, the player reports failure through the verification path
