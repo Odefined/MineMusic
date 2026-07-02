@@ -44,26 +44,29 @@ export const libraryRelationInstrument: InstrumentDescriptor = {
 
 const editSideEffect = {
   durableUserStateWrite: true,
+  ownerCurationWrite: true,
   runtimeStateWrite: false,
   externalCall: false,
 } as const;
 
 const editInvocationPolicy = {
   defaultDecision: "auto",
+  impactClass: "local-bounded",
   dataEgress: "none",
   readOnlyHint: false,
   destructiveHint: false,
-  ownerRelationDrivenByUserRequest: true,
 } as const;
 
 const readOnlySideEffect = {
   durableUserStateWrite: false,
+  ownerCurationWrite: false,
   runtimeStateWrite: false,
   externalCall: false,
 } as const;
 
 const readOnlyInvocationPolicy = {
   defaultDecision: "auto",
+  impactClass: "read",
   dataEgress: "none",
   readOnlyHint: true,
   destructiveHint: false,

@@ -361,11 +361,13 @@ function stubToolDeclaration(name: string): ToolDeclaration {
     ],
     sideEffect: {
       durableUserStateWrite: false,
+      ownerCurationWrite: false,
       runtimeStateWrite: false,
       externalCall: false,
     },
     invocationPolicy: {
       defaultDecision: "auto",
+      impactClass: "read",
       dataEgress: "none",
       readOnlyHint: true,
       destructiveHint: false,
@@ -408,6 +410,8 @@ function createMinimalContext(input: Parameters<AgentRuntimeStageToolContextFact
     ownerScope,
     sessionId: input.sessionId,
     requestId: input.requestId,
+    actorTrustBasis: "user-intent-backed",
+    askBeforeSourceOfTruthEdits: false,
     clock: () => "2026-06-30T00:00:00.000Z",
     ...(input.actor === undefined ? {} : { actor: input.actor }),
     ...(input.preconditionBasis === undefined ? {} : { preconditionBasis: input.preconditionBasis }),

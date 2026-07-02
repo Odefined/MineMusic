@@ -206,6 +206,8 @@ function testStageToolContext(): StageToolContext {
         ownerScope: "local",
         sessionId: "library-import-test-session",
         requestId: "library-import-test-request",
+        actorTrustBasis: "user-intent-backed",
+        askBeforeSourceOfTruthEdits: false,
         clock: () => "2026-06-18T00:00:00.000Z",
         handleMinting: {
             async mint() {

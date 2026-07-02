@@ -45,8 +45,8 @@ const recordingB: Ref = { namespace: "material", kind: "recording", id: "m_coll_
 const recordingC: Ref = { namespace: "material", kind: "recording", id: "m_coll_ctrl_c" };
 
 // Descriptor + gate contract (mirrors library-relation-control.test.ts): GET is
-// read-only; the six edit tools carry durableUserStateWrite + the
-// collectionDrivenByUserRequest gate flag, and publish the full error surface.
+// read-only; the six edit tools carry durableUserStateWrite plus the
+// ownerCurationWrite marker, and publish the full error surface.
 const collectionDescriptors = [
   libraryCollectionGetDescriptor,
   libraryCollectionCreateDescriptor,
@@ -67,7 +67,9 @@ assert.deepEqual(collectionDescriptors.map((descriptor) => descriptor.name), [
   "library.collection.delete",
 ]);
 assert.equal(libraryCollectionGetDescriptor.sideEffect.durableUserStateWrite, false);
+assert.equal(libraryCollectionGetDescriptor.sideEffect.ownerCurationWrite, false);
 assert.equal(libraryCollectionGetDescriptor.invocationPolicy.readOnlyHint, true);
+assert.equal(libraryCollectionGetDescriptor.invocationPolicy.impactClass, "read");
 assert.equal("collectionDrivenByUserRequest" in libraryCollectionGetDescriptor.invocationPolicy, false);
 assert.deepEqual(libraryCollectionGetDescriptor.errors.map((error) => error.code), [
   "invalid_input",
@@ -77,9 +79,11 @@ assert.deepEqual(libraryCollectionGetDescriptor.errors.map((error) => error.code
 ]);
 for (const descriptor of collectionDescriptors.slice(1)) {
   assert.equal(descriptor.sideEffect.durableUserStateWrite, true);
+  assert.equal(descriptor.sideEffect.ownerCurationWrite, true);
   assert.equal(descriptor.sideEffect.externalCall, false);
   assert.equal(descriptor.invocationPolicy.defaultDecision, "auto");
-  assert.equal(descriptor.invocationPolicy.collectionDrivenByUserRequest, true);
+  assert.equal(descriptor.invocationPolicy.impactClass, "local-bounded");
+  assert.equal("collectionDrivenByUserRequest" in descriptor.invocationPolicy, false);
   assert.equal(descriptor.invocationPolicy.destructiveHint, false);
   assert.deepEqual(descriptor.errors.map((error) => error.code), [
     "invalid_input",

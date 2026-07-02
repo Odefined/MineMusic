@@ -56,11 +56,13 @@ export const radioRunFinishDescriptor: ToolDeclaration = {
   ],
   sideEffect: {
     durableUserStateWrite: false,
+    ownerCurationWrite: false,
     runtimeStateWrite: true,
     externalCall: false,
   },
   invocationPolicy: {
     defaultDecision: "auto",
+    impactClass: "local-bounded",
     dataEgress: "none",
     readOnlyHint: false,
     destructiveHint: false,

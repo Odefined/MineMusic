@@ -212,6 +212,8 @@ export function createStageInterface(input: CreateStageInterfaceInput): StageInt
           sessionId: ctx.sessionId,
           requestId: ctx.requestId,
           arguments: call.payload,
+          actorTrustBasis: ctx.actorTrustBasis,
+          askBeforeSourceOfTruthEdits: ctx.askBeforeSourceOfTruthEdits,
         });
       } catch {
         // The execution gate is a cross-context seam; a throw must not escape dispatch.
@@ -224,9 +226,9 @@ export function createStageInterface(input: CreateStageInterfaceInput): StageInt
 
       if (gateDecision.decision !== "allow") {
         return fail(
-          gateDecision.decision === "ask"
-            ? "stage_interface.ask_required"
-            : "stage_interface.denied_by_policy",
+          gateDecision.decision === "deny"
+            ? "stage_interface.denied_by_policy"
+            : "stage_interface.ask_required",
           safeGatePublicReason(gateDecision.publicReason, registration.descriptor, gateDecision.decision),
           false,
         );
@@ -541,7 +543,7 @@ function publicGateDecisionMessage(
   descriptor: ToolDeclaration,
   decision: StageToolExecutionGatePreflightResult["decision"],
 ): string {
-  if (decision === "ask") {
+  if (decision === "ask" || decision === "raise-to-conversation") {
     return `Tool '${descriptor.name}' requires approval before execution.`;
   }
 

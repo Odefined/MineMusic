@@ -76,11 +76,13 @@ const descriptor: ToolDeclaration = {
   ],
   sideEffect: {
     durableUserStateWrite: false,
+    ownerCurationWrite: false,
     runtimeStateWrite: false,
     externalCall: false,
   },
   invocationPolicy: {
     defaultDecision: "auto",
+    impactClass: "read",
     dataEgress: "none",
     readOnlyHint: true,
     destructiveHint: false,
@@ -170,11 +172,13 @@ assert.throws(
     name: "agent.test.write",
     sideEffect: {
       durableUserStateWrite: false,
+      ownerCurationWrite: false,
       runtimeStateWrite: true,
       externalCall: false,
     },
     invocationPolicy: {
       ...descriptor.invocationPolicy,
+      impactClass: "local-bounded",
       readOnlyHint: false,
     },
   };
@@ -624,6 +628,8 @@ assert.throws(
     sessionId: "stage-session",
     requestId: "tool-call-stage-gate",
     arguments: { query: "x" },
+    actorTrustBasis: "user-intent-backed",
+    askBeforeSourceOfTruthEdits: false,
   });
   assert.equal(agent.sessionId, "provider-session");
   const toolResult = agent.state.messages.find((message) => message.role === "toolResult");
@@ -956,6 +962,8 @@ function createMinimalContext(
     ownerScope: "local",
     sessionId,
     requestId,
+    actorTrustBasis: "user-intent-backed",
+    askBeforeSourceOfTruthEdits: false,
     clock: () => "2026-06-26T00:00:00.000Z",
     ...(abortSignal === undefined ? {} : { abortSignal }),
     handleMinting: {

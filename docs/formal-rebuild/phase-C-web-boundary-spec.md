@@ -45,13 +45,12 @@ in-process reality. Code-state facts that shape every decision below:
 - Main-only `radio.session.*` lifecycle tools (`start`/`resume`/`pause`/
   `shutdown`/`status`) are the Phase B conversational entry. Phase C attaches the
   real user-button path to the same Music Experience lifecycle command boundary.
-- The Effect Boundary gate is the **conservative stub**
-  (`effect_boundary/stage_tool_execution_gate.ts`): single axis
-  `durableUserStateWrite` + four per-scenario booleans; no impact-class, no
-  trust-basis, no actor. **ADR-0038 (impact-class × trust-basis, `ownerCurationWrite`
-  toggle, denylist, trust derived from run provenance) is doc-only — not landed.**
-  And every durable tool today carries one of the four qualifiers, so nothing
-  routes to `ask` in practice. Phase C must build the gate to a usable form.
+- The Effect Boundary gate (`effect_boundary/stage_tool_execution_gate.ts`)
+  implements ADR-0038's impact-class × actor-trust table. Tool descriptors
+  declare `impactClass` and `ownerCurationWrite`; runtime context supplies
+  boundary-derived `actorTrustBasis` and `askBeforeSourceOfTruthEdits`. Current
+  Server Host contexts default to `user-intent-backed` and the tightening toggle
+  off until durable user settings and full Agent Runtime provenance are wired.
 - NCM **implements** `getPlayableLinks` (`extension/plugins/ncm.ts`) and can
   return a real audio URL from the local NCM service, but there are **zero
   runtime callers** and no `getSourceProviderPlayableLinks` dispatch. Material

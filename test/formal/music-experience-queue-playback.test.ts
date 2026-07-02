@@ -90,7 +90,9 @@ function emptyWorkbenchRadioTruth() {
 assert.equal(playbackQueueAppendDescriptor.name, "playback.queue.append");
 assert.equal(playbackQueueAppendDescriptor.sideEffect.runtimeStateWrite, true);
 assert.equal(playbackQueueAppendDescriptor.sideEffect.durableUserStateWrite, false);
+assert.equal(playbackQueueAppendDescriptor.sideEffect.ownerCurationWrite, false);
 assert.equal(playbackQueueAppendDescriptor.invocationPolicy.defaultDecision, "auto");
+assert.equal(playbackQueueAppendDescriptor.invocationPolicy.impactClass, "local-bounded");
 assert.equal(playbackQueueAppendDescriptor.errors.some((error) => error.code === "queue_full"), true);
 assert.equal(playbackQueueRemoveDescriptor.name, "playback.queue.remove");
 assert.equal(playbackQueueReplaceDescriptor.name, "playback.queue.replace");

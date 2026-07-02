@@ -16,6 +16,7 @@ import type {
   ConcernRevisionSet,
 } from "../contracts/kernel.js";
 import type {
+  ActorTrustBasis,
   HandleMintingPort,
   LookupCursorStore,
   StageToolAuditPort,
@@ -27,6 +28,8 @@ import { createStageToolContext } from "./context.js";
 export type CreateStageToolContextFactoryInput = {
   ownerScope: string;
   actor?: AgentActorKind;
+  actorTrustBasis?: ActorTrustBasis;
+  askBeforeSourceOfTruthEdits?: boolean;
   preconditionBasis?: ConcernRevisionSet;
   clock: () => string;
   handleMinting: HandleMintingPort;
@@ -39,6 +42,8 @@ export type CreateToolContextPerCallInput = {
   sessionId: string;
   requestId: string;
   actor?: AgentActorKind;
+  actorTrustBasis?: ActorTrustBasis;
+  askBeforeSourceOfTruthEdits?: boolean;
   preconditionBasis?: ConcernRevisionSet;
   abortSignal?: AbortSignal;
 };
@@ -53,12 +58,16 @@ export function createStageToolContextFactory(
   return {
     createToolContext(perCall) {
       const actor = perCall.actor ?? input.actor;
+      const actorTrustBasis = perCall.actorTrustBasis ?? input.actorTrustBasis;
+      const askBeforeSourceOfTruthEdits = perCall.askBeforeSourceOfTruthEdits ?? input.askBeforeSourceOfTruthEdits;
       const preconditionBasis = perCall.preconditionBasis ?? input.preconditionBasis;
       return createStageToolContext({
         ownerScope: input.ownerScope,
         sessionId: perCall.sessionId,
         requestId: perCall.requestId,
         ...(actor === undefined ? {} : { actor }),
+        ...(actorTrustBasis === undefined ? {} : { actorTrustBasis }),
+        ...(askBeforeSourceOfTruthEdits === undefined ? {} : { askBeforeSourceOfTruthEdits }),
         ...(preconditionBasis === undefined ? {} : { preconditionBasis }),
         clock: input.clock,
         handleMinting: input.handleMinting,

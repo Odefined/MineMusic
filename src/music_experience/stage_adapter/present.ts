@@ -41,12 +41,14 @@ export const musicExperienceInstrument: InstrumentDescriptor = {
 // durable-user-state-write metadata inline because it admits via presentation.
 export const runtimeWriteSideEffect = {
   durableUserStateWrite: false,
+  ownerCurationWrite: false,
   runtimeStateWrite: true,
   externalCall: false,
 } as const;
 
 export const runtimeWriteInvocationPolicy = {
   defaultDecision: "auto",
+  impactClass: "local-bounded",
   dataEgress: "none",
   readOnlyHint: false,
   destructiveHint: false,
@@ -85,15 +87,16 @@ export const musicExperiencePresentDescriptor: ToolDeclaration = {
   ],
   sideEffect: {
     durableUserStateWrite: true,
+    ownerCurationWrite: false,
     runtimeStateWrite: false,
     externalCall: false,
   },
   invocationPolicy: {
     defaultDecision: "auto",
+    impactClass: "local-bounded",
     dataEgress: "none",
     readOnlyHint: false,
     destructiveHint: false,
-    admissionDrivenByPresentation: true,
   },
   inputSchema: musicExperiencePresentInputSchema,
   outputSchema: musicExperiencePresentOutputSchema,

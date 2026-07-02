@@ -548,6 +548,8 @@ function testStageToolContext(): StageToolContext {
     ownerScope: "local",
     sessionId: "library-catalog-test-session",
     requestId: "library-catalog-test-request",
+    actorTrustBasis: "user-intent-backed",
+    askBeforeSourceOfTruthEdits: false,
     clock: () => "2026-06-21T00:00:00.000Z",
     handleMinting: {
       async mint(input) {

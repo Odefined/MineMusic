@@ -1797,6 +1797,29 @@ one authority mismatch the audit exposed (`CURRENT_STATE.md` claimed
 `BEGIN IMMEDIATE`) was corrected in place; the broader Phase-4 SQLite-PRAGMA
 staleness in that section is flagged for a separate doc fix.
 
+## 2026-07-02: ADR-0038 Effect Boundary Gate Contract
+
+GitHub issue #115 lands the ADR-0038 Effect Boundary gate contract:
+
+- `ToolSideEffect` now carries `ownerCurationWrite`, separating durable material
+  identity writes from owner library curation writes.
+- `ToolInvocationPolicy` now carries `impactClass` (`read`, `local-bounded`, or
+  `external-or-irreversible`) and no longer carries the ADR-0021/0022/0023
+  per-scenario auto-pass booleans.
+- `StageToolExecutionGate` evaluates `impactClass × actorTrustBasis` with
+  `defaultDecision` as the pre-gate and
+  `askBeforeSourceOfTruthEdits` as a tightening setting scoped by
+  `ownerCurationWrite`.
+- Current Server Host contexts default to
+  `actorTrustBasis: "user-intent-backed"` and
+  `askBeforeSourceOfTruthEdits: false`; Proposal Unit persistence, Confirm card
+  UI, durable settings, and full Agent Runtime provenance remain later work.
+
+`music.experience.present` remains `durableUserStateWrite: true` because
+candidate presentation can commit durable material identity, but it declares
+`ownerCurationWrite: false`. Library import start, relation edits, and
+collection edits declare `ownerCurationWrite: true`.
+
 ## Next Formal Milestones
 
 The Agent-Native Workbench PRD sequencing (Phase A in-process loop → Phase B
@@ -1837,5 +1860,6 @@ add bridge layers unless a new accepted ADR explicitly allows an exception.
   admission. The decision is recorded (ADR-0040); the boundary-affecting code
   change (public `MusicItemHandle` contract + handle-registry `handle_kind` +
   downstream relation/collection/catalog tools + a DB migration, plus extracting
-  `ResolveDurableMusicItem` and re-examining `present`'s coarse
-  `durableUserStateWrite` bit / `ownerCurationWrite` marker) lands as its own PR.
+  `ResolveDurableMusicItem`) has landed. The related
+  `durableUserStateWrite` / `ownerCurationWrite` Effect Boundary split landed
+  separately in issue #115.

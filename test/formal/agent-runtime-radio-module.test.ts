@@ -548,11 +548,13 @@ function createStubToolDeclarations(
       ],
       sideEffect: {
         durableUserStateWrite: false,
+        ownerCurationWrite: false,
         runtimeStateWrite: false,
         externalCall: false,
       },
       invocationPolicy: {
         defaultDecision: "auto",
+        impactClass: "read",
         dataEgress: "none",
         readOnlyHint: true,
         destructiveHint: false,

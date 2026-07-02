@@ -130,10 +130,11 @@ Phase 18A introduces the `library.`
 Public Agent Protocol namespace, keeps Library Import owned by Music Data
 Platform rather than a new top-level area, and adds the initially empty
 MDP-owned `library-import` RuntimeModule under
-`src/music_data_platform/stage_adapter/`. Phase 18B adds the Effect Boundary
-`intakeDrivenByUserRequest` invocation-policy qualifier (ADR-0022), allowing
-owner-scoped `library.import.start` / `.continue` calls to auto-pass with
-metadata audit while unqualified durable writes still route to `ask`.
+`src/music_data_platform/stage_adapter/`. Effect Boundary now interprets tool
+descriptors through ADR-0038's `impactClass × actorTrustBasis` policy; library
+import start declares `impactClass: "local-bounded"` and
+`ownerCurationWrite: true`, so current user-intent-backed contexts auto-allow it
+unless ask-before-source-of-truth-edits is enabled.
 Phase 18C-E add all four `library.import.*` tools: metadata-only source
 listing, page-by-page start/continue import drive tools, and a read-only status
 tool over durable import batches. Phase 19 adds all seven
@@ -142,8 +143,8 @@ plus save/unsave/favorite/unfavorite/block/unblock edit tools. The edit tools
 write only local MineMusic owner-relation facts through Music Data Platform
 source-of-truth commands, return only current saved/favorite/blocked booleans,
 enforce blocked-vs-positive mutual exclusion and saved/favorite independence,
-and auto-pass through the Effect Boundary via ADR-0023's owner-relation
-qualifier.
+and declare `impactClass: "local-bounded"` plus `ownerCurationWrite: true` for
+Effect Boundary policy.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -582,9 +583,8 @@ The active TypeScript tree is now a formal skeleton:
   runtime state: owner-bound handle registry, registry-backed lookup cursor
   store, context factory, and leak guards;
 - `src/effect_boundary/stage_tool_execution_gate.ts` owns the
-  `StageToolExecutionGate` stub, audit recording seam, presentation-driven
-  admission auto-pass qualifier, and owner-scoped library-intake auto-pass
-  qualifier;
+  `StageToolExecutionGate` policy, audit recording seam, ADR-0038
+  impact-class × actor-trust table, and owner-curation tightening setting;
 - `src/stage_core/runtime_module.ts` owns the Stage Core-only
   `RuntimeModule` contribution boundary, now using `StageToolRegistration`
   entries instead of separate descriptor/handler maps;

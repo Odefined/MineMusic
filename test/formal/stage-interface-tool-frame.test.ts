@@ -256,11 +256,13 @@ const descriptor: ToolDeclaration = {
     ],
     sideEffect: {
         durableUserStateWrite: false,
+        ownerCurationWrite: false,
         runtimeStateWrite: false,
         externalCall: false,
     },
     invocationPolicy: {
         defaultDecision: "auto",
+        impactClass: "read",
         dataEgress: "none",
         readOnlyHint: true,
         destructiveHint: false,
@@ -390,6 +392,8 @@ const gateBaseInput = {
     sessionId: "stage-interface-test-session",
     requestId: "stage-interface-test-request",
     arguments: {},
+    actorTrustBasis: "user-intent-backed" as const,
+    askBeforeSourceOfTruthEdits: false,
 };
 assert.equal((await conservativeGate.preflight(gateBaseInput)).decision, "allow");
 assert.equal((await conservativeGate.preflight({
@@ -420,9 +424,18 @@ assert.equal((await conservativeGate.preflight({
             ...descriptor.sideEffect,
             durableUserStateWrite: true,
         },
+        invocationPolicy: {
+            ...descriptor.invocationPolicy,
+            impactClass: "external-or-irreversible",
+        },
     },
 })).decision, "ask");
-const qualifiedPresentDescriptor: ToolDeclaration = {
+const readAutonomousResult = await conservativeGate.preflight({
+    ...gateBaseInput,
+    actorTrustBasis: "autonomous-within-grant",
+});
+assert.equal(readAutonomousResult.decision, "allow");
+const localBoundedDescriptor: ToolDeclaration = {
     ...descriptor,
     name: "music.experience.present",
     ownerArea: "music_experience",
@@ -433,21 +446,23 @@ const qualifiedPresentDescriptor: ToolDeclaration = {
     invocationPolicy: {
         ...descriptor.invocationPolicy,
         defaultDecision: "auto",
-        admissionDrivenByPresentation: true,
+        impactClass: "local-bounded",
+        readOnlyHint: false,
     },
 };
-const qualifiedPresentResult = await conservativeGate.preflight({
+const localBoundedUserResult = await conservativeGate.preflight({
     ...gateBaseInput,
-    descriptor: qualifiedPresentDescriptor,
+    descriptor: localBoundedDescriptor,
 });
-assert.equal(qualifiedPresentResult.decision, "allow");
-assert.equal(qualifiedPresentResult.internalReason, "auto presentation-driven admission");
-// ADR-0022: owner-scoped, user-requested Library Import intake may auto-pass
-// the Effect Boundary gate while ordinary durable writes still route to ask.
-const qualifiedIntakeDescriptor: ToolDeclaration = {
+assert.equal(localBoundedUserResult.decision, "allow");
+const localBoundedAutonomousResult = await conservativeGate.preflight({
+    ...gateBaseInput,
+    actorTrustBasis: "autonomous-within-grant",
+    descriptor: localBoundedDescriptor,
+});
+assert.equal(localBoundedAutonomousResult.decision, "allow");
+const externalDescriptor: ToolDeclaration = {
     ...descriptor,
-    name: "library.import.start",
-    ownerArea: "music_data_platform",
     sideEffect: {
         ...descriptor.sideEffect,
         durableUserStateWrite: true,
@@ -456,57 +471,71 @@ const qualifiedIntakeDescriptor: ToolDeclaration = {
     invocationPolicy: {
         ...descriptor.invocationPolicy,
         defaultDecision: "auto",
+        impactClass: "external-or-irreversible",
         dataEgress: "provider_account",
-        intakeDrivenByUserRequest: true,
+        readOnlyHint: false,
     },
 };
-const qualifiedIntakeResult = await conservativeGate.preflight({
+const externalUserResult = await conservativeGate.preflight({
     ...gateBaseInput,
-    descriptor: qualifiedIntakeDescriptor,
+    descriptor: externalDescriptor,
 });
-assert.equal(qualifiedIntakeResult.decision, "allow");
-assert.equal(qualifiedIntakeResult.internalReason, "auto owner-scoped library intake");
-const qualifiedRelationDescriptor: ToolDeclaration = {
-    ...descriptor,
+assert.equal(externalUserResult.decision, "ask");
+const externalAutonomousResult = await conservativeGate.preflight({
+    ...gateBaseInput,
+    actorTrustBasis: "autonomous-within-grant",
+    descriptor: externalDescriptor,
+});
+assert.equal(externalAutonomousResult.decision, "raise-to-conversation");
+const curationWriteDescriptor: ToolDeclaration = {
+    ...localBoundedDescriptor,
     name: "library.relation.save",
     ownerArea: "music_data_platform",
     sideEffect: {
-        ...descriptor.sideEffect,
-        durableUserStateWrite: true,
-    },
-    invocationPolicy: {
-        ...descriptor.invocationPolicy,
-        defaultDecision: "auto",
-        ownerRelationDrivenByUserRequest: true,
+        ...localBoundedDescriptor.sideEffect,
+        ownerCurationWrite: true,
     },
 };
-const qualifiedRelationResult = await conservativeGate.preflight({
+assert.equal((await conservativeGate.preflight({
     ...gateBaseInput,
-    descriptor: qualifiedRelationDescriptor,
+    descriptor: curationWriteDescriptor,
+})).decision, "allow");
+const tightenedCurationResult = await conservativeGate.preflight({
+    ...gateBaseInput,
+    askBeforeSourceOfTruthEdits: true,
+    descriptor: curationWriteDescriptor,
 });
-assert.equal(qualifiedRelationResult.decision, "allow");
-assert.equal(qualifiedRelationResult.internalReason, "auto owner-scoped relation edit");
+assert.equal(tightenedCurationResult.decision, "ask");
+const tightenedPresentResult = await conservativeGate.preflight({
+    ...gateBaseInput,
+    askBeforeSourceOfTruthEdits: true,
+    descriptor: localBoundedDescriptor,
+});
+assert.equal(tightenedPresentResult.decision, "allow");
+assert.equal((await conservativeGate.preflight({
+    ...gateBaseInput,
+    askBeforeSourceOfTruthEdits: true,
+})).decision, "allow");
 assert.equal((await conservativeGate.preflight({
     ...gateBaseInput,
     descriptor: {
-        ...qualifiedPresentDescriptor,
+        ...localBoundedDescriptor,
         invocationPolicy: {
-            ...qualifiedPresentDescriptor.invocationPolicy,
+            ...localBoundedDescriptor.invocationPolicy,
             defaultDecision: "deny",
         },
     },
 })).decision, "deny");
-assert.equal(auditRecords.length, 8);
+assert.equal(auditRecords.length, 14);
 assert.equal(auditRecords.every((record) => record.auditLevel === "metadata"), true);
 assert.equal(auditRecords.some((record) => (record.toolName === "music.experience.present" &&
     record.decision === "allow" &&
-    record.internalReason === "auto presentation-driven admission")), true);
-assert.equal(auditRecords.some((record) => (record.toolName === "library.import.start" &&
-    record.decision === "allow" &&
-    record.internalReason === "auto owner-scoped library intake")), true);
+    record.internalReason?.includes("impact-trust table decision=allow") === true)), true);
 assert.equal(auditRecords.some((record) => (record.toolName === "library.relation.save" &&
-    record.decision === "allow" &&
-    record.internalReason === "auto owner-scoped relation edit")), true);
+    record.decision === "ask" &&
+    record.internalReason?.includes("ask-before-source-of-truth-edits tightened owner curation write") === true)), true);
+assert.equal(auditRecords.some((record) => (record.decision === "raise-to-conversation" &&
+    record.internalReason?.includes("impact-trust table decision=raise-to-conversation") === true)), true);
 const stageInterface = createStageInterface({
     instruments: [instrument],
     registrations: [registration],
@@ -600,6 +629,15 @@ const askResult = await stageInterface.dispatch(testStageToolContext("ask"), {
 assert.equal(askResult.ok, false);
 if (!askResult.ok) {
     assert.equal(askResult.error.code, "stage_interface.ask_required");
+}
+const raiseResult = await stageInterface.dispatch(testStageToolContext("raise-to-conversation"), {
+    toolName: descriptor.name,
+    payload: {},
+});
+assert.equal(raiseResult.ok, false);
+if (!raiseResult.ok) {
+    assert.equal(raiseResult.error.code, "stage_interface.ask_required");
+    assert.equal(raiseResult.error.message.includes("denied"), false);
 }
 const internalGateReasonResult = await stageInterface.dispatch(createStageToolContext({
     ownerScope: "local",
@@ -918,7 +956,7 @@ await upsertDatabase.close();
 function compiled(schema: JsonSchema) {
     return ajv.compile(schema as AnySchema);
 }
-function testStageToolContext(decision: "allow" | "ask" | "deny" = "allow"): StageToolContext {
+function testStageToolContext(decision: "allow" | "ask" | "raise-to-conversation" | "deny" = "allow"): StageToolContext {
     return createStageToolContext({
         ownerScope: "local",
         sessionId: "stage-interface-test-session",

@@ -6,8 +6,9 @@
 > model-visible guidance), ADR-0015 (invocation policy), and ADR-0016
 > (descriptor/handler split), ADR-0017 (router-owned tool name), ADR-0019 (veil
 > ownership split and handle scheme), ADR-0020 (declared error vocabulary and
-> fail-whole recovery), and ADR-0021 through ADR-0023 (narrow durable-write
-> auto-pass qualifiers), and ADR-0024 (registry-backed public lookup cursors).
+> fail-whole recovery), ADR-0024 (registry-backed public lookup cursors),
+> ADR-0038 (impact-class × actor-trust Effect Boundary policy), and ADR-0040
+> (`material` item-handle currency).
 > Phase 16 (sanctioned). Implementation plan:
 > `phase-16-stage-interface-tool-frame-implementation-plan.md` (PR 16A–16D
 > planned).
@@ -49,11 +50,9 @@ with no shared guarantees.
 - No recommendation, radio, Memory, or Music Experience ranking behavior.
 - No candidate-to-durable materialization command itself (owned by Music Data
   Platform; see ADR-0011). This frame only forbids tools from materializing.
-- No full Effect Boundary enforcement machinery itself (owned by Effect
-  Boundary; see ADR-0010). This frame mandates the declaration and defines a v1
-  `StageToolExecutionGate` stub seam with the ADR-0021 / ADR-0022 / ADR-0023
-  auto-pass qualifiers (see Permission, Visibility, and Auto-Invocation) so
-  declarations have a runtime home; full enforcement is deferred.
+- No Proposal Unit persistence, Confirm card UI, or durable approval workflow.
+  This frame mandates the declarations and the `StageToolExecutionGate` seam;
+  Effect Boundary owns the ADR-0038 table, audit, and approval decisions.
 - No per-tool runtime-policy enforcement itself (owned by Stage Core). This frame
   requires a Stage Core global default timeout (see Runtime Policy) but defers
   per-tool `runtimePolicy`.
@@ -108,8 +107,8 @@ ownerArea         // FormalArea that owns the tool's behavior
 description       // agent-facing: what the tool does
 usage             // useWhen / doNotUseWhen / outputSemantics
 examples          // structured { prompt, expects: "call"|"avoid", note? }; min 1 call + 1 avoid
-sideEffect        // { durableUserStateWrite, runtimeStateWrite, externalCall }
-invocationPolicy  // { defaultDecision, dataEgress, readOnlyHint, destructiveHint, maxCallsPerTurn? }
+sideEffect        // { durableUserStateWrite, ownerCurationWrite, runtimeStateWrite, externalCall }
+invocationPolicy  // { defaultDecision, impactClass, dataEgress, readOnlyHint, destructiveHint, maxCallsPerTurn? }
 inputSchema       // public JSON schema; Tool Call Router validates input against it
 outputSchema      // public JSON schema; uses public handles only
 errors            // declared public error vocabulary (code / retryable / suggestedFix template)
@@ -406,25 +405,27 @@ here is bought with tokens the agent should not pay.
 
 ## Side-Effect and Write Policy
 
-A tool declares `sideEffect: { durableUserStateWrite, runtimeStateWrite,
-externalCall }` (ADR-0010). This is static capability truth: it answers what the
-tool CAN touch, not whether a particular invocation actually touched it.
-Provider-candidate search declares
-`durableUserStateWrite: false`, `runtimeStateWrite: true`, `externalCall: true`
-because it can write TTL runtime candidate/result state and can call an external
-provider, even when a library-only invocation does neither.
+A tool declares `sideEffect: { durableUserStateWrite, ownerCurationWrite,
+runtimeStateWrite, externalCall }` (ADR-0010 plus ADR-0038). This is static
+capability truth: it answers what the tool CAN touch, not whether a particular
+invocation actually touched it. Provider-candidate search declares
+`durableUserStateWrite: false`, `ownerCurationWrite: false`,
+`runtimeStateWrite: true`, `externalCall: true` because it can write TTL runtime
+candidate/result state and can call an external provider, even when a
+library-only invocation does neither. `music.experience.present` declares
+`durableUserStateWrite: true` and `ownerCurationWrite: false`: candidate
+presentation can commit durable material identity, but it does not save,
+favorite, block, collect, or import the item into the user's library curation.
 
 A separate mandatory `invocationPolicy` carries the agent invocation signal:
 
 ```text
 invocationPolicy = {
   defaultDecision: "auto" | "ask" | "deny",
+  impactClass: "read" | "local-bounded" | "external-or-irreversible",
   dataEgress: "none" | "provider_account" | "open_world",
   readOnlyHint: boolean,
   destructiveHint: boolean,
-  admissionDrivenByPresentation?: boolean,
-  intakeDrivenByUserRequest?: boolean,
-  ownerRelationDrivenByUserRequest?: boolean,
   maxCallsPerTurn?: number
 }
 ```
@@ -433,10 +434,10 @@ invocationPolicy = {
 keeps the honest capability declaration used for architecture and Effect
 Boundary reasoning; `invocationPolicy` expresses how the agent may call the tool
 by default, including data-egress and rate/cost signals. Provider-candidate
-search remains eligible for auto-invocation because it has
-`durableUserStateWrite: false` and `invocationPolicy.defaultDecision: "auto"`;
-it still declares `dataEgress: "provider_account"` because query text can leave
-MineMusic through a connected provider account.
+search remains eligible for auto-invocation because it declares
+`impactClass: "read"` and `invocationPolicy.defaultDecision: "auto"`; it still
+declares `dataEgress: "provider_account"` because query text can leave MineMusic
+through a connected provider account.
 
 Stage Interface declares both objects; Effect Boundary enforces and interprets
 them. The declarations are mandatory at registration; enforcement is owned by
@@ -446,13 +447,14 @@ provider-connection time, not per search.
 
 ## Permission, Visibility, and Auto-Invocation
 
-- Auto-invocation is derived from `sideEffect.durableUserStateWrite` and
-  `invocationPolicy.defaultDecision`, plus narrow Effect Boundary-owned
-  durable-write qualifiers recorded by ADR-0021, ADR-0022, and ADR-0023. The
-  rule is owned by Effect Boundary. A tool that writes durable user state cannot
-  be auto-invoked merely because it says `defaultDecision: "auto"`; it must
-  either be read-only on durable user state or satisfy one of those explicit
-  qualifiers.
+- Auto-invocation is derived by Effect Boundary from
+  `invocationPolicy.defaultDecision`, `invocationPolicy.impactClass`, boundary
+  derived `actorTrustBasis`, and the tightening
+  `askBeforeSourceOfTruthEdits` setting. The ADR-0038 table maps
+  `impactClass × actorTrustBasis` to `allow | ask | raise-to-conversation`, with
+  `defaultDecision: "deny"` as a pre-gate and `defaultDecision: "ask"` as an
+  explicit ask. `ownerCurationWrite` scopes the tightening setting; it never
+  turns an ask/raise decision into allow.
 - Provider/account availability that affects a tool's scopes is owned by
   Extension. Stage Interface reads it through a narrow
   `ProviderAvailabilityPort`; a composition root adapts the Extension runtime
@@ -474,17 +476,19 @@ provider-connection time, not per search.
   Effect Boundary-owned `StageToolExecutionGate`, NOT the Tool Call Router
   interpreting policy. The boundary is crisp:
   - **Owner**: Effect Boundary owns `StageToolExecutionGate` (interface declared
-    at the contract layer; v1 ships the conservative stub plus the ADR-0021,
-    ADR-0022, and ADR-0023 auto-pass qualifiers).
+    at the contract layer; the policy is ADR-0038's impact-class × actor-trust
+    table plus the owner-curation tightening setting).
   - **Router -> gate**: before invoking the handler, the Tool Call Router calls
-    `gate.preflight({ descriptor, sideEffect, invocationPolicy, ownerScope,
-    sessionId, requestId, arguments })`. The router PASSES the declarations; it
-    does not interpret them.
-  - **gate -> router**: the gate returns `{ decision: "allow" | "ask" | "deny",
-    auditLevel, publicReason?, internalReason? }`. `allow` proceeds; `ask`
-    returns the router-global
-    `stage_interface.ask_required` placeholder to the agent; `deny` returns
-    the router-global `stage_interface.denied_by_policy` error. These are
+    `gate.preflight({ descriptor, ownerScope, sessionId, requestId, arguments,
+    actorTrustBasis, askBeforeSourceOfTruthEdits })`. The router PASSES the
+    declarations and runtime-derived gate inputs; it does not interpret them.
+  - **gate -> router**: the gate returns `{ decision: "allow" | "ask" |
+    "raise-to-conversation" | "deny", auditLevel, publicReason?,
+    internalReason? }`. `allow` proceeds; `ask` and
+    `raise-to-conversation` return the router-global
+    `stage_interface.ask_required` placeholder until Proposal Unit delivery is
+    wired; `deny` returns the router-global
+    `stage_interface.denied_by_policy` error. These are
     framework-level (router-global) codes owned by Stage Interface, NOT
     per-tool-declared — see "Declared Error Vocabulary" for the two-tier
     model. A gate `preflight` throw is caught by the Tool Call Router and
@@ -494,16 +498,13 @@ provider-connection time, not per search.
     veil.
   - **Audit**: the gate writes audit (level per `auditLevel`) to the
     `StageToolAuditPort`; the router and handler do not audit.
-  - **v1 stub rule** (fail-closed with named durable-write exceptions): the stub
-    returns `allow` when `invocationPolicy.defaultDecision = "auto"` and
-    either `sideEffect.durableUserStateWrite = false`,
-    `admissionDrivenByPresentation = true` (ADR-0021), or
-    `intakeDrivenByUserRequest = true` (ADR-0022), or
-    `ownerRelationDrivenByUserRequest = true` (ADR-0023). Otherwise it returns
-    `ask` / `deny` per `defaultDecision`. This is the runtime half of the
-    interim fail-closed posture (the static half is the side-effect honesty
-    import guard), so `sideEffect` / `invocationPolicy` are never inert metadata
-    before full Effect Boundary enforcement ships.
+  - **ADR-0038 table**: `read` and `local-bounded` tools allow for both
+    `user-intent-backed` and `autonomous-within-grant`; an
+    `external-or-irreversible` tool asks when user-intent-backed and raises to
+    conversation when autonomous. Current Server Host contexts default to
+    `actorTrustBasis: "user-intent-backed"` and
+    `askBeforeSourceOfTruthEdits: false` until Agent Runtime provenance and a
+    durable user setting are wired.
 
 ## Runtime Policy
 
@@ -555,7 +556,7 @@ distinguishes existing asserts from new architecture tests:
 10. handle-veil v1: `outputSchema` contains no internal-ref property names, and sample output fixtures contain no internal-ref keys or string values — NEW;
 11. registration handler import discipline (extension of active-tree guards) — NEW;
 12. Tool Call Router-owned `toolName`: registration handlers return payloads, and the Tool Call Router wraps `ToolCallOutput.toolName` from `descriptor.name` — NEW;
-13. side-effect honesty: no tool declaring `durableUserStateWrite: false` imports a durable-write/command module (mirrors the existing domain-must-not-import guard), so a declaration cannot silently lie — NEW, the interim fail-closed posture until Effect Boundary enforcement ships.
+13. side-effect honesty: no tool declaring `durableUserStateWrite: false` imports a durable-write/command module (mirrors the existing domain-must-not-import guard), so a declaration cannot silently lie — NEW.
 14. declared error vocabulary: every model-visible tool declares its public `errors` set (code / retryable / suggestedFix template), and registration handlers emit only declared public codes so internal domain codes never leak through the Public Agent Protocol — NEW.
 15. descriptor provenance: every model-visible tool is a static `{ descriptor, handler }` export in its area's `stage_adapter/` (not an `initialize()` object literal); its `inputSchema`/`outputSchema` are derived from `contracts/` TS types (no hand-written duplicate JSON schemas); and its public vocabulary matches the contracts and `CONTEXT.md` — NEW.
 16. domain-core stage-isolation: no `<area>/core/*` file imports `contracts/stage_interface.ts` or `contracts/public_music_description.ts` (the Stage Interface contract surface); only `<area>/stage_adapter/*` may — NEW.
@@ -692,8 +693,8 @@ Music Discovery proves the skeleton carries a concrete tool cleanly (ADR-0012):
     - `{ expects: "avoid", prompt: "import my provider library", note: "library import tool not yet shipped" }`
   - `inputSchema`: `MusicDiscoveryLookupInput` (`{ lookupText, targetKind?, scopes?, limit? } | { cursor, limit? }`).
   - `outputSchema`: `MusicDiscoveryLookupOutput` (`{ items: MusicDiscoveryLookupItem[], nextCursor? }`) (veiled). Handle-kind discrimination (`material` | `candidate`) subsumes the research-doc `resultSemantics` dimension for discovery outputs: `candidate` carries "not yet saved", `material` carries "durable". Discovery never returns a "saved"/"playable" semantic, because it does not save or play, so a separate `resultSemantics` field is intentionally folded into handle kinds rather than dropped.
-  - `sideEffect`: `{ durableUserStateWrite: false, runtimeStateWrite: true, externalCall: true }`. `externalCall` is a static registration-time CAPABILITY: the tool CAN make external provider calls when a provider scope is requested. Whether a given invocation actually calls a provider depends on the input scope set, but the declared axis reflects capability (conservative gating + consent), not a per-call actual.
-  - `invocationPolicy`: `{ defaultDecision: "auto", dataEgress: "provider_account", readOnlyHint: true, destructiveHint: false }`. The tool can be auto-invoked because it does not write durable user state; the provider-account egress signal remains visible to Effect Boundary and agent guidance.
+  - `sideEffect`: `{ durableUserStateWrite: false, ownerCurationWrite: false, runtimeStateWrite: true, externalCall: true }`. `externalCall` is a static registration-time CAPABILITY: the tool CAN make external provider calls when a provider scope is requested. Whether a given invocation actually calls a provider depends on the input scope set, but the declared axis reflects capability (conservative gating + consent), not a per-call actual.
+  - `invocationPolicy`: `{ defaultDecision: "auto", impactClass: "read", dataEgress: "provider_account", readOnlyHint: true, destructiveHint: false }`. The tool can be auto-invoked because it is read-impact under ADR-0038; the provider-account egress signal remains visible to Effect Boundary and agent guidance.
   - `errors` (declared public vocabulary; all recoverable unless noted):
     - `invalid_input` (retryable: false) — blank `lookupText` on a first-page call; a cursor-page call that also passes `lookupText` / `targetKind` / `scopes`; `scopes: []`; an aggregate scope mixed with its constituent (`all` with anything, or `library` with `source_library` / `relation`).
     - `invalid_cursor` (retryable: true) — forged, unknown, or malformed cursor; start a fresh first-page lookup.

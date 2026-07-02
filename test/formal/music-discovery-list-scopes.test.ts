@@ -206,6 +206,8 @@ function testStageToolContext(): StageToolContext {
         ownerScope: "local",
         sessionId: "music-discovery-test-session",
         requestId: "music-discovery-test-request",
+        actorTrustBasis: "user-intent-backed",
+        askBeforeSourceOfTruthEdits: false,
         clock: () => "2026-06-17T00:00:00.000Z",
         handleMinting: {
             async mint() {

@@ -492,7 +492,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   anchor leak guards for the Public Agent Protocol veil.
 - `src/effect_boundary/index.ts` and
   `src/effect_boundary/stage_tool_execution_gate.ts`: Effect Boundary
-  conservative `StageToolExecutionGate` stub and in-memory audit port.
+  `StageToolExecutionGate` implementation for ADR-0038 impact-class ×
+  actor-trust policy, owner-curation tightening, and in-memory audit port.
 - `src/extension/capability_slot.ts`: capability slot definition with typed
   registration validation (`validateRegistration`) and write policy.
 - `src/extension/capability_registry.ts`: registration-only capability registry

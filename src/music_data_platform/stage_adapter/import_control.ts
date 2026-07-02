@@ -61,15 +61,16 @@ export const libraryImportStartDescriptor: ToolDeclaration = {
   ],
   sideEffect: {
     durableUserStateWrite: true,
+    ownerCurationWrite: true,
     runtimeStateWrite: true,
     externalCall: true,
   },
   invocationPolicy: {
     defaultDecision: "auto",
+    impactClass: "local-bounded",
     dataEgress: "provider_account",
     readOnlyHint: false,
     destructiveHint: false,
-    intakeDrivenByUserRequest: true,
   },
   inputSchema: libraryImportStartInputSchema,
   outputSchema: libraryImportDriveOutputSchema,
@@ -142,11 +143,13 @@ export const libraryImportStatusDescriptor: ToolDeclaration = {
   ],
   sideEffect: {
     durableUserStateWrite: false,
+    ownerCurationWrite: false,
     runtimeStateWrite: false,
     externalCall: false,
   },
   invocationPolicy: {
     defaultDecision: "auto",
+    impactClass: "read",
     dataEgress: "none",
     readOnlyHint: true,
     destructiveHint: false,

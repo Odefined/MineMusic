@@ -1665,6 +1665,8 @@ function createMinimalContext(
     ownerScope: key.ownerScope,
     sessionId,
     requestId,
+    actorTrustBasis: "user-intent-backed",
+    askBeforeSourceOfTruthEdits: false,
     clock: () => "2026-06-28T00:00:00.000Z",
     ...(abortSignal === undefined ? {} : { abortSignal }),
     ...(preconditionBasis === undefined ? {} : { preconditionBasis }),

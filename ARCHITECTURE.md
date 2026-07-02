@@ -200,11 +200,11 @@ sample-output leak guards, the owner-bound public handle registry, the
 `HandleMintingPort` implementation for durable `material` handles, and declared
 handler-error normalization. Candidate handles delegate to the runtime
 candidate-cache adapter rather than gaining a new durable store. Effect Boundary
-owns the `StageToolExecutionGate` stub and audit seam: read-only auto tools may
-pass, and two explicitly qualified durable-write classes may pass
-(presentation-driven admission and owner-scoped user-requested library intake).
-Other durable writes still route to `ask` or `deny`. Stage Core owns the global
-default tool timeout and cancellation signal passed through `StageToolContext`.
+owns the `StageToolExecutionGate` policy and audit seam: `defaultDecision` is
+interpreted through ADR-0038's impact-class × actor-trust table, and the
+`ownerCurationWrite` marker scopes the ask-before-source-of-truth-edits
+tightening setting. Stage Core owns the global default tool timeout and
+cancellation signal passed through `StageToolContext`.
 
 Instrument is an agent-facing workbench section inside Stage Interface. It
 groups tools and visible provider/capability descriptors for the agent. It is

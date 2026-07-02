@@ -135,11 +135,13 @@ export const musicDiscoveryLookupDescriptor: ToolDeclaration = {
   ],
   sideEffect: {
     durableUserStateWrite: false,
+    ownerCurationWrite: false,
     runtimeStateWrite: true,
     externalCall: true,
   },
   invocationPolicy: {
     defaultDecision: "auto",
+    impactClass: "read",
     dataEgress: "provider_account",
     readOnlyHint: true,
     destructiveHint: false,

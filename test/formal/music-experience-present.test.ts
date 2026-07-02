@@ -19,8 +19,10 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
 const now = "2026-06-18T00:00:00.000Z";
 assert.equal(musicExperiencePresentDescriptor.name, "music.experience.present");
 assert.equal(musicExperiencePresentDescriptor.sideEffect.durableUserStateWrite, true);
+assert.equal(musicExperiencePresentDescriptor.sideEffect.ownerCurationWrite, false);
 assert.equal(musicExperiencePresentDescriptor.invocationPolicy.defaultDecision, "auto");
-assert.equal(musicExperiencePresentDescriptor.invocationPolicy.admissionDrivenByPresentation, true);
+assert.equal(musicExperiencePresentDescriptor.invocationPolicy.impactClass, "local-bounded");
+assert.equal("admissionDrivenByPresentation" in musicExperiencePresentDescriptor.invocationPolicy, false);
 assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.code), ["candidate_expired", "candidate_not_found", "material_not_found", "invalid_input", "operation_aborted"]);
 {
     const database = await initializedPresentDatabase();
@@ -132,7 +134,8 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
     assert.equal(await tableCount(database.context(), "material_records"), 1);
     assert.equal(audit.records.some((record) => record.toolName === "music.experience.present" &&
         record.decision === "allow" &&
-        record.internalReason === "auto presentation-driven admission"), true);
+        record.internalReason?.includes("impact-trust table decision=allow") === true &&
+        record.internalReason.includes("ownerCurationWrite=false")), true);
     await database.close();
 }
 {

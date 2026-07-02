@@ -99,11 +99,13 @@ function radioSessionDescriptor(input: {
     ],
     sideEffect: {
       durableUserStateWrite: false,
+      ownerCurationWrite: false,
       runtimeStateWrite: true,
       externalCall: false,
     },
     invocationPolicy: {
       defaultDecision: "auto",
+      impactClass: "local-bounded",
       dataEgress: "none",
       readOnlyHint: false,
       destructiveHint: false,
@@ -190,11 +192,13 @@ export const radioSessionStatusDescriptor: ToolDeclaration = {
   ],
   sideEffect: {
     durableUserStateWrite: false,
+    ownerCurationWrite: false,
     runtimeStateWrite: false,
     externalCall: false,
   },
   invocationPolicy: {
     defaultDecision: "auto",
+    impactClass: "read",
     dataEgress: "none",
     readOnlyHint: true,
     destructiveHint: false,

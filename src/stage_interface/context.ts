@@ -7,6 +7,7 @@ import type {
   ConcernRevisionSet,
 } from "../contracts/kernel.js";
 import type {
+  ActorTrustBasis,
   HandleMintingPort,
   LookupCursorStore,
   ProviderAvailabilityPort,
@@ -22,6 +23,8 @@ export type CreateStageToolContextInput = {
   sessionId: string;
   requestId: string;
   actor?: AgentActorKind;
+  actorTrustBasis?: ActorTrustBasis;
+  askBeforeSourceOfTruthEdits?: boolean;
   preconditionBasis?: ConcernRevisionSet;
   clock?: () => string;
   abortSignal?: AbortSignal;
@@ -40,6 +43,8 @@ export function createStageToolContext(input: CreateStageToolContextInput): Stag
     sessionId: input.sessionId,
     requestId: input.requestId,
     ...(input.actor === undefined ? {} : { actor: input.actor }),
+    actorTrustBasis: input.actorTrustBasis ?? "user-intent-backed",
+    askBeforeSourceOfTruthEdits: input.askBeforeSourceOfTruthEdits ?? false,
     ...(input.preconditionBasis === undefined ? {} : { preconditionBasis: input.preconditionBasis }),
     clock: input.clock ?? (() => new Date().toISOString()),
     ...(input.abortSignal === undefined ? {} : { abortSignal: input.abortSignal }),

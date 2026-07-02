@@ -32,19 +32,26 @@ export type ToolExample = {
 
 export type ToolSideEffect = {
   durableUserStateWrite: boolean;
+  ownerCurationWrite: boolean;
   runtimeStateWrite: boolean;
   externalCall: boolean;
 };
 
+export type ToolImpactClass =
+  | "read"
+  | "local-bounded"
+  | "external-or-irreversible";
+
+export type ActorTrustBasis =
+  | "user-intent-backed"
+  | "autonomous-within-grant";
+
 export type ToolInvocationPolicy = {
   defaultDecision: "auto" | "ask" | "deny";
+  impactClass: ToolImpactClass;
   dataEgress: "none" | "provider_account" | "open_world";
   readOnlyHint: boolean;
   destructiveHint: boolean;
-  admissionDrivenByPresentation?: boolean;
-  intakeDrivenByUserRequest?: boolean;
-  ownerRelationDrivenByUserRequest?: boolean;
-  collectionDrivenByUserRequest?: boolean;
   maxCallsPerTurn?: number;
 };
 
@@ -145,6 +152,8 @@ export type StageToolContext = {
   sessionId: string;
   requestId: string;
   actor?: AgentActorKind;
+  actorTrustBasis: ActorTrustBasis;
+  askBeforeSourceOfTruthEdits: boolean;
   preconditionBasis?: ConcernRevisionSet;
   clock: () => string;
   abortSignal?: AbortSignal;
@@ -202,10 +211,12 @@ export type StageToolExecutionGatePreflightInput = {
   sessionId: string;
   requestId: string;
   arguments: unknown;
+  actorTrustBasis: ActorTrustBasis;
+  askBeforeSourceOfTruthEdits: boolean;
 };
 
 export type StageToolExecutionGatePreflightResult = {
-  decision: "allow" | "ask" | "deny";
+  decision: "allow" | "ask" | "raise-to-conversation" | "deny";
   auditLevel: StageToolAuditLevel;
   publicReason?: string;
   internalReason?: string;

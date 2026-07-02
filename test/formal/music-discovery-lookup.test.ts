@@ -93,8 +93,10 @@ assert.deepEqual(musicDiscoveryLookupDescriptor.errors.map((error) => error.code
     "scope_availability_failed",
 ]);
 assert.equal(musicDiscoveryLookupDescriptor.sideEffect.durableUserStateWrite, false);
+assert.equal(musicDiscoveryLookupDescriptor.sideEffect.ownerCurationWrite, false);
 assert.equal(musicDiscoveryLookupDescriptor.sideEffect.runtimeStateWrite, true);
 assert.equal(musicDiscoveryLookupDescriptor.sideEffect.externalCall, true);
+assert.equal(musicDiscoveryLookupDescriptor.invocationPolicy.impactClass, "read");
 assert.equal(musicDiscoveryLookupDescriptor.examples.some((example) => example.expects === "avoid" && example.prompt.includes("quiet walking")), true);
 assert.equal(musicDiscoveryLookupDescriptor.examples.some((example) => example.expects === "avoid" && example.prompt.includes("synthwave dark synth")), true);
 assert.equal(musicDiscoveryLookupDescriptor.examples.some((example) => example.expects === "avoid" && example.prompt.includes("[all]")), true);
@@ -693,6 +695,8 @@ function testStageToolContext(input: {
         ownerScope: "local",
         sessionId: "music-discovery-lookup-test-session",
         requestId: "music-discovery-lookup-test-request",
+        actorTrustBasis: "user-intent-backed",
+        askBeforeSourceOfTruthEdits: false,
         clock: input.clock ?? (() => "2026-06-17T00:00:00.000Z"),
         handleMinting: {
             async mint(mintInput) {

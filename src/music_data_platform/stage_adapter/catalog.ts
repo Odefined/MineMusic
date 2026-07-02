@@ -104,12 +104,14 @@ export const libraryCatalogInstrument: InstrumentDescriptor = {
 
 const readOnlySideEffect = {
   durableUserStateWrite: false,
+  ownerCurationWrite: false,
   runtimeStateWrite: false,
   externalCall: false,
 } as const;
 
 const readOnlyInvocationPolicy = {
   defaultDecision: "auto",
+  impactClass: "read",
   dataEgress: "none",
   readOnlyHint: true,
   destructiveHint: false,

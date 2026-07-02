@@ -22,12 +22,16 @@ const sourceLibraryScope = {
 };
 assert.equal(libraryImportStartDescriptor.name, "library.import.start");
 assert.equal(libraryImportStartDescriptor.sideEffect.durableUserStateWrite, true);
+assert.equal(libraryImportStartDescriptor.sideEffect.ownerCurationWrite, true);
 assert.equal(libraryImportStartDescriptor.sideEffect.externalCall, true);
+assert.equal(libraryImportStartDescriptor.invocationPolicy.impactClass, "local-bounded");
 assert.equal(libraryImportStartDescriptor.invocationPolicy.dataEgress, "provider_account");
-assert.equal(libraryImportStartDescriptor.invocationPolicy.intakeDrivenByUserRequest, true);
+assert.equal("intakeDrivenByUserRequest" in libraryImportStartDescriptor.invocationPolicy, false);
 assert.equal(libraryImportStatusDescriptor.name, "library.import.status");
 assert.equal(libraryImportStatusDescriptor.sideEffect.durableUserStateWrite, false);
+assert.equal(libraryImportStatusDescriptor.sideEffect.ownerCurationWrite, false);
 assert.equal(libraryImportStatusDescriptor.sideEffect.externalCall, false);
+assert.equal(libraryImportStatusDescriptor.invocationPolicy.impactClass, "read");
 assert.equal(libraryImportStatusDescriptor.invocationPolicy.readOnlyHint, true);
 {
     let startCalls = 0;
@@ -430,6 +434,8 @@ function testStageToolContext(): StageToolContext {
         ownerScope: "local",
         sessionId: "library-import-control-test-session",
         requestId: "library-import-control-test-request",
+        actorTrustBasis: "user-intent-backed",
+        askBeforeSourceOfTruthEdits: false,
         clock: () => now,
         handleMinting: {
             async mint() {

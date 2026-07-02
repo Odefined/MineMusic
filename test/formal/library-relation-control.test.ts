@@ -32,14 +32,18 @@ assert.deepEqual(relationDescriptors.map((descriptor) => descriptor.name), [
 ]);
 assert.deepEqual(libraryRelationGetDescriptor.errors.map((error) => error.code), ["invalid_input", "item_not_found", "owner_scope_unsupported"]);
 assert.equal(libraryRelationGetDescriptor.sideEffect.durableUserStateWrite, false);
+assert.equal(libraryRelationGetDescriptor.sideEffect.ownerCurationWrite, false);
 assert.equal(libraryRelationGetDescriptor.sideEffect.externalCall, false);
 assert.equal(libraryRelationGetDescriptor.invocationPolicy.readOnlyHint, true);
+assert.equal(libraryRelationGetDescriptor.invocationPolicy.impactClass, "read");
 assert.equal("ownerRelationDrivenByUserRequest" in libraryRelationGetDescriptor.invocationPolicy, false);
 for (const descriptor of relationDescriptors.slice(1)) {
     assert.equal(descriptor.sideEffect.durableUserStateWrite, true);
+    assert.equal(descriptor.sideEffect.ownerCurationWrite, true);
     assert.equal(descriptor.sideEffect.externalCall, false);
     assert.equal(descriptor.invocationPolicy.defaultDecision, "auto");
-    assert.equal(descriptor.invocationPolicy.ownerRelationDrivenByUserRequest, true);
+    assert.equal(descriptor.invocationPolicy.impactClass, "local-bounded");
+    assert.equal("ownerRelationDrivenByUserRequest" in descriptor.invocationPolicy, false);
     assert.equal(descriptor.invocationPolicy.destructiveHint, false);
     assert.deepEqual(descriptor.errors.map((error) => error.code), ["invalid_input", "item_not_found", "owner_scope_unsupported", "item_not_writable"]);
 }
@@ -267,6 +271,8 @@ function testStageToolContext(input: {
         ownerScope: "local",
         sessionId: "library-relation-control-test",
         requestId: "library-relation-control-test-request",
+        actorTrustBasis: "user-intent-backed",
+        askBeforeSourceOfTruthEdits: false,
         clock: () => now,
         handleMinting: {
             async mint() {

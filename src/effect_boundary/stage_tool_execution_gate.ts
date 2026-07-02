@@ -79,76 +79,61 @@ function decide(
     };
   }
 
-  if (
-    descriptor.invocationPolicy.defaultDecision === "auto" &&
-    descriptor.sideEffect.durableUserStateWrite === false
-  ) {
+  if (descriptor.invocationPolicy.defaultDecision === "ask") {
     return {
-      decision: "allow",
+      decision: "ask",
       auditLevel: "metadata",
-      internalReason: "defaultDecision=auto and durableUserStateWrite=false",
+      internalReason: policySummary(input),
     };
   }
 
-  if (
-    descriptor.invocationPolicy.defaultDecision === "auto" &&
-    descriptor.sideEffect.durableUserStateWrite === true &&
-    descriptor.invocationPolicy.admissionDrivenByPresentation === true
-  ) {
-    return {
-      decision: "allow",
-      auditLevel: "metadata",
-      internalReason: "auto presentation-driven admission",
-    };
-  }
+  const tableDecision = tableDecisionFor(input);
 
   if (
-    descriptor.invocationPolicy.defaultDecision === "auto" &&
-    descriptor.sideEffect.durableUserStateWrite === true &&
-    descriptor.invocationPolicy.intakeDrivenByUserRequest === true
+    tableDecision === "allow" &&
+    descriptor.invocationPolicy.impactClass === "local-bounded" &&
+    input.actorTrustBasis === "user-intent-backed" &&
+    input.askBeforeSourceOfTruthEdits &&
+    descriptor.sideEffect.ownerCurationWrite
   ) {
     return {
-      decision: "allow",
+      decision: "ask",
       auditLevel: "metadata",
-      internalReason: "auto owner-scoped library intake",
-    };
-  }
-
-  if (
-    descriptor.invocationPolicy.defaultDecision === "auto" &&
-    descriptor.sideEffect.durableUserStateWrite === true &&
-    descriptor.invocationPolicy.ownerRelationDrivenByUserRequest === true
-  ) {
-    return {
-      decision: "allow",
-      auditLevel: "metadata",
-      internalReason: "auto owner-scoped relation edit",
-    };
-  }
-
-  if (
-    descriptor.invocationPolicy.defaultDecision === "auto" &&
-    descriptor.sideEffect.durableUserStateWrite === true &&
-    descriptor.invocationPolicy.collectionDrivenByUserRequest === true
-  ) {
-    return {
-      decision: "allow",
-      auditLevel: "metadata",
-      internalReason: "auto owner-scoped collection edit",
+      internalReason: `ask-before-source-of-truth-edits tightened owner curation write; ${policySummary(input)}`,
     };
   }
 
   return {
-    decision: "ask",
+    decision: tableDecision,
     auditLevel: "metadata",
-    internalReason: policySummary(input),
+    internalReason: `impact-trust table decision=${tableDecision}; ${policySummary(input)}`,
   };
+}
+
+function tableDecisionFor(
+  input: StageToolExecutionGatePreflightInput,
+): Exclude<StageToolExecutionGatePreflightResult["decision"], "deny"> {
+  const { impactClass } = input.descriptor.invocationPolicy;
+
+  if (impactClass === "read" || impactClass === "local-bounded") {
+    return "allow";
+  }
+
+  if (input.actorTrustBasis === "user-intent-backed") {
+    return "ask";
+  }
+
+  return "raise-to-conversation";
 }
 
 function policySummary(input: StageToolExecutionGatePreflightInput): string {
   return [
     `defaultDecision=${input.descriptor.invocationPolicy.defaultDecision}`,
+    `impactClass=${input.descriptor.invocationPolicy.impactClass}`,
+    `actorTrustBasis=${input.actorTrustBasis}`,
+    `askBeforeSourceOfTruthEdits=${String(input.askBeforeSourceOfTruthEdits)}`,
     `durableUserStateWrite=${String(input.descriptor.sideEffect.durableUserStateWrite)}`,
+    `ownerCurationWrite=${String(input.descriptor.sideEffect.ownerCurationWrite)}`,
     `tool=${input.descriptor.name}`,
   ].join("; ");
 }
