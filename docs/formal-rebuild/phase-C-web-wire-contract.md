@@ -7,7 +7,8 @@
 > `actionType` registry (32 names), and per-action payload shapes (§5.6).
 > Envelope structure, result channel, actionType names, and all 32 payloads
 > are frozen. **Part 3 (audio GET, §6) frozen 2026-07-02**; **Part 4 (connection,
-> §7) frozen 2026-07-02**; Part 5 pending (shared enums/errors). §1.4/§2.8/§3.5/§5.8 revised 2026-07-02: transcripts are per-run
+> §7) frozen 2026-07-02**; **Part 5 (shared enums + outcome mapping, §8) frozen
+> 2026-07-02**. §1.4/§2.8/§3.5/§5.8 revised 2026-07-02: transcripts are per-run
 > (no wire-level merge, no per-message `actor`); transport C — the Main run rides
 > the chat POST response, the Radio run + state + `action.result` ride the
 > workspace persistent stream. §5.6/§5.8 also revised 2026-07-02: `main.abort`
@@ -800,7 +801,7 @@ receives a correlated result.
   receipt only** — it never means the command succeeded. The command business
   outcome rides the downstream `action.result` (`outcome.committed`).
 - `ack.rejected` reasons (`unknown_action_type` / `unresolvable_handle` /
-  `missing_basis` / `malformed`) are Part 5 shared-enum detail. Basis rejection
+  `missing_basis` / `malformed`) are a **closed** 4-value enum (§8.1). Basis rejection
   splits across the two channels by a crisp boundary: `missing_basis` is
   adapter-stage (the envelope lacks a required `basis` field entirely — a
   structural validation failure); a present-but-stale `basis` is command-stage
@@ -813,7 +814,7 @@ receives a correlated result.
 correlates by `correlationId`):
 
 ```
-{ type: "action.result", correlationId, outcome: "committed" | "rejected" | "voided_stale", reason?: "basis_stale" | <Part 5 detail> }
+{ type: "action.result", correlationId, outcome: "committed" | "rejected" | "voided_stale" | "noop", reason?: string }
 ```
 
 - `correlationId` = the envelope's `actionId` (§5.2). ADR-0036 names the result
@@ -825,17 +826,22 @@ correlates by `correlationId`):
   `RunFinished.interrupt`. `RunFinished` is the chat-run terminal
   (`RunFinishedOutcome` is `success | interrupt`, requires `threadId`+`runId`,
   and `verifyEvents` rejects any event after it); per-action outcomes
-  (`committed`/`rejected`/`voided_stale`) have no place in that union and would
+  (`committed`/`rejected`/`voided_stale`/`noop`) have no place in that union and would
   terminate the SSE run on every action. CUSTOM is AG-UI's pass-through slot
   for domain events — `onCustomEvent` does not touch the run state machine.
 - Aligns with ADR-0036 `WorkbenchActionResult(correlationId, outcome:
-  committed | rejected, reason)`; **wire adds `voided_stale`** for basis-stale-
-  at-commit — the 1:1 pass-through of the live `voided_stale` error code
+  committed | rejected, reason)`; **wire adds `voided_stale` and `noop`**.
+  `voided_stale` is the 1:1 pass-through of the live `voided_stale` error code
   (`commands.ts`), applying to **all** concern-revisioned actions (queue/radio/
-  proposal alike). The adapter maps live `error.code` → wire `outcome` by code
-  literal, no owning-command branching. ADR-0036 currently pins `outcome` to
-  `committed | rejected` (closed), so adopting `voided_stale` requires amending
-  ADR-0036 (tracked as a Phase C follow-up). **Retry vs give-up is read from
+  proposal alike). `noop` is the 1:1 pass-through of the live `*_noop` codes
+  (`queue_noop` / `playback_noop` / `radio_truth_noop`, `records.ts`) —
+  idempotent operations whose result equals the current state; it stays out of
+  `rejected` so `rejected` carries only real business refusals the user should
+  act on, not idempotent no-ops (§8.2 rationale). The adapter maps live
+  `error.code` → wire `outcome` by code literal, no owning-command branching.
+  ADR-0036 currently pins `outcome` to `committed | rejected` (closed), so
+  adopting `voided_stale` + `noop` requires amending ADR-0036 (tracked as one
+  Phase C follow-up). **Retry vs give-up is read from
   slice state, not outcome**: queue/radio stale → resync shows target still in
   slice → retry; proposal stale → `parkedProposalUnits` unit `.state=
   voided_stale`/removed → give up confirm.
@@ -851,7 +857,7 @@ correlates by `correlationId`):
 actions share one outcome channel so the frontend has a single correlation
 path. The sync layer covers only adapter-front validation
 (routing/resolve/basis-presence/structure); the command business outcome
-(`committed` / `rejected` / `voided_stale`) is async.
+(`committed` / `rejected` / `voided_stale` / `noop`) is async.
 
 ### 5.4 `action.result` ⊥ `StateDelta`
 
@@ -1301,11 +1307,79 @@ commands with per-concern OCC (ADR-0036); no single-controller write token, no
 audio-output arbitration. Audio follows logical (§2.11); multi-tab simultaneous
 play is the user's responsibility (single-tab assumed).
 
-## 8. Pending parts (Part 5)
+## 8. Shared enums and outcome mapping (Part 5 — frozen 2026-07-02)
 
-- **Part 5 — Shared enums/errors**: `actualState`, `radioSession lifecycle`,
-  Signal Class, action verb, card/`effectKind`, `statusKind`; the typed
-  `WorkbenchActionResult`; reject/`voided_stale`/gap outcomes.
+Part 5 collects the typed enums defined inline across §2/§5 and freezes the
+`action.result` outcome mapping. Two value sets are explicitly **not** frozen
+here — they settle in the PC plans that own the behavior.
+
+### 8.1 Frozen enums (collected)
+
+| enum | values | defined at |
+|---|---|---|
+| `nowPlaying.logicalIntent.status` | `playing` \| `paused` | §2.2 |
+| `nowPlaying.verifiedActualState.state` | `playing` \| `buffering` \| `ended` \| `failed` | §2.2 |
+| `radioSession.lifecycle` | `Running` \| `Paused` \| `Shutdown` | §2.4 |
+| `parkedProposalUnits[].state` | `pending` \| `confirmed` \| `rejected` \| `expired` \| `voided_stale` | §2.7 |
+| `parkedProposalUnits[].effectKind` | = `actionType` (typed, never localized) | §2.7, §5.5 |
+| `ack.rejected.reason` (**closed**) | `unknown_action_type` \| `unresolvable_handle` \| `missing_basis` \| `malformed` | §5.3 |
+| `WorkbenchActionResult.outcome` | `committed` \| `rejected` \| `voided_stale` \| `noop` | §5.3, §8.2 |
+
+Excluded from the wire (backend-internal): **Signal Class**
+(translate-before-command, §5.5), **speechLevel** (activity Notify/Silent
+filter, §2.9), raw tool names (translated to `statusKind`, §2.9).
+
+### 8.2 `WorkbenchActionResult` outcome mapping (frozen)
+
+The downstream `action.result` event (§5.3) carries `correlationId`,
+`outcome`, optional `reason`. The adapter maps the live command result to wire
+`outcome` **by code literal, no owning-command branching**:
+
+| live command result | wire `outcome` | `reason` |
+|---|---|---|
+| `Result.ok` | `committed` | absent |
+| `code: "*_noop"` (`queue_noop` / `playback_noop` / `radio_truth_noop`) | `noop` | the code literal (open) |
+| `code: "voided_stale"` | `voided_stale` | `"basis_stale"` |
+| any other `Result.err` code | `rejected` | the code literal (open) |
+
+- **`reason` is an open string; its value set is NOT frozen on the wire** — it
+  passes the live `error.code` through verbatim (same pass-through strategy as
+  `voided_stale` and the §5.5 `actionType` open enum). The frontend does NOT
+  branch on `reason`: `rejected` is handled uniformly (surface + resync).
+- **`ack` vs `action.result` reason sets differ by producer**: `ack.rejected
+  .reason` is a **closed** 4-value enum (adapter-produced: routing / handle /
+  basis-presence / structure); `action.result.reason` is an **open** string
+  (command-produced code pass-through). The adapter owns the closed set; the
+  command layer owns the open one.
+- **`*_noop` codes (`queue_noop` / `playback_noop` / `radio_truth_noop`) lift
+  to a fourth outcome `noop`** — same `error.code` → `outcome` promotion as
+  `voided_stale` (the adapter maps by code literal), not a backend-semantics
+  flip. Noop fires when the operation's result equals the current state (queue
+  move to the same index / replace with identical content / radio direction at
+  its current value / playback at the current material / clear with no editable
+  items — `records.ts`): idempotent, neither a success-with-change nor a
+  refusal. Keeping noop out of `rejected` preserves `rejected`'s UX purity:
+  `rejected` carries only real business refusals (`queue_full` /
+  `queue_index_invalid` / ...) the user should see and act on; folding noop
+  into `rejected` would force a dilemma — either surface a spurious "failed"
+  toast for an idempotent move-to-same-index, or swallow real refusals
+  silently. `noop` is its own outcome so each path renders honestly.
+- **Frontend handling**: `noop` → idempotent acknowledgement, **skip resync**
+  (the backend guarantees no state changed, so re-fetching the snapshot is
+  wasted work); `rejected` → surface + resync. `noop`'s `reason` still rides
+  the open string (which `*_noop` code) for debug visibility. ADR-0036's
+  `committed | rejected` becomes `committed | rejected | voided_stale | noop`;
+  amending ADR-0036 for `voided_stale` + `noop` is one Phase C follow-up.
+- **`action.result` is best-effort, not redelivered** (§5.4): a missed result
+  (disconnect between POST and SSE delivery) is recovered by §0 gap-resync,
+  not by replaying the outcome.
+
+### 8.3 Deferred to PC plans (NOT frozen in Part 5)
+
+| value set | deferred to | why |
+|---|---|---|
+| `activity.statusKind` (→ `activityType`) value set | PC13 | the enum is frozen (typed, never a raw tool name); the value list settles when activity emission lands |
+| `parkedProposalUnits[].structuredFacts` per-`effectKind` fields | PC8 | discriminated-by-`effectKind` is frozen; per-command field enumeration settles in the Effect Boundary build |
 
 ## 9. Phase C implementation provenance (slice / event-stream → PC)
 
