@@ -14,6 +14,7 @@ Library Import stage-adapter RuntimeModule and
 metadata-only source-listing plus import drive/status tools, the Library
 Relation service/runtime module and relation get/edit tools, the Library
 Catalog read port/runtime module and list-scope/browse/sample/summary tools, a
+playback-source resolver read port,
 material ref factory, a top-level source-of-truth write facade, the local
 source scan service plus advance-job/start/recovery factories, and error
 types. It
@@ -70,6 +71,7 @@ projections) is the authority of the phase-26 spec, not this port list.
 | `createLibraryCatalogReadPort` | Server Host composition / MDP stage adapter | Read owner-visible catalog membership for the library baseline, source-library scopes, and relation scopes from owner catalog projection plus material records. | `src/music_data_platform/library_catalog_read.ts` |
 | `createLibraryCatalogRuntimeModule` | Server Host composition | MDP-owned Stage Adapter RuntimeModule for `library.catalog.*`; contributes the `library.catalog` instrument plus list_scopes/browse/sample/summary tool registrations backed by catalog membership reads and Material Projection display. | `src/music_data_platform/stage_adapter/index.ts` |
 | `createLibraryCatalogListScopesRegistration` / `createLibraryCatalogBrowseRegistration` / `createLibraryCatalogSampleRegistration` / `createLibraryCatalogSummaryRegistration` | Server Host composition / Stage Core | Stage Interface registrations for compact read-only catalog inspection tools over narrow catalog read, Material Projection, and catalog-scope availability ports. | `src/music_data_platform/stage_adapter/catalog.ts` |
+| `createPlaybackSourceResolver` | Server Host composition / future Workbench playback route | Read a material's current survivor and bound source entities, ranked with Source Preference Policy at `purpose: "playback"`. Returns domain `SourceEntity[]` only; no URLs, tokens, or player DTOs. | `src/music_data_platform/playback_source_resolver.ts`, `src/music_data_platform/material_bound_sources.ts` |
 | `createOwnerMaterialRelationCommands` | Internal commands/tests | Record and remove current-state material-scope owner relation facts. | `src/music_data_platform/owner_material_relation_commands.ts` |
 | `createOwnerMaterialRelationRecords` | Internal commands/tests/later policy phases | Read internal owner material relation rows with explicit status handling. | `src/music_data_platform/owner_material_relation_records.ts` |
 | `createOwnerCatalogProjectionCommands` | Internal commands/tests | Rebuild library-scope source-library projection plus material-scope source-library and owner-relation catalog entries through transaction-scoped SQL commands. | `src/music_data_platform/owner_catalog_projection.ts` |
@@ -164,6 +166,7 @@ current `source_material_bindings` row for the same `sourceRef`.
 | `createOwnerCatalogProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSourceLibraryEntriesForLibrary({ ownerScope, libraryRef })`, `rebuildSourceLibraryEntriesForMaterial({ ownerScope, materialRef })`, and `rebuildOwnerRelationEntries({ ownerScope, materialRef })` | writes `owner_material_entries` only |
 | `createOwnerCatalogRecords({ db })` | database context | `listOwnerMaterialEntries(...)`, `listOwnerCatalogMaterials(...)` | reads `owner_material_entries` and `owner_material_catalog_view` |
 | `createLibraryCatalogReadPort({ db })` | database context | `listCatalogItems({ ownerScope, scope })` for library, source-library, and relation scopes | reads `owner_material_catalog_view`, `owner_material_entries`, and `material_records` |
+| `createPlaybackSourceResolver({ db })` | database context plus optional `SourcePreferencePolicy` | `resolvePlaybackSources({ materialRef })` -> requested material ref, survivor material ref, and bound `SourceEntity[]` ranked at `purpose: "playback"` | reads `material_records`, `source_material_bindings`, and `source_records` |
 | `createSearchMetadataProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSearchMetadataDocument({ materialRef })` and `rebuildSearchMetadataDocuments({ materialRefs })` | writes `search_metadata_documents` only |
 | `createSearchMetadataProjectionRecords({ db })` | database context | `getSearchMetadataDocument({ materialRef })` | reads `search_metadata_documents` |
 | `createMusicDataPlatformMetadataLookupSearchWorkspace({ database })` | root database | `searchMetadataLookupResultSet(...)` | reads owner catalog, material/source identity, `search_metadata_documents`, `search_result_sets`, `search_result_rows`, and `material_candidate_cache`; writes `search_result_sets`, `search_result_rows`, and `material_candidate_cache` only |
@@ -321,6 +324,8 @@ Current guards:
   `source_material_bindings`, canonical inclusion guards, runtime provider
   candidate document building, repeated rebuild replacement, active-empty
   rebuild, and delete-on-missing-or-inactive behavior.
+- playback-source resolver tests cover survivor-following and source ranking at
+  `purpose: "playback"` without producing URLs, tokens, or player DTOs.
 - ref-validation tests cover the internal Music Data Platform ref/refKey
   helper plus area-specific validator error codes for malformed external
   inputs.

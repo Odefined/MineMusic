@@ -2,11 +2,18 @@ import { randomUUID } from "node:crypto";
 
 import type { Result, StageError } from "../contracts/kernel.js";
 import {
+  MAIN_LOCAL_SOURCE_ROOT_ID,
   assertLocalSourceRootId,
   assertNormalizedLocalSourceRelativePath,
 } from "../music_data_platform/local_source_path.js";
-import type { LocalSourceScanRootDirResolver } from "./local_source_scan_config.js";
 import { resolveUnderRoot } from "./local_source_path_resolver.js";
+
+export type LocalAudioRootDirResolver = (rootId: string) => string | undefined;
+
+export type LocalAudioRootDescriptor = {
+  rootId: string;
+  rootDir: string;
+};
 
 export type LocalAudioTokenAnchor = {
   rootId: string;
@@ -43,7 +50,12 @@ export type LocalAudioFileResolver = {
 };
 
 export type CreateLocalAudioFileResolverInput = {
-  resolveRootDir: LocalSourceScanRootDirResolver;
+  resolveRootDir: LocalAudioRootDirResolver;
+};
+
+export type CreateLocalAudioRootDirResolverInput = {
+  mainRootDir?: string;
+  scanRoots?: readonly LocalAudioRootDescriptor[];
 };
 
 export type ByteRangePlan =
@@ -150,6 +162,20 @@ export function createLocalAudioFileResolver(
       };
     },
   };
+}
+
+export function createLocalAudioRootDirResolver(
+  input: CreateLocalAudioRootDirResolverInput,
+): LocalAudioRootDirResolver {
+  const rootDirs = new Map<string, string>();
+  if (input.mainRootDir !== undefined) {
+    rootDirs.set(MAIN_LOCAL_SOURCE_ROOT_ID, input.mainRootDir);
+  }
+  for (const root of input.scanRoots ?? []) {
+    assertLocalSourceRootId(root.rootId);
+    rootDirs.set(root.rootId, root.rootDir);
+  }
+  return (rootId) => rootDirs.get(rootId);
 }
 
 export function planByteRange(input: {

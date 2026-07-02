@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createInMemoryLocalAudioTokenStore,
   createLocalAudioFileResolver,
+  createLocalAudioRootDirResolver,
   planByteRange,
 } from "../../src/server/local_audio_serving.js";
 import { resolveUnderRoot } from "../../src/server/local_source_path_resolver.js";
@@ -42,8 +43,16 @@ import { resolveUnderRoot } from "../../src/server/local_source_path_resolver.js
 }
 
 {
+  const resolveRootDir = createLocalAudioRootDirResolver({
+    mainRootDir: "/music/main",
+    scanRoots: [{ rootId: "scan-a", rootDir: "/music/scan-a" }],
+  });
+  assert.equal(resolveRootDir("main"), "/music/main");
+  assert.equal(resolveRootDir("scan-a"), "/music/scan-a");
+  assert.equal(resolveRootDir("missing"), undefined);
+
   const resolver = createLocalAudioFileResolver({
-    resolveRootDir: (rootId) => rootId === "main" ? "/music/root" : undefined,
+    resolveRootDir,
   });
 
   assert.deepEqual(resolver.resolve({
@@ -52,7 +61,16 @@ import { resolveUnderRoot } from "../../src/server/local_source_path_resolver.js
   }), {
     ok: true,
     value: {
-      absolutePath: "/music/root/tracks/a.mp3",
+      absolutePath: "/music/main/tracks/a.mp3",
+    },
+  });
+  assert.deepEqual(resolver.resolve({
+    rootId: "scan-a",
+    relativePath: "tracks/a.mp3",
+  }), {
+    ok: true,
+    value: {
+      absolutePath: "/music/scan-a/tracks/a.mp3",
     },
   });
 
